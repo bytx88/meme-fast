@@ -1,11 +1,21 @@
 export const BANDS=[{name:'XL',label:'≥ $10K',min:10000},{name:'L',label:'$1K–<10K',min:1000},{name:'M',label:'$100–<1K',min:100},{name:'S',label:'< $100',min:0}];
 export const canonical=a=>typeof a==='string'&&/^0x/i.test(a)?a.toLowerCase():a;
+export const listingKey=t=>`${t.network}:${canonical(t.address)}`;
+export function uniqueListings(tokens){return [...new Map(tokens.map(t=>[listingKey(t),t])).values()]}
 export function normalizeTrade(event,token,pool){
   const a=event.attributes||{},address=canonical(token),from=canonical(a.from_token_address),to=canonical(a.to_token_address);
   const side=to===address&&from!==address?'buy':from===address&&to!==address?'sell':null;
   const usd=Number(a.volume_in_usd),time=Date.parse(a.block_timestamp);
   if(!event.id||!side||a.volume_in_usd==null||!Number.isFinite(usd)||usd<=0||!Number.isFinite(time))return null;
-  return {id:event.id,side,usd,time,pool:pool.name,poolAddress:pool.address,hash:a.tx_hash||'',wallet:a.tx_from_address||''};
+  return {id:pool.network?`${pool.network}:${event.id}:${address}`:event.id,sourceId:event.id,network:pool.network||'',tokenKey:pool.network?listingKey({network:pool.network,address:token}):'',from,to,side,usd,time,pool:pool.name,poolAddress:pool.address,hash:a.tx_hash||'',wallet:a.tx_from_address||''};
+}
+export function scopeTrades(trades,tokens,scope='all'){
+  const members=new Set(uniqueListings(tokens).map(listingKey)),seen=new Set();
+  return trades.filter(t=>{
+    if(!members.has(t.tokenKey)||(scope!=='all'&&t.tokenKey!==scope))return false;
+    if(scope==='all'&&members.has(`${t.network}:${t.from}`)&&members.has(`${t.network}:${t.to}`))return false;
+    const id=`${t.network}:${t.sourceId}`;if(seen.has(id))return false;seen.add(id);return true;
+  });
 }
 export function summarize(trades,minutes,now=Date.now()){
   const seen=new Set(),cutoff=now-minutes*60000;
