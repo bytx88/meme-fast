@@ -1,0 +1,5 @@
+.sites-runtime/
+.env
+.env.*
+node_modules/
+*.zip

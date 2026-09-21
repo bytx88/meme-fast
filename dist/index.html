@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meme Fast · Token Flow</title>
+  <meta name="description" content="Find a token and see observed on-chain buy volume, sell volume, net flow, and swap-size breakdowns.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310131c'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23fb7185' stroke-width='5'/%3E%3Cpath d='M16 7a9 9 0 0 1 9 9' fill='none' stroke='%232bdfaa' stroke-width='5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+<main>
+  <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST <span class="brand-sub">/ FLOW</span></a><span class="source-label">ON-CHAIN SWAPS</span></header>
+  <section class="search-area" aria-label="Find a token">
+    <div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div>
+    <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="BONK, PEPE, or a contract address" required><button id="search-button" class="primary" type="submit">Find token <span aria-hidden="true">↗</span></button></form>
+    <div id="search-status" role="status"></div><div id="results" class="results" hidden></div>
+  </section>
+  <div id="error" class="error" role="alert" hidden></div>
+  <section id="dashboard" aria-label="Token swap flow">
+    <div class="token-row"><div class="identity"><div class="token-avatar" id="avatar">B</div><div><div class="token-title"><h2 id="symbol">BONK</h2><span class="network" id="network">solana</span></div><p id="token-name">Bonk</p></div></div><a id="token-link" class="contract" target="_blank" rel="noopener noreferrer">View token ↗</a></div>
+    <div class="address-row"><span id="address">DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263</span></div>
+    <div class="toolbar"><div class="periods" aria-label="Time window"><button type="button" data-window="5">5m</button><button type="button" data-window="15">15m</button><button type="button" data-window="60" aria-pressed="true">1h</button><button type="button" data-window="1440">24h</button></div><div class="refresh-group"><span id="updated">Loading swaps…</span><button type="button" id="refresh">Refresh ↻</button></div></div>
+    <div class="chart-grid" id="charts" aria-busy="true">
+      <section class="panel flow-panel"><div class="panel-heading"><h3>Trade overview</h3><span class="eyebrow">USD VOLUME</span></div>
+        <div class="donut" id="donut" role="img" aria-label="Waiting for swap data"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="ring-track" cx="120" cy="120" r="98"/><circle id="sell-ring" cx="120" cy="120" r="98"/><circle id="buy-ring" cx="120" cy="120" r="98" pathLength="100" stroke-dasharray="0 100"/></svg><div class="donut-center"><span id="net-label">Net flow</span><strong id="net-value">—</strong><span id="swap-count">Fetching actual swaps</span></div></div>
+        <div class="totals"><div><span class="label"><i class="dot buy"></i>Inflow · buys</span><strong id="buy-value">—</strong><span id="buy-share">—</span></div><div><span class="label"><i class="dot sell"></i>Outflow · sells</span><strong id="sell-value">—</strong><span id="sell-share">—</span></div></div>
+      </section>
+      <section class="panel size-panel"><div class="panel-heading"><h3>Flow by swap size</h3><span class="eyebrow">USD</span></div><div class="bar-heading"><span>BUYS</span><span>SIZE</span><span>SELLS</span></div><div id="size-bars"></div><div class="size-foot"><span>Small to extra large, by swap value.</span><span>Both sides use the same scale.</span></div></section>
+    </div>
+    <div class="coverage"><span class="sample-tag">RECENT SWAP SAMPLE</span><p id="coverage-text" aria-live="polite">Loading the most liquid indexed pools for this token.</p></div>
+    <section class="tape-section"><div class="panel-heading"><h3>Latest observed swaps</h3><span id="tape-count" class="eyebrow">—</span></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Side</th><th class="numeric">Value (USD)</th><th>Pool</th><th>Transaction</th></tr></thead><tbody id="tape"><tr><td colspan="5" class="table-empty">Loading swaps…</td></tr></tbody></table></div></section>
+    <details class="method"><summary>Data coverage & calculation</summary><div><p>Data comes from GeckoTerminal, across up to 3 of the most liquid pools returned for the selected token. Each request returns at most 300 recent swaps per pool from the past 24 hours. Smaller pools, unindexed tokens, other exchanges, and older swaps may be missing.</p><p>The selected time window filters the returned sample; it does not fetch a complete history. Buy and sell direction is measured against the selected token. Net flow is observed buy USD volume minus observed sell USD volume, not the token’s total capital inflow or a price forecast. Multi-pool routes can contain multiple swap legs.</p><p>Size bands: S &lt; $100; M $100–&lt;$1,000; L $1,000–&lt;$10,000; XL ≥ $10,000. Duplicate provider event IDs are counted once. Automatic refresh runs every 60 seconds while this page is visible.</p><div id="pool-list"></div></div></details>
+  </section>
+  <footer><span>MEME FAST <span class="footer-divider">/</span> Follow the flow.</span><a href="https://www.geckoterminal.com" target="_blank" rel="noopener noreferrer">Data by GeckoTerminal ↗</a></footer>
+</main>
+</body>
+</html>
