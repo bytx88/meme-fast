@@ -1,24 +1,21 @@
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD} from './core.mjs';
 import {loadListings} from './data.mjs';
+import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 const renderTape=setupTape();
-const $=id=>document.getElementById(id),API='https://api.geckoterminal.com/api/v2';
+const $=id=>document.getElementById(id),api=createRequestClient();
 const money=formatUSD;
 const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
 const short=s=>s.length>18?s.slice(0,7)+'…'+s.slice(-6):s;
 const state={token:{address:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',network:'solana',symbol:'BONK',name:'Bonk'},minutes:60,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];
-const cache=new Map();
-let requestGate=Promise.resolve(),lastRequest=0;
-async function pace(){const ticket=requestGate.then(async()=>{const delay=Math.max(0,2100-(Date.now()-lastRequest));if(delay)await new Promise(resolve=>setTimeout(resolve,delay));lastRequest=Date.now()});requestGate=ticket.catch(()=>{});return ticket}
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
-async function api(path,force=false){const old=cache.get(path);if(!force&&old&&Date.now()-old.time<60000)return old.value;await pace();const response=await fetch(API+path,{signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error(response.status===429?'The data provider is rate-limiting requests. Wait a minute, then refresh.':`The data provider could not return swaps (HTTP ${response.status}). Please try again.`);const value=await response.json();if(!Array.isArray(value.data))throw new Error('The data provider returned an unexpected response. Please try again.');cache.set(path,{time:Date.now(),value});return value}
 function tokenFromIncluded(t){const a=t.attributes||{};if(!a.address)return null;return {address:a.address,network:t.id.slice(0,-a.address.length-1),symbol:a.symbol||a.name||'Token',name:a.name||a.symbol||'Token'}}
 async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
-  const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
-  try{const j=await api(`/search/pools?query=${encodeURIComponent(query)}&include=base_token,quote_token`);if(generation!==state.searchGeneration)return [];
+  state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
+  try{const j=await api(`/search/pools?query=${encodeURIComponent(query)}&include=base_token,quote_token`,{signal:controller.signal,priority:20});if(generation!==state.searchGeneration)return [];
     const tokens=(j.included||[]).filter(t=>t.type==='token').map(tokenFromIncluded).filter(Boolean);const q=query.toLowerCase();
     const found=tokens.filter(t=>canonical(t.address)===canonical(query)||t.symbol.toLowerCase().includes(q)||t.name.toLowerCase().includes(q)).map(t=>({...t,liquidity:j.data.filter(p=>[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].includes(`${t.network}_${t.address}`)).reduce((s,p)=>s+(Number(p.attributes.reserve_in_usd)||0),0)})).sort((a,b)=>Number(b.symbol.toLowerCase()===q)-Number(a.symbol.toLowerCase()===q)||b.liquidity-a.liquidity).slice(0,12);
     state.matches=uniqueListings(found);state.draft=new Set(state.matches.filter(t=>state.tokens.some(active=>listingKey(active)===listingKey(t))).map(listingKey));
@@ -34,10 +31,11 @@ function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.toke
 async function selectToken(token){return selectListings([token])}
 async function selectListings(tokens){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.token=selected[0];state.scope='all';state.trades=[];state.pools=[];state.listings=[];state.skipped=0;state.loadError=false;state.fetched=0;$('results').hidden=true;$('combine-controls').hidden=true;$('search-status').textContent='';updateIdentity();render();return load()}
 async function load(){
+  state.loadController?.abort();const controller=new AbortController();state.loadController=controller;
   const generation=++state.generation,tokens=[...state.tokens],hadData=state.pools.some(p=>p.status==='loaded');state.busy=true;state.loadError=false;state.progress='Fetching swaps…';$('refresh').disabled=true;$('charts').setAttribute('aria-busy','true');$('updated').textContent='Fetching swaps…';error('');render();
-  try{const result=await loadListings(tokens,api,message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}});
+  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}});
     if(!result||generation!==state.generation)return;
-    Object.assign(state,result);state.fetched=Date.now();render();
+    Object.assign(state,result);state.fetched=Date.now();render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
     return currentSummary();
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=false;$('charts').setAttribute('aria-busy','false')}}
