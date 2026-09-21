@@ -14,3 +14,8 @@ export function summarize(trades,minutes,now=Date.now()){
   for(const t of rows){if(t.side==='buy'){buy+=t.usd;buyCount++}else{sell+=t.usd;sellCount++}bands.find(b=>t.usd>=b.min)[t.side]+=t.usd}
   return {rows,bands,buy,sell,net:buy-sell,total:buy+sell,buyCount,sellCount};
 }
+export function sampleAvailability(trades,minutes,now=Date.now()){
+  const all=summarize(trades,1440,now),selected=summarize(trades,minutes,now);
+  return {status:selected.rows.length?'available':all.rows.length?'outside-window':'no-data',lastTrade:all.rows[0]||null,totalReturned:all.rows.length};
+}
+export function formatUSD(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:n!==0&&Math.abs(n)<1?6:2}).format(n)}

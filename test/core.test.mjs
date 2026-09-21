@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTrade,summarize} from '../dist/core.mjs';
+import {normalizeTrade,summarize,sampleAvailability,formatUSD} from '../dist/core.mjs';
 const now=Date.parse('2026-09-21T12:00:00Z');
 const event=(id,from,to,usd)=>({id,attributes:{from_token_address:from,to_token_address:to,volume_in_usd:usd,block_timestamp:new Date(now).toISOString(),kind:'sell'}});
 const pool={name:'TOKEN / USDC',address:'pool'};
@@ -9,3 +9,5 @@ test('EVM addresses compare case-insensitively; Solana addresses preserve case',
 test('Invalid volume and unrelated swaps are excluded',()=>{assert.equal(normalizeTrade(event('a','A','B','2'),'C',pool),null);assert.equal(normalizeTrade(event('a','A','B','oops'),'B',pool),null);assert.equal(normalizeTrade(event('a','A','B',null),'B',pool),null)});
 test('Size boundaries, window filtering and event deduplication remain exact',()=>{const rows=[99,100,1000,10000].map((usd,i)=>({id:String(i),side:'buy',usd,time:now}));rows.push({...rows[0]},{id:'old',side:'sell',usd:40000,time:now-3600001},{id:'future',side:'sell',usd:90000,time:now+1000});const s=summarize(rows,60,now);assert.equal(s.rows.length,4);assert.deepEqual(s.bands.map(b=>b.buy),[10000,1000,100,99]);assert.equal(s.net,11199)});
 test('Different swap events within the same transaction are retained',()=>{const s=summarize([{id:'x:1',hash:'x',side:'buy',usd:200,time:now},{id:'x:2',hash:'x',side:'sell',usd:50,time:now}],5,now);assert.equal(s.net,150);assert.equal(s.rows.length,2)});
+test('XL records outside 1h remain visible in 24h without implying zero market flow',()=>{const trades=[{id:'xl',side:'sell',usd:0.005398691,time:Date.parse('2026-09-21T05:25:43Z')}];assert.equal(sampleAvailability(trades,60,now).status,'outside-window');assert.equal(sampleAvailability(trades,60,now).totalReturned,1);assert.equal(sampleAvailability(trades,1440,now).status,'available');assert.equal(sampleAvailability([],60,now).status,'no-data')});
+test('Small nonzero swaps are displayed with sub-cent precision',()=>{assert.equal(formatUSD(0.0001),'$0.0001');assert.equal(formatUSD(0.005398691),'$0.005399');assert.equal(formatUSD(0),'$0.00')});
