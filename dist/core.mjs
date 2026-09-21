@@ -7,7 +7,8 @@ export function normalizeTrade(event,token,pool){
   const side=to===address&&from!==address?'buy':from===address&&to!==address?'sell':null;
   const usd=Number(a.volume_in_usd),time=Date.parse(a.block_timestamp);
   if(!event.id||!side||a.volume_in_usd==null||!Number.isFinite(usd)||usd<=0||!Number.isFinite(time))return null;
-  return {id:pool.network?`${pool.network}:${event.id}:${address}`:event.id,sourceId:event.id,network:pool.network||'',tokenKey:pool.network?listingKey({network:pool.network,address:token}):'',from,to,side,usd,time,pool:pool.name,poolAddress:pool.address,hash:a.tx_hash||'',wallet:a.tx_from_address||''};
+  const rawQuantity=side==='buy'?a.to_token_amount:a.from_token_amount,quantity=rawQuantity==null?null:Number(rawQuantity);
+  return {id:pool.network?`${pool.network}:${event.id}:${address}`:event.id,sourceId:event.id,network:pool.network||'',tokenKey:pool.network?listingKey({network:pool.network,address:token}):'',from,to,side,usd,time,pool:pool.name,poolAddress:pool.address,hash:a.tx_hash||'',wallet:a.tx_from_address||'',quantity:Number.isFinite(quantity)&&quantity>0?quantity:null,price:Number.isFinite(quantity)&&quantity>0?usd/quantity:null};
 }
 export function scopeTrades(trades,tokens,scope='all'){
   const members=new Set(uniqueListings(tokens).map(listingKey)),seen=new Set();
