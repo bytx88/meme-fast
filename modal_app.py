@@ -83,6 +83,32 @@ def web():
             headers["retry-after"] = retry_after
         return Response(upstream.content, status_code=upstream.status_code, media_type="application/json", headers=headers)
 
+    context_cache = {}
+    context_sources = {
+        "jeanphil-story": "https://trenches-on.com/en/runners/2026-09-20-jeanphil/",
+        "jeanphil-origin": "https://meme.com/memes/jean-phil",
+        "super-inu": "https://opensea.io/token/solana/DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP",
+        "ionq-background": "https://www.reddit.com/r/Backpack_official/comments/1wnd2fi/ionq_stock_is_now_tokenized_on_solana_how_ionq/",
+    }
+
+    @web_app.get("/api/context/source/{source_id}")
+    async def context_source(source_id: str):
+        import time
+        if source_id not in context_sources:
+            raise HTTPException(status_code=404, detail="Unknown story source")
+        cached = context_cache.get(source_id)
+        if cached and cached[0] > time.time():
+            return Response(cached[1], media_type="text/plain")
+        try:
+            async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
+                upstream = await client.get("https://r.jina.ai/" + context_sources[source_id])
+                upstream.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Story source unavailable") from exc
+        body = upstream.text[:60000]
+        context_cache[source_id] = (time.time() + 900, body)
+        return Response(body, media_type="text/plain", headers={"cache-control": "public, max-age=900"})
+
     @web_app.get("/api/context/search")
     async def context_search(request: Request):
         name = request.query_params.get("name", "").strip()
@@ -90,7 +116,8 @@ def web():
         contract = request.query_params.get("contract", "").strip()
         if not (1 <= len(name) <= 100 and 1 <= len(symbol) <= 32 and re.fullmatch(r"[A-Za-z0-9]{20,100}", contract)):
             raise HTTPException(status_code=400, detail="Invalid token context query")
-        search = f'"{name}" ${symbol} crypto {contract}'
+        mode = request.query_params.get("mode", "story")
+        search = f'"{contract}"' if mode == "contract" else f'"{name}" {symbol} meme origin story'
         target = "https://r.jina.ai/http://html.duckduckgo.com/html/?" + urlencode({"q": search})
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:

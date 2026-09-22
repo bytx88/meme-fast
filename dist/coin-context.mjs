@@ -1,0 +1,13 @@
+export const STORY_SOURCES = [
+  {id:'jeanphil-story',names:['jeanphil','jean phil'],url:'https://trenches-on.com/en/runners/2026-09-20-jeanphil/',title:'Jean Phil: from viral character to token',publisher:'Trenches On',contract:'GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump'},
+  {id:'jeanphil-origin',names:['jeanphil','jean phil'],url:'https://meme.com/memes/jean-phil',title:'Jean Phil meme origin',publisher:'meme.com'},
+  {id:'super-inu',names:['super inu'],url:'https://opensea.io/token/solana/DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP',title:'Super Inu token description',publisher:'OpenSea',contract:'DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP'},
+  {id:'ionq-background',names:['ionq','ionq backpack securities'],url:'https://www.reddit.com/r/Backpack_official/comments/1wnd2fi/ionq_stock_is_now_tokenized_on_solana_how_ionq/',title:'IonQ tokenized stock background',publisher:'Backpack community'}
+];
+const normalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+export function sourcesFor(coin){return STORY_SOURCES.filter(s=>s.names.some(n=>normalize(n)===normalize(coin.name)||normalize(n)===normalize(coin.symbol)))}
+export function sourceURL(value){try{const u=new URL(value,'https://duckduckgo.com');if(/(^|\.)duckduckgo\.com$/.test(u.hostname)&&u.searchParams.has('uddg'))return sourceURL(u.searchParams.get('uddg'));return u.protocol==='https:'&&!u.username&&!u.password?u.href:null}catch{return null}}
+export function plainText(s){return String(s).replace(/\[\[\d+\]\]\([^)]*\)/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\*\*|__/g,'').replace(/<[^>]+>/g,'').trim()}
+export function parseSearch(text){const hits=[...String(text||'').matchAll(/^## \[(.+?)\]\((.+?)\)[ \t]*$/gm)];return hits.flatMap((hit,i)=>{const url=sourceURL(hit[2]),chunk=text.slice(hit.index+hit[0].length,hits[i+1]?.index??text.length);const snippet=chunk.split('\n').map(s=>s.trim()).filter(s=>s&&!s.includes('![')&&!s.startsWith('#')).map(plainText).find(s=>s.length>45&&!/^https?:|^[\w.-]+\.(com|io|org)\//.test(s));return url&&snippet?[{url,title:plainText(hit[1]),snippet}]:[]})}
+export function storyParagraph(text){const body=String(text).split('Markdown Content:').at(-1);return body.split(/\n\s*\n/).map(s=>s.trim()).filter(s=>!s.startsWith('#')&&!s.includes('![')).map(plainText).find(s=>s.length>=90&&s.length<1600&&/meme|character|persona|intelligence|tokenized|tokenised|represents|redeemable/i.test(s)&&!/^\[|^\||buy.*sell/i.test(s))||null}
+export function bestSearchLead(text){return parseSearch(text).find(s=>/meme|origin|character|persona|intelligence|tokenized|tokenised|inspired|represents/i.test(s.title+' '+s.snippet)&&!/^you can buy|^the live .*price/i.test(s.snippet))||null}
