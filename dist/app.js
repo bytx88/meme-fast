@@ -1,6 +1,7 @@
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD} from './core.mjs';
 import {loadListings} from './data.mjs';
-import {lookupTokens} from './lookup.mjs';
+import {lookupTokens,dexMatches} from './lookup.mjs';
+import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 import {toggleSaved,isSaved} from './research-store.mjs';
@@ -54,7 +55,7 @@ async function load(){
   }
   state.loadController?.abort();const controller=new AbortController();state.loadController=controller;
   const generation=++state.generation,tokens=[...state.tokens],hadData=state.pools.some(p=>p.status==='loaded');state.busy=true;state.loadError=false;state.progress='Fetching swaps…';$('refresh').disabled=true;$('charts').setAttribute('aria-busy','true');$('updated').textContent='Fetching swaps…';error('');render();
-  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}});
+  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}},async token=>{const result=await dexApi('/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints):null});
     if(!result||generation!==state.generation)return;
     if(hadData&&!result.pools.some(p=>p.status==='loaded')){state.loadError=true;error('Refresh failed. Showing the previous sample with its original update time.');return currentSummary()}
     Object.assign(state,result);state.fetched=Date.now();render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
@@ -85,7 +86,7 @@ function render(){
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('coverage-text').textContent='No usable pool data returned for this selection. Missing data is not zero trading.';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('coverage-text').textContent='The latest request failed. No market-flow conclusion is available.';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
-  renderTimeline(s.rows,state.minutes,now,loaded,state.busy);
+  renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
 

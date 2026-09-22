@@ -1,7 +1,8 @@
 import {canonical,listingKey,uniqueListings,normalizeTrade} from './core.mjs';
+import {marketCapSnapshot} from './market-cap.mjs';
 
 // Read pools as soon as they are discovered, without waiting for other listings.
-export async function loadListings(input,request,progress=()=>{},isCurrent=()=>true,onSnapshot=()=>{}) {
+export async function loadListings(input,request,progress=()=>{},isCurrent=()=>true,onSnapshot=()=>{},lookupMarketCap=null) {
   const tokens=uniqueListings(input),poolsByKey=new Map(),rawTrades=new Map(),trades=[];
   const listings=tokens.map(token=>({...token,key:listingKey(token),status:'loading',error:'',poolCount:0,successCount:0,discovered:false}));
   let skipped=0,active=0,discovered=0;
@@ -40,6 +41,8 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       if(!isCurrent())return;
       const found=[...(token.poolHints||[]),...result.data].filter(p=>p.attributes?.address&&[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].some(id=>id?.startsWith(`${token.network}_`)&&canonical(id.slice(token.network.length+1))===canonical(token.address)));
       const unique=[...new Map(found.map(p=>[canonical(p.attributes.address),p])).values()].sort((a,b)=>(Number(b.attributes.reserve_in_usd)||0)-(Number(a.attributes.reserve_in_usd)||0)).slice(0,3);
+      listing.marketCap=marketCapSnapshot(token,[...unique,...(token.poolHints||[])]);
+      if(!listing.marketCap&&lookupMarketCap)tasks.push(async()=>{try{const cap=await lookupMarketCap(token);if(isCurrent()){listing.marketCap=cap;snapshot()}}catch{/* Missing valuation never prevents swaps from loading. */}});
       listing.poolCount=unique.length;listing.status=unique.length?'loading':'no-pools';listing.discovered=true;
       for(const p of unique) {
         const key=`${token.network}:${canonical(p.attributes.address)}`;

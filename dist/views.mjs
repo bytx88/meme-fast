@@ -1,5 +1,6 @@
 import {formatUSD, summarize} from './core.mjs';
 import {filterTrades, groupTransactions, flowTimeline} from './analysis.mjs';
+import {marketCapTimeline} from './market-cap.mjs';
 const $ = id => document.getElementById(id);
 const money = formatUSD;
 const short = value => value?.length > 18 ? value.slice(0,7)+'…'+value.slice(-6) : value || '—';
@@ -16,34 +17,47 @@ export function renderCoverage(view, state, rows) {
   $('coverage-summary').textContent=`${ok}/${view.pools.length} discovered pools loaded · ${rows.length} swap steps${span}`;
 }
 
-export function renderTimeline(rows, minutes, now, loaded, busy=true) {
+export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=null, combined=false) {
   const host=$('timeline');host.replaceChildren();
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
+  const caps=marketCapTimeline(rows,bins,combined?null:valuation),values=caps.filter(v=>v!=null),hasMC=values.length>0;
+  $('market-cap-value').textContent=combined?'MC · select one listing':valuation?`Latest MC ${money(valuation.value)}`:busy?'Loading MC…':'MC unavailable';
+  $('market-cap-value').title=valuation?`Latest reported snapshot retrieved ${new Date(valuation.fetchedAt).toLocaleString()}`:'';
+  $('market-cap-note').textContent=combined?'Select one listing to see its market cap; caps are not added across contracts.':hasMC?'Blue line · estimated MC on the right axis. Trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  $('mc-legend').hidden=!hasMC;
   $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals`;
   const defaultDetail=rows.length?`Window ${stamp(start)}–${stamp(end)} · Net buy volume ${money(bins.at(-1).cumulative)} · Hover or focus an interval for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';
   $('timeline-detail').textContent=defaultDetail;
   if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':busy?'Loading the flow timeline…':'Flow timeline unavailable','timeline-empty'));return}
   const ns='http://www.w3.org/2000/svg';
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
-  const chartWidth=Math.max(280,host.clientWidth);
+  const chartWidth=Math.max(460,host.clientWidth);
   const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 350`,role:'group','aria-label':'Observed buy and sell volume by interval, and cumulative net buy volume'});
   const label=(text,x,y,anchor='start')=>{const el=svgEl('text',{x,y,'text-anchor':anchor,fill:'#9da9b9','font-size':14});el.textContent=text;svg.append(el)};
-  const left=70,right=chartWidth-8,width=right-left,unit=width/bins.length,top=28,bottom=148;
+  const left=70,right=chartWidth-(hasMC?82:8),width=right-left,unit=width/bins.length,top=28,bottom=148;
   const max=Math.max(...bins.flatMap(b=>[b.buy,b.sell]),1e-8);
   const axisMoney=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
   for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
   label('Swap volume · USD',left,18);
+  if(hasMC){
+    let minCap=Math.min(...values),maxCap=Math.max(...values);const padding=Math.max((maxCap-minCap)*.1,maxCap*.01);minCap=Math.max(0,minCap-padding);maxCap+=padding;
+    const capY=v=>bottom-(v-minCap)/(maxCap-minCap)*(bottom-top);
+    label('MC · est.',right+10,18);
+    for(const fraction of [0,.5,1]){const value=minCap+(maxCap-minCap)*fraction,y=capY(value);const tick=svgEl('line',{x1:right,x2:right+5,y1:y,y2:y,stroke:'#7db9ff'});svg.append(tick);label(axisMoney(value),right+10,y+5)}
+    let segment=[];const flush=()=>{if(segment.length>1)svg.append(svgEl('polyline',{points:segment.join(' '),fill:'none',stroke:'#7db9ff','stroke-width':2,'vector-effect':'non-scaling-stroke'}));segment=[]};
+    caps.forEach((value,i)=>{if(value==null){flush();return}const x=left+(i+.5)*unit,y=capY(value);segment.push(`${x},${y}`);svg.append(svgEl('circle',{cx:x,cy:y,r:2.5,fill:'#7db9ff'}))});flush();
+  }
   const low=Math.min(0,...bins.map(b=>b.cumulative)),high=Math.max(0,...bins.map(b=>b.cumulative)),range=high-low||1;
   const cy=v=>302-(v-low)/range*93;
   label('Cumulative net · USD',left,193);
-  for(const value of [...new Set([low,0,high])]){const y=cy(value);svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140','stroke-dasharray':value===0?'4 4':'none'}));label(axisMoney(value),left-10,y+5,'end')}
+  for(const value of [...new Set([low,0,high])]){const y=cy(value);svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140','stroke-dasharray':value===0?'4 4':'none'}));if(value!==0||((low===0||Math.abs(cy(0)-cy(low))>16)&&(high===0||Math.abs(cy(0)-cy(high))>16)))label(axisMoney(value),left-10,y+5,'end')}
   let points=`${left},${cy(0)}`;
   bins.forEach((bin,i)=>{points+=` ${left+(i+1)*unit},${cy(bin.cumulative)}`});
   svg.append(svgEl('polyline',{points,fill:'none',stroke:'#d7f778','stroke-width':2,'vector-effect':'non-scaling-stroke'}));
   bins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,unit*.34);
     for(const [side,offset,color]of [['buy',.12,'#2bdfaa'],['sell',.52,'#fb7185']]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*offset,y:bottom-h,width:barWidth,height:h,fill:color}))}
-    const description=`${stamp(bin.start)}–${stamp(bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}`;
+    const description=`${stamp(bin.start)}–${stamp(bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
     g.setAttribute('aria-label',description);
     const title=svgEl('title');title.textContent=description;g.append(title);
     const target=svgEl('rect',{x,y:top,width:unit,height:302-top,fill:'transparent',class:'interval-hit'});g.append(target);

@@ -32,7 +32,7 @@ export function dexMatches(pairs,query){
       const key=listingKey(t);if(!tokens.has(key))tokens.set(key,{...t,liquidity:0,poolHints:[],lookupSource:'DEX Screener'});
       const match=tokens.get(key);if(match.poolHints.some(p=>canonical(p.attributes.address)===canonical(pair.pairAddress)))continue;
       match.liquidity+=Number(pair.liquidity?.usd)||0;
-      match.poolHints.push({attributes:{address:pair.pairAddress,name:`${pair.baseToken?.symbol||'Token'} / ${pair.quoteToken?.symbol||'Token'}`,reserve_in_usd:String(pair.liquidity?.usd||0)},relationships:{base_token:{data:{id:`${network}_${pair.baseToken?.address}`}},quote_token:{data:{id:`${network}_${pair.quoteToken?.address}`}},dex:{data:{id:pair.dexId||''}}}});
+      match.poolHints.push({attributes:{address:pair.pairAddress,name:`${pair.baseToken?.symbol||'Token'} / ${pair.quoteToken?.symbol||'Token'}`,reserve_in_usd:String(pair.liquidity?.usd||0),market_cap_usd:pair.marketCap??null,base_token_price_usd:pair.priceUsd??null},relationships:{base_token:{data:{id:`${network}_${pair.baseToken?.address}`}},quote_token:{data:{id:`${network}_${pair.quoteToken?.address}`}},dex:{data:{id:pair.dexId||''}}}});
     }
   }
   return preferred([...tokens.values()],query).sort((a,b)=>b.liquidity-a.liquidity).slice(0,12);
