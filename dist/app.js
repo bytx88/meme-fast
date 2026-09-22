@@ -5,21 +5,36 @@ import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 import {toggleSaved,isSaved} from './research-store.mjs';
+import {createRecentContracts} from './recent-contracts.mjs';
 const renderTape=setupTape();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
 const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
 const short=s=>s.length>18?s.slice(0,7)+'…'+s.slice(-6):s;
+const recentContracts=createRecentContracts();
+function renderRecentContracts(){
+  const entries=recentContracts.entries;$('recent-contracts').hidden=!entries.length;$('recent-list').replaceChildren();
+  $('recent-caption').textContent=recentContracts.persistent?'Recent contracts · saved on this device':'Recent contracts · this session only';
+  for(const [index,item]of entries.entries()){
+    const button=document.createElement('button');button.type='button';button.className='recent-contract';button.title=item.address;
+    button.setAttribute('aria-label',`Search ${item.symbol?item.symbol+' ':''}${item.address}${index===0?' · local default':''}`);
+    const name=document.createElement('span');name.textContent=(item.symbol?item.symbol+' · ':'')+short(item.address);button.append(name);
+    if(index===0){const badge=document.createElement('small');badge.textContent='Default';button.append(badge)}
+    button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
+  }
+}
 const state={token:{address:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',network:'solana',symbol:'BONK',name:'Bonk'},minutes:60,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
 async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
+  if(recentContracts.remember(query))renderRecentContracts();
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
   try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];
     state.matches=uniqueListings(found);state.draft=new Set(state.matches.map(listingKey));
+    const remembered=state.matches.find(t=>!t.unverified&&canonical(t.address)===canonical(query));if(remembered){recentContracts.label(query,remembered.symbol);renderRecentContracts()}
     $('results').replaceChildren();for(const token of state.matches){const row=document.createElement('div');row.className='result-choice';const label=document.createElement('label'),check=document.createElement('input'),copy=document.createElement('span');check.type='checkbox';check.value=listingKey(token);check.checked=state.draft.has(check.value);check.addEventListener('change',()=>{if(check.checked)state.draft.add(check.value);else state.draft.delete(check.value);updateSelection()});copy.className='result-copy';const main=document.createElement('strong');main.textContent=`${token.symbol} · ${token.name} · ${token.network}`;const meta=document.createElement('small');meta.textContent=`${token.unverified?'Unverified address':compact(token.liquidity)+' indexed liquidity'}`;const address=document.createElement('small');address.textContent=token.address;copy.append(main,meta,address);label.append(check,copy);const view=document.createElement('button');view.type='button';view.textContent='View only';view.setAttribute('aria-label',`View only ${token.symbol} on ${token.network} ${short(token.address)}`);view.addEventListener('click',()=>selectToken(token));row.append(label,view);$('results').append(row)}
     updateSelection();
     if(state.matches.length){
@@ -106,6 +121,12 @@ if(context?.registerTool){const lifecycle=new AbortController();window.addEventL
   {name:'read_observed_flow',description:'Read the currently displayed token swap sample and coverage.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:()=>currentSummary()}
 ]){try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{})}catch{}}}
 window.addEventListener('resize',()=>render());
+// Input fires after a paste and saves the CA even before Find token is pressed.
+let recentInputTimer;
+$('query').addEventListener('input',()=>{clearTimeout(recentInputTimer);recentInputTimer=setTimeout(()=>{recentInputTimer=null;if(recentContracts.remember($('query').value))renderRecentContracts()},250)});
+window.addEventListener('pagehide',()=>{if(recentInputTimer)recentContracts.remember($('query').value)});
+$('clear-recent').addEventListener('click',()=>{clearTimeout(recentInputTimer);recentInputTimer=null;recentContracts.clear();renderRecentContracts()});
+renderRecentContracts();
 updateIdentity();render();
-const initialQuery=new URLSearchParams(location.search).get('query');
+const initialQuery=new URLSearchParams(location.search).get('query')||recentContracts.entries[0]?.address;
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();

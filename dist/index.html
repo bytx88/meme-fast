@@ -15,6 +15,7 @@
     <div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div>
     <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="BONK, PEPE, or a contract address" required><button id="search-button" class="primary" type="submit">Find token <span aria-hidden="true">↗</span></button></form>
     <div id="search-status" role="status"></div>
+    <section id="recent-contracts" class="recent-contracts" aria-label="Recent contract addresses" hidden><div class="recent-heading"><span id="recent-caption">Recent contracts · saved on this device</span><button id="clear-recent" type="button">Clear history</button></div><div id="recent-list" class="recent-list"></div></section>
     <details id="match-chooser" class="match-chooser" hidden><summary id="match-chooser-label">Change included listings</summary><div id="results" class="results" hidden></div>
     <div id="combine-controls" class="combine-controls" hidden><p>Matching names may be different tokens. Review the chains and contracts included in the combined view.</p><div><button id="select-matches" type="button">Select all shown</button><button id="clear-matches" type="button">Clear</button><button id="combine-selected" class="primary" type="button" disabled>Combine selected (0)</button></div></div></details>
   </section>

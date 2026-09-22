@@ -13,3 +13,5 @@
 #search-status{overflow-wrap:anywhere}
 
 .timeline-meta{display:flex;align-items:flex-end;flex-direction:column;gap:6px;text-align:right}.mc-value{color:#7db9ff;font-size:14px;font-variant-numeric:tabular-nums}.timeline-panel .panel-heading{gap:12px;align-items:flex-start}.timeline-legend{flex-wrap:wrap}#timeline svg{min-width:460px}#timeline{overflow-x:auto}
+
+.recent-contracts{margin-top:16px}.recent-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px}.recent-heading button{border:0;background:transparent;padding:6px 0;min-height:44px;font-size:14px;color:var(--muted)}.recent-list{display:flex;flex-wrap:wrap;gap:8px}.recent-contract{display:flex;align-items:center;gap:10px;font-size:14px;padding:8px 12px;max-width:100%;text-align:left}.recent-contract span{overflow-wrap:anywhere}.recent-contract small{color:var(--accent);font-size:12px}.recent-contract:first-child{border-color:#647b35}
