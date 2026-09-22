@@ -15,3 +15,8 @@ export async function copyContract(coin,clipboard) {
   return {status:'copied',address};
  }catch{return {status:'manual',address}}
 }
+export function axiomLink(coin) {
+ const address=contractForCopy(coin);
+ const chain={Solana:'sol',Base:'base',Ethereum:'eth',BSC:'bnb'}[coin?.chain];
+ return address&&chain?`https://axiom.trade/t/${encodeURIComponent(address)}?chain=${chain}`:null;
+}
