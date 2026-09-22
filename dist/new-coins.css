@@ -37,6 +37,7 @@
 .sort-control select,.full-strip select{min-height:38px;padding:7px 28px 7px 9px;border:1px solid var(--line);border-radius:6px;background:#121a25;color:var(--text);font:inherit}
 .update-button{min-height:38px;padding:7px 11px;border:1px solid #617c32;background:#26351d;color:var(--accent);font:600 12px 'Space Grotesk',sans-serif}
 .new-coin-card{display:flex;flex-direction:column;min-width:0}
+.coin-head h3,.coin-head small{display:block;overflow:hidden;overflow-wrap:normal;text-overflow:ellipsis;white-space:nowrap}
 .new-metrics{order:2;margin:9px 0 8px;padding:6px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .new-metrics dt{font-size:10px;line-height:1.25}.new-metrics dd{font-size:15px;line-height:1.15;margin-top:2px}
 .story-block{order:3;display:grid;grid-template-rows:auto 2.9em auto;gap:5px;min-height:104px;padding-left:10px;border-left:2px solid #536349;font-size:12px;line-height:1.45}
@@ -51,7 +52,11 @@
 .full-strip{display:none}
 .tiles-only .full-strip{position:fixed;top:8px;right:12px;left:12px;z-index:40;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:42px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#10161ff2;box-shadow:0 4px 20px #0008;color:var(--muted);font-size:12px;backdrop-filter:blur(6px)}
 .tiles-only #full-mode{display:none}
-.tiles-only .new-coins{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;padding-top:62px}
+.tiles-only .new-coins{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;padding-top:62px}
+.tiles-only .coin-head{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:8px;row-gap:7px}
+.tiles-only .coin-head .rank{grid-column:1;grid-row:1}
+.tiles-only .coin-head>div{grid-column:2;grid-row:1;min-width:0}
+.tiles-only .coin-head .compact-token-actions{grid-column:1/-1;grid-row:2;justify-content:flex-start;margin-left:0}
 .tiles-only .story-block{min-height:112px}
 .tiles-only .compact-token-actions{gap:4px}.tiles-only .compact-token-actions a,.tiles-only .compact-token-actions button{padding:4px 7px;font-size:11px}
 @media(max-width:1000px){.new-controls{flex-wrap:wrap}.sort-control{order:2}.search-filter{order:3;flex-basis:60%}.new-controls .secondary{order:4}}
