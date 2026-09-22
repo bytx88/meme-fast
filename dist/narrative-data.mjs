@@ -15,8 +15,9 @@ export const coins = [
  {symbol:'FROG',name:'Purple Frog',narrative:'frog',chain:'Solana',age:37,mc:420000,volume:180000,liquidity:68000,buyers:390,holders:612,growth:84,strength:'Medium',buyCount:512,sellCount:224},
  {symbol:'DOGAI',name:'Dog AI',narrative:'dogai',chain:'Base',age:300,mc:1800000,volume:640000,liquidity:210000,buyers:724,holders:1830,growth:31,strength:'Growing',buyCount:1024,sellCount:638},
  {symbol:'VAULT',name:'Meme Vault',narrative:'treasury',chain:'Solana',age:540,mc:920000,volume:260000,liquidity:105000,buyers:286,holders:972,growth:18,strength:'Medium',buyCount:388,sellCount:291},
- {symbol:'MCAT',name:'Moon Cat',narrative:'mooncat',chain:'Solana',age:3100,mc:3400000,volume:780000,liquidity:320000,buyers:212,holders:5410,growth:-3,strength:'Saturated',buyCount:327,sellCount:492}
-];
+ {symbol:'MCAT',name:'Moon Cat',narrative:'mooncat',chain:'Solana',age:3100,mc:3400000,volume:780000,liquidity:320000,buyers:212,holders:5410,growth:-3,strength:'Saturated',buyCount:327,sellCount:492},
+ {symbol:'DRIFTX',name:'Drift Experiment',narrative:null,group:'Meme Coins',stage:null,origin:'unknown',chain:'Solana',age:85,mc:310000,volume:96000,liquidity:42000,buyers:305,holders:418,growth:22,strength:'Unestablished',buyCount:374,sellCount:168}
+].map((coin,i)=>({...coin,id:`example-coin-${i}`,contract_address:null,contract_verified:false}));
 export const crossoverEvents = [
  {narrative:'frog',symbol:'FROG',type:'trend_to_coin',age:37,lead:105,competing:3,title:'Purple Frog → $FROG',description:'The meme spread first. A token appeared 1h 45m later, with 390 buyers in the example snapshot.'},
  {narrative:'dogai',symbol:'DOGAI',type:'coin_to_trend',age:28,lead:90,outside:12,title:'$DOGAI → AI pet narrative',description:'The coin launched first. Character remixes are now reaching accounts outside the original community.'},
@@ -24,20 +25,34 @@ export const crossoverEvents = [
 ];
 // Generate deterministic example observations so windows genuinely filter source and mention counts.
 export const observations = narratives.flatMap((n,index)=>Array.from({length:n.mentions},(_,i)=>({narrative:n.id,account:`${n.id}-source-${i%n.sources}`,category:(i%n.sources)%n.diversity,age:n.latest+(n.first-n.latest)*(i/Math.max(1,n.mentions-1))**(n.direction==='rising'?1.8:0.75),id:`example-${index}-${i}`})));
+// Measure before applying display filters. Cards and detail dialogs share this result.
+export function narrativeInWindow(id,hours=4) {
+ const n=narratives.find(n=>n.id===id);
+ if(!n)return null;
+ const rows=observations.filter(p=>p.narrative===id&&p.age<=hours*60);
+ const sources=new Set(rows.map(r=>r.account)).size,diversity=new Set(rows.map(r=>r.category)).size;
+ return {...n,sources,mentions:rows.length,score:sources*(1+diversity/5)*(1+Math.max(-90,n.velocity)/200)};
+}
+export function coinContext(c,hours=4) {
+ const narrative=narrativeInWindow(c.narrative,hours);
+ return {narrative,stage:c.stage??narrative?.stage??null,group:c.group??narrative?.group??'Other',origin:c.origin??narrative?.origin??'unknown',sources:narrative?.sources??null};
+}
+function matchesStage(value,filter) {
+ if(filter==='all')return true;
+ if(filter==='unclassified')return value===null;
+ if(value===null)return false;
+ return filter==='early'?value<=2:filter==='conversion'?value>=3&&value<=4:value>=5;
+}
 export function buildView({hours=4,group='all',stage='all',query=''}={}) {
  const q=query.trim().toLowerCase();
- const selected=narratives.flatMap(n=>{
-  const rows=observations.filter(p=>p.narrative===n.id&&p.age<=hours*60);
-  if(!rows.length||group!=='all'&&n.group!==group||q&&!`${n.title} ${n.coin||''} ${n.summary}`.toLowerCase().includes(q))return [];
-  if(stage==='early'&&n.stage>2||stage==='conversion'&&(n.stage<3||n.stage>4)||stage==='late'&&n.stage<5)return [];
-  const sources=new Set(rows.map(r=>r.account)).size,diversity=new Set(rows.map(r=>r.category)).size;
-  return [{...n,sources,mentions:rows.length,score:sources*(1+diversity/5)*(1+Math.max(-90,n.velocity)/200)}];
+ const selected=narratives.map(n=>narrativeInWindow(n.id,hours)).filter(n=>{
+  const related=coins.filter(c=>c.narrative===n.id).map(c=>`${c.symbol} ${c.name}`).join(' ');
+  return n.mentions>0&&(group==='all'||n.group===group)&&matchesStage(n.stage,stage)&&(!q||`${n.title} ${n.coin||''} ${n.summary} ${related}`.toLowerCase().includes(q));
  }).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)).map((n,i)=>({...n,rank:i+1}));
  const ids=new Set(selected.map(n=>n.id));
  const marketCoins=coins.filter(c=>{
-  const n=narratives.find(n=>n.id===c.narrative);
-  if(group!=='all'&&n.group!==group||q&&!`${c.symbol} ${c.name} ${n.title} ${n.summary}`.toLowerCase().includes(q))return false;
-  return !(stage==='early'&&n.stage>2||stage==='conversion'&&(n.stage<3||n.stage>4)||stage==='late'&&n.stage<5);
+  const context=coinContext(c,hours),n=context.narrative;
+  return (group==='all'||context.group===group)&&matchesStage(context.stage,stage)&&(!q||`${c.symbol} ${c.name} ${n?.title||''} ${n?.summary||''}`.toLowerCase().includes(q));
  }).sort((a,b)=>b.buyers-a.buyers).map((c,i)=>({...c,rank:i+1}));
  return {trends:selected.slice(0,20),coins:marketCoins,crossovers:crossoverEvents.filter(c=>ids.has(c.narrative)&&c.age<=hours*60)};
 }
