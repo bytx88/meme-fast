@@ -83,6 +83,25 @@ def web():
             headers["retry-after"] = retry_after
         return Response(upstream.content, status_code=upstream.status_code, media_type="application/json", headers=headers)
 
+    @web_app.get("/api/context/search")
+    async def context_search(request: Request):
+        name = request.query_params.get("name", "").strip()
+        symbol = request.query_params.get("symbol", "").strip()
+        contract = request.query_params.get("contract", "").strip()
+        if not (1 <= len(name) <= 100 and 1 <= len(symbol) <= 32 and re.fullmatch(r"[A-Za-z0-9]{20,100}", contract)):
+            raise HTTPException(status_code=400, detail="Invalid token context query")
+        search = f'"{name}" ${symbol} crypto {contract}'
+        target = "https://r.jina.ai/http://html.duckduckgo.com/html/?" + urlencode({"q": search})
+        try:
+            async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+                upstream = await client.get(target, headers={"accept": "text/plain"})
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Context provider unavailable") from exc
+        if not upstream.is_success:
+            raise HTTPException(status_code=502, detail="Context provider unavailable")
+        body = upstream.text[:60000]
+        return Response(body, media_type="text/plain; charset=utf-8", headers={"cache-control": "public, max-age=300", "x-content-type-options": "nosniff"})
+
     @web_app.api_route("/{asset_path:path}", methods=["GET", "HEAD"])
     async def static_app(asset_path: str, request: Request):
         routes = {
