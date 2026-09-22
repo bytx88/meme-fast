@@ -13,7 +13,9 @@ Meme Fast is organized around an evidence path:
 - **Watchlist** (`dist/watchlist.html`) keeps a personal queue of narratives and tokens.
 - **Sources** (`dist/sources.html`) makes collection coverage and planned source accounts explicit.
 
-The current implementation deliberately uses browser storage as an adapter. It lets the product flow be tested before a backend schema is fixed.
+New Coins uses a shared server history: a scheduled Modal function collects every five minutes, independently of page visits. One JSON snapshot on the persistent `meme-fast-coin-history` Volume stores each chain/contract, first-seen timestamp, latest returned market snapshot, and context. Every run discovers fresh pools, batch-refreshes retained contracts for current liquidity and 5-minute activity, then writes atomically; readers reload the Volume and GET `/api/new-coins`. Records expire five days after first discovery, regardless of repeat sightings. Feed failures preserve saved records and report degraded coverage. Context lookups are bounded to four pending coins per run, with six-hour retries. History starts at deployment; there is no backfill.
+
+Other research surfaces still use browser storage as an adapter. The local preview runs the same collector while its Node server is running, storing `.data/coins.json`. The standalone Worker bundle does not provide this scheduled history backend; production New Coins is served by Modal.
 
 ## Backend boundary
 

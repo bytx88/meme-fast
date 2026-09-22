@@ -25,14 +25,31 @@ if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
+    .apt_install("nodejs")
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0")
     .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST)
+    .add_local_dir(Path("/app/worker") if RUNNING_IN_MODAL else Path(__file__).parent / "worker", remote_path="/app/worker")
 )
 
 app = modal.App(APP_NAME, image=image)
+history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 
 
-@app.function(min_containers=0, timeout=60)
+@app.function(schedule=modal.Period(minutes=5), timeout=240, max_containers=1, volumes={"/history": history_volume})
+def collect_coins():
+    import subprocess
+    history_volume.reload()
+    result = subprocess.run(
+        ["node", "/app/worker/coin-collector.mjs", "/history/coins.json"],
+        capture_output=True, text=True, timeout=220,
+    )
+    history_volume.commit()
+    if result.returncode:
+        raise RuntimeError(result.stderr)
+    print(result.stdout)
+
+
+@app.function(min_containers=0, timeout=60, volumes={"/history": history_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -40,6 +57,23 @@ def web():
     import httpx
 
     web_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    import asyncio
+    import json
+    import time
+    from fastapi.responses import JSONResponse
+    history_lock = asyncio.Lock()
+
+    @web_app.get("/api/new-coins")
+    async def new_coins():
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                snapshot = json.loads(Path("/history/coins.json").read_text())
+            except FileNotFoundError:
+                snapshot = {"version": 1, "coins": [], "lastRun": None, "feeds": {}}
+            cutoff = time.time() * 1000 - 5 * 86400000
+            snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
+        return JSONResponse(snapshot, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)
     allowed_types = {
         ".html": "text/html; charset=utf-8",

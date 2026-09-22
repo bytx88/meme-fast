@@ -1,4 +1,5 @@
 .sites-runtime/
+.data/
 .env
 .env.*
 node_modules/

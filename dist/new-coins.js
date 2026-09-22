@@ -2,59 +2,129 @@ import {tokenActions} from './token-actions.mjs';
 import {copyContract} from './contract-copy.mjs';
 import {groupCoins} from './coin-groups.mjs';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
-import {FEEDS, NETWORKS, addressMatches, fetchNewPools, fetchPublicSource, mergeArticles, parsePools} from './public-radar.mjs';
+import {NETWORKS, parsePools} from './public-radar.mjs';
 
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
-const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m old`:mins<1440?`${Math.floor(mins/60)}h old`:`${Math.floor(mins/1440)}d old`};
-const state={hours:36,query:'',notice:''},data={articles:[],coins:[],manualCoins:[],profiles:[],web:new Map(),checks:new Map()};let loading=false;
+const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
+const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null};
+const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false;
 
-function qualified(c){return Number.isFinite(c.poolCreated)&&c.liquidity>=3000&&((c.buys??0)+(c.sells??0)>=5)}
-function score(c){const fresh=Math.max(0,1-(Date.now()-c.poolCreated)/129600000)*45,liq=Math.min(20,Math.log10(Math.max(1,c.liquidity))*4),activity=Math.min(25,Math.log10(Math.max(1,(c.volume??0)+(c.buyers??0)*100))*5),buyers=Math.min(10,Math.log10(Math.max(1,c.buyers??0))*4);return fresh+liq+activity+buyers}
-function candidates(){const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000,regular=data.coins.filter(c=>qualified(c)&&c.poolCreated>=cutoff),manual=data.manualCoins;return [...new Map([...manual,...regular].filter(c=>!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q)).map(c=>[c.id,c])).values()].sort((a,b)=>(b.manual?1:0)-(a.manual?1:0)||score(b)-score(a))}
-function same(a,b){return String(a??'').toLowerCase()===String(b??'').toLowerCase()}
-const ignoredWords=new Set('coin coins token tokens crypto market meme official the and for with from this that new launch launched'.split(' '));
-function words(value){return [...new Set(String(value??'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(word=>word.length>=4&&!ignoredWords.has(word)))]}
-function relatedNews(c){const text=article=>`${article.title} ${article.summary}`.toLowerCase(),name=String(c.name||'').trim().toLowerCase(),symbol=String(c.symbol||'').trim().toLowerCase(),terms=words(c.name);return data.articles.filter(article=>{const body=text(article);if(name.length>=4&&body.includes(name))return true;if(symbol.length>=4&&new RegExp(`(^|[^a-z0-9])\\$?${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}([^a-z0-9]|$)`,'i').test(body))return true;return terms.length>=2&&terms.filter(term=>body.includes(term)).length>=2}).slice(0,2)}
-const sourceRequests=new Map();
+function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
+function context(c){return data.web.get(c.id)?{kind:'web',web:data.web.get(c.id)}:c.savedContext||null}
+function verified(found){return found?.kind==='verified'||found?.kind==='web'&&found.web?.exact}
+function sortValue(c){
+ if(state.sort==='volume5m')return c.volume5m??-1;
+ if(state.sort==='liquidity')return c.liquidity??-1;
+ if(state.sort==='activity')return (c.buys5m??0)+(c.sells5m??0);
+ return c.firstSeen??c.poolCreated??0;
+}
+function candidates(){
+ const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
+ const regular=data.coins.filter(c=>c.firstSeen>=cutoff),manual=data.manualCoins;
+ return [...new Map([...manual,...regular].filter(c=>!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q)).map(c=>[c.id,c])).values()]
+  .sort((a,b)=>Number(Boolean(b.manual))-Number(Boolean(a.manual))||sortValue(b)-sortValue(a));
+}
+function marketState(c){
+ const timestamp=c.marketUpdatedAt??c.fetchedAt,minutes=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/60000)):Infinity;
+ return {timestamp,minutes,label:minutes===Infinity?'No market timestamp':minutes<1?'Live':minutes<10?`${minutes}m fresh`:`Stale ${minutes<60?minutes+'m':Math.floor(minutes/60)+'h'}`,className:minutes<10?'fresh':'stale'};
+}
+function profileLinks(profile){return (profile.links||[]).filter(l=>/^https:\/\//.test(l.url||'')).slice(0,1).map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.type==='twitter'?'X source':l.label||'Source')} ↗</a>`).join('')}
+function explanation(found,c){
+ if(found?.articles){const exact=verified(found),article=found.articles[0];return `<div class="story-block ${exact?'verified':'unverified'}"><span class="evidence-state">${exact?'Exact contract evidence':'Unverified context'}</span><p>${exact?'Public coverage identifies this contract.':'Name or ticker overlap; the source is not proof that it describes this contract.'}</p><a href="${esc(article.url)}" target="_blank" rel="noopener noreferrer">${esc(article.publisher)} · ${esc(article.title)} ↗</a></div>`}
+ if(found?.web){const exact=verified(found);return `<div class="story-block ${exact?'verified':'unverified'}"><span class="evidence-state">${exact?'Exact contract evidence':'Unverified context'}</span><p title="${esc(clean(found.web.snippet))}">${esc(clean(found.web.snippet))}</p><a href="${esc(found.web.url)}" target="_blank" rel="noopener noreferrer">${esc(found.web.title||'Public source')} ↗</a></div>`}
+ if(found?.profile){return `<div class="story-block verified"><span class="evidence-state">Contract profile</span><p title="${esc(clean(found.profile.description))}">${esc(clean(found.profile.description)||'The exact contract profile links to a public source.')}</p>${profileLinks(found.profile)}</div>`}
+ const checked=data.checks.get(c.id),message=checked==='searching'?'Searching public sources…':checked==='error'?'Context source unavailable.':'No contract-supported explanation yet.';
+ const query=encodeURIComponent(`"${c.contract_address}" OR "$${c.symbol}" OR "${c.name}"`);
+ return `<div class="story-block pending"><span class="evidence-state">Context pending</span><p>${message}</p><a href="https://x.com/search?q=${query}&src=typed_query&f=live" target="_blank" rel="noopener noreferrer">Search X ↗</a></div>`;
+}
+function metrics(c){
+ const short=c.volume5m!==null&&c.volume5m!==undefined;
+ return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>${short?'5m volume':'24h volume'}</dt><dd>${money(short?c.volume5m:c.volume)}</dd></div><div><dt>${short?'5m buys / sells':'24h buys'}</dt><dd>${short?`${num(c.buys5m)} / ${num(c.sells5m)}`:num(c.buys)}</dd></div></dl>`;
+}
+function variants(c){if(!c.variants||c.variants.length<2)return '';return `<details class="coin-variants"><summary>${c.variants.length} contracts · listings</summary><p>Metrics and evidence belong to the displayed contract.</p>${c.variants.map(v=>`<div class="coin-variant"><code>${esc(v.contract_address)}</code><span>Liquidity ${money(v.liquidity)} · 5m volume ${money(v.volume5m)}</span>${tokenActions(v)}</div>`).join('')}</details>`}
+function card(c,found,index){
+ const market=marketState(c),origin=c.manual?' · Manual':'';
+ return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${origin}</small></div>${tokenActions(c)}</div>${metrics(c)}${explanation(found,c)}<div class="coin-meta"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span><span>Seen ${esc(age(c.firstSeen))} ago</span></div>${variants(c)}</article>`;
+}
+function updateAvailable(){
+ const snapshot=state.pendingSnapshot,buttons=document.querySelectorAll('[data-apply-update]');
+ if(!snapshot){buttons.forEach(b=>b.hidden=true);return}
+ const known=new Set(data.coins.map(c=>c.id)),added=snapshot.coins.filter(c=>!known.has(c.id)).length;
+ buttons.forEach(b=>{b.hidden=false;b.textContent=added?`+${added} new`:'Update available'});
+}
+function render(){
+ const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
+ $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} verified · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
+ $('#investigate').disabled=loading;$('#refresh').disabled=loading;
+ const all=candidates(),rows=groupCoins(all,context),explained=rows.filter(c=>verified(context(c))),pending=rows.filter(c=>!verified(context(c)));
+ $('#explained-count').textContent=explained.length;$('#pending-count').textContent=pending.length;
+ $('#explained').innerHTML=explained.length?explained.map((c,i)=>card(c,context(c),i)).join(''):'<div class="new-empty"><strong>No contract-supported context in this window.</strong></div>';
+ $('#pending').innerHTML=pending.length?pending.map((c,i)=>card(c,context(c),i)).join(''):'<div class="new-empty"><strong>No pending coins in this window.</strong></div>';
+ $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
+ document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
+ $('#full-freshness').textContent=state.lastRun?`Server ${age(state.lastRun)} ago`:'Server waiting';
+ updateAvailable();
+}
+function applySnapshot(snapshot){
+ data.coins=snapshot.coins;state.historyLoaded=true;state.historyError=false;state.lastRun=snapshot.lastRun||0;state.pendingSnapshot=null;
+ const failed=Object.values(snapshot.feeds||{}).some(feed=>feed.error);
+ state.notice=snapshot.lastRun?`Server checked ${new Date(snapshot.lastRun).toLocaleString()}${failed?' · Some feeds unavailable; saved snapshots retained.':''}`:'The server is preparing its first collection.';
+ render();
+}
+async function getSnapshot(){
+ const response=await fetch('/api/new-coins',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+ if(!response.ok)throw new Error('History unavailable');
+ const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid history');return snapshot;
+}
+async function refresh(){
+ if(loading)return;loading=true;state.notice='';render();
+ try{applySnapshot(await getSnapshot())}catch{state.historyError=true;state.notice='Server history unavailable. Displayed snapshots were retained.'}
+ finally{loading=false;render()}
+}
+async function poll(){
+ try{const snapshot=await getSnapshot();if(snapshot.lastRun>state.lastRun){state.pendingSnapshot=snapshot;updateAvailable()}}catch{}
+}
 async function readStory(source){
- if(!sourceRequests.has(source.id))sourceRequests.set(source.id,fetch(`/api/context/source/${source.id}`,{signal:AbortSignal.timeout(28000)}).then(async response=>{if(!response.ok)throw new Error('Story source unavailable');const text=await response.text();return {snippet:storyParagraph(text),text}}));
- return sourceRequests.get(source.id);
+ const response=await fetch(`/api/context/source/${source.id}`,{signal:AbortSignal.timeout(18000)});if(!response.ok)throw new Error();
+ const text=await response.text();return {snippet:storyParagraph(text),text};
 }
 async function fetchWebContext(c){
- for(const source of sourcesFor(c)){
-  try{const result=await readStory(source);if(result.snippet)return {...source,snippet:result.snippet,exact:source.contract===c.contract_address&&c.network==='solana'&&result.text.includes(c.contract_address),attribution:'Source description; claims have not been independently verified.'}}catch{}
- }
- const query=new URLSearchParams({name:c.name,symbol:c.symbol,contract:c.contract_address,mode:'story'});
- const response=await fetch(`/api/context/search?${query}`,{signal:AbortSignal.timeout(22000)});
- if(!response.ok)throw new Error('Context search unavailable');
- const lead=bestSearchLead(await response.text());
- return lead?{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}:null;
+ for(const source of sourcesFor(c)){try{const result=await readStory(source);if(result.snippet)return {...source,snippet:result.snippet,exact:source.contract===c.contract_address&&result.text.includes(c.contract_address)}}catch{}}
+ const query=new URLSearchParams({name:c.name,symbol:c.symbol,contract:c.contract_address,mode:'story'}),response=await fetch(`/api/context/search?${query}`,{signal:AbortSignal.timeout(18000)});
+ if(!response.ok)throw new Error();return bestSearchLead(await response.text());
 }
 async function enrich(coins){
- const queue=[...coins];
- await Promise.all(Array.from({length:2},async()=>{while(queue.length){const c=queue.shift();data.checks.set(c.id,'searching');render();try{const lead=await fetchWebContext(c);if(lead)data.web.set(c.id,lead);data.checks.set(c.id,lead?'found':'empty')}catch{data.checks.set(c.id,'error')}render()}}));
+ const queue=[...coins];await Promise.all(Array.from({length:2},async()=>{while(queue.length){const c=queue.shift();data.checks.set(c.id,'searching');render();try{const lead=await fetchWebContext(c);if(lead)data.web.set(c.id,{...lead,exact:false});data.checks.set(c.id,lead?'found':'empty')}catch{data.checks.set(c.id,'error')}render()}}));
 }
-function profileLead(c){const usable=p=>p&&(p.description?.trim()||p.links?.some(link=>/x\.com|twitter\.com/i.test(link.url||'')));const exact=data.profiles.find(p=>same(p.tokenAddress,c.contract_address));if(exact)return {kind:'verified',profile:exact};const match=data.profiles.filter(p=>usable(p)&&(same(p.name,c.name)||same(p.symbol,c.symbol))).sort((a,b)=>(same(b.chainId,c.network)?1:0)-(same(a.chainId,c.network)?1:0))[0];return match?{kind:'possible',profile:match}:null}
-function context(c){const story=data.web.get(c.id);if(story)return {kind:'web',web:story};const articles=data.articles.filter(a=>addressMatches({posts:[a]},[c]).length);if(articles.length)return {kind:'verified',articles};const profile=profileLead(c);if(profile?.kind==='verified')return profile;const news=relatedNews(c);if(news.length)return {kind:'rss',articles:news};const web=data.web.get(c.id);return web?{kind:'web',web}:profile}
-function profileLinks(profile){return (profile.links||[]).filter(l=>/^https:\/\//.test(l.url||'')).slice(0,2).map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.type==='twitter'?'Open X evidence':l.label||'Open source')} ↗</a>`).join('')}
-function explanation(found,c){if(found?.articles){const exact=found.kind==='verified';return `<div class="story-answer ${exact?'':'possible'}"><span>What it is</span><p>${exact?'Public coverage contains this exact contract.':'This article overlaps the coin name or ticker. It is a narrative lead, not proof that the article refers to this contract.'}</p></div><div class="evidence-links">${found.articles.slice(0,2).map(p=>`<a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${esc(p.publisher)} · ${esc(p.title)} ↗</a>`).join('')}</div>`}if(found?.web)return `<div class="story-answer possible"><span>What it is</span><p>${esc(found.web.snippet)}</p><p><small>${esc(found.web.exact?'Source identifies this contract. '+found.web.attribution:found.web.attribution||'Related story; contract connection unverified.')}</small></p></div><div class="evidence-links"><a href="${esc(found.web.url)}" target="_blank" rel="noopener noreferrer">Public web context · ${esc(found.web.title)} ↗</a></div>`;if(found?.profile){const profile=found.profile,possible=found.kind==='possible',description=profile.description?.trim()||'This token profile links to an X source but has no written description.';return `<div class="story-answer ${possible?'possible':''}"><span>What it is</span><p>${esc(description)}${possible?` This is a ${esc(profile.chainId||'different-chain')} name/ticker lead, so it is not proof that this pool is official.`:''}</p></div><div class="evidence-links">${profileLinks(profile)}</div>`}const checked=data.checks.get(c.id),message=checked==='searching'?'Searching public sources for this coin’s story…':checked==='error'?'The context source could not be reached. Refresh to retry.':checked==='empty'?'No explanatory story found in the sources checked.':'Queued for a public story search.';const query=encodeURIComponent(`"${c.contract_address}" OR "$${c.symbol}" OR "${c.name}"`);return `<div class="story-answer pending"><span>What it is</span><p>${esc(message)}</p></div><div class="evidence-links"><a href="https://x.com/search?q=${query}&src=typed_query&f=live" target="_blank" rel="noopener noreferrer">Search X for this coin ↗</a></div>`}
-function variants(c){if(!c.variants||c.variants.length<2)return '';return `<details class="coin-variants"><summary>${c.variants.length} separate contracts · view listings</summary><p>Card metrics and evidence refer to the displayed contract. Matching names do not establish affiliation.</p>${c.variants.map(v=>`<div class="coin-variant"><code>${esc(v.contract_address)}</code><span>Liquidity ${money(v.liquidity)} · volume ${money(v.volume)} · buyers ${num(v.buyers)}${v.id===c.id?' · displayed above':''}</span>${tokenActions(v)}</div>`).join('')}</details>`}
-function card(c,found,index){const origin=c.manual?' · Manual lookup':'';return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · ${esc(age(c.poolCreated))}${origin}</small></div>${tokenActions(c)}</div>${explanation(found,c)}<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>24H volume</dt><dd>${money(c.volume)}</dd></div><div><dt>Pool buyers</dt><dd>${num(c.buyers)}</dd></div></dl>${variants(c)}</article>`}
-function render(){$('#investigate').disabled=loading;$('#refresh').disabled=loading;const all=candidates(),rows=groupCoins(all,context),explained=rows.filter(c=>context(c)),pending=rows.filter(c=>!context(c));$('#explained-count').textContent=explained.length;$('#pending-count').textContent=pending.length;$('#explained').innerHTML=explained.length?explained.map((c,i)=>card(c,context(c),i)).join(''):'<div class="new-empty"><strong>No supported story matches yet.</strong>DEX profile descriptions, linked X posts, public web search, and exact contract evidence will appear here when available.</div>';$('#pending').innerHTML=pending.length?pending.slice(0,30).map((c,i)=>card(c,null,i)).join(''):'<div class="new-empty"><strong>No qualified new pools in this window.</strong>Try 36H, refresh the discovery feeds, or investigate a coin by name.</div>';$('#status').textContent=loading?'Refreshing discovery and context feeds…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours}H window · Solana + Base · context: public profiles, linked X posts, RSS, and public web search`}
-async function fetchProfiles(){const response=await fetch('https://api.dexscreener.com/token-profiles/latest/v1',{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('Profile feed unavailable.');const profiles=await response.json();if(!Array.isArray(profiles))return [];const groups=new Map();for(const profile of profiles){if(profile.chainId&&profile.tokenAddress){const list=groups.get(profile.chainId)||[];list.push(profile.tokenAddress);groups.set(profile.chainId,list)}}const metadata=await Promise.allSettled([...groups].map(async([chain,addresses])=>{const response=await fetch(`https://api.dexscreener.com/tokens/v1/${encodeURIComponent(chain)}/${addresses.slice(0,30).map(encodeURIComponent).join(',')}`,{signal:AbortSignal.timeout(15000)});return response.ok?await response.json():[]}));const byAddress=new Map();for(const result of metadata)if(result.status==='fulfilled'&&Array.isArray(result.value))for(const pair of result.value){for(const token of [pair.baseToken,pair.quoteToken])if(token?.address)byAddress.set(String(token.address).toLowerCase(),token)}return profiles.map(profile=>({...profile,...(byAddress.get(String(profile.tokenAddress).toLowerCase())||{})}))}
-async function refresh(){if(loading)return;sourceRequests.clear();data.checks.clear();loading=true;render();const results=await Promise.allSettled([...NETWORKS.map(n=>fetchNewPools(n)),...FEEDS.map(f=>fetchPublicSource(f)),fetchProfiles()]);data.coins=[];data.articles=[];data.profiles=[];data.web=new Map();results.slice(0,NETWORKS.length).forEach(r=>{if(r.status==='fulfilled')data.coins.push(...r.value)});results.slice(NETWORKS.length,NETWORKS.length+FEEDS.length).forEach(r=>{if(r.status==='fulfilled')data.articles=mergeArticles(data.articles,r.value)});const profiles=results.at(-1);if(profiles.status==='fulfilled')data.profiles=profiles.value;await enrich(candidates());loading=false;render()}
-async function investigate(){if(loading)return;const query=state.query.trim();if(!query){state.notice='Enter a coin name, ticker, or contract to investigate.';render();return}loading=true;state.notice=`Looking up ${query} in the market feed and public web…`;render();try{const response=await fetch(`/api/market/search/pools?query=${encodeURIComponent(query)}`,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('Market search unavailable');const payload=await response.json(),key=query.toLowerCase().replace(/[^a-z0-9]/g,''),isExact=c=>[c.name,c.symbol].some(value=>String(value).toLowerCase().replace(/[^a-z0-9]/g,'')===key),coins=NETWORKS.flatMap(network=>parsePools({...payload,data:(payload.data||[]).filter(pool=>String(pool.id||'').startsWith(`${network.id}_`))},network)).sort((a,b)=>Number(isExact(b))-Number(isExact(a))).slice(0,6).map(c=>({...c,manual:true}));if(!coins.length){state.notice=`No supported Solana or Base pool found for “${query}”.`;return}data.manualCoins=[...new Map([...coins,...data.manualCoins].map(c=>[c.id,c])).values()];render();await enrich(coins);state.notice=`Found ${coins.length} market match${coins.length===1?'':'es'} for “${query}”. Manual matches stay at the top while you investigate.`}catch{state.notice=`Could not investigate “${query}” right now. Try again shortly.`}finally{loading=false;render()}}
-document.addEventListener('click',event=>{const button=event.target.closest('[data-hours]');if(!button)return;state.hours=Number(button.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===button)));render()});
-$('#query').addEventListener('input',event=>{state.query=event.target.value;state.notice='';render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});$('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);render();refresh();
-
+async function investigate(){
+ if(loading)return;const query=state.query.trim();if(!query){state.notice='Enter a coin name, ticker, or contract.';render();return}
+ loading=true;state.notice=`Looking up ${query}…`;render();
+ try{
+  const response=await fetch(`/api/market/search/pools?query=${encodeURIComponent(query)}`,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error();
+  const payload=await response.json(),key=query.toLowerCase().replace(/[^a-z0-9]/g,''),exact=c=>[c.name,c.symbol].some(v=>String(v).toLowerCase().replace(/[^a-z0-9]/g,'')===key);
+  const coins=NETWORKS.flatMap(network=>parsePools({...payload,data:(payload.data||[]).filter(pool=>String(pool.id||'').startsWith(`${network.id}_`))},network)).sort((a,b)=>Number(exact(b))-Number(exact(a))).slice(0,6).map(c=>({...c,manual:true,firstSeen:Date.now(),marketUpdatedAt:c.fetchedAt}));
+  if(!coins.length){state.notice=`No Solana or Base pool found for “${query}”.`;return}
+  data.manualCoins=[...new Map([...coins,...data.manualCoins].map(c=>[c.id,c])).values()];render();await enrich(coins);state.notice=`Found ${coins.length} market match${coins.length===1?'':'es'} for “${query}”.`;
+ }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
+}
+function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full'}
+function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
+ const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
+ if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;
- const coin=[...data.manualCoins,...data.coins].find(c=>c.id===button.dataset.copyCa);
- const result=await copyContract(coin,navigator.clipboard);
- if(result.status==='copied'){button.textContent='Copied ✓';$('#ca-status').textContent='Contract address copied.';setTimeout(()=>{if(button.isConnected)button.textContent='CA ⧉'},1800)}
+ const coin=[...data.manualCoins,...data.coins].find(c=>c.id===button.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
+ if(result.status==='copied'){button.textContent='Copied ✓';$('#ca-status').textContent='Contract copied.';setTimeout(()=>{if(button.isConnected)button.textContent='CA ⧉'},1800)}
  else if(result.status==='manual'){const input=$('#manual-ca');input.value=result.address;$('#ca-dialog').showModal();input.focus();input.select()}
- else $('#ca-status').textContent='Contract address unavailable.';
 });
+document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
+$('#query').addEventListener('input',event=>{state.query=event.target.value;render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});
+$('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);$('#full-mode').addEventListener('click',()=>setFull(!document.body.classList.contains('tiles-only')));
+$('.full-refresh').addEventListener('click',refresh);
+$('.full-exit').addEventListener('click',()=>setFull(false));
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){setFull(false);$('.collection-info').open=false}});
+setInterval(poll,60000);setInterval(()=>{document.querySelectorAll('[data-market-time]').forEach(node=>{const c={fetchedAt:Number(node.dataset.marketTime)},fresh=marketState(c);node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
+render();refresh();
