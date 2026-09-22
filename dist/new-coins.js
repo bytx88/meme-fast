@@ -45,9 +45,13 @@ function metrics(c){
  return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>${short?'5m volume':'24h volume'}</dt><dd>${money(short?c.volume5m:c.volume)}</dd></div><div><dt>${short?'5m buys / sells':'24h buys'}</dt><dd>${short?`${num(c.buys5m)} / ${num(c.sells5m)}`:num(c.buys)}</dd></div></dl>`;
 }
 function variants(c){if(!c.variants||c.variants.length<2)return '';return `<details class="coin-variants"><summary>${c.variants.length} contracts · listings</summary><p>Metrics and evidence belong to the displayed contract.</p>${c.variants.map(v=>`<div class="coin-variant"><code>${esc(v.contract_address)}</code><span>Liquidity ${money(v.liquidity)} · 5m volume ${money(v.volume5m)}</span>${tokenActions(v)}</div>`).join('')}</details>`}
+function thumbnail(c){
+ const label=String(c.symbol||'?').replace(/^\$/,'').trim().slice(0,1).toUpperCase()||'?';
+ return `<span class="coin-thumb" aria-hidden="true"><span>${esc(label)}</span>${c.image_url?`<img src="${esc(c.image_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>`;
+}
 function card(c,found,index){
  const market=marketState(c),origin=c.manual?' · Manual':'';
- return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${origin}</small></div>${tokenActions(c)}</div>${metrics(c)}${explanation(found,c)}<div class="coin-meta"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span><span>Seen ${esc(age(c.firstSeen))} ago</span></div>${variants(c)}</article>`;
+ return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${origin}</small></div>${thumbnail(c)}${tokenActions(c)}</div>${metrics(c)}${explanation(found,c)}<div class="coin-meta"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span><span>Seen ${esc(age(c.firstSeen))} ago</span></div>${variants(c)}</article>`;
 }
 function updateAvailable(){
  const snapshot=state.pendingSnapshot,buttons=document.querySelectorAll('[data-apply-update]');
@@ -120,6 +124,7 @@ document.addEventListener('click',async event=>{
  if(result.status==='copied'){button.textContent='Copied ✓';$('#ca-status').textContent='Contract copied.';setTimeout(()=>{if(button.isConnected)button.textContent='CA ⧉'},1800)}
  else if(result.status==='manual'){const input=$('#manual-ca');input.value=result.address;$('#ca-dialog').showModal();input.focus();input.select()}
 });
+document.addEventListener('error',event=>{if(event.target.matches?.('.coin-thumb img'))event.target.remove()},true);
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});
 $('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);$('#full-mode').addEventListener('click',()=>setFull(!document.body.classList.contains('tiles-only')));

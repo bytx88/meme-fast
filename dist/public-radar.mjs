@@ -21,7 +21,7 @@ export function parsePools(data,network,now=Date.now()) {
  const coins=new Map();
  for(const pool of data.data){
   const a=pool.attributes,t= tokens.get(pool.relationships?.base_token?.data?.id);if(!a||!t)continue;
-  const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),priceChange:numeric(a.price_change_percentage?.h24),fetchedAt:now};
+  const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),image_url:safeURL(t.image_url),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),priceChange:numeric(a.price_change_percentage?.h24),fetchedAt:now};
   if(!contractForCopy(c)||!contractForCopy({...c,contract_address:c.pool}))continue;
   if(['SOL','WETH','ETH','USDC','USDT','USDS','DAI','WBTC','CBBTC','USDE'].includes(c.symbol.toUpperCase()))continue;
   const previous=coins.get(c.id);

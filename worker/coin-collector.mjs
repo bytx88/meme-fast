@@ -1,7 +1,7 @@
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches} from '../dist/public-radar.mjs';
+import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 
 export const RETENTION_MS=5*86400000;
@@ -17,7 +17,7 @@ export function refreshMarket(coins,pairs,now=Date.now()){
  return coins.map(coin=>{
   const pair=byAddress.get(`${coin.network}:${String(coin.contract_address).toLowerCase()}`);
   if(!pair)return coin;
-  return {...coin,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
+  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
  });
 }
 export function mergeCoins(previous,incoming,now=Date.now()){
@@ -25,7 +25,7 @@ export function mergeCoins(previous,incoming,now=Date.now()){
  for(const coin of incoming){
   const old=rows.get(coin.id);
   if(!old&&!(coin.poolCreated>=now-36*3600000&&coin.liquidity>=3000&&(coin.buys??0)+(coin.sells??0)>=5))continue;
-  rows.set(coin.id,{...old,...coin,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
+  rows.set(coin.id,{...old,...coin,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
  }
  return [...rows.values()];
 }
@@ -89,10 +89,12 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  const articles=news.slice(0,FEEDS.length).flatMap(r=>r.status==='fulfilled'?r.value:[]);
  const profiles=news.at(-1).status==='fulfilled'?news.at(-1).value:[];
  for(const coin of coins){
+  const exactProfile=profiles.find(p=>p.chainId===coin.network&&(coin.network==='solana'?p.tokenAddress===coin.contract_address:String(p.tokenAddress).toLowerCase()===coin.contract_address.toLowerCase()));
+  coin.image_url=safeURL(exactProfile?.icon)||coin.image_url||null;
   const matches=articles.filter(a=>addressMatches({posts:[a]},[coin]).length);
   if(matches.length)coin.savedContext={kind:'verified',articles:matches.slice(0,2)};
   if(!coin.savedContext){
-   const profile=profiles.find(p=>p.chainId===coin.network&&(coin.network==='solana'?p.tokenAddress===coin.contract_address:String(p.tokenAddress).toLowerCase()===coin.contract_address.toLowerCase())&&(p.description?.trim()||p.links?.some(l=>/x\.com|twitter\.com/i.test(l.url||''))));
+   const profile=exactProfile&&(exactProfile.description?.trim()||exactProfile.links?.some(l=>/x\.com|twitter\.com/i.test(l.url||'')))?exactProfile:null;
    if(profile)coin.savedContext={kind:'verified',profile};
   }
   if(!coin.savedContext){

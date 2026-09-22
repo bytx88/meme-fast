@@ -14,6 +14,7 @@ test('five-day history survives missing pools; repeat sightings do not reset exp
  const updated=mergeCoins(first,[{...coin,liquidity:100}],now+2000);
  assert.equal(updated[0].firstSeen,now);
  assert.equal(updated[0].liquidity,100);
+ assert.equal(mergeCoins([{...first[0],image_url:'https://cdn.example/coin.png'}],[{...coin,image_url:null}],now+2000)[0].image_url,'https://cdn.example/coin.png');
  assert.deepEqual(updated[0].savedContext,first[0].savedContext);
  assert.equal(mergeCoins(updated,[],now+RETENTION_MS).length,0);
  assert.equal(mergeCoins(updated,[coin],now+RETENTION_MS).length,0);
@@ -33,8 +34,8 @@ test('collector persists failures without erasing saved coins and prunes expired
 });
 test('market refresh updates retained contracts with short-window activity and a real timestamp',()=>{
  const coin={id:'solana:ABC',network:'solana',contract_address:'ABC',liquidity:4000,fetchedAt:1};
- const [updated]=refreshMarket([coin],[{chainId:'solana',pairAddress:'pool',baseToken:{address:'ABC'},liquidity:{usd:9000},volume:{m5:700,h24:12000},txns:{m5:{buys:8,sells:3},h24:{buys:90,sells:70}},priceChange:{h24:12}}],5000);
- assert.equal(updated.liquidity,9000);assert.equal(updated.volume5m,700);assert.equal(updated.buys5m,8);assert.equal(updated.sells5m,3);assert.equal(updated.marketUpdatedAt,5000);
+ const [updated]=refreshMarket([coin],[{chainId:'solana',pairAddress:'pool',baseToken:{address:'ABC'},info:{imageUrl:'https://cdn.example/coin.png'},liquidity:{usd:9000},volume:{m5:700,h24:12000},txns:{m5:{buys:8,sells:3},h24:{buys:90,sells:70}},priceChange:{h24:12}}],5000);
+ assert.equal(updated.liquidity,9000);assert.equal(updated.volume5m,700);assert.equal(updated.buys5m,8);assert.equal(updated.sells5m,3);assert.equal(updated.marketUpdatedAt,5000);assert.equal(updated.image_url,'https://cdn.example/coin.png');
 });
 test('market refresh keeps the last known metric when the live pair omits it',()=>{
  const coin={id:'solana:ABC',network:'solana',contract_address:'ABC',liquidity:4000,volume:8000};
