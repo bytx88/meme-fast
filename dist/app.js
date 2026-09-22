@@ -24,7 +24,7 @@ function renderRecentContracts(){
     button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
   }
 }
-const state={token:{address:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',network:'solana',symbol:'BONK',name:'Bonk'},minutes:60,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
+const state={token:{address:'So11111111111111111111111111111111111111112',network:'solana',symbol:'SOL',name:'Solana (wrapped SOL)'},minutes:60,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
@@ -128,5 +128,5 @@ window.addEventListener('pagehide',()=>{if(recentInputTimer)recentContracts.reme
 $('clear-recent').addEventListener('click',()=>{clearTimeout(recentInputTimer);recentInputTimer=null;recentContracts.clear();renderRecentContracts()});
 renderRecentContracts();
 updateIdentity();render();
-const initialQuery=new URLSearchParams(location.search).get('query')||recentContracts.entries[0]?.address;
+const initialQuery=new URLSearchParams(location.search).get('query')?.trim()||recentContracts.entries[0]?.address;
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();
