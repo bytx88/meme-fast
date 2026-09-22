@@ -1,7 +1,7 @@
 const abortError=()=>new DOMException('Request canceled','AbortError');
 const limited=()=>new Error('The data provider is rate-limiting requests. Cached results remain available; try again in a minute.');
 
-export function createRequestClient({base='https://api.geckoterminal.com/api/v2',fetcher=fetch,interval=2100,concurrency=3,timeout=12000,decode=value=>value}={}) {
+export function createRequestClient({base='/api/market',fetcher=fetch,interval=2100,concurrency=3,timeout=15000,decode=value=>value}={}) {
   const cache=new Map(),inFlight=new Map(),queue=[];
   let active=0,lastStart=-Infinity,timer=null,cooldownUntil=0;
   const ttl=path=>path.includes('/tokens/')?300000:path.includes('/search/')?60000:30000;
