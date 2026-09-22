@@ -30,3 +30,11 @@ node scripts/build-worker.mjs
 ```
 
 The build script packages the static application and market-data proxy as a deployable Worker bundle under `dist/server/`.
+
+## Deploy to Modal
+
+```sh
+py -m modal deploy modal_app.py
+```
+
+The Modal app is named `meme-fast`; its `web` function serves the frontend and the restricted GeckoTerminal proxy.
