@@ -3,6 +3,7 @@ import {loadListings} from './data.mjs';
 import {lookupTokens} from './lookup.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
+import {toggleSaved,isSaved} from './research-store.mjs';
 const renderTape=setupTape();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
@@ -36,6 +37,7 @@ async function search(query){
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
 function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));return {tokens,pools,listings,trades:scopeTrades(state.trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;$('avatar').textContent=combined?'Σ':t.symbol.slice(0,1).toUpperCase();$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);document.title=`${combined?'Combined':t.symbol} Flow · Meme Fast`;
+  $('save-token').hidden=combined;$('save-token').textContent=isSaved('token',listingKey(t))?'Saved ✓':'Save token';
   $('search-result-summary').hidden=!state.searchedQuery;
   $('result-mode').textContent=t.unverified?'CONTRACT NOT VERIFIED':combined?'COMBINED VIEW':'SINGLE LISTING';
   $('result-title').textContent=t.unverified?'Contract entered · Solana format':combined?`Showing ${tokens.length} listings together`:`Showing ${t.symbol} on ${t.network}`;
@@ -94,6 +96,7 @@ $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matc
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
 $('combine-selected').addEventListener('click',()=>selectListings(state.matches.filter(t=>state.draft.has(listingKey(t)))));
 $('find-listings').addEventListener('click',()=>{const token=viewData().tokens[0]||state.token;$('query').value=token.symbol;search(token.symbol).catch(e=>error(e.message))});
+$('save-token').addEventListener('click',()=>{const token=viewData().tokens[0]||state.token;if(state.tokens.length!==1)return;toggleSaved({type:'token',id:listingKey(token),title:`$${token.symbol} · ${token.name}`,subtitle:`${token.network} · ${short(token.address)}`,href:`./?query=${encodeURIComponent(token.address)}`});updateIdentity()});
 setInterval(()=>{if(!document.hidden&&!state.busy&&!state.searchBusy&&state.searchResult==='ready'&&!state.tokens.some(t=>t.unverified)&&Date.now()-state.fetched>=60000)load()},60000);
 const context=document.modelContext;
 if(context?.registerTool){const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});for(const tool of [
@@ -102,4 +105,6 @@ if(context?.registerTool){const lifecycle=new AbortController();window.addEventL
   {name:'read_observed_flow',description:'Read the currently displayed token swap sample and coverage.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:()=>currentSummary()}
 ]){try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{})}catch{}}}
 window.addEventListener('resize',()=>render());
-updateIdentity();render();load();
+updateIdentity();render();
+const initialQuery=new URLSearchParams(location.search).get('query');
+if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();

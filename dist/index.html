@@ -10,7 +10,7 @@
 </head>
 <body>
 <main>
-  <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><nav class="site-nav" aria-label="Main navigation"><a href="./" aria-current="page">Token flow</a><a href="./narratives.html">Incoming narratives</a></nav></header>
+  <header class="masthead"><a class="brand" href="./narratives.html"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Radar</a><a href="./" aria-current="page">Token research</a><a href="./watchlist.html">Watchlist</a><a href="./sources.html">Sources</a></nav></header>
   <section class="search-area" aria-label="Find a token">
     <div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div>
     <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="BONK, PEPE, or a contract address" required><button id="search-button" class="primary" type="submit">Find token <span aria-hidden="true">↗</span></button></form>
@@ -21,7 +21,7 @@
   <div id="error" class="error" role="alert" hidden></div>
   <section id="dashboard" aria-label="Token swap flow">
     <div id="search-result-summary" class="search-result-summary" hidden><span id="result-mode" class="sample-tag"></span><div><strong id="result-title"></strong><p id="result-note"></p></div></div>
-    <div class="token-row"><div class="identity"><div class="token-avatar" id="avatar">B</div><div><div class="token-title"><h2 id="symbol">BONK</h2><span class="network" id="network">solana</span></div><p id="token-name">Bonk</p></div></div><a id="token-link" class="contract" target="_blank" rel="noopener noreferrer">View token ↗</a></div>
+    <div class="token-row"><div class="identity"><div class="token-avatar" id="avatar">B</div><div><div class="token-title"><h2 id="symbol">BONK</h2><span class="network" id="network">solana</span></div><p id="token-name">Bonk</p></div></div><div class="listing-actions"><button id="save-token" type="button">Save token</button><a id="token-link" class="contract" target="_blank" rel="noopener noreferrer">View token ↗</a></div></div>
     <div class="address-row"><span id="address">DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263</span></div>
     <div class="listing-actions"><button type="button" id="find-listings">Find other listings</button><div id="scope-tabs" class="scope-tabs" aria-label="Listing view" hidden></div></div>
     <div id="listing-coverage" class="listing-coverage" hidden></div>
