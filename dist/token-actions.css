@@ -1,4 +1,4 @@
-.compact-token-actions{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
-.compact-token-actions a,.compact-token-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:30px;margin:0;padding:5px 9px;border:1px solid #3b485a;border-radius:6px;background:#1a2431;color:#dceaff;font-family:inherit;font-size:12px;font-weight:500;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
+.compact-token-actions{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.compact-token-actions a,.compact-token-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:28px;margin:0;padding:4px 7px;border:1px solid #3b485a;border-radius:6px;background:#1a2431;color:#dceaff;font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
 .compact-token-actions a:hover,.compact-token-actions button:hover{background:#29384a;border-color:#71849e;color:#fff}
 .compact-token-actions a:focus-visible,.compact-token-actions button:focus-visible{outline:2px solid #c9ff49;outline-offset:2px}

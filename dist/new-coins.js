@@ -1,4 +1,4 @@
-import {tokenActions} from './token-actions.mjs';
+import {tokenActions} from './token-actions.mjs?v=find-stats-v1';
 import {copyContract} from './contract-copy.mjs';
 import {groupCoins} from './coin-groups.mjs';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';

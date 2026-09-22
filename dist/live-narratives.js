@@ -1,4 +1,4 @@
-import {tokenActions as actions} from './token-actions.mjs';
+import {tokenActions as actions} from './token-actions.mjs?v=find-stats-v1';
 import {FEEDS,NETWORKS,buildPublicView,fetchPublicSource,mergeArticles,compareSnapshots,addressMatches,safeURL} from './public-radar.mjs';
 import {contractForCopy,copyContract,axiomLink} from './contract-copy.mjs';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
