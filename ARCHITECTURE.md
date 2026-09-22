@@ -7,6 +7,7 @@ Meme Fast is organized around an evidence path:
 ## Product surfaces
 
 - **Radar** (`dist/narratives.html`) discovers changing narratives and active tokens.
+- **New coins** (`dist/new-coins.html`) collects fresh pools into an investigation queue and promotes only exact-address evidence matches.
 - **Narrative research** (`dist/narrative.html`) explains a story through evidence, lifecycle state, and exact-address token associations.
 - **Token research** (`dist/index.html`) investigates recent swap flow for a contract or a set of listings.
 - **Watchlist** (`dist/watchlist.html`) keeps a personal queue of narratives and tokens.
@@ -34,6 +35,7 @@ Collectors append observations; clustering and association jobs update derived r
 
 - `/narratives.html` — discovery
 - `/narrative.html?id=<narrative-id>` — narrative research
+- `/new-coins.html` — newly discovered pools and story evidence status
 - `/?query=<contract-or-ticker>` — token research
 - `/watchlist.html` — saved research
 - `/sources.html` — coverage configuration

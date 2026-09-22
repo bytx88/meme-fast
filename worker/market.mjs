@@ -5,11 +5,12 @@ export function marketPath(url) {
   const path=url.pathname.slice(prefix.length);
   const search=path==='/search/pools';
   const pools=/^\/networks\/[a-z0-9_-]{1,40}\/tokens\/[a-zA-Z0-9]{1,100}\/pools$/.test(path);
+  const newPools=/^\/networks\/[a-z0-9_-]{1,40}\/new_pools$/.test(path);
   const trades=/^\/networks\/[a-z0-9_-]{1,40}\/pools\/[a-zA-Z0-9]{1,100}\/trades$/.test(path);
-  if(!search&&!pools&&!trades)return null;
+  if(!search&&!pools&&!newPools&&!trades)return null;
   const query=new URLSearchParams();
   if(search){const value=url.searchParams.get('query')?.trim();if(!value||value.length>160)return null;query.set('query',value)}
-  if(search||pools)query.set('include','base_token,quote_token');
+  if(search||pools||newPools)query.set('include','base_token,quote_token');
   for(const key of url.searchParams.keys())if(!['query','include'].includes(key))return null;
   return path+(query.size?'?'+query:'');
 }

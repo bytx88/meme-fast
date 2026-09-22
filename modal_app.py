@@ -53,8 +53,9 @@ def web():
         path = "/" + market_path
         is_search = path == "/search/pools"
         is_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/tokens/[a-zA-Z0-9]{1,100}/pools", path))
+        is_new_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/new_pools", path))
         is_trades = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/trades", path))
-        if not (is_search or is_pools or is_trades):
+        if not (is_search or is_pools or is_new_pools or is_trades):
             raise HTTPException(status_code=404, detail="Unknown market endpoint")
 
         supplied = set(request.query_params.keys())
@@ -66,7 +67,7 @@ def web():
             if not query or len(query) > 160:
                 raise HTTPException(status_code=400, detail="Invalid search query")
             params["query"] = query
-        if is_search or is_pools:
+        if is_search or is_pools or is_new_pools:
             params["include"] = "base_token,quote_token"
 
         target = "https://api.geckoterminal.com/api/v2" + path
@@ -88,6 +89,7 @@ def web():
             "": "index.html",
             "narratives": "narratives.html",
             "narrative": "narrative.html",
+            "new-coins": "new-coins.html",
             "watchlist": "watchlist.html",
             "sources": "sources.html",
         }

@@ -72,6 +72,11 @@ export async function fetchPublicSource(source,fetcher=fetch) {
  if(!response.ok)throw new Error(response.status===429?'Rate limited; try again later.':`Feed unavailable (HTTP ${response.status}).`);
  const data=await response.json();return source.url?parseNews(data,source):parsePools(data,source);
 }
+export async function fetchNewPools(network,fetcher=fetch) {
+ const response=await fetcher(`/api/market/networks/${encodeURIComponent(network.id)}/new_pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw new Error(response.status===429?'Rate limited; try again later.':`New-pool feed unavailable (HTTP ${response.status}).`);
+ return parsePools(await response.json(),network);
+}
 export function mergeArticles(oldItems,newItems,now=Date.now()) {
  return [...new Map([...oldItems,...newItems].map(p=>[p.id,p])).values()].filter(p=>p.time>=now-72*3600000).sort((a,b)=>b.time-a.time).slice(0,600);
 }

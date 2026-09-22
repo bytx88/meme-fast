@@ -5,6 +5,7 @@ const url='https://site.test/api/market/networks/solana/pools/abc/trades';
 test('Market route rejects arbitrary destinations and unsupported endpoints',()=>{
   for(const path of ['/api/market/https://attacker.test','/api/market/networks/solana/pools/a/trades?url=https://attacker.test','/api/market/networks/solana/pools/a%2Fb/trades','/api/market/admin'])assert.equal(marketPath(new URL('https://site.test'+path)),null);
   assert.equal(marketPath(new URL(url)),'/networks/solana/pools/abc/trades');
+  assert.equal(marketPath(new URL('https://site.test/api/market/networks/solana/new_pools?include=base_token,quote_token')),'/networks/solana/new_pools?include=base_token%2Cquote_token');
 });
 test('Server fetches real provider JSON without forwarding cookies and shares concurrent work',async()=>{
   let calls=0,options;const proxy=createMarketProxy({fetcher:async(destination,opts)=>{calls++;options=opts;assert.equal(destination,'https://api.geckoterminal.com/api/v2/networks/solana/pools/abc/trades');return Response.json({data:[{id:'actual'}]})}});
