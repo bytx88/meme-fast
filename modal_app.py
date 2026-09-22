@@ -5,6 +5,7 @@ Deploy with:
 """
 
 from pathlib import Path
+import os
 import re
 from urllib.parse import urlencode
 
@@ -14,14 +15,18 @@ import modal
 APP_NAME = "meme-fast"
 LOCAL_DIST = Path(__file__).parent / "dist"
 REMOTE_DIST = "/app/dist"
+RUNNING_IN_MODAL = Path(REMOTE_DIST).is_dir() or bool(
+    os.getenv("MODAL_TASK_ID") or os.getenv("MODAL_ENVIRONMENT_NAME")
+)
+DIST_SOURCE = Path(REMOTE_DIST) if RUNNING_IN_MODAL else LOCAL_DIST
 
-if not (LOCAL_DIST / "index.html").is_file():
+if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
     raise RuntimeError("dist/index.html is missing")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0")
-    .add_local_dir(LOCAL_DIST, remote_path=REMOTE_DIST)
+    .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST)
 )
 
 app = modal.App(APP_NAME, image=image)
