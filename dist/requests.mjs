@@ -1,7 +1,7 @@
 const abortError=()=>new DOMException('Request canceled','AbortError');
 const limited=()=>new Error('The data provider is rate-limiting requests. Cached results remain available; try again in a minute.');
 
-export function createRequestClient({base='https://api.geckoterminal.com/api/v2',fetcher=fetch,interval=2100,concurrency=3,timeout=12000}={}) {
+export function createRequestClient({base='https://api.geckoterminal.com/api/v2',fetcher=fetch,interval=2100,concurrency=3,timeout=12000,decode=value=>value}={}) {
   const cache=new Map(),inFlight=new Map(),queue=[];
   let active=0,lastStart=-Infinity,timer=null,cooldownUntil=0;
   const ttl=path=>path.includes('/tokens/')?300000:path.includes('/search/')?60000:30000;
@@ -25,7 +25,7 @@ export function createRequestClient({base='https://api.geckoterminal.com/api/v2'
         throw limited();
       }
       if(!response.ok)throw new Error(`The data provider could not return swaps (HTTP ${response.status}). Please try again.`);
-      const value=await response.json();if(!Array.isArray(value.data))throw new Error('The data provider returned an unexpected response.');
+      const value=decode(await response.json());if(!Array.isArray(value.data))throw new Error('The data provider returned an unexpected response.');
       if(job.signal?.aborted)throw abortError();
       cache.delete(job.path);cache.set(job.path,{time:Date.now(),value});
       if(cache.size>128)cache.delete(cache.keys().next().value);

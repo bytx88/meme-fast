@@ -1,9 +1,11 @@
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD} from './core.mjs';
 import {loadListings} from './data.mjs';
+import {lookupTokens} from './lookup.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 const renderTape=setupTape();
 const $=id=>document.getElementById(id),api=createRequestClient();
+const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
 const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
 const short=s=>s.length>18?s.slice(0,7)+'…'+s.slice(-6):s;
@@ -11,17 +13,12 @@ const state={token:{address:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',netwo
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
-function tokenFromIncluded(t){const a=t.attributes||{};if(!a.address)return null;return {address:a.address,network:t.id.slice(0,-a.address.length-1),symbol:a.symbol||a.name||'Token',name:a.name||a.symbol||'Token'}}
 async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
-  try{const j=await api(`/search/pools?query=${encodeURIComponent(query)}&include=base_token,quote_token`,{signal:controller.signal,priority:20});if(generation!==state.searchGeneration)return [];
-    const tokens=(j.included||[]).filter(t=>t.type==='token').map(tokenFromIncluded).filter(Boolean);const q=query.toLowerCase();
-    const exactAddress=tokens.filter(t=>canonical(t.address)===canonical(query)),exactSymbol=tokens.filter(t=>t.symbol.toLowerCase()===q);
-    const candidates=exactAddress.length?exactAddress:exactSymbol.length?exactSymbol:tokens.filter(t=>t.symbol.toLowerCase().includes(q)||t.name.toLowerCase().includes(q));
-    const found=candidates.map(t=>({...t,liquidity:j.data.filter(p=>[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].includes(`${t.network}_${t.address}`)).reduce((s,p)=>s+(Number(p.attributes.reserve_in_usd)||0),0)})).sort((a,b)=>Number(b.symbol.toLowerCase()===q)-Number(a.symbol.toLowerCase()===q)||b.liquidity-a.liquidity).slice(0,12);
+  try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];
     state.matches=uniqueListings(found);state.draft=new Set(state.matches.map(listingKey));
-    $('results').replaceChildren();for(const token of state.matches){const row=document.createElement('div');row.className='result-choice';const label=document.createElement('label'),check=document.createElement('input'),copy=document.createElement('span');check.type='checkbox';check.value=listingKey(token);check.checked=state.draft.has(check.value);check.addEventListener('change',()=>{if(check.checked)state.draft.add(check.value);else state.draft.delete(check.value);updateSelection()});copy.className='result-copy';const main=document.createElement('strong');main.textContent=`${token.symbol} · ${token.name} · ${token.network}`;const meta=document.createElement('small');meta.textContent=`${compact(token.liquidity)} indexed liquidity`;const address=document.createElement('small');address.textContent=token.address;copy.append(main,meta,address);label.append(check,copy);const view=document.createElement('button');view.type='button';view.textContent='View only';view.setAttribute('aria-label',`View only ${token.symbol} on ${token.network} ${short(token.address)}`);view.addEventListener('click',()=>selectToken(token));row.append(label,view);$('results').append(row)}
+    $('results').replaceChildren();for(const token of state.matches){const row=document.createElement('div');row.className='result-choice';const label=document.createElement('label'),check=document.createElement('input'),copy=document.createElement('span');check.type='checkbox';check.value=listingKey(token);check.checked=state.draft.has(check.value);check.addEventListener('change',()=>{if(check.checked)state.draft.add(check.value);else state.draft.delete(check.value);updateSelection()});copy.className='result-copy';const main=document.createElement('strong');main.textContent=`${token.symbol} · ${token.name} · ${token.network}`;const meta=document.createElement('small');meta.textContent=`${token.unverified?'Unverified address':compact(token.liquidity)+' indexed liquidity'}`;const address=document.createElement('small');address.textContent=token.address;copy.append(main,meta,address);label.append(check,copy);const view=document.createElement('button');view.type='button';view.textContent='View only';view.setAttribute('aria-label',`View only ${token.symbol} on ${token.network} ${short(token.address)}`);view.addEventListener('click',()=>selectToken(token));row.append(label,view);$('results').append(row)}
     updateSelection();
     if(state.matches.length){
       state.searchResult='ready';
@@ -40,15 +37,19 @@ function updateSelection(){for(const check of $('results').querySelectorAll('inp
 function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));return {tokens,pools,listings,trades:scopeTrades(state.trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;$('avatar').textContent=combined?'Σ':t.symbol.slice(0,1).toUpperCase();$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);document.title=`${combined?'Combined':t.symbol} Flow · Meme Fast`;
   $('search-result-summary').hidden=!state.searchedQuery;
-  $('result-mode').textContent=combined?'COMBINED VIEW':'SINGLE LISTING';
-  $('result-title').textContent=combined?`Showing ${tokens.length} listings together`:`Showing ${t.symbol} on ${t.network}`;
-  $('result-note').textContent=combined?'USD flow is combined across the listings below. Matching names may represent different tokens.':state.matches.length===1?'One matching listing found. The full contract address is shown below.':`One listing selected from ${state.matches.length} search matches.`;
+  $('result-mode').textContent=t.unverified?'CONTRACT NOT VERIFIED':combined?'COMBINED VIEW':'SINGLE LISTING';
+  $('result-title').textContent=t.unverified?'Contract entered · Solana format':combined?`Showing ${tokens.length} listings together`:`Showing ${t.symbol} on ${t.network}`;
+  $('result-note').textContent=t.unverified?t.lookupWarning:combined?'USD flow is combined across the listings below. Matching names may represent different tokens.':state.matches.length===1?'One matching listing found. The full contract address is shown below.':`One listing selected from ${state.matches.length} search matches.`;
 
   $('scope-tabs').hidden=state.tokens.length<2;$('scope-tabs').replaceChildren();if(state.tokens.length>1)for(const entry of [{key:'all',label:`All combined (${state.tokens.length})`},...state.tokens.map(t=>({key:listingKey(t),label:`${t.symbol} · ${t.network} · ${short(t.address)}`}))]){const button=document.createElement('button');button.type='button';button.textContent=entry.label;button.setAttribute('aria-pressed',String(state.scope===entry.key));button.addEventListener('click',()=>{state.scope=entry.key;updateIdentity();render()});$('scope-tabs').append(button)}
 }
 async function selectToken(token){return selectListings([token])}
 async function selectListings(tokens){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=[];state.pools=[];state.listings=[];state.skipped=0;state.loadError=false;state.fetched=0;state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} matching listing${state.matches.length===1?'':'s'} found for “${state.searchedQuery}”.`:'';updateIdentity();render();return load()}
 async function load(){
+  if(state.tokens.some(t=>t.unverified)){
+    state.busy=false;state.fetched=Date.now();state.listings=state.tokens.map(t=>({...t,key:listingKey(t),status:'failed',error:t.lookupWarning}));
+    $('search-status').textContent='Address received; token could not be verified.';render();error(state.token.lookupWarning);return currentSummary();
+  }
   state.loadController?.abort();const controller=new AbortController();state.loadController=controller;
   const generation=++state.generation,tokens=[...state.tokens],hadData=state.pools.some(p=>p.status==='loaded');state.busy=true;state.loadError=false;state.progress='Fetching swaps…';$('refresh').disabled=true;$('charts').setAttribute('aria-busy','true');$('updated').textContent='Fetching swaps…';error('');render();
   try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}});
@@ -81,18 +82,18 @@ function render(){
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('coverage-text').textContent='No usable pool data returned for this selection. Missing data is not zero trading.';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('coverage-text').textContent='The latest request failed. No market-flow conclusion is available.';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
-  renderTimeline(s.rows,state.minutes,now,loaded);
-  renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes);
+  renderTimeline(s.rows,state.minutes,now,loaded,state.busy);
+  renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
 
 }
-$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
+$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
 $('combine-selected').addEventListener('click',()=>selectListings(state.matches.filter(t=>state.draft.has(listingKey(t)))));
 $('find-listings').addEventListener('click',()=>{const token=viewData().tokens[0]||state.token;$('query').value=token.symbol;search(token.symbol).catch(e=>error(e.message))});
-setInterval(()=>{if(!document.hidden&&!state.busy&&!state.searchBusy&&state.searchResult==='ready'&&Date.now()-state.fetched>=60000)load()},60000);
+setInterval(()=>{if(!document.hidden&&!state.busy&&!state.searchBusy&&state.searchResult==='ready'&&!state.tokens.some(t=>t.unverified)&&Date.now()-state.fetched>=60000)load()},60000);
 const context=document.modelContext;
 if(context?.registerTool){const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});for(const tool of [
   {name:'search_tokens',description:'Search indexed tokens and automatically show one match or the combined flow of multiple matches.',inputSchema:{type:'object',properties:{query:{type:'string',minLength:2,maxLength:160}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{if(typeof input?.query!=='string'||input.query.trim().length<2||input.query.length>160)throw new Error('Enter a ticker or contract address between 2 and 160 characters.');$('query').value=input.query;return search(input.query)}},

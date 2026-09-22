@@ -16,13 +16,13 @@ export function renderCoverage(view, state, rows) {
   $('coverage-summary').textContent=`${ok}/${view.pools.length} discovered pools loaded · ${rows.length} swap steps${span}`;
 }
 
-export function renderTimeline(rows, minutes, now, loaded) {
+export function renderTimeline(rows, minutes, now, loaded, busy=true) {
   const host=$('timeline');host.replaceChildren();
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
   $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals`;
-  const defaultDetail=rows.length?`Window ${stamp(start)}–${stamp(end)} · Net buy volume ${money(bins.at(-1).cumulative)} · Hover or focus an interval for details.`:loaded?'No observed swaps in this window.':'Waiting for pool data.';
+  const defaultDetail=rows.length?`Window ${stamp(start)}–${stamp(end)} · Net buy volume ${money(bins.at(-1).cumulative)} · Hover or focus an interval for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';
   $('timeline-detail').textContent=defaultDetail;
-  if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':'Loading the flow timeline…','timeline-empty'));return}
+  if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':busy?'Loading the flow timeline…':'Flow timeline unavailable','timeline-empty'));return}
   const ns='http://www.w3.org/2000/svg';
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
   const chartWidth=Math.max(280,host.clientWidth);
@@ -56,7 +56,7 @@ export function renderTimeline(rows, minutes, now, loaded) {
 }
 
 export function setupTape() {
-  let current=[],loaded=false,limit=20,expanded=new Set(),scope='';
+  let current=[],loaded=false,busy=true,limit=20,expanded=new Set(),scope='';
   function stepRow(trade, child=false) {
     const tr=make('tr',null,child?'swap-step':''),time=make('td',new Date(trade.time).toLocaleTimeString());
     time.title=new Date(trade.time).toLocaleString();
@@ -83,12 +83,12 @@ export function setupTape() {
       const children=item.rows.map(row=>stepRow(row,true));for(const child of children){child.hidden=!expanded.has(item.key);body.append(child)}
       button.addEventListener('click',()=>{const open=!expanded.has(item.key);if(open)expanded.add(item.key);else expanded.delete(item.key);for(const child of children)child.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=`${open?'▾':'▸'} ${stamp(item.time)} · ${item.rows.length} steps`});
     }
-    if(!items.length){const tr=make('tr'),td=make('td',!loaded?'Waiting for swap data.':current.length?'No swaps match these filters. Reset filters to see the sample.':'No observed swaps in this window.','table-empty');td.colSpan=5;tr.append(td);body.append(tr)}
+    if(!items.length){const tr=make('tr'),td=make('td',!loaded?(busy?'Waiting for swap data.':'Swap data unavailable. Refresh to try again.'):current.length?'No swaps match these filters. Reset filters to see the sample.':'No observed swaps in this window.','table-empty');td.colSpan=5;tr.append(td);body.append(tr)}
     $('tape-count').textContent=`${Math.min(limit,items.length)} / ${items.length} ${grouped?'GROUPS':'STEPS'} · ${rows.length} / ${current.length} STEPS MATCH`;
     $('load-more').hidden=limit>=items.length;$('load-more').textContent=`Load more (${Math.min(20,items.length-limit)})`;
   }
   for(const id of ['trade-side','trade-min','trade-wallet','trade-group'])$(id).addEventListener(id==='trade-side'||id==='trade-group'?'change':'input',()=>{limit=20;draw()});
   $('trade-reset').addEventListener('click',()=>{$('trade-side').value='all';$('trade-min').value='';$('trade-wallet').value='';$('trade-group').checked=true;limit=20;draw()});
   $('load-more').addEventListener('click',()=>{limit+=20;draw()});
-  return (rows,isLoaded,scopeKey)=>{if(scopeKey!==scope){scope=scopeKey;limit=20;expanded.clear()}current=rows;loaded=isLoaded;draw()};
+  return (rows,isLoaded,scopeKey,isBusy=true)=>{if(scopeKey!==scope){scope=scopeKey;limit=20;expanded.clear()}current=rows;loaded=isLoaded;busy=isBusy;draw()};
 }
