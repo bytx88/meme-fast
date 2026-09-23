@@ -31,3 +31,5 @@
 
 /* Dense, scan-first controls for the trading view. */
 .recent-list{gap:6px}.recent-contract{gap:7px;min-height:30px;padding:4px 8px;font-size:12px}.recent-contract small{font-size:10px}.token-row .periods{gap:3px;padding:3px}.token-row .periods button{min-height:28px;padding:3px 10px;font-size:12px}
+
+.chart-tabs{display:flex;gap:4px;margin:8px 0 12px;padding:3px;width:max-content;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.chart-tabs button{min-height:30px;padding:4px 12px;border:0;background:transparent;color:var(--muted);font-size:12px}.chart-tabs button[aria-selected=true]{background:#303a48;color:var(--text)}#timeline-pane .timeline-panel{margin-top:0}

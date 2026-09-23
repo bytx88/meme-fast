@@ -107,6 +107,7 @@ function render(){
 
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
+document.querySelectorAll('[data-chart-pane]').forEach(button=>button.addEventListener('click',()=>{const selected=button.dataset.chartPane;document.querySelectorAll('[data-chart-pane]').forEach(tab=>tab.setAttribute('aria-selected',String(tab===button)));$('overview-pane').hidden=selected!=='overview';$('timeline-pane').hidden=selected!=='timeline';if(selected==='timeline')requestAnimationFrame(render)}));
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
