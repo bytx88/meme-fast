@@ -7,8 +7,8 @@ test('Seven newest unique contracts persist in order; duplicate becomes default'
   const storage=memory(),history=createRecentContracts(()=>storage);
   for(let i=1;i<=9;i++)history.remember(ca(i));
   assert.equal(history.entries.length,7);assert.equal(history.entries[0].address,ca(9));assert.equal(history.entries[6].address,ca(3));
-  history.remember(ca(4));history.label(ca(4),'FOUR');
-  const restored=createRecentContracts(()=>storage);assert.equal(restored.entries[0].address,ca(4));assert.equal(restored.entries[0].symbol,'FOUR');assert.equal(restored.entries.length,7);
+  history.remember(ca(4));history.label(ca(4),'FOUR','Four Coin');
+  const restored=createRecentContracts(()=>storage);assert.equal(restored.entries[0].address,ca(4));assert.equal(restored.entries[0].symbol,'FOUR');assert.equal(restored.entries[0].name,'Four Coin');assert.equal(restored.entries.length,7);
   restored.clear();assert.equal(storage.getItem(RECENT_CONTRACTS_KEY),null);
 });
 test('Only contracts are retained, with EVM case-insensitive deduplication',()=>{
