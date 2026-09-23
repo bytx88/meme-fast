@@ -1,5 +1,5 @@
 import {tokenActions} from './token-actions.mjs?v=find-stats-v1';
-import {copyContract} from './contract-copy.mjs';
+import {copyContract,axiomLink} from './contract-copy.mjs';
 import {groupCoins} from './coin-groups.mjs';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
@@ -9,8 +9,8 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
-const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null};
-const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false;
+const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null};
+const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
 function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
 function context(c){return data.web.get(c.id)?{kind:'web',web:data.web.get(c.id)}:c.savedContext||null}
@@ -40,18 +40,25 @@ function explanation(found,c){
  const query=encodeURIComponent(`"${c.contract_address}" OR "$${c.symbol}" OR "${c.name}"`);
  return `<div class="story-block pending"><span class="evidence-state">Context pending</span><p>${message}</p><a href="https://x.com/search?q=${query}&src=typed_query&f=live" target="_blank" rel="noopener noreferrer">Search X ↗</a></div>`;
 }
-function metrics(c){
- const short=c.volume5m!==null&&c.volume5m!==undefined;
- return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>${short?'5m volume':'24h volume'}</dt><dd>${money(short?c.volume5m:c.volume)}</dd></div><div><dt>${short?'5m buys / sells':'24h buys'}</dt><dd>${short?`${num(c.buys5m)} / ${num(c.sells5m)}`:num(c.buys)}</dd></div></dl>`;
-}
+function metrics(c){return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(c.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${num(c.buys5m)} / ${num(c.sells5m)}</dd></div></dl>`}
 function variants(c){if(!c.variants||c.variants.length<2)return '';return `<details class="coin-variants"><summary>${c.variants.length} contracts · listings</summary><p>Metrics and evidence belong to the displayed contract.</p>${c.variants.map(v=>`<div class="coin-variant"><code>${esc(v.contract_address)}</code><span>Liquidity ${money(v.liquidity)} · 5m volume ${money(v.volume5m)}</span>${tokenActions(v)}</div>`).join('')}</details>`}
 function thumbnail(c){
  const label=String(c.symbol||'?').replace(/^\$/,'').trim().slice(0,1).toUpperCase()||'?';
  return `<span class="coin-thumb" aria-hidden="true"><span>${esc(label)}</span>${c.image_url?`<img src="${esc(c.image_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>`;
 }
-function card(c,found,index){
- const market=marketState(c),origin=c.manual?' · Manual':'';
- return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${origin}</small></div>${thumbnail(c)}${tokenActions(c)}</div>${metrics(c)}${explanation(found,c)}<div class="coin-meta"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span><span>Seen ${esc(age(c.firstSeen))} ago</span></div>${variants(c)}</article>`;
+function contextLabel(found){return verified(found)?'Exact contract':found?'Unverified':'Pending'}
+function scannerRow(c,index){
+ const found=context(c),market=marketState(c),trade=axiomLink(c),label=contextLabel(found),badge=verified(found)?'verified':found?'unverified':'pending';
+ return `<article class="scanner-row"><span class="scanner-rank">${String(index+1).padStart(2,'0')}</span><div class="scanner-coin">${thumbnail(c)}<div><strong>$${esc(c.symbol)}</strong><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)}${c.manual?' · Manual':''}${c.variants?.length>1?` · ${c.variants.length} listings`:''} · <span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></small></div></div><span class="scanner-age" title="Pool created ${esc(new Date(c.poolCreated).toLocaleString())}">${esc(age(c.poolCreated))}</span><strong class="scanner-number">${money(c.liquidity)}</strong><strong class="scanner-number ${c.volume5m==null?'unavailable':''}" title="${c.volume5m==null?'5m volume unavailable':'5m volume'}">${money(c.volume5m)}</strong><span class="scanner-flow ${c.buys5m==null&&c.sells5m==null?'unavailable':''}" title="5m buy and sell transaction counts">${num(c.buys5m)} <i>/</i> ${num(c.sells5m)}</span><span class="scanner-context ${badge}">${label}</span>${trade?`<a class="scanner-trade" href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:'<span class="scanner-trade unavailable">—</span>'}<button class="scanner-detail-button" type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></article>`;
+}
+function detailHtml(c){
+ const found=context(c),market=marketState(c);
+ return `<div class="detail-head"><div class="detail-identity">${thumbnail(c)}<div><h2>$${esc(c.symbol)}</h2><p>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))} old</p></div></div><button class="detail-close" type="button" data-close-detail aria-label="Close coin details">×</button></div><p class="detail-freshness"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}">${esc(market.label)}</span> · Seen ${esc(age(c.firstSeen))} ago</p>${metrics(c)}${explanation(found,c)}<div class="detail-actions">${tokenActions(c)}</div>${variants(c)}`;
+}
+function renderDetail(){
+ const dialog=$('#coin-detail');if(!dialog.open)return;
+ const coin=visibleRows.find(c=>c.id===state.selectedId);if(!coin){dialog.close();return}
+ const content=$('#coin-detail-content'),html=detailHtml(coin);if(content.innerHTML!==html)content.innerHTML=html;
 }
 function updateAvailable(){
  const snapshot=state.pendingSnapshot,buttons=document.querySelectorAll('[data-apply-update]');
@@ -63,14 +70,14 @@ function render(){
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
  $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} verified · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
- const all=candidates(),rows=groupCoins(all,context),explained=rows.filter(c=>verified(context(c))),pending=rows.filter(c=>!verified(context(c)));
- $('#explained-count').textContent=explained.length;$('#pending-count').textContent=pending.length;
- $('#explained').innerHTML=explained.length?explained.map((c,i)=>card(c,context(c),i)).join(''):'<div class="new-empty"><strong>No contract-supported context in this window.</strong></div>';
- $('#pending').innerHTML=pending.length?pending.map((c,i)=>card(c,context(c),i)).join(''):'<div class="new-empty"><strong>No pending coins in this window.</strong></div>';
+ const all=candidates(),rows=groupCoins(all,context);visibleRows=rows;
+ $('#coin-count').textContent=rows.length;
+ $('#coin-list').innerHTML=rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  $('#full-freshness').textContent=state.lastRun?`Server ${age(state.lastRun)} ago`:'Server waiting';
  updateAvailable();
+ renderDetail();
 }
 function applySnapshot(snapshot){
  data.coins=snapshot.coins;state.historyLoaded=true;state.historyError=false;state.lastRun=snapshot.lastRun||0;state.pendingSnapshot=null;
@@ -119,12 +126,15 @@ function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
+ const open=event.target.closest('[data-open-coin]');if(open){state.selectedId=open.dataset.openCoin;const coin=visibleRows.find(c=>c.id===state.selectedId);if(coin){$('#coin-detail-content').innerHTML=detailHtml(coin);$('#coin-detail').showModal()}return}
+ if(event.target.closest('[data-close-detail]')){$('#coin-detail').close();return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;
  const coin=[...data.manualCoins,...data.coins].find(c=>c.id===button.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
  if(result.status==='copied'){button.textContent='Copied ✓';$('#ca-status').textContent='Contract copied.';setTimeout(()=>{if(button.isConnected)button.textContent='CA ⧉'},1800)}
  else if(result.status==='manual'){const input=$('#manual-ca');input.value=result.address;$('#ca-dialog').showModal();input.focus();input.select()}
 });
 document.addEventListener('error',event=>{if(event.target.matches?.('.coin-thumb img'))event.target.remove()},true);
+$('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});
 $('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);$('#full-mode').addEventListener('click',()=>setFull(!document.body.classList.contains('tiles-only')));
