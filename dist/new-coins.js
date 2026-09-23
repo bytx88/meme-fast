@@ -9,7 +9,9 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
-const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:'grid'};
+const cardPreferenceKey='meme-fast.coin-card-view';
+function savedView(){try{return localStorage.getItem(cardPreferenceKey)==='card'?'card':'grid'}catch{return 'grid'}}
+const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:savedView()};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
 function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
@@ -48,7 +50,7 @@ function thumbnail(c){
 }
 function card(c,index){
  const found=context(c),market=marketState(c),trade=axiomLink(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
- return `<article class="new-coin-card scan-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${c.manual?' · Manual':''}</small>${c.variants?.length>1?`<span class="card-listings">${c.variants.length} listings</span>`:''}</div>${thumbnail(c)}</div><div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div>${metrics(c)}<div class="card-actions">${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
+ return `<article class="new-coin-card scan-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${c.variants?.length>1?`<span class="card-listings">${c.variants.length} listings</span>`:''}<span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${c.manual?' · Manual':''}</small></div>${thumbnail(c)}</div><div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div>${metrics(c)}<div class="card-actions">${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
 }
 function cardSection(title,items,id){return `<section class="card-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="card-grid new-coin-grid">${items.map(card).join('')}</div></section>`}
 function cards(rows){if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';const exact=rows.filter(c=>verified(context(c))),pending=rows.filter(c=>!verified(context(c)));return (exact.length?cardSection('Verified context',exact,'explained-title'):'')+(pending.length?cardSection('Context pending or unverified',pending,'pending-title'):'')}
@@ -87,6 +89,7 @@ function render(){
  $('#coin-count').textContent=rows.length;
  $('#coin-list').className=`coin-list ${state.view==='card'?'card-mode':'grid-mode'}`;
  $('.coin-scanner').classList.toggle('card-mode',state.view==='card');
+ document.querySelectorAll('[data-card-mode]').forEach(button=>button.setAttribute('aria-pressed',String(state.view==='card')));
  $('#coin-list').innerHTML=state.view==='card'?cards(rows):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
@@ -137,7 +140,7 @@ async function investigate(){
  }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
 }
 function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full'}
-function setCard(enabled){state.view=enabled?'card':'grid';document.querySelectorAll('[data-card-mode]').forEach(button=>button.setAttribute('aria-pressed',String(enabled)));render()}
+function setCard(enabled){state.view=enabled?'card':'grid';try{localStorage.setItem(cardPreferenceKey,state.view)}catch{}render()}
 function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
