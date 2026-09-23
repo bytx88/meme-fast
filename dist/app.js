@@ -24,7 +24,7 @@ function renderRecentContracts(){
     button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
   }
 }
-const state={token:{address:'So11111111111111111111111111111111111111112',network:'solana',symbol:'SOL',name:'Solana (wrapped SOL)'},minutes:60,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
+const state={token:{address:'So11111111111111111111111111111111111111112',network:'solana',symbol:'SOL',name:'Solana (wrapped SOL)'},minutes:1440,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}

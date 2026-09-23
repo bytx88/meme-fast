@@ -36,3 +36,5 @@
 
 /* The time window sits above one shared chart position; each tab replaces that position. */
 .order-flow-toolbar{margin:8px 0 4px;min-height:34px}.order-flow-toolbar .periods button{min-height:28px;padding:3px 10px;font-size:12px}.order-flow-toolbar .refresh-group button{min-height:34px;padding:6px 10px}.chart-stage{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto}.chart-tabs{grid-column:1;grid-row:1;margin:4px 0 8px}.chart-stage>[role=tabpanel]{grid-column:1;grid-row:2;min-width:0}.chart-stage .timeline-panel{margin:0}.chart-stage+[id=empty-notice]{margin-top:12px}@media(max-width:700px){.order-flow-toolbar{flex-wrap:wrap;gap:6px}.order-flow-toolbar .refresh-group{width:auto;margin-left:auto}.chart-tabs{max-width:100%}}
+
+.chart-tabs button{min-height:40px;padding:8px 18px;font-size:14px;font-weight:600}
