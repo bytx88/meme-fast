@@ -25,3 +25,6 @@
 
 /* Match count is intentionally omitted to keep the trading view focused. */
 #search-status{display:none!important}
+
+/* One dense control row keeps the charts in view for active trading. */
+.token-row{justify-content:flex-start;gap:12px;margin:10px 0}.token-row>.listing-actions{margin:0}.token-row>.toolbar{margin:0 0 0 auto;gap:10px;flex:0 0 auto}.token-meta-row{display:none}.token-meta-row:has(#scope-tabs:not([hidden])){display:flex;margin-top:6px}.token-row .periods button{min-height:34px;padding:5px 12px}.token-row .refresh-group button{min-height:34px;padding:6px 10px}@media(max-width:850px){.token-row>.toolbar{margin-left:0;width:100%}.token-row{flex-wrap:wrap}}@media(max-width:540px){.token-row>.listing-actions{width:100%}.token-row>.toolbar{justify-content:space-between}.token-row .refresh-group{gap:8px}}
