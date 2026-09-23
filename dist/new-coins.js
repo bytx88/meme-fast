@@ -9,7 +9,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
-const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null};
+const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:'grid'};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
 function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
@@ -41,11 +41,21 @@ function explanation(found,c){
  return `<div class="story-block pending"><span class="evidence-state">Context pending</span><p>${message}</p><a href="https://x.com/search?q=${query}&src=typed_query&f=live" target="_blank" rel="noopener noreferrer">Search X ↗</a></div>`;
 }
 function metrics(c){return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(c.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${num(c.buys5m)} / ${num(c.sells5m)}</dd></div></dl>`}
+function cardMetrics(c){
+ const short=c.volume5m!==null&&c.volume5m!==undefined;
+ return `<dl class="new-metrics"><div><dt>Liquidity</dt><dd>${money(c.liquidity)}</dd></div><div><dt>${short?'5m volume':'24h volume'}</dt><dd>${money(short?c.volume5m:c.volume)}</dd></div><div><dt>${short?'5m buys / sells':'24h buys'}</dt><dd>${short?`${num(c.buys5m)} / ${num(c.sells5m)}`:num(c.buys)}</dd></div></dl>`;
+}
 function variants(c){if(!c.variants||c.variants.length<2)return '';return `<details class="coin-variants"><summary>${c.variants.length} contracts · listings</summary><p>Metrics and evidence belong to the displayed contract.</p>${c.variants.map(v=>`<div class="coin-variant"><code>${esc(v.contract_address)}</code><span>Liquidity ${money(v.liquidity)} · 5m volume ${money(v.volume5m)}</span>${tokenActions(v)}</div>`).join('')}</details>`}
 function thumbnail(c){
  const label=String(c.symbol||'?').replace(/^\$/,'').trim().slice(0,1).toUpperCase()||'?';
  return `<span class="coin-thumb" aria-hidden="true"><span>${esc(label)}</span>${c.image_url?`<img src="${esc(c.image_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>`;
 }
+function card(c,index){
+ const market=marketState(c),origin=c.manual?' · Manual':'';
+ return `<article class="new-coin-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div><h3>$${esc(c.symbol)}</h3><small>${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${origin}</small></div>${thumbnail(c)}${tokenActions(c)}</div>${cardMetrics(c)}${explanation(context(c),c)}<div class="coin-meta"><span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span><span>Seen ${esc(age(c.firstSeen))} ago</span></div>${variants(c)}</article>`;
+}
+function cardSection(title,items,id){return `<section class="card-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="card-grid new-coin-grid">${items.length?items.map(card).join(''):`<div class="new-empty"><strong>${title==='Verified context'?'No contract-supported context in this window.':'No pending coins in this window.'}</strong></div>`}</div></section>`}
+function cards(rows){return cardSection('Verified context',rows.filter(c=>verified(context(c))),'explained-title')+cardSection('Context pending or unverified',rows.filter(c=>!verified(context(c))),'pending-title')}
 function contextLabel(found){return verified(found)?'Exact contract':found?'Unverified':'Pending'}
 function scannerRow(c,index){
  const found=context(c),market=marketState(c),trade=axiomLink(c),label=contextLabel(found),badge=verified(found)?'verified':found?'unverified':'pending';
@@ -72,7 +82,9 @@ function render(){
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
  const all=candidates(),rows=groupCoins(all,context);visibleRows=rows;
  $('#coin-count').textContent=rows.length;
- $('#coin-list').innerHTML=rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
+ $('#coin-list').className=`coin-list ${state.view==='card'?'card-mode':'grid-mode'}`;
+ $('.coin-scanner').classList.toggle('card-mode',state.view==='card');
+ $('#coin-list').innerHTML=state.view==='card'?cards(rows):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  $('#full-freshness').textContent=state.lastRun?`Server ${age(state.lastRun)} ago`:'Server waiting';
@@ -122,10 +134,12 @@ async function investigate(){
  }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
 }
 function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full'}
+function setCard(enabled){state.view=enabled?'card':'grid';document.querySelectorAll('[data-card-mode]').forEach(button=>button.setAttribute('aria-pressed',String(enabled)));render()}
 function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
+ if(event.target.closest('[data-card-mode]')){setCard(state.view!=='card');return}
  const open=event.target.closest('[data-open-coin]');if(open){state.selectedId=open.dataset.openCoin;const coin=visibleRows.find(c=>c.id===state.selectedId);if(coin){$('#coin-detail-content').innerHTML=detailHtml(coin);$('#coin-detail').showModal()}return}
  if(event.target.closest('[data-close-detail]')){$('#coin-detail').close();return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;
