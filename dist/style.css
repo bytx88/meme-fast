@@ -22,3 +22,6 @@
 
 /* Order Flow keeps search controls available without pushing the trading panels down. */
 .search-area{padding:8px 0;border-bottom:0}.search-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}.search-area form{margin-top:8px}.recent-contracts{position:relative;margin-top:8px;padding-right:76px}.recent-heading{position:absolute;right:0;bottom:3px}.recent-heading #recent-caption{display:none}#search-status:not(:empty){display:block;flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:28px}.recent-heading button{min-height:28px}.identity p,.address-row{display:none}.token-meta-row{margin-top:0}.toolbar{margin-top:10px}
+
+/* Match count is intentionally omitted to keep the trading view focused. */
+#search-status{display:none!important}
