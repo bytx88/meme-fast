@@ -67,7 +67,7 @@
 .coin-scanner{margin:12px 0 24px;border:1px solid var(--line);border-radius:9px;background:#111821;overflow:hidden}
 .scanner-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .scanner-head h2{display:flex;align-items:center;gap:8px;margin:0;font-size:16px}.scanner-head>span{color:var(--muted);font-size:11px}
-.scanner-scroll{overflow-x:auto}.scanner-columns,.scanner-row{display:grid;grid-template-columns:28px minmax(145px,1.2fr) minmax(210px,1.8fr) 60px 78px 84px 98px 82px 68px 66px;align-items:center;gap:8px;min-width:990px}
+.scanner-scroll{overflow-x:auto}.scanner-columns,.scanner-row{display:grid;grid-template-columns:28px minmax(145px,1.2fr) minmax(234px,1.8fr) 60px 78px 98px 82px 60px 68px 66px;align-items:center;gap:8px;min-width:990px}
 .scanner-columns{padding:7px 12px;color:var(--muted);font-size:10px;letter-spacing:.04em;text-transform:uppercase;background:#151e29}
 .scanner-row{min-height:54px;padding:5px 12px;border-top:1px solid #283241;font-size:12px;font-variant-numeric:tabular-nums}
 .scanner-row:hover{background:#1a2430}.scanner-rank{color:var(--muted)}.scanner-coin{display:flex;align-items:center;gap:9px;min-width:0}.scanner-coin>div{min-width:0}.scanner-coin strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 14px 'Space Grotesk',sans-serif}.scanner-coin small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px;margin-top:2px}
@@ -88,3 +88,11 @@
 .scan-card{padding:10px 12px;min-height:0}.scan-card .coin-head{order:1;grid-template-columns:auto minmax(0,1fr) 36px;column-gap:7px;row-gap:0}.scan-card .card-identity{min-width:0}.scan-card .coin-thumb{grid-column:3;grid-row:1;width:36px;height:36px;font-size:13px}.scan-card .card-title-line{display:flex;align-items:baseline;gap:5px;min-width:0}.scan-card .card-title-line h3{flex:0 1 auto;min-width:0;max-width:100%;font-size:14px}.scan-card .card-title-line .freshness{flex:none;font-size:10px;white-space:nowrap}.scan-card .coin-head small{margin-top:2px;font-size:10px}.card-listings{display:inline-block;flex:none;padding:1px 4px;border-radius:4px;background:#28321f;color:var(--accent);font-size:9px;font-weight:600;white-space:nowrap}
 .scan-card .card-read{order:2;min-height:47px;margin-top:9px;padding-left:8px;border-left:2px solid #536349}.scan-card .card-read.unverified{border-color:#8a6c30}.scan-card .card-read.pending{border-color:#475467}.card-context{display:block;color:#bde58a;font:600 9px 'Space Grotesk',sans-serif;letter-spacing:.06em;text-transform:uppercase}.card-read.unverified .card-context{color:#ffd36f}.card-read.pending .card-context{color:#9eabc0}.card-read p{display:-webkit-box;overflow:hidden;margin:4px 0 0;color:#cbd5e1;font-size:11px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2}.card-read.pending p{color:#9eabc0}
 .scan-card .new-metrics{order:3;margin:8px 0;padding:6px 0}.scan-card .new-metrics dt{font-size:9px}.scan-card .new-metrics dd{font-size:13px}.scan-card .card-actions{order:4;display:flex;align-items:center;gap:6px;margin-top:auto}.scan-card .card-actions a,.scan-card .card-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:27px;padding:3px 8px;border:1px solid #3b485a;border-radius:5px;background:#1a2431;color:#dceaff;font-family:inherit;font-size:11px;font-weight:500;text-decoration:none;white-space:nowrap}.scan-card .card-actions a:hover,.scan-card .card-actions button:hover{background:#29384a;border-color:#71849e}.scan-card .card-actions button{margin-left:auto}
+
+/* Keep the Coin action row close to the size of its labels. */
+.new-coins .workspace-head{padding:7px 0 8px;gap:8px}
+.new-coins .workspace-head h1{font-size:21px}
+.new-coins .workspace-actions{gap:6px}
+.new-coins .workspace-actions>button{min-width:0;min-height:30px;padding:5px 10px;font-size:12px;line-height:18px}
+.new-coins .collection-info summary{padding:5px 2px;line-height:20px}
+@media(max-width:800px){.new-coins .workspace-head{padding:8px 0}.new-coins .workspace-actions{width:100%}}

@@ -20,3 +20,8 @@ export function axiomLink(coin) {
  const chain={Solana:'sol',Base:'base',Ethereum:'eth',BSC:'bnb'}[coin?.chain];
  return address&&chain?`https://axiom.trade/t/${encodeURIComponent(address)}?chain=${chain}`:null;
 }
+export function fomoLink(coin) {
+ const address=contractForCopy(coin);
+ const chain={Solana:'solana',Base:'base',Ethereum:'ethereum',BSC:'bnb'}[coin?.chain];
+ return address&&chain?`https://fomo.family/tokens/${chain}/${encodeURIComponent(address)}`:null;
+}

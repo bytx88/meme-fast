@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parsePools,parseNews,FEEDS,NETWORKS,buildPublicView,addressMatches,mergeArticles,compareSnapshots,fetchPublicSource} from '../dist/public-radar.mjs';
-import {axiomLink} from '../dist/contract-copy.mjs';
+import {axiomLink,fomoLink} from '../dist/contract-copy.mjs';
 const now=Date.parse('2026-09-22T12:00:00Z'),ca='Ab'.repeat(20),poolAddress='Cd'.repeat(20);
 const token={id:'solana_'+ca,type:'token',attributes:{address:ca,symbol:'TEST',name:'Test token'}};
 const pool=(id,liquidity,buyers)=>({id,attributes:{address:poolAddress,reserve_in_usd:String(liquidity),market_cap_usd:null,fdv_usd:'123',volume_usd:{h24:'456'},transactions:{h24:{buyers,buys:8,sells:4}},pool_created_at:'2026-09-21T12:00:00Z'},relationships:{base_token:{data:{id:token.id}}}});
@@ -31,6 +31,14 @@ test('Axiom URLs use the exact CA, chain, and no referral; unknown chains have n
  const c={chain:'Solana',contract_address:ca,contract_verified:true};assert.equal(axiomLink(c),'https://axiom.trade/t/'+ca+'?chain=sol');
  assert.equal(axiomLink({...c,contract_verified:false}),null);assert.equal(axiomLink({...c,chain:'Unknown'}),null);
  const base={chain:'Base',contract_address:'0x'+'aB'.repeat(20),contract_verified:true};assert.equal(new URL(axiomLink(base)).search,'?chain=base');assert(new URL(axiomLink(base)).pathname.includes(base.contract_address));
+});
+test('Fomo URLs open the verified token on the correct chain',()=>{
+ const sol={chain:'Solana',contract_address:ca,contract_verified:true};
+ assert.equal(fomoLink(sol),'https://fomo.family/tokens/solana/'+ca);
+ assert.equal(fomoLink({...sol,contract_verified:false}),null);
+ assert.equal(fomoLink({...sol,chain:'Unknown'}),null);
+ const base={chain:'Base',contract_address:'0x'+'aB'.repeat(20),contract_verified:true};
+ assert.equal(fomoLink(base),'https://fomo.family/tokens/base/'+base.contract_address);
 });
 test('News history deduplicates articles and expires observations after 3 days',()=>{
  const old=post('a','Decrypt',now-3600000),updated={...old,summary:'updated'};assert.equal(mergeArticles([old,post('old','Decrypt',now-4*86400000)],[updated],now).length,1);assert.equal(mergeArticles([old],[updated],now)[0].summary,'updated');
