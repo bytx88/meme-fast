@@ -55,6 +55,14 @@
 .radar-token .radar-thumb{width:58px;height:58px;border-radius:10px;font-size:21px}
 .radar-token strong{font-size:15px;line-height:1.2}
 .radar-token small{display:-webkit-box;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;font-size:10px;line-height:1.35}
+.radar-card .radar-narrative{grid-column:2/-1;display:flex;align-items:baseline;gap:8px;min-width:0;margin-top:-2px;padding-top:8px;border-top:1px solid #263240}
+.radar-narrative span{flex:none;color:#b9ce89;font-size:10px;font-weight:700;white-space:nowrap}
+.radar-narrative p{min-width:0;margin:0;color:#b9c7d7;font-size:11px;line-height:1.45}
+.radar-narrative.compact p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.radar-narrative a{flex:none;color:#9ec1e3;font-size:10px;white-space:nowrap}
+.inspect-section .radar-narrative{display:grid;gap:5px;padding:10px;border:1px solid #334252;border-radius:6px;background:#17212c}
+.inspect-section .radar-narrative p{font-size:12px;white-space:normal}
 @media(max-width:950px){.radar-card{grid-template-columns:30px minmax(185px,1fr) 120px minmax(180px,1.4fr)}}
 @media(max-width:700px){.radar-card{grid-template-columns:24px minmax(0,1fr) 110px}}
 @media(max-width:600px){.radar-token{grid-template-columns:50px minmax(0,1fr);column-gap:9px}.radar-token .radar-thumb{width:50px;height:50px}.radar-token strong{font-size:14px}}
+@media(max-width:600px){.radar-card .radar-narrative{display:grid;gap:3px}.radar-narrative.compact p{display:-webkit-box;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}.radar-narrative a{justify-self:start}}
