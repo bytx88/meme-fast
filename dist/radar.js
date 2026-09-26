@@ -13,6 +13,36 @@ const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
 const state={mode:RADAR_MODES[initialMode]?initialMode:'scalp',chain:'all',query:initialContract,selectedId:null,snapshot:null,error:null,loading:false};
 const dialog=$('#radar-inspector');
+const scrollArea=$('#radar-results'),scrollShell=$('#radar-results-shell'),scrollTrack=$('#radar-scroll-track'),scrollThumb=$('#radar-scroll-thumb');
+function updateResultsScrollbar(){
+ const trackHeight=scrollTrack.clientHeight,overflow=scrollArea.scrollHeight-scrollArea.clientHeight;
+ const visible=matchMedia('(min-width:701px)').matches&&overflow>2;
+ scrollShell.classList.toggle('has-overflow',visible);
+ if(!visible||!trackHeight)return;
+ const thumbHeight=Math.max(36,Math.round(trackHeight*scrollArea.clientHeight/scrollArea.scrollHeight));
+ const thumbTop=Math.round(scrollArea.scrollTop/overflow*(trackHeight-thumbHeight));
+ scrollThumb.style.height=`${thumbHeight}px`;
+ scrollThumb.style.transform=`translateY(${thumbTop}px)`;
+}
+scrollArea.addEventListener('scroll',updateResultsScrollbar,{passive:true});
+new ResizeObserver(updateResultsScrollbar).observe(scrollArea);
+new MutationObserver(updateResultsScrollbar).observe(scrollArea,{childList:true});
+window.addEventListener('resize',updateResultsScrollbar);
+let draggingScrollbar=false,dragOffset=0;
+function scrollResultsToPointer(clientY){
+ const track=scrollTrack.getBoundingClientRect(),thumbHeight=scrollThumb.offsetHeight;
+ const position=Math.max(0,Math.min(track.height-thumbHeight,clientY-track.top-dragOffset));
+ scrollArea.scrollTop=position/(track.height-thumbHeight||1)*(scrollArea.scrollHeight-scrollArea.clientHeight);
+}
+scrollTrack.addEventListener('pointerdown',event=>{
+ if(!scrollShell.classList.contains('has-overflow'))return;
+ draggingScrollbar=true;
+ dragOffset=event.target===scrollThumb?event.clientY-scrollThumb.getBoundingClientRect().top:scrollThumb.offsetHeight/2;
+ scrollTrack.classList.add('dragging');scrollTrack.setPointerCapture(event.pointerId);
+ scrollResultsToPointer(event.clientY);event.preventDefault();
+});
+scrollTrack.addEventListener('pointermove',event=>{if(draggingScrollbar)scrollResultsToPointer(event.clientY)});
+for(const type of ['pointerup','pointercancel'])scrollTrack.addEventListener(type,()=>{draggingScrollbar=false;scrollTrack.classList.remove('dragging')});
 
 function universe(){return Array.isArray(state.snapshot?.radarCoins)?state.snapshot.radarCoins:state.snapshot?.coins||[]}
 function coinId(coin){return String(coin.id||`${coin.network}:${coin.contract_address}`)}
