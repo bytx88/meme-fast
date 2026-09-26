@@ -126,7 +126,7 @@ function renderDetail(){
  const coin=visibleRows.find(c=>c.id===state.selectedId)||data.coins.find(c=>c.id===state.selectedId)||data.manualCoins.find(c=>c.id===state.selectedId);if(!coin){dialog.close();return}
  const content=$('#coin-detail-content'),html=detailHtml(coin);if(content.innerHTML!==html)content.innerHTML=html;
 }
-function updateAutoButtons(){document.querySelectorAll('[data-fresh]').forEach(button=>{button.setAttribute('aria-pressed',String(state.freshEnabled));button.textContent=`Auto-update ${state.freshEnabled?'On':'Off'}`})}
+function updateAutoButtons(){document.querySelectorAll('[data-fresh]').forEach(button=>{button.setAttribute('aria-pressed',String(state.freshEnabled));button.textContent=`Auto ${state.freshEnabled?'On':'Off'}`})}
 function updateFreshnessStatus(){
  const status=$('#full-freshness'),timestamp=state.lastRun?`Server updated ${age(state.lastRun)} ago`:'Server waiting';
  status.textContent=state.checkError?`Couldn’t check for updates · ${timestamp}`:timestamp;
