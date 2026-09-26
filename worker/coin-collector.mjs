@@ -6,6 +6,7 @@ import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 
 export const RETENTION_MS=5*86400000;
+export const RECENT_MARKET_MS=4*3600000;
 const chunks=(items,size)=>Array.from({length:Math.ceil(items.length/size)},(_,i)=>items.slice(i*size,i*size+size));
 const amount=value=>value===null||value===undefined||value===''||!Number.isFinite(Number(value))?null:Number(value);
 export function refreshMarket(coins,pairs,now=Date.now()){
@@ -21,6 +22,17 @@ export function refreshMarket(coins,pairs,now=Date.now()){
   return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
  });
 }
+export function recordMarketHistory(coins,now=Date.now()){
+ return coins.map(coin=>{
+  if(coin.marketUpdatedAt!==now)return coin;
+  const sample={at:now,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
+  const recent=(coin.marketHistory||[]).filter(row=>row.at>now-RECENT_MARKET_MS&&row.at<now);
+  recent.push(sample);
+  const hourly=(coin.marketHistoryHourly||[]).filter(row=>row.at>now-RETENTION_MS&&row.at<now);
+  if(!hourly.length||now-hourly.at(-1).at>=55*60000)hourly.push(sample);
+  return {...coin,marketHistory:recent.slice(-48),marketHistoryHourly:hourly.slice(-120)};
+ });
+}
 export function refreshLaunchpad(coins,tokens,now=Date.now()){
  const key=(network,address)=>`${network}:${network==='solana'?address:String(address).toLowerCase()}`;
  const byId=new Map(tokens.filter(token=>token.attributes?.address).map(token=>{
@@ -33,6 +45,15 @@ export function refreshLaunchpad(coins,tokens,now=Date.now()){
   return {...coin,launchpad:byId.get(id),launchpadUpdatedAt:now};
  });
 }
+export function selectLaunchCandidates(coins,limit=120){
+ const selected=[],seen=new Set();
+ const add=coin=>{if(selected.length<limit&&!seen.has(coin.id)){selected.push(coin);seen.add(coin.id)}};
+ const newest=[...coins].sort((a,b)=>b.firstSeen-a.firstSeen);
+ newest.filter(c=>c.launchpad?.completed===false&&c.launchpad.graduationPercentage>=80).slice(0,20).forEach(add);
+ newest.slice(0,Math.min(50,Math.max(1,Math.floor(limit*0.4)))).forEach(add);
+ [...coins].sort((a,b)=>(a.launchpadCheckedAt??0)-(b.launchpadCheckedAt??0)||b.firstSeen-a.firstSeen).forEach(add);
+ return selected;
+}
 export function mergeCoins(previous,incoming,now=Date.now()){
  const rows=new Map(previous.filter(c=>c.firstSeen>now-RETENTION_MS).map(c=>[c.id,c]));
  for(const coin of incoming){
@@ -41,6 +62,18 @@ export function mergeCoins(previous,incoming,now=Date.now()){
   rows.set(coin.id,{...old,...coin,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
  }
  return [...rows.values()];
+}
+export function mergeRadarCoins(previous,incoming,coins,now=Date.now()){
+ const rows=new Map((previous||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS).map(c=>[c.id,c]));
+ for(const coin of [...incoming,...coins]){
+  if(!coin.id||!coin.contract_address||!coin.network||amount(coin.liquidity)<3000)continue;
+  const old=rows.get(coin.id);
+  const richer=(key)=>(old?.[key]?.length||0)>(coin[key]?.length||0)?old[key]:coin[key]||old?.[key]||[];
+  rows.set(coin.id,{...old,...coin,firstSeenRadarAt:old?.firstSeenRadarAt??now,lastSeenRadarAt:now,
+   marketHistory:richer('marketHistory'),marketHistoryHourly:richer('marketHistoryHourly'),
+   savedContext:coin.savedContext??old?.savedContext??null});
+ }
+ return [...rows.values()].sort((a,b)=>b.lastSeenRadarAt-a.lastSeenRadarAt).slice(0,200);
 }
 export async function readSnapshot(filename){
  try{
@@ -82,18 +115,34 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   else feeds[key]={...feeds[key],error:String(r.reason.message),lastAttempt:now};
  });
  let coins=mergeCoins(previous.coins,incoming,now);
- const marketResults=await Promise.allSettled([...new Map(coins.map(c=>[c.network,c])).keys()].flatMap(network=>{
-  const addresses=coins.filter(c=>c.network===network).map(c=>c.contract_address);
+ const trending=[];
+ const trendingResults=await Promise.allSettled(NETWORKS.map(async network=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?include=base_token,quote_token&duration=1h`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Trending HTTP ${response.status}`);
+  return parsePools(await response.json(),network,now);
+ }));
+ trendingResults.forEach((result,index)=>{
+  const key=`${NETWORKS[index].id}_trending`;
+  if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]={lastSuccess:now,error:null}}
+  else feeds[key]={...feeds[key],error:String(result.reason.message),lastAttempt:now};
+ });
+ let radarCoins=mergeRadarCoins(previous.radarCoins,trending,coins,now);
+ const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
+ const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
+  const addresses=targets.filter(c=>c.network===network).map(c=>c.contract_address);
   return chunks(addresses,30).map(async batch=>{
    const response=await fetcher(`https://api.dexscreener.com/tokens/v1/${encodeURIComponent(network)}/${batch.map(encodeURIComponent).join(',')}`,{signal:AbortSignal.timeout(15000)});
    if(!response.ok)throw new Error(`Market refresh HTTP ${response.status}`);
    const pairs=await response.json();return Array.isArray(pairs)?pairs:[];
   });
  }));
- coins=refreshMarket(coins,marketResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
- // Check the most recent contracts and previously observed near-graduation coins.
- // The public multi-token endpoint is bounded to seven small requests per run.
- const launchCandidates=[...coins].sort((a,b)=>Number(b.launchpad?.completed===false&&b.launchpad.graduationPercentage>=80)-Number(a.launchpad?.completed===false&&a.launchpad.graduationPercentage>=80)||b.firstSeen-a.firstSeen).slice(0,120);
+ const pairs=marketResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
+ coins=refreshMarket(coins,pairs,now);
+ coins=recordMarketHistory(coins,now);
+ radarCoins=recordMarketHistory(refreshMarket(radarCoins,pairs,now),now);
+ // Keep fresh contracts current and rotate through older contracts so they can
+ // enter Final Stretch after their first hour. Bound requests to 120 tokens.
+ const launchCandidates=selectLaunchCandidates(coins);
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
   const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
@@ -102,7 +151,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
  }));
  coins=refreshLaunchpad(coins,launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
- const snapshot={version:1,coins,lastRun:now,feeds};
+ const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
+ coins=coins.map(coin=>checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
+ const snapshot={version:2,coins,radarCoins,lastRun:now,feeds};
  // Commit discovery first so slow or failed story lookups cannot lose coins.
  await save(filename,snapshot);
  const news=await Promise.allSettled([...FEEDS.map(feed=>fetchPublicSource(feed,fetcher)),(async()=>{
@@ -112,7 +163,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  })()]);
  const articles=news.slice(0,FEEDS.length).flatMap(r=>r.status==='fulfilled'?r.value:[]);
  const profiles=news.at(-1).status==='fulfilled'?news.at(-1).value:[];
- for(const coin of coins){
+ const coinIds=new Set(coins.map(c=>c.id));
+ const contextTargets=[...coins,...radarCoins.filter(c=>!coinIds.has(c.id))];
+ for(const coin of contextTargets){
   const exactProfile=profiles.find(p=>p.chainId===coin.network&&(coin.network==='solana'?p.tokenAddress===coin.contract_address:String(p.tokenAddress).toLowerCase()===coin.contract_address.toLowerCase()));
   coin.image_url=safeURL(exactProfile?.icon)||coin.image_url||null;
   const matches=articles.filter(a=>addressMatches({posts:[a]},[coin]).length);
@@ -128,13 +181,15 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   }
  }
  // Bounded work; pending coins are retried on later scheduled runs.
- const queue=coins.filter(c=>!c.savedContext&&(!c.contextCheckedAt||c.contextCheckedAt<now-6*3600000))
+ const queue=contextTargets.filter(c=>!c.savedContext&&(!c.contextCheckedAt||c.contextCheckedAt<now-6*3600000))
   .sort((a,b)=>(a.contextCheckedAt??0)-(b.contextCheckedAt??0)||b.firstSeen-a.firstSeen).slice(0,4);
  for(const coin of queue){
   try{const found=await story(coin,fetcher);if(found)coin.savedContext=found;coin.contextError=null}
   catch{coin.contextError='Context source unavailable'}
   coin.contextCheckedAt=now;
  }
+ const byId=new Map(coins.map(c=>[c.id,c]));
+ for(const coin of radarCoins){const current=byId.get(coin.id);if(current){coin.savedContext=current.savedContext;coin.contextCheckedAt=current.contextCheckedAt}}
  await save(filename,snapshot);
  return snapshot;
 }

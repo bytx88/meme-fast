@@ -3,8 +3,12 @@ export const FINAL_STRETCH_PERCENT=80;
 
 export function stageFor(coin){
  const progress=Number(coin?.launchpad?.graduationPercentage);
- if(coin?.launchpad?.completed===true||Number(coin?.volume)>=MIGRATED_VOLUME_24H)return 'migrated';
- if(coin?.launchpad?.completed===false&&Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';
+ if(coin?.launchpad?.completed===true)return 'migrated';
+ if(coin?.launchpad?.completed===false){
+  if(Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';
+  return 'new';
+ }
+ if(Number(coin?.volume)>=MIGRATED_VOLUME_24H)return 'migrated';
  return 'new';
 }
 

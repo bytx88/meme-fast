@@ -3,7 +3,7 @@ import {copyContract,axiomLink,fomoLink} from './contract-copy.mjs?v=fomo-scanne
 import {groupCoins} from './coin-groups.mjs';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
-import {stageFor} from './coin-stages.mjs';
+import {stageFor} from './coin-stages.mjs?v=stage-coverage-v1';
 
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -12,7 +12,8 @@ const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
 const viewPreferenceKey='meme-fast.coin-view-v2';
 function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['discover','explore','research'].includes(view)?view:'discover'}catch{return 'discover'}}
-const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:savedView(),activeStage:'new'};
+const contractQuery=new URLSearchParams(location.search).get('contract')?.trim()||'';
+const state={historyLoaded:false,historyError:false,hours:contractQuery?120:1,sort:'newest',query:contractQuery,notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:contractQuery?'research':savedView(),activeStage:'new'};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
 function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
@@ -51,11 +52,11 @@ function thumbnail(c){
 }
 function card(c,index){
  const found=context(c),market=marketState(c),trade=axiomLink(c),fomo=fomoLink(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
- const stage=stageFor(c),stageFact=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:stage==='migrated'?c.launchpad?.completed?'Graduation observed':`${money(c.volume)} 24h volume`:`Pool ${age(c.poolCreated)} old`;
+ const stage=stageFor(c),stageFact=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:stage==='migrated'?c.launchpad?.completed?'Graduation observed':`${money(c.volume)} 24h volume · graduation unconfirmed`:`Pool ${age(c.poolCreated)} old`;
  return `<article class="new-coin-card scan-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${c.variants?.length>1?`<span class="card-listings">${c.variants.length} listings</span>`:''}<span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)}${c.manual?' · Manual':''}</small></div>${thumbnail(c)}</div><div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div><div class="card-stage-fact">${esc(stageFact)}</div>${metrics(c)}<div class="card-actions">${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Fomo">Fomo ↗</a>`:''}${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
 }
-function cardSection(key,title,description,items,id){return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):'<p class="lane-empty">No coins in this stage for the selected window.</p>'}</div></section>`}
-function cards(stages){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs'],['stretch','Final Stretch'],['migrated','Migrated']].map(([key,label])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${stages[key].length}</span></button>`).join('')}</div>${cardSection('new','New Pairs','Fresh pools · narrative first',stages.new,'new-pairs-title')}${cardSection('stretch','Final Stretch','80–99% launch progress',stages.stretch,'final-stretch-title')}${cardSection('migrated','Migrated','$50K+ 24h volume or graduated',stages.migrated,'migrated-title')}</div>`}
+function cardSection(key,title,description,items,id){const empty=key==='stretch'?'No measured 80–99% launch coins first discovered in this window. Try 5D for older coins.':'No coins in this stage for the selected window.';return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):`<p class="lane-empty">${empty}</p>`}</div></section>`}
+function cards(stages){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs'],['stretch','Final Stretch'],['migrated','Migrated']].map(([key,label])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${stages[key].length}</span></button>`).join('')}</div>${cardSection('new','New Pairs','Fresh pools · narrative first',stages.new,'new-pairs-title')}${cardSection('stretch','Final Stretch','80–99% measured launch progress',stages.stretch,'final-stretch-title')}${cardSection('migrated','Migrated','Graduated or $50K+ volume proxy',stages.migrated,'migrated-title')}</div>`}
 function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
 function exploreCards(rows){
  if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
@@ -174,5 +175,9 @@ $('#investigate').addEventListener('click',investigate);$('#refresh').addEventLi
 $('.full-refresh').addEventListener('click',refresh);
 $('.full-exit').addEventListener('click',()=>setFull(false));
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){setFull(false);$('.collection-info').open=false}});
+$('#query').value=state.query;
 setInterval(poll,60000);setInterval(()=>{document.querySelectorAll('[data-market-time]').forEach(node=>{const c={fetchedAt:Number(node.dataset.marketTime)},fresh=marketState(c);node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
-render();refresh();
+render();
+refresh().then(()=>{
+ if(contractQuery&&!data.coins.some(c=>String(c.contract_address).toLowerCase()===contractQuery.toLowerCase()))investigate();
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mergeCoins,RETENTION_MS,collect,refreshMarket} from '../worker/coin-collector.mjs';
+import {mergeCoins,mergeRadarCoins,RETENTION_MS,collect,refreshMarket,recordMarketHistory} from '../worker/coin-collector.mjs';
 import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -41,4 +41,27 @@ test('market refresh keeps the last known metric when the live pair omits it',()
  const coin={id:'solana:ABC',network:'solana',contract_address:'ABC',liquidity:4000,volume:8000};
  const [updated]=refreshMarket([coin],[{chainId:'solana',baseToken:{address:'ABC'},liquidity:{usd:null},volume:{m5:0},txns:{m5:{buys:0,sells:0}}}],5000);
  assert.equal(updated.liquidity,4000);assert.equal(updated.volume,8000);assert.equal(updated.volume5m,0);
+});
+test('market samples include only successful refreshes and remain bounded',()=>{
+ const now=1800000000000;
+ const fresh={id:'solana:ABC',marketUpdatedAt:now,liquidity:9000,volume5m:700,buys5m:8,sells5m:3,volume:12000,
+  marketHistory:[{at:now-5*3600000,volume5m:10},{at:now-5*60000,volume5m:400}],marketHistoryHourly:[{at:now-RETENTION_MS-1},{at:now-2*3600000}]};
+ const [updated]=recordMarketHistory([fresh],now);
+ assert.deepEqual(updated.marketHistory.map(row=>row.volume5m),[400,700]);
+ assert.equal(updated.marketHistoryHourly.length,2);
+ assert.equal(updated.marketHistoryHourly.at(-1).at,now);
+ const [unchanged]=recordMarketHistory([{...updated,marketUpdatedAt:now-60000}],now);
+ assert.deepEqual(unchanged.marketHistory,updated.marketHistory);
+ assert.deepEqual(unchanged.marketHistoryHourly,updated.marketHistoryHourly);
+});
+test('Radar accepts older trending pools without changing Coin intake and retains observed history',()=>{
+ const now=1800000000000;
+ const older={id:'solana:old',network:'solana',contract_address:'old',poolCreated:now-30*86400000,liquidity:40000,volume:200000};
+ assert.equal(mergeCoins([],[older],now).length,0);
+ const [first]=mergeRadarCoins([],[older],[],now);
+ first.marketHistory=[{at:now,volume5m:1000}];
+ const [again]=mergeRadarCoins([first],[],[],now+3600000);
+ assert.deepEqual(again.marketHistory,first.marketHistory);
+ assert.equal(again.firstSeenRadarAt,now);
+ assert.equal(mergeRadarCoins([again],[],[],now+RETENTION_MS+1).length,0);
 });

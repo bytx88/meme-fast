@@ -1,15 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {stageFor,normalizeLaunchpad} from '../dist/coin-stages.mjs';
-import {refreshLaunchpad} from '../worker/coin-collector.mjs';
+import {refreshLaunchpad,selectLaunchCandidates} from '../worker/coin-collector.mjs';
 
 test('discover stages require measured volume or launch progress',()=>{
  assert.equal(stageFor({volume:49999}),'new');
  assert.equal(stageFor({volume:50000}),'migrated');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:80,completed:false}}),'stretch');
+ assert.equal(stageFor({volume:1000000,launchpad:{graduationPercentage:90,completed:false}}),'stretch');
+ assert.equal(stageFor({volume:1000000,launchpad:{graduationPercentage:40,completed:false}}),'new');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:79.99,completed:false}}),'new');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true}}),'migrated');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:95}}),'new');
+});
+
+test('launchpad checks rotate older contracts while retaining new and near-graduation coins',()=>{
+ const coins=Array.from({length:8},(_,i)=>({id:String(i),firstSeen:100-i,launchpadCheckedAt:i<6?100:0}));
+ coins[5].launchpad={graduationPercentage:90,completed:false};
+ assert.deepEqual(selectLaunchCandidates(coins,4).map(c=>c.id),['5','0','6','7']);
 });
 
 test('collector attaches launch progress to the exact token and retains prior data on missing response',()=>{

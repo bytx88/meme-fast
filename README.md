@@ -16,6 +16,7 @@ Open `http://127.0.0.1:4173/narratives.html`.
 
 - **Radar** — incoming public-news signals and active Solana/Base pools
 - **New coins** — freshly discovered pools with evidence status and a research handoff
+- **Radar** — separate Scalp, Swing, and Longer-term attention rankings with input coverage and explanations
 - **Narrative research** — evidence trail, lifecycle context, and associated tokens
 - **Token research** — observed swap flow, sizing, timeline, and transaction details
 - **Watchlist** — browser-local saved narratives and tokens

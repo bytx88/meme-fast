@@ -70,9 +70,10 @@ def web():
             try:
                 snapshot = json.loads(Path("/history/coins.json").read_text())
             except FileNotFoundError:
-                snapshot = {"version": 1, "coins": [], "lastRun": None, "feeds": {}}
+                snapshot = {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
             cutoff = time.time() * 1000 - 5 * 86400000
             snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
+            snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
         return JSONResponse(snapshot, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)
     allowed_types = {
@@ -170,6 +171,7 @@ def web():
             "narratives": "narratives.html",
             "narrative": "narrative.html",
             "new-coins": "new-coins.html",
+            "radar": "radar.html",
             "watchlist": "watchlist.html",
             "sources": "sources.html",
         }
