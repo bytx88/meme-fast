@@ -185,7 +185,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   const direct=fetch;let nextGeckoAt=0,queue=Promise.resolve();
   fetcher=(url,options)=>{
    if(!String(url).startsWith('https://api.geckoterminal.com/'))return direct(url,options);
-   const turn=queue.then(async()=>{const wait=Math.max(0,nextGeckoAt-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait));nextGeckoAt=Date.now()+2100});
+   const turn=queue.then(async()=>{const wait=Math.max(0,nextGeckoAt-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait));nextGeckoAt=Date.now()+3500});
    queue=turn.catch(()=>{});
    return turn.then(()=>direct(url,options));
   };
@@ -195,6 +195,23 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
  feeds.robinhood_rpc={lastSuccess:rpcError?feeds.robinhood_rpc?.lastSuccess??null:indexedFeed.status?.lastScanAt??null,error:rpcError||null,lastAttempt:indexedFeed.status?.lastScanAt??null,pools:indexedFeed.status?.count??0,backfillComplete:indexedFeed.status?.backfillComplete===true};
+ const trackedResults=await Promise.allSettled(TRACKED_RADAR_TOKENS.map(async token=>{
+  const network=RADAR_NETWORKS.find(network=>network.id===token.network);
+  try{
+   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/tokens/${encodeURIComponent(token.contract)}/pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
+   if(!response.ok)throw new Error(`Tracked token HTTP ${response.status}`);
+   const matches=parsePools(await response.json(),network,now).filter(coin=>coin.contract_address.toLowerCase()===token.contract.toLowerCase());
+   if(matches.length)return matches;
+  }catch{}
+  const response=await fetcher(`https://api.dexscreener.com/tokens/v1/${network.id}/${encodeURIComponent(token.contract)}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Tracked token fallback HTTP ${response.status}`);
+  const pairs=await response.json();
+  const pair=Array.isArray(pairs)?pairs.filter(pair=>pair.chainId===network.id&&pair.baseToken?.address?.toLowerCase()===token.contract.toLowerCase()&&/^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(pair.pairAddress||'')).sort((a,b)=>(b.liquidity?.usd??0)-(a.liquidity?.usd??0))[0]:null;
+  if(!pair)throw new Error('Tracked contract has no eligible pool');
+  return [{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',symbol:pair.baseToken.symbol||'?',image_url:safeURL(pair.info?.imageUrl),network:network.id,chain:network.name,contract_address:token.contract,contract_verified:true,pool:pair.pairAddress,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv),volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),liquidity:amount(pair.liquidity?.usd),buys:amount(pair.txns?.h24?.buys),sells:amount(pair.txns?.h24?.sells),buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceUsd:amount(pair.priceUsd),priceChange:amount(pair.priceChange?.h24),fetchedAt:now,marketUpdatedAt:now,priceUpdatedAt:now}];
+ }));
+ const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=result.status==='fulfilled'?{lastSuccess:now,error:null}:{...feeds[key],error:String(result.reason.message),lastAttempt:now}});
  const duePools=Array.isArray(indexedFeed.pools)?indexedFeed.pools:[];
  const indexedBatches=chunks(duePools,30);
  const indexedResults=await Promise.allSettled(indexedBatches.map(async batch=>{
@@ -243,16 +260,6 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   const key=`${network.id}_top_pools`;
   feeds[key]=failure?{...feeds[key],error:String(failure.reason.message),lastAttempt:now}:{lastSuccess:now,error:null};
  }
- const trackedResults=await Promise.allSettled(TRACKED_RADAR_TOKENS.map(async token=>{
-  const network=RADAR_NETWORKS.find(network=>network.id===token.network);
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/tokens/${encodeURIComponent(token.contract)}/pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Tracked token HTTP ${response.status}`);
-  const matches=parsePools(await response.json(),network,now).filter(coin=>coin.contract_address.toLowerCase()===token.contract.toLowerCase());
-  if(!matches.length)throw new Error('Tracked contract has no eligible pool');
-  return matches;
- }));
- const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
- trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=result.status==='fulfilled'?{lastSuccess:now,error:null}:{...feeds[key],error:String(result.reason.message),lastAttempt:now}});
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
  const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{

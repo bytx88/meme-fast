@@ -102,6 +102,24 @@ test('collector fetches tracked Robinhood CASHED into Radar only',async()=>{
   assert.equal(snapshot.feeds.robinhood_tracked.error,null);
  }finally{await rm(dir,{recursive:true,force:true})}
 });
+test('tracked Robinhood contract uses Dexscreener when GeckoTerminal is rate limited',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'meme-robinhood-fallback-')),file=path.join(dir,'coins.json');
+ const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24',now=1800000000000;
+ const json=data=>({ok:true,json:async()=>data});
+ const fetcher=async url=>{
+  if(url.includes(`/networks/robinhood/tokens/${contract}/pools`))return {ok:false,status:429};
+  if(url.includes(`dexscreener.com/tokens/v1/robinhood/${contract}`))return json([{chainId:'robinhood',pairAddress:'0x'+'a'.repeat(64),baseToken:{address:contract,name:'Cashed Money',symbol:'CASHED'},liquidity:{usd:201900},volume:{h24:5500000,m5:2270},txns:{h24:{buys:100,sells:80},m5:{buys:8,sells:3}},pairCreatedAt:now-7*86400000,priceUsd:'0.0064'}]);
+  if(url.includes('/networks/')&&(url.includes('/new_pools')||url.includes('/trending_pools')))return json({data:[],included:[]});
+  if(url.includes('dexscreener.com/tokens/v1/'))return json([]);
+  if(url.includes('token-profiles/latest/v1'))return json([]);
+  return {ok:false,status:404};
+ };
+ try{
+  const snapshot=await collect(file,{now,fetcher});
+  assert.equal(snapshot.radarCoins.find(coin=>coin.contract_address===contract)?.pool,'0x'+'a'.repeat(64));
+  assert.equal(snapshot.feeds.robinhood_tracked.error,null);
+ }finally{await rm(dir,{recursive:true,force:true})}
+});
 test('indexed Robinhood pool feed is shared by fresh Coin and Radar',async()=>{
  const dir=await mkdtemp(path.join(tmpdir(),'meme-robinhood-shared-')),file=path.join(dir,'coins.json');
  const now=1800000000000,contract='0x'+'5'.repeat(40),pair='0x'+'6'.repeat(40),pool='0x'+'7'.repeat(64);
