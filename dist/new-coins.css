@@ -201,6 +201,13 @@
 @media(max-width:1399px){.tiles-only .explore-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:999px){.tiles-only .explore-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:800px){.explore-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Put the verified contract action beside the ticker and give token art room to read. */
+.scan-card .coin-head{grid-template-columns:auto minmax(0,1fr) 50px}
+.scan-card .coin-thumb{width:50px;height:50px;border-radius:9px;font-size:17px}
+.scan-card .card-title-line{align-items:center;gap:4px}
+.scan-card .card-title-line .ca-compact{flex:none;min-width:25px;min-height:20px;height:20px;padding:2px 4px;border:1px solid #43556c;border-radius:4px;background:#1b2a3b;color:#cde5fb;font-size:9px;font-weight:700;line-height:1;cursor:pointer}
+.scan-card .card-title-line .ca-compact:hover,.scan-card .card-title-line .ca-compact:focus-visible{border-color:#91b0d4;background:#263c52}
 @media(max-width:800px){.tiles-only .explore-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.tiles-only .explore-grid{grid-template-columns:minmax(0,1fr)}}
 
