@@ -1,4 +1,4 @@
-import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs';
+import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-v1';
 import {isSaved,toggleSaved} from './research-store.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 

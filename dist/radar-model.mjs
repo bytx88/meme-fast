@@ -4,6 +4,7 @@ const scale=(value,start,end)=>value===null?null:clamp((value-start)/(end-start)
 const completeSample=row=>number(row.volume5m)!==null&&number(row.buys5m)!==null&&number(row.sells5m)!==null;
 const sampleActive=row=>number(row.volume5m)>=500&&Number(row.buys5m)+Number(row.sells5m)>=5;
 const freshAt=coin=>number(coin.marketUpdatedAt??coin.fetchedAt);
+export const SCALP_MAX_POOL_AGE_MS=5*86400000;
 const samples=(coin,key,since,now)=>Array.isArray(coin[key])?coin[key].filter(row=>number(row.at)!==null&&row.at>=since&&row.at<=now).sort((a,b)=>a.at-b.at):[];
 const contextValue=coin=>coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact?1:coin.savedContext?0.3:null;
 const component=(label,weight,value,detail)=>({label,weight,value:value===null?null:clamp(value),detail});
@@ -25,7 +26,7 @@ function previousVolume(rows,now){
 }
 
 export const RADAR_MODES={
- scalp:{title:'Scalp',description:'Minutes · recent turnover, participation, buy pressure, and acceleration.'},
+ scalp:{title:'Scalp',description:'Minutes · pools up to 5 days old · recent turnover, participation, buy pressure, and acceleration.'},
  swing:{title:'Swing',description:'Hours · liquidity, turnover, repeated activity, and buy pressure.'},
  research:{title:'Longer-term',description:'Days · observed persistence and contract-linked context. This is research priority, not an investment assessment.'},
 };
@@ -78,5 +79,6 @@ export function radarReading(coin,mode='scalp',now=Date.now()){
 
 export function rankRadar(coins,mode='scalp',now=Date.now()){
  if(!RADAR_MODES[mode])throw new Error('Unknown Radar mode');
- return coins.map(coin=>radarReading(coin,mode,now)).sort((a,b)=>Number(a.stale)-Number(b.stale)||Number(b.score!==null)-Number(a.score!==null)||(b.rankScore??-1)-(a.rankScore??-1)||(b.updatedAt??0)-(a.updatedAt??0));
+ const eligible=mode==='scalp'?coins.filter(coin=>{const created=number(coin.poolCreated);return created!==null&&created<=now&&now-created<=SCALP_MAX_POOL_AGE_MS}):coins;
+ return eligible.map(coin=>radarReading(coin,mode,now)).sort((a,b)=>Number(a.stale)-Number(b.stale)||Number(b.score!==null)-Number(a.score!==null)||(b.rankScore??-1)-(a.rankScore??-1)||(b.updatedAt??0)-(a.updatedAt??0));
 }

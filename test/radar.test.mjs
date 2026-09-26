@@ -19,6 +19,13 @@ test('fresh readings sort ahead of stale readings and no-score readings',()=>{
  const empty=coin({id:'empty',liquidity:null,volume5m:null,volume:null,buys5m:null,sells5m:null});
  assert.deepEqual(rankRadar([stale,empty,fresh],'scalp',now).map(row=>row.coin.id),['fresh','empty','stale']);
 });
+test('Scalp ranks recent pools while older trending pools remain in longer horizons',()=>{
+ const recent=coin({id:'recent',poolCreated:now-2*86400000});
+ const older=coin({id:'older',poolCreated:now-114*86400000,volume5m:80000});
+ assert.deepEqual(rankRadar([older,recent],'scalp',now).map(row=>row.coin.id),['recent']);
+ assert.equal(rankRadar([older,recent],'swing',now).length,2);
+ assert.equal(rankRadar([older,recent],'research',now).length,2);
+});
 test('swing and longer-term readings wait for enough observed history',()=>{
  const early=coin({marketHistory:[{at:now,volume5m:5000,buys5m:30,sells5m:10}],marketHistoryHourly:[{at:now,volume5m:5000,buys5m:30,sells5m:10}]});
  const swing=radarReading(early,'swing',now),research=radarReading(early,'research',now);
