@@ -17,7 +17,7 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 ## Product areas
 
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
-- **Snipe** — an Entry screen for fresh pool timing, market age, short-window flow, and order-size pressure; plus discovery, evidence, and research views
+- **Snipe** — Entry screening for pool timing, market age, flow, and order-size pressure; Discover and Explore views for stage and story context
 - **Hodl** — Swing and Longer-term research rankings with input coverage and explanations
 - **Narrative research** — evidence trail, lifecycle context, and associated tokens
 - **Order Flow** — observed swap flow, sizing, timeline, and transaction details
