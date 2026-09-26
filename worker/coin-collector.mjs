@@ -3,6 +3,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
+import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 
 export const RETENTION_MS=5*86400000;
 const chunks=(items,size)=>Array.from({length:Math.ceil(items.length/size)},(_,i)=>items.slice(i*size,i*size+size));
@@ -18,6 +19,18 @@ export function refreshMarket(coins,pairs,now=Date.now()){
   const pair=byAddress.get(`${coin.network}:${String(coin.contract_address).toLowerCase()}`);
   if(!pair)return coin;
   return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
+ });
+}
+export function refreshLaunchpad(coins,tokens,now=Date.now()){
+ const key=(network,address)=>`${network}:${network==='solana'?address:String(address).toLowerCase()}`;
+ const byId=new Map(tokens.filter(token=>token.attributes?.address).map(token=>{
+  const network=String(token.id||'').split('_')[0];
+  return [key(network,token.attributes.address),normalizeLaunchpad(token.attributes.launchpad_details)];
+ }));
+ return coins.map(coin=>{
+  const id=key(coin.network,coin.contract_address);
+  if(!byId.has(id))return coin;
+  return {...coin,launchpad:byId.get(id),launchpadUpdatedAt:now};
  });
 }
 export function mergeCoins(previous,incoming,now=Date.now()){
@@ -78,6 +91,17 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   });
  }));
  coins=refreshMarket(coins,marketResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
+ // Check the most recent contracts and previously observed near-graduation coins.
+ // The public multi-token endpoint is bounded to seven small requests per run.
+ const launchCandidates=[...coins].sort((a,b)=>Number(b.launchpad?.completed===false&&b.launchpad.graduationPercentage>=80)-Number(a.launchpad?.completed===false&&a.launchpad.graduationPercentage>=80)||b.firstSeen-a.firstSeen).slice(0,120);
+ const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
+ const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
+  const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
+  const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
+ }));
+ coins=refreshLaunchpad(coins,launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
  const snapshot={version:1,coins,lastRun:now,feeds};
  // Commit discovery first so slow or failed story lookups cannot lose coins.
  await save(filename,snapshot);

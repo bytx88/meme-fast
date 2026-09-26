@@ -96,3 +96,34 @@
 .new-coins .workspace-actions>button{min-width:0;min-height:30px;padding:5px 10px;font-size:12px;line-height:18px}
 .new-coins .collection-info summary{padding:5px 2px;line-height:20px}
 @media(max-width:800px){.new-coins .workspace-head{padding:8px 0}.new-coins .workspace-actions{width:100%}}
+
+/* Discover is a three-lane narrative feed; Research keeps the comparison table. */
+.view-switch{display:inline-flex;gap:3px;padding:3px;border:1px solid #354253;border-radius:7px;background:#111821}
+.view-switch .view-toggle{min-width:0;padding:5px 9px;border:0;background:transparent;color:#aebbd0;font-size:12px;white-space:nowrap}
+.view-switch .view-toggle[aria-pressed=true]{background:#29351f;color:var(--accent)}
+.coin-scanner.discover-mode{border:0;background:transparent;overflow:visible}
+.coin-scanner.discover-mode .scanner-head,.coin-scanner.discover-mode .scanner-columns{display:none}
+.coin-scanner.discover-mode .scanner-scroll{overflow:visible}
+.discovery-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;height:clamp(490px,calc(100dvh - 220px),900px)}
+.discovery-lane{display:flex;flex-direction:column;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#111821}
+.discovery-lane-head{flex:none;padding:10px 12px;border-bottom:1px solid var(--line);background:#151e29}
+.discovery-lane-head h2{display:flex;align-items:center;gap:7px;margin:0;font-size:16px}
+.discovery-lane-head p{margin:3px 0 0;color:var(--muted);font-size:11px}
+.discovery-lane-list{display:flex;flex-direction:column;gap:8px;min-height:0;padding:8px;overflow-y:auto;scrollbar-color:#475468 transparent}
+.discovery-board .scan-card{flex:none;gap:0;padding:10px 11px;border-radius:7px}
+.discovery-board .scan-card .card-read{order:2;min-height:0;margin-top:8px}
+.discovery-board .scan-card .card-read p{font-size:12px;line-height:1.4}
+.discovery-board .scan-card .card-stage-fact{order:3;margin-top:7px;color:#aebbd0;font-size:10px}
+.discovery-board .scan-card .new-metrics{order:4;margin:7px 0;padding:6px 0}
+.discovery-board .scan-card .card-actions{order:5;margin-top:2px}
+.discovery-board .scan-card .new-metrics dt{font-size:9px}
+.discovery-board .scan-card .new-metrics dd{font-size:12px}
+.discovery-board .scan-card .card-actions a,.discovery-board .scan-card .card-actions button{padding:3px 6px;font-size:10px}
+.lane-empty{margin:0;padding:18px 10px;color:var(--muted);font-size:12px;line-height:1.5;text-align:center}
+.stage-tabs{display:none}
+.tiles-only .coin-scanner.discover-mode{margin:0;border:0;background:transparent}
+.tiles-only .discovery-board{height:calc(100dvh - 76px)}
+.tiles-only .discovery-lane-list{gap:9px}
+.tiles-only .full-strip .view-switch{flex:none}
+@media(max-width:1050px){.discovery-board{gap:7px}.discovery-lane-list{padding:6px}.discovery-board .scan-card .card-actions{gap:3px}}
+@media(max-width:850px){.discovery-board{display:block;height:auto}.stage-tabs{display:flex;gap:4px;margin-bottom:8px;overflow-x:auto}.stage-tabs button{flex:1;min-width:max-content;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#17212d;color:#c6d3e5;font-size:12px}.stage-tabs button[aria-pressed=true]{border-color:#617c32;background:#29351f;color:var(--accent)}.stage-tabs span{margin-left:4px}.discovery-lane{display:none}.discovery-lane.stage-active{display:flex}.discovery-lane-list{overflow:visible}.tiles-only .discovery-board{height:auto;min-height:calc(100dvh - 76px)}.tiles-only .discovery-lane-list{overflow:visible}.tiles-only .full-strip{gap:5px}.tiles-only .full-strip select{max-width:112px}}

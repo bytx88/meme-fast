@@ -3,15 +3,16 @@ import {copyContract,axiomLink,fomoLink} from './contract-copy.mjs?v=fomo-scanne
 import {groupCoins} from './coin-groups.mjs';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
+import {stageFor} from './coin-stages.mjs';
 
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
-const cardPreferenceKey='meme-fast.coin-card-view';
-function savedView(){try{return localStorage.getItem(cardPreferenceKey)==='card'?'card':'grid'}catch{return 'grid'}}
-const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:savedView()};
+const viewPreferenceKey='meme-fast.coin-view-v2';
+function savedView(){try{return localStorage.getItem(viewPreferenceKey)==='research'?'research':'discover'}catch{return 'discover'}}
+const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:savedView(),activeStage:'new'};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
 function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\buddg=\S+/g,'').replace(/\s+/g,' ').trim()}
@@ -49,11 +50,12 @@ function thumbnail(c){
  return `<span class="coin-thumb" aria-hidden="true"><span>${esc(label)}</span>${c.image_url?`<img src="${esc(c.image_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>`;
 }
 function card(c,index){
- const found=context(c),market=marketState(c),trade=axiomLink(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
- return `<article class="new-coin-card scan-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${c.variants?.length>1?`<span class="card-listings">${c.variants.length} listings</span>`:''}<span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)} · pool ${esc(age(c.poolCreated))}${c.manual?' · Manual':''}</small></div>${thumbnail(c)}</div><div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div>${metrics(c)}<div class="card-actions">${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
+ const found=context(c),market=marketState(c),trade=axiomLink(c),fomo=fomoLink(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
+ const stage=stageFor(c),stageFact=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:stage==='migrated'?c.launchpad?.completed?'Graduation observed':`${money(c.volume)} 24h volume`:`Pool ${age(c.poolCreated)} old`;
+ return `<article class="new-coin-card scan-card"><div class="coin-head"><span class="rank">${String(index+1).padStart(2,'0')}</span><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${c.variants?.length>1?`<span class="card-listings">${c.variants.length} listings</span>`:''}<span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div><small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)}${c.manual?' · Manual':''}</small></div>${thumbnail(c)}</div><div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div><div class="card-stage-fact">${esc(stageFact)}</div>${metrics(c)}<div class="card-actions">${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Fomo">Fomo ↗</a>`:''}${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
 }
-function cardSection(title,items,id){return `<section class="card-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="card-grid new-coin-grid">${items.map(card).join('')}</div></section>`}
-function cards(rows){if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';const exact=rows.filter(c=>verified(context(c))),pending=rows.filter(c=>!verified(context(c)));return (exact.length?cardSection('Verified context',exact,'explained-title'):'')+(pending.length?cardSection('Context pending or unverified',pending,'pending-title'):'')}
+function cardSection(key,title,description,items,id){return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):'<p class="lane-empty">No coins in this stage for the selected window.</p>'}</div></section>`}
+function cards(stages){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs'],['stretch','Final Stretch'],['migrated','Migrated']].map(([key,label])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${stages[key].length}</span></button>`).join('')}</div>${cardSection('new','New Pairs','Fresh pools · narrative first',stages.new,'new-pairs-title')}${cardSection('stretch','Final Stretch','80–99% launch progress',stages.stretch,'final-stretch-title')}${cardSection('migrated','Migrated','$50K+ 24h volume or graduated',stages.migrated,'migrated-title')}</div>`}
 function contextLabel(found){return verified(found)?'Exact contract':found?'Unverified':'Pending'}
 function quickRead(found,c){
  if(found?.articles?.length)return clean(found.articles[0].title)||'Article available; open Details for the source.';
@@ -85,12 +87,15 @@ function render(){
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
  $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} verified · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
- const all=candidates(),rows=groupCoins(all,context);visibleRows=rows;
+ const all=candidates(),rows=groupCoins(all,context),stages={new:[],stretch:[],migrated:[]};
+ for(const coin of all)stages[stageFor(coin)].push(coin);
+ for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
+ visibleRows=state.view==='discover'?Object.values(stages).flat():rows;
  $('#coin-count').textContent=rows.length;
- $('#coin-list').className=`coin-list ${state.view==='card'?'card-mode':'grid-mode'}`;
- $('.coin-scanner').classList.toggle('card-mode',state.view==='card');
- document.querySelectorAll('[data-card-mode]').forEach(button=>button.setAttribute('aria-pressed',String(state.view==='card')));
- $('#coin-list').innerHTML=state.view==='card'?cards(rows):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
+ $('#coin-list').className=`coin-list ${state.view==='discover'?'discover-mode':'grid-mode'}`;
+ $('.coin-scanner').classList.toggle('discover-mode',state.view==='discover');
+ document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
+ $('#coin-list').innerHTML=state.view==='discover'?cards(stages):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  $('#full-freshness').textContent=state.lastRun?`Server ${age(state.lastRun)} ago`:'Server waiting';
@@ -140,12 +145,13 @@ async function investigate(){
  }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
 }
 function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full'}
-function setCard(enabled){state.view=enabled?'card':'grid';try{localStorage.setItem(cardPreferenceKey,state.view)}catch{}render()}
+function setView(view){if(!['discover','research'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}render()}
 function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
+ const stageTab=event.target.closest('[data-stage-tab]');if(stageTab){state.activeStage=stageTab.dataset.stageTab;render();return}
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
- if(event.target.closest('[data-card-mode]')){setCard(state.view!=='card');return}
+ const view=event.target.closest('[data-view]');if(view){setView(view.dataset.view);return}
  const open=event.target.closest('[data-open-coin]');if(open){state.selectedId=open.dataset.openCoin;const coin=visibleRows.find(c=>c.id===state.selectedId);if(coin){$('#coin-detail-content').innerHTML=detailHtml(coin);$('#coin-detail').showModal()}return}
  if(event.target.closest('[data-close-detail]')){$('#coin-detail').close();return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;
