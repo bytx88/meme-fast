@@ -1,5 +1,6 @@
 import {watchlistView} from './watchlist-view.mjs';
 import {compactFlow} from '../dist/snipe-decision.mjs';
+import {earlyRampWarning} from '../dist/rug-screen.mjs';
 import {readFile,stat} from 'node:fs/promises';
 
 export const RETENTION_MS=5*86400000;
@@ -24,7 +25,7 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now()){
  const cutoff=now-RETENTION_MS;
  const result={...snapshot,coins:(snapshot.coins||[]).filter(c=>c.firstSeen>cutoff)};
  if(view==='coin'){
-  result.coins=result.coins.map(({marketHistory,marketHistoryHourly,priceHistory5m,...coin})=>({...coin,flowSamples:compactFlow(marketHistory)}));
+  result.coins=result.coins.map(({marketHistory,marketHistoryHourly,priceHistory5m,...coin})=>({...coin,flowSamples:compactFlow(marketHistory),earlyRampWarning:earlyRampWarning({...coin,marketHistory},now)}));
   delete result.radarCoins;
  }else{
   if(view==='radar')result.coins=[];

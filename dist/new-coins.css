@@ -310,3 +310,4 @@
 .entry-actions button:hover,.entry-actions a:hover{border-color:#9acb58}
 @media(max-width:1550px){.entry-row{grid-template-columns:minmax(180px,1.5fr) repeat(4,minmax(75px,.6fr)) minmax(170px,1.2fr) auto}.entry-stat:nth-of-type(5),.entry-stat:nth-of-type(6),.entry-stat:nth-of-type(7){display:none}}
 @media(max-width:950px){.entry-row{grid-template-columns:minmax(160px,1fr) repeat(2,minmax(70px,.5fr));gap:9px}.entry-stat:nth-of-type(n){display:flex}.entry-verification,.entry-actions{grid-column:1/-1}.entry-actions{flex-wrap:wrap}.entry-status{display:none}}
+.discovery-board .scan-card .card-stage-fact.ramp-risk,.explore-grid .scan-card .card-stage-fact.ramp-risk{color:#ffb178;font-weight:700}

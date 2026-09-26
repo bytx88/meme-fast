@@ -56,6 +56,37 @@ class SnapshotViewTests(unittest.TestCase):
             )
             self.assertEqual(json.loads(result.stdout), snapshot_view(snapshot, view, ids, now_ms=now))
 
+    def test_early_ramp_projection_matches_javascript(self):
+        now = 1790454627407
+        history = [
+            {"at": at, "priceUsd": price, "liquidity": liquidity,
+             "buys5m": buys, "sells5m": sells}
+            for at, price, liquidity, buys, sells in (
+                (1790453421784, .00001395, 24269.82, 272, 65),
+                (1790453720967, .00001853, 28016.51, 356, 89),
+                (1790454020816, .00002299, 31275.76, 367, 90),
+                (1790454319231, .00002532, 32886.15, 201, 88),
+                (now, .00003127, 36645.88, 99, 91),
+            )
+        ]
+        coin = {"id": "solana:PAID", "network": "solana", "contract_address": "PAID",
+                "poolCreated": 1790453285000, "firstSeen": history[0]["at"],
+                "marketHistory": history}
+        snapshot = {"coins": [coin], "radarCoins": [], "lastRun": now}
+        expected = snapshot_view(snapshot, "coin", now_ms=now)
+        self.assertEqual(expected["coins"][0]["earlyRampWarning"], {"risePercent": 124, "minutes": 20})
+        script = (
+            "import {snapshotView} from './worker/snapshot-view.mjs';"
+            "let text='';for await(const chunk of process.stdin)text+=chunk;"
+            "const {snapshot,now}=JSON.parse(text);"
+            "console.log(JSON.stringify(snapshotView(snapshot,'coin',[],now)));"
+        )
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script], cwd=Path(__file__).resolve().parents[1],
+            input=json.dumps({"snapshot": snapshot, "now": now}), text=True, capture_output=True, check=True,
+        )
+        self.assertEqual(json.loads(result.stdout), expected)
+
 
 class MarketProxyTests(unittest.IsolatedAsyncioTestCase):
     async def test_token_info_object_is_cached_for_holder_display(self):
