@@ -1,6 +1,7 @@
 import {contractForCopy} from './contract-copy.mjs';
 export const FEEDS=[{id:'decrypt',name:'Decrypt',url:'https://decrypt.co/feed',host:'decrypt.co'},{id:'cointelegraph',name:'Cointelegraph',url:'https://cointelegraph.com/rss',host:'cointelegraph.com'}];
 export const NETWORKS=[{id:'solana',name:'Solana'},{id:'base',name:'Base'}];
+export const RADAR_NETWORKS=[...NETWORKS,{id:'robinhood',name:'Robinhood Chain'}];
 export const numeric=value=>value===null||value===undefined||value===''||!Number.isFinite(Number(value))?null:Number(value);
 export function safeURL(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null}catch{return null}}
 export function cleanText(value){return String(value??'').replace(/<[^>]*>/g,' ').replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Math.min(1114111,Number(n)))).replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim()}
@@ -21,8 +22,11 @@ export function parsePools(data,network,now=Date.now()) {
  const coins=new Map();
  for(const pool of data.data){
   const a=pool.attributes,t= tokens.get(pool.relationships?.base_token?.data?.id);if(!a||!t)continue;
-  const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),image_url:safeURL(t.image_url),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),priceChange:numeric(a.price_change_percentage?.h24),fetchedAt:now};
-  if(!contractForCopy(c)||!contractForCopy({...c,contract_address:c.pool}))continue;
+  const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),image_url:safeURL(t.image_url),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),volume5m:numeric(a.volume_usd?.m5),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),buys5m:numeric(a.transactions?.m5?.buys),sells5m:numeric(a.transactions?.m5?.sells),priceUsd:numeric(a.base_token_price_usd),priceChange:numeric(a.price_change_percentage?.h24),fetchedAt:now};
+  if(c.volume5m!==null&&c.buys5m!==null&&c.sells5m!==null)c.marketUpdatedAt=now;
+  if(c.priceUsd!==null)c.priceUpdatedAt=now;
+  const poolValid=contractForCopy({...c,contract_address:c.pool})||network.id==='robinhood'&&/^0x[a-fA-F0-9]{64}$/.test(c.pool);
+  if(!contractForCopy(c)||!poolValid)continue;
   if(['SOL','WETH','ETH','USDC','USDT','USDS','DAI','WBTC','CBBTC','USDE'].includes(c.symbol.toUpperCase()))continue;
   const previous=coins.get(c.id);
   // Use one pool per token: summing pool-level buyers would double-count wallets.

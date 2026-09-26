@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parsePools,parseNews,FEEDS,NETWORKS,buildPublicView,addressMatches,mergeArticles,compareSnapshots,fetchPublicSource} from '../dist/public-radar.mjs';
+import {parsePools,parseNews,FEEDS,NETWORKS,RADAR_NETWORKS,buildPublicView,addressMatches,mergeArticles,compareSnapshots,fetchPublicSource} from '../dist/public-radar.mjs';
 import {axiomLink,fomoLink} from '../dist/contract-copy.mjs';
 const now=Date.parse('2026-09-22T12:00:00Z'),ca='Ab'.repeat(20),poolAddress='Cd'.repeat(20);
 const token={id:'solana_'+ca,type:'token',attributes:{address:ca,symbol:'TEST',name:'Test token'}};
@@ -31,6 +31,18 @@ test('Axiom URLs use the exact CA, chain, and no referral; unknown chains have n
  const c={chain:'Solana',contract_address:ca,contract_verified:true};assert.equal(axiomLink(c),'https://axiom.trade/t/'+ca+'?chain=sol');
  assert.equal(axiomLink({...c,contract_verified:false}),null);assert.equal(axiomLink({...c,chain:'Unknown'}),null);
  const base={chain:'Base',contract_address:'0x'+'aB'.repeat(20),contract_verified:true};assert.equal(new URL(axiomLink(base)).search,'?chain=base');assert(new URL(axiomLink(base)).pathname.includes(base.contract_address));
+});
+test('Robinhood pools carry exact contract and short-window market data into Radar',()=>{
+ const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
+ const robinhood=RADAR_NETWORKS.find(network=>network.id==='robinhood');
+ const data={data:[{...pool('cashed',201900,12),attributes:{...pool('cashed',201900,12).attributes,address:'0x'+'Cd'.repeat(32),volume_usd:{h24:'5500000',m5:'2270'},transactions:{h24:{buyers:12,buys:100,sells:80},m5:{buys:8,sells:3}},base_token_price_usd:'0.0064'},relationships:{base_token:{data:{id:'robinhood_cashed'}}}}],included:[{id:'robinhood_cashed',type:'token',attributes:{address:contract,symbol:'CASHED',name:'Cashed Money'}}]};
+ const [coin]=parsePools(data,robinhood,now);
+ assert.equal(coin.id,'robinhood:'+contract);
+ assert.equal(coin.marketUpdatedAt,now);
+ assert.equal(coin.volume5m,2270);
+ assert.equal(coin.buys5m,8);
+ assert.equal(fomoLink(coin),'https://fomo.family/tokens/robinhood/'+contract);
+ assert.equal(axiomLink(coin),null);
 });
 test('Fomo URLs open the verified token on the correct chain',()=>{
  const sol={chain:'Solana',contract_address:ca,contract_verified:true};

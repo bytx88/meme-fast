@@ -75,13 +75,16 @@ def web():
                 snapshot = {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
             cutoff = time.time() * 1000 - 5 * 86400000
             snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
-            if request.query_params.get("view") == "coin":
+            view = request.query_params.get("view")
+            if view == "coin":
                 snapshot["coins"] = [
                     {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")}
                     for coin in snapshot["coins"]
                 ]
                 snapshot.pop("radarCoins", None)
             else:
+                if view == "radar":
+                    snapshot["coins"] = []
                 snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
         return JSONResponse(snapshot, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)

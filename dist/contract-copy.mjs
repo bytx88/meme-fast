@@ -3,7 +3,7 @@
 export function contractForCopy(coin) {
  if(!coin||coin.contract_verified!==true||typeof coin.contract_address!=='string')return null;
  const address=coin.contract_address;
- const valid=coin.chain==='Solana'?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address):['Base','Ethereum','BSC','Arbitrum','Polygon'].includes(coin.chain)&&/^0x[a-fA-F0-9]{40}$/.test(address);
+ const valid=coin.chain==='Solana'?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address):['Base','Robinhood Chain','Ethereum','BSC','Arbitrum','Polygon'].includes(coin.chain)&&/^0x[a-fA-F0-9]{40}$/.test(address);
  return valid?address:null;
 }
 export async function copyContract(coin,clipboard) {
@@ -22,6 +22,6 @@ export function axiomLink(coin) {
 }
 export function fomoLink(coin) {
  const address=contractForCopy(coin);
- const chain={Solana:'solana',Base:'base',Ethereum:'ethereum',BSC:'bnb'}[coin?.chain];
+ const chain={Solana:'solana',Base:'base','Robinhood Chain':'robinhood',Ethereum:'ethereum',BSC:'bnb'}[coin?.chain];
  return address&&chain?`https://fomo.family/tokens/${chain}/${encodeURIComponent(address)}`:null;
 }

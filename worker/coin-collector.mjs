@@ -1,13 +1,15 @@
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
+import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
 
 export const RETENTION_MS=5*86400000;
 export const RECENT_MARKET_MS=4*3600000;
+export const TRACKED_RADAR_TOKENS=[{network:'robinhood',contract:'0x6249519883b8d7ccf915dfcd6c0442984dae9d24'}];
+const trackedRadarIds=new Set(TRACKED_RADAR_TOKENS.map(token=>`${token.network}:${token.contract.toLowerCase()}`));
 const chunks=(items,size)=>Array.from({length:Math.ceil(items.length/size)},(_,i)=>items.slice(i*size,i*size+size));
 const amount=value=>value===null||value===undefined||value===''||!Number.isFinite(Number(value))?null:Number(value);
 export function refreshMarket(coins,pairs,now=Date.now()){
@@ -145,7 +147,7 @@ export function mergeRadarCoins(previous,incoming,coins,now=Date.now()){
    marketHistory:richer('marketHistory'),marketHistoryHourly:richer('marketHistoryHourly'),
    savedContext:coin.savedContext??old?.savedContext??null});
  }
- return [...rows.values()].sort((a,b)=>b.lastSeenRadarAt-a.lastSeenRadarAt).slice(0,200);
+ return [...rows.values()].sort((a,b)=>Number(trackedRadarIds.has(b.id.toLowerCase()))-Number(trackedRadarIds.has(a.id.toLowerCase()))||b.lastSeenRadarAt-a.lastSeenRadarAt||(b.volume??0)-(a.volume??0)).slice(0,200);
 }
 export async function readSnapshot(filename){
  try{
@@ -189,18 +191,28 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  });
  let coins=mergeCoins(previous.coins,incoming,now);
  const trending=[];
- const trendingResults=await Promise.allSettled(NETWORKS.map(async network=>{
+ const trendingResults=await Promise.allSettled(RADAR_NETWORKS.map(async network=>{
   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?include=base_token,quote_token&duration=1h`,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error(`Trending HTTP ${response.status}`);
   return parsePools(await response.json(),network,now);
  }));
  trendingResults.forEach((result,index)=>{
-  const key=`${NETWORKS[index].id}_trending`;
+  const key=`${RADAR_NETWORKS[index].id}_trending`;
   if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]={lastSuccess:now,error:null}}
   else feeds[key]={...feeds[key],error:String(result.reason.message),lastAttempt:now};
  });
- coins=mergeCoins(coins,trending,now);
- let radarCoins=mergeRadarCoins(previous.radarCoins,trending,coins,now);
+ coins=mergeCoins(coins,trending.filter(coin=>NETWORKS.some(network=>network.id===coin.network)),now);
+ const trackedResults=await Promise.allSettled(TRACKED_RADAR_TOKENS.map(async token=>{
+  const network=RADAR_NETWORKS.find(network=>network.id===token.network);
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/tokens/${encodeURIComponent(token.contract)}/pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Tracked token HTTP ${response.status}`);
+  const matches=parsePools(await response.json(),network,now).filter(coin=>coin.contract_address.toLowerCase()===token.contract.toLowerCase());
+  if(!matches.length)throw new Error('Tracked contract has no eligible pool');
+  return matches;
+ }));
+ const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=result.status==='fulfilled'?{lastSuccess:now,error:null}:{...feeds[key],error:String(result.reason.message),lastAttempt:now}});
+ let radarCoins=mergeRadarCoins(previous.radarCoins,[...trending,...tracked],coins,now);
  const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
   const addresses=targets.filter(c=>c.network===network).map(c=>c.contract_address);

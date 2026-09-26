@@ -73,3 +73,32 @@ test('Radar accepts older trending pools without changing Coin intake and retain
  assert.equal(again.firstSeenRadarAt,now);
  assert.equal(mergeRadarCoins([again],[],[],now+RETENTION_MS+1).length,0);
 });
+test('tracked CASHED remains in a full Radar universe',()=>{
+ const now=1800000000000;
+ const previous=Array.from({length:200},(_,i)=>({id:`base:0x${i.toString(16).padStart(40,'0')}`,network:'base',contract_address:`0x${i.toString(16).padStart(40,'0')}`,liquidity:4000,lastSeenRadarAt:now-1000}));
+ const cash={id:'robinhood:0x6249519883b8d7ccf915dfcd6c0442984dae9d24',network:'robinhood',contract_address:'0x6249519883b8d7ccf915dfcd6c0442984dae9d24',liquidity:201900,volume:5500000};
+ const result=mergeRadarCoins(previous,[cash],[],now);
+ assert.equal(result.length,200);
+ assert.equal(result[0].id,cash.id);
+});
+test('collector fetches tracked Robinhood CASHED into Radar only',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'meme-robinhood-')),file=path.join(dir,'coins.json');
+ const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24',now=1800000000000;
+ const payload={data:[{attributes:{address:'0x'+'a'.repeat(64),pool_created_at:new Date(now-7*86400000).toISOString(),reserve_in_usd:'201900',volume_usd:{h24:'5500000',m5:'2270'},transactions:{h24:{buys:100,sells:80},m5:{buys:8,sells:3}}},relationships:{base_token:{data:{id:'robinhood_cashed'}}}}],included:[{id:'robinhood_cashed',type:'token',attributes:{address:contract,name:'Cashed Money',symbol:'CASHED'}}]};
+ const json=data=>({ok:true,json:async()=>data});
+ const fetcher=async url=>{
+  if(url.includes(`/networks/robinhood/tokens/${contract}/pools`))return json(payload);
+  if(url.includes('/networks/')&&(url.includes('/new_pools')||url.includes('/trending_pools')))return json({data:[],included:[]});
+  if(url.includes('dexscreener.com/tokens/v1/'))return json([]);
+  if(url.includes('token-profiles/latest/v1'))return json([]);
+  return {ok:false,status:404};
+ };
+ try{
+  const snapshot=await collect(file,{now,fetcher});
+  const coin=snapshot.radarCoins.find(coin=>coin.contract_address===contract);
+  assert.equal(snapshot.coins.length,0);
+  assert.equal(coin.chain,'Robinhood Chain');
+  assert.equal(coin.marketHistory.length,1);
+  assert.equal(snapshot.feeds.robinhood_tracked.error,null);
+ }finally{await rm(dir,{recursive:true,force:true})}
+});
