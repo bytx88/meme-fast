@@ -76,3 +76,11 @@
 @media(max-width:700px){.radar-card{grid-template-columns:24px minmax(0,1fr) 110px}}
 @media(max-width:600px){.radar-token{grid-template-columns:50px minmax(0,1fr);column-gap:9px}.radar-token .radar-thumb{width:50px;height:50px}.radar-token strong{font-size:14px}}
 @media(max-width:600px){.radar-card .radar-narrative{display:grid;gap:3px}.radar-narrative.compact p{display:-webkit-box;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}.radar-narrative a{justify-self:start}}
+
+/* Keep long result lists in a visibly scrollable pane on desktop. */
+@media(min-width:701px){
+  .radar-results{max-height:clamp(520px,calc(100dvh - 400px),900px);overflow-y:auto;scrollbar-gutter:stable;padding-right:6px;scrollbar-width:thin;scrollbar-color:#71849b #17212c}
+  .radar-results::-webkit-scrollbar{width:10px}
+  .radar-results::-webkit-scrollbar-track{border-radius:8px;background:#17212c}
+  .radar-results::-webkit-scrollbar-thumb{border:2px solid #17212c;border-radius:8px;background:#71849b}
+}
