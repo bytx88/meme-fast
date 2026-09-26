@@ -118,14 +118,35 @@ function narrativeMarkup(narrative,compact=false){
  return `<div class="radar-narrative ${compact?'compact':''}"><span>${esc(narrative.label)}</span><p title="${esc(narrative.summary)}">${esc(compact?shortNarrative(narrative.summary):narrative.summary)}</p>${narrative.source?`<a href="${esc(narrative.source)}" target="_blank" rel="noopener noreferrer">Source ↗</a>`:''}</div>`;
 }
 
+function cardReasons(parts,id){
+ const available=parts.filter(part=>part.value!==null);
+ const strongest=[...available].sort((a,b)=>b.value-a.value)[0]||parts[0];
+ const weakest=[...parts].filter(part=>part!==strongest).sort((a,b)=>(a.value??-1)-(b.value??-1))[0];
+ const shown=[strongest,weakest].filter(Boolean),hidden=parts.filter(part=>!shown.includes(part));
+ const more=hidden.length?`<button type="button" class="radar-more-reasons" data-inspect="${esc(id)}" title="${esc(hidden.map(part=>`${part.label}: ${part.value===null?'unknown':part.value>=.67?'strong':part.value>=.34?'mixed':'weak'}`).join('; '))}" aria-label="Inspect ${hidden.length} more signals">+${hidden.length}</button>`:'';
+ return shown.map(reason).join('')+more;
+}
+
 function card(reading,index){
  const {coin,score,coverage,stale,parts}=reading,id=coinId(coin),chain=String(coin.network||'');
  const updatedAt=reading.updatedAt==null?null:Number(reading.updatedAt);
  const updatedAge=updatedAt===null||!Number.isFinite(updatedAt)?'No update':stale?`Stale ${age(updatedAt)}`:`Updated ${age(updatedAt)}`;
  const updatedTitle=updatedAt===null||!Number.isFinite(updatedAt)?'Market update unavailable':`Market updated ${new Date(updatedAt).toLocaleString()}`;
- const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs available</small>`:`${score}<small>Signal / 100 · ${coverage}% coverage</small>`;
+ const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs</small>`:`${score}<small>${coverage}% coverage</small>`;
  const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
- return `<article class="radar-card ${stale?'stale':''}"><span class="radar-rank">${String(index+1).padStart(2,'0')}</span><div class="radar-token"><div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div><div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div><small>${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small></div><div class="radar-signal"><strong>${signal}</strong><small>Liquidity ${money(coin.liquidity)} · 5m ${money(coin.volume5m)}</small><small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small></div><div class="radar-reasons">${parts.map(reason).join('')}</div><div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a href="${esc(flowLink(coin))}">Order Flow ↗</a><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button></div>${narrativeMarkup(narrative,true)}</article>`;
+ return `<article class="radar-card ${stale?'stale':''}">
+  <span class="radar-rank">${String(index+1).padStart(2,'0')}</span>
+  <div class="radar-token">
+   <div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
+   <small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small>
+   <div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div>
+   <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
+  </div>
+  <div class="radar-signal"><strong>${signal}</strong><small>Liq ${money(coin.liquidity)}</small><small>5m ${money(coin.volume5m)}</small></div>
+  <div class="radar-reasons">${cardReasons(parts,id)}</div>
+  <div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button><button type="button" class="radar-save-action" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button>${fomo?`<a class="radar-external-action" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a class="radar-external-action" href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a class="radar-external-action" href="${esc(flowLink(coin))}" aria-label="Open ${esc(ticker(coin))} Order Flow">Flow ↗</a></div>
+  ${narrativeMarkup(narrative,true)}
+ </article>`;
 }
 
 function historyRows(coin){
@@ -153,7 +174,9 @@ function renderInspector(){
 function openInspector(id){state.selectedId=id;if(!dialog.open)dialog.showModal();renderInspector();queueHolder(id)}
 function render(){
  holderObserver.disconnect();
- $('#mode-description').textContent=RADAR_MODES[state.mode].description;
+ const modeDescription=$('#mode-description');
+ modeDescription.textContent=state.mode==='swing'?'Hours · liquidity, repeat activity, buy pressure':'Days · persistence, liquidity, context';
+ modeDescription.title=RADAR_MODES[state.mode].description;
  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode)));
  const status=$('#status'),results=$('#radar-results');
  if(state.loading){status.textContent='Loading observed coins…';return}
@@ -164,7 +187,11 @@ function render(){
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
  const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error);
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
- status.textContent=`${ranked.length} observed coins · ${fresh} with recent market data · last collection ${snapshot.lastRun?age(Number(snapshot.lastRun))+' ago':'pending'}${degraded?' · some feeds unavailable':''}${robinhoodIncomplete?' · Robinhood pool backfill in progress':''}. ${historyNote}`;
+ const collected=snapshot.lastRun?`${age(Number(snapshot.lastRun))} ago`:'pending';
+ status.textContent=`${ranked.length} coins · ${fresh} live · updated ${collected}${degraded?' · feeds partial':''}${robinhoodIncomplete?' · Robinhood indexing':''}`;
+ const statusDetail=`${ranked.length} observed coins. ${fresh} with recent market data. Last collection ${collected}.${degraded?' Some feeds unavailable.':''}${robinhoodIncomplete?' Robinhood pool backfill in progress.':''} ${historyNote}`;
+ status.title=statusDetail;
+ status.setAttribute('aria-label',statusDetail);
  results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
  results.querySelectorAll('[data-holder-id]').forEach(node=>{if(!holderInfo.has(node.dataset.holderId))holderObserver.observe(node)});
  renderInspector();

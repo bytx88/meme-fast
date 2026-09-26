@@ -95,3 +95,34 @@
 }
 @media(max-width:700px){.radar-scroll-track{display:none}}
 @media(min-width:701px){.radar-card{padding:10px 14px}.radar-card .radar-narrative{padding-top:6px}}
+
+/* Trader density: keep the controls and the most useful card facts in view. */
+.radar-heading{align-items:center;gap:12px;padding:10px 0 8px}
+.radar-heading .radar-kicker{margin-bottom:0;font-size:9px}
+.radar-heading h1{font-size:27px}
+.radar-heading .radar-modes{margin-left:auto;padding:0;border:0}
+.radar-heading .radar-modes button{min-height:30px;padding:5px 10px;font-size:12px}
+.radar-heading #refresh{min-height:30px;padding:5px 9px;font-size:11px}
+.radar-controls{gap:8px;padding:7px 0}
+.radar-controls p{min-width:0;overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.radar-controls>div{flex:none;gap:7px}
+.radar-controls select,.radar-controls input{min-height:30px;padding:4px 8px}
+.radar-status{min-height:16px;margin-bottom:5px;font-size:10px}
+.radar-token{grid-template-rows:14px auto auto;align-content:center}
+.radar-token .radar-thumb-stack{grid-row:1/4}
+.radar-token .radar-holder{grid-column:2;grid-row:1;justify-self:end;display:block;max-width:100%;margin:0;overflow:hidden;color:#c8dca6;font-size:10px;font-weight:600;line-height:1.1;text-overflow:ellipsis;white-space:nowrap;-webkit-line-clamp:unset}
+.radar-token-title{grid-row:2}
+.radar-token .radar-token-meta{grid-row:3;margin-top:2px}
+.radar-signal strong{display:block;line-height:1.1}
+.radar-signal strong small{margin-top:2px;font-family:inherit;font-size:10px;font-weight:500;line-height:1.2}
+.radar-signal>small{margin-top:3px;line-height:1.2}
+.radar-card .radar-actions{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));width:194px;gap:4px}
+.radar-card .radar-actions .radar-inspect-action,.radar-card .radar-actions .radar-save-action{grid-column:span 3}
+.radar-card .radar-actions .radar-external-action{grid-column:span 2}
+.radar-card .radar-actions a,.radar-card .radar-actions button{width:100%;min-width:0;min-height:25px;height:25px;padding:3px 2px;font-size:10px}
+.radar-reasons{align-content:center;gap:4px}
+.radar-reasons span,.radar-reasons .radar-more-reasons{padding:4px 6px;font-size:10px;line-height:1.2}
+.radar-more-reasons{min-height:0;border:1px solid #435269;border-radius:4px;background:#1c2735;color:#b9cbe0;cursor:pointer}
+@media(min-width:800px){.radar-card{grid-template-columns:26px minmax(180px,1.15fr) 120px minmax(150px,1fr) 194px;gap:8px}.radar-card .radar-actions{grid-column:auto;grid-row:auto}}
+@media(max-width:799px){.radar-card .radar-actions{width:min(100%,194px)}}
+@media(max-width:700px){.radar-heading{flex-wrap:wrap}.radar-heading .radar-modes{order:3;width:100%;margin-left:0}.radar-controls p{white-space:normal}.radar-controls>div{width:100%}}
