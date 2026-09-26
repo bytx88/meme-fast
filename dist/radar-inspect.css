@@ -2,6 +2,10 @@
 .radar-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .radar-token{display:grid;grid-template-columns:38px minmax(0,1fr);column-gap:9px;align-items:center}
 .radar-token .radar-thumb{grid-column:1;grid-row:1/3}
+.radar-token .radar-thumb-stack{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.radar-token .radar-thumb-stack .radar-thumb{width:50px;height:50px}
+.radar-market-age{max-width:100%;overflow:hidden;color:#91a2b8;font-size:9px;line-height:1.1;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+.radar-market-age.stale-note{color:#ffb86b}
 .radar-token strong,.radar-token small{grid-column:2}
 .inspect-identity{display:grid;grid-template-columns:46px minmax(0,1fr);column-gap:11px;align-items:center;min-width:0}
 .inspect-identity .radar-thumb{grid-column:1;grid-row:1/4;width:46px;height:46px;font-size:18px}
@@ -75,6 +79,7 @@
 @media(max-width:950px){.radar-card{grid-template-columns:30px minmax(185px,1fr) 120px minmax(180px,1.4fr)}}
 @media(max-width:700px){.radar-card{grid-template-columns:24px minmax(0,1fr) 110px}}
 @media(max-width:600px){.radar-token{grid-template-columns:50px minmax(0,1fr);column-gap:9px}.radar-token .radar-thumb{width:50px;height:50px}.radar-token strong{font-size:14px}}
+@media(max-width:600px){.radar-token .radar-thumb-stack .radar-thumb{width:44px;height:44px}}
 @media(max-width:600px){.radar-card .radar-narrative{display:grid;gap:3px}.radar-narrative.compact p{display:-webkit-box;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}.radar-narrative a{justify-self:start}}
 
 /* Keep long result lists in a visibly scrollable pane on desktop. */
@@ -89,3 +94,4 @@
   .radar-scroll-track.dragging .radar-scroll-thumb{background:#c4d9f2;cursor:grabbing}
 }
 @media(max-width:700px){.radar-scroll-track{display:none}}
+@media(min-width:701px){.radar-card{padding:10px 14px}.radar-card .radar-narrative{padding-top:6px}}
