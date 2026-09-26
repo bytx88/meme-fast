@@ -1,5 +1,9 @@
 @echo off
 setlocal
+set "ROOT=%~dp0"
+set "MODAL_PROFILE=bytx24"
+set "MODAL_WORKSPACE=bytx24"
+
 cd /d "%~dp0"
 if errorlevel 1 exit /b 1
 where py >nul 2>nul

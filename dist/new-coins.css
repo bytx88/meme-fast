@@ -67,12 +67,23 @@
 .coin-scanner{margin:12px 0 24px;border:1px solid var(--line);border-radius:9px;background:#111821;overflow:hidden}
 .scanner-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .scanner-head h2{display:flex;align-items:center;gap:8px;margin:0;font-size:16px}.scanner-head>span{color:var(--muted);font-size:11px}
+.research-filters{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);background:#141d28;color:var(--muted);font-size:11px}
+.coin-scanner:not(.discover-mode):not(.explore-mode) .research-filters{display:flex}
+.research-filters label{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.research-filters select,.research-filters button{min-height:30px;padding:4px 8px;border:1px solid #3b485a;border-radius:5px;background:#1a2431;color:#dceaff;font:inherit}
+.research-filters button{cursor:pointer}.research-filters button:disabled{opacity:.45;cursor:default}
+#research-filter-count{margin-left:auto;color:#aebbd0;white-space:nowrap}
 .scanner-scroll{overflow-x:auto}.scanner-columns,.scanner-row{display:grid;grid-template-columns:28px minmax(145px,1.2fr) minmax(234px,1.8fr) 60px 78px 98px 82px 60px 68px 66px;align-items:center;gap:8px;min-width:990px}
 .scanner-columns{padding:7px 12px;color:var(--muted);font-size:10px;letter-spacing:.04em;text-transform:uppercase;background:#151e29}
+.scanner-columns .scanner-sort{padding:0;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;text-transform:inherit;white-space:nowrap;cursor:pointer}
+.scanner-columns .scanner-sort:hover,.scanner-columns .scanner-sort[aria-pressed=true]{color:var(--accent)}
+.scanner-columns .scanner-sort::after{content:' ↕';color:#73859c}.scanner-columns .scanner-sort[data-direction=desc]::after{content:' ↓';color:var(--accent)}.scanner-columns .scanner-sort[data-direction=asc]::after{content:' ↑';color:var(--accent)}
+.scanner-columns .scanner-sort:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .scanner-row{min-height:54px;padding:5px 12px;border-top:1px solid #283241;font-size:12px;font-variant-numeric:tabular-nums}
 .scanner-row:hover{background:#1a2430}.scanner-rank{color:var(--muted)}.scanner-coin{display:flex;align-items:center;gap:9px;min-width:0}.scanner-coin>div{min-width:0}.scanner-coin strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 14px 'Space Grotesk',sans-serif}.scanner-coin small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px;margin-top:2px}
 .scanner-stage,.scanner-volume5m,.scanner-volume24h{display:none}
 .scanner-quick{display:-webkit-box;min-width:0;max-height:2.7em;overflow:hidden;color:#bfcbd9;font-size:11px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2}.scanner-quick.verified{color:#d3e8b7}.scanner-quick.unverified{color:#f0d5a1}.scanner-quick.pending{color:#8998aa}
+.coin-scanner:not(.discover-mode):not(.explore-mode) .scanner-quick{display:block;max-height:1.35em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scanner-coin .coin-thumb{display:grid;flex:none;width:34px;height:34px;border-radius:6px;font-size:12px}.scanner-age{color:#cbd5e1}.scanner-number{font-weight:600}.scanner-flow{white-space:nowrap}.scanner-flow i{color:var(--muted);font-style:normal}.scanner-row .unavailable{color:#8490a0}.scanner-context{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:600}.scanner-context.verified{color:#bde58a}.scanner-context.unverified{color:#ffd36f}.scanner-context.pending{color:#9eabc0}
 .scanner-trade,.scanner-detail-button{display:inline-flex;justify-content:center;align-items:center;min-height:28px;padding:3px 6px;border:1px solid #3b485a;border-radius:5px;background:#1a2431;color:#dceaff;font-size:11px;text-decoration:none;white-space:nowrap}.scanner-trade:hover,.scanner-detail-button:hover{border-color:#71849e;background:#29384a;text-decoration:none}.scanner-detail-button{min-width:0}.scanner-trade.unavailable{border-color:transparent;background:transparent}
 .coin-detail{inset:0 0 0 auto;width:min(480px,100vw);height:100dvh;max-height:none;margin:0;padding:20px;border:0;border-left:1px solid #465367;border-radius:0;background:#111821;color:var(--text);box-shadow:-20px 0 50px #0009;overflow-y:auto}.coin-detail::backdrop{background:#05090dbb}.detail-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.detail-identity{display:flex;gap:12px;align-items:center;min-width:0}.detail-identity .coin-thumb{grid-column:auto;grid-row:auto;flex:none}.detail-identity h2{font-size:22px}.detail-identity p,.detail-freshness{color:var(--muted);font-size:12px;line-height:1.5}.detail-close{flex:none;width:32px;min-height:32px;padding:0;font-size:24px;line-height:1}.coin-detail .new-metrics{margin:18px 0;padding:12px 0}.coin-detail .story-block{display:block;min-height:0;margin:18px 0;padding-left:12px}.coin-detail .story-block>*{display:block;margin:0 0 9px}.coin-detail .story-block p{display:block;overflow:visible;-webkit-line-clamp:unset;line-height:1.55}.coin-detail .story-block a{overflow-wrap:anywhere;white-space:normal}.detail-actions{margin:18px 0}.detail-actions .token-actions{gap:6px}.detail-actions .token-actions a,.detail-actions .token-actions button{min-height:34px;padding:6px 10px}.coin-detail .coin-variants{margin-top:18px}
@@ -81,8 +92,28 @@
 .tiles-only .scanner-columns,.tiles-only .scanner-row{grid-template-columns:28px minmax(220px,270px) minmax(320px,1fr) 94px 64px 82px 82px 82px 98px 80px 60px 68px 66px;min-width:1400px}
 .tiles-only .scanner-stage,.tiles-only .scanner-volume5m,.tiles-only .scanner-volume24h{display:block}
 .tiles-only .scanner-row .scanner-stage{color:#c4d4e6;font-size:11px;font-weight:600}
+.tiles-only .coin-scanner:not(.discover-mode):not(.explore-mode){display:flex;flex-direction:column;height:calc(100dvh - 76px)}
+.tiles-only .coin-scanner:not(.discover-mode):not(.explore-mode) .scanner-scroll{flex:1;min-height:0;overflow:auto}
+.tiles-only .coin-scanner:not(.discover-mode):not(.explore-mode) .scanner-columns{position:sticky;top:0;z-index:3}
 @media(max-width:1599px){.tiles-only .scanner-columns,.tiles-only .scanner-row{grid-template-columns:28px minmax(200px,230px) minmax(280px,1fr) 80px 60px 78px 78px 94px 78px 56px 64px 62px;min-width:1120px}.tiles-only .scanner-volume24h{display:none}}
 @media(max-width:1199px){.tiles-only .scanner-columns,.tiles-only .scanner-row{grid-template-columns:28px minmax(190px,220px) minmax(260px,1fr) 60px 78px 78px 94px 78px 56px 64px 62px;min-width:1050px}.tiles-only .scanner-stage{display:none}}
+
+/* On wide screens, two compact research tables keep each coin's metrics together. */
+.tiles-only .coin-scanner.split-research .scanner-columns{display:none}
+.tiles-only .split-research.coin-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px;padding:8px}
+.tiles-only .research-pane{min-width:0;border:1px solid var(--line);border-radius:7px;overflow:clip;background:#111821}
+.tiles-only .research-pane-header,.tiles-only .research-pane .scanner-row{display:grid;grid-template-columns:24px minmax(130px,1fr) 70px 42px 66px 66px 70px 64px 70px 52px 54px 52px;gap:3px 4px;align-items:center;min-width:0}
+.tiles-only .research-pane-header{position:sticky;top:0;z-index:3;min-height:32px;padding:5px 8px;background:#182330;color:var(--muted);font-size:9px;letter-spacing:.02em;text-transform:uppercase}
+.research-pane-header .scanner-sort{padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;text-transform:inherit;white-space:nowrap;cursor:pointer}
+.research-pane-header .scanner-sort:hover,.research-pane-header .scanner-sort[aria-pressed=true]{color:var(--accent)}
+.research-pane-header .scanner-sort::after{content:' ↕';color:#73859c}.research-pane-header .scanner-sort[data-direction=desc]::after{content:' ↓';color:var(--accent)}.research-pane-header .scanner-sort[data-direction=asc]::after{content:' ↑';color:var(--accent)}
+.research-pane-header .scanner-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tiles-only .research-pane .scanner-row{grid-template-areas:'rank coin stage age liquidity volume5 volume24 flow context fomo axiom detail' 'quick quick quick quick quick quick quick quick quick quick quick quick';min-height:66px;padding:6px 8px;font-size:11px}
+.research-pane .scanner-row>:nth-child(1){grid-area:rank}.research-pane .scanner-row>:nth-child(2){grid-area:coin}.research-pane .scanner-row>:nth-child(3){grid-area:quick}.research-pane .scanner-row>:nth-child(4){grid-area:stage}.research-pane .scanner-row>:nth-child(5){grid-area:age}.research-pane .scanner-row>:nth-child(6){grid-area:liquidity}.research-pane .scanner-row>:nth-child(7){grid-area:volume5}.research-pane .scanner-row>:nth-child(8){grid-area:volume24}.research-pane .scanner-row>:nth-child(9){grid-area:flow}.research-pane .scanner-row>:nth-child(10){grid-area:context}.research-pane .scanner-row>:nth-child(11){grid-area:fomo}.research-pane .scanner-row>:nth-child(12){grid-area:axiom}.research-pane .scanner-row>:nth-child(13){grid-area:detail}
+.tiles-only .research-pane .scanner-coin .coin-thumb{width:27px;height:27px}.tiles-only .research-pane .scanner-coin{gap:5px}.tiles-only .research-pane .scanner-coin strong{font-size:12px}.tiles-only .research-pane .scanner-coin small{font-size:9px}
+.tiles-only .research-pane .scanner-quick{grid-row:2;max-height:1.4em;font-size:10.5px}
+.tiles-only .research-pane .scanner-trade,.tiles-only .research-pane .scanner-detail-button{min-height:24px;padding:2px 3px;font-size:9px}
+.tiles-only .research-pane .scanner-stage{font-size:10px}.tiles-only .research-pane .scanner-context{font-size:9px}
 
 /* The original research cards remain available beside the compact scanner. */
 .view-toggle[aria-pressed=true]{border-color:#617c32;background:#29351f;color:var(--accent)}
@@ -172,3 +203,42 @@
 @media(max-width:800px){.explore-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:800px){.tiles-only .explore-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.tiles-only .explore-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Coin lookup is a secondary trading control, not a full-size search form. */
+.new-coins .new-controls{gap:8px;margin:10px 0 4px;min-height:34px}
+.new-coins .new-controls .periods{gap:2px;padding:2px}
+.new-coins .new-controls .periods button{min-height:30px;padding:4px 12px;font-size:12px}
+.new-coins .new-controls .sort-control select{min-height:32px;padding:4px 24px 4px 8px}
+.coin-lookup{display:flex;align-items:center;gap:5px;margin-left:auto;min-width:0}
+.new-coins .new-controls .search-filter{display:block;flex:none;width:190px;margin:0}
+.coin-lookup input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border-radius:6px;font-size:12px}
+.new-coins .new-controls #investigate{min-height:32px;padding:4px 9px;border-radius:6px;font-size:11px;line-height:20px}
+.new-coins .coin-scanner{margin-top:8px}
+@media(min-width:851px){body:not(.tiles-only) .new-coins .discovery-board{height:clamp(490px,calc(100dvh - 205px),900px)}}
+@media(max-width:1000px){.coin-lookup{order:3}}
+@media(max-width:800px){.new-coins .new-controls{flex-direction:row;flex-wrap:wrap;align-items:center}.coin-lookup{width:100%;margin-left:0}.new-coins .new-controls .search-filter{flex:1;width:auto}}
+.fresh-toggle[aria-pressed=true]{border-color:#617c32;background:#29351f;color:var(--accent)}
+
+/* Screener settings stay available in the normal and full-screen toolbars. */
+.screener-icon{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:2px 7px;border:1px solid #3b485a;border-radius:6px;background:#17212d;color:#cfe0f5;cursor:pointer}
+.screener-icon span:first-child{font-size:22px;line-height:1}
+.screener-icon [data-volume-min]{font-size:10px;font-weight:700;white-space:nowrap}
+.screener-icon:hover,.screener-icon:focus-visible{border-color:var(--accent);color:var(--accent)}
+.screener-dialog{width:min(430px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:20px;border:1px solid #465367;border-radius:10px;background:#111821;color:var(--text);box-shadow:0 18px 50px #000b;overflow-y:auto}
+.screener-dialog form{display:block}
+.screener-dialog::backdrop{background:#05090dba}
+.screener-dialog-head{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.screener-dialog h2{margin:0;font-size:19px}
+.screener-dialog p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+.screener-dialog .screener-close{padding:0 4px;border:0;background:transparent;color:var(--muted);font-size:25px;line-height:1;cursor:pointer}
+.screener-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0 14px}
+.screener-fields label{display:flex;flex-direction:column;gap:6px;color:#d8e5f4;font-size:12px;font-weight:600}
+.screener-fields label:first-child,.screener-fields label:last-child{grid-column:1/-1}
+.screener-fields input,.screener-fields select{width:100%;min-height:36px;padding:6px 9px;border:1px solid #465367;border-radius:6px;background:#182230;color:var(--text);font:inherit}
+.screener-fields small{color:var(--muted);font-size:11px;font-weight:400}
+.screener-dialog .screener-help{padding:9px 0;border-top:1px solid var(--line)}
+.screener-actions{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:18px}
+.screener-actions button{min-height:34px;padding:6px 10px;border:1px solid #465367;border-radius:6px;background:#1a2431;color:#dceaff;font:600 11px 'Space Grotesk',sans-serif;cursor:pointer}
+.screener-actions button:first-child{margin-right:auto}
+.screener-actions button.primary{border-color:#9cc248;background:#c5f577;color:#172018}
+@media(max-width:400px){.screener-fields{grid-template-columns:1fr}.screener-fields label{grid-column:1/-1}.screener-actions{flex-wrap:wrap}}

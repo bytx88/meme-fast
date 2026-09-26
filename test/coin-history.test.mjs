@@ -13,6 +13,7 @@ test('five-day history survives missing pools; repeat sightings do not reset exp
  assert.deepEqual(mergeCoins(first,[],now+1000),first);
  const updated=mergeCoins(first,[{...coin,liquidity:100}],now+2000);
  assert.equal(updated[0].firstSeen,now);
+ assert.equal(mergeCoins(first,[{...coin,poolCreated:now+60000}],now+2000)[0].poolCreated,now);
  assert.equal(updated[0].liquidity,100);
  assert.equal(mergeCoins([{...first[0],image_url:'https://cdn.example/coin.png'}],[{...coin,image_url:null}],now+2000)[0].image_url,'https://cdn.example/coin.png');
  assert.deepEqual(updated[0].savedContext,first[0].savedContext);

@@ -6,9 +6,11 @@ export function isUnderObservation(coin,now=Date.now()){
  return coin?.launchpad?.completed===true&&!coin.ruggedAt&&!coin.sustainedAt&&Number.isFinite(start)&&start>0&&now>=start&&now-start<=45*60000;
 }
 
-export function stageFor(coin){
+export function stageFor(coin,now=Date.now()){
  const progress=Number(coin?.launchpad?.graduationPercentage);
- if(coin?.launchpad?.completed===true)return coin.ruggedAt?'migrated':coin.sustainedAt?'sustained':'migrated';
+ const start=coin?.launchpad?.completed===true?coin.graduationObservedAt:coin?.poolCreated;
+ if(coin?.laterRecoveryAt||coin?.sustainedAt&&(!Number.isFinite(Number(start))||now-Number(start)<=6*3600000))return 'sustained';
+ if(coin?.launchpad?.completed===true)return 'migrated';
  if(coin?.launchpad?.completed===false){
   if(Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';
   return 'new';

@@ -12,7 +12,12 @@ test('discover stages require measured volume or launch progress',()=>{
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:79.99,completed:false}}),'new');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true}}),'migrated');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234}),'sustained');
- assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234,ruggedAt:1500}),'migrated');
+ assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234,ruggedAt:1500}),'sustained');
+ assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:10,completed:false},sustainedAt:1234,successScenario:'continuation'}),'sustained');
+ assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},ruggedAt:1234,laterRecoveryAt:1500}),'sustained');
+ assert.equal(stageFor({poolCreated:1000,sustainedAt:2000},1000+5*3600000),'sustained');
+ assert.equal(stageFor({poolCreated:1000,sustainedAt:2000},1000+7*3600000),'new');
+ assert.equal(stageFor({poolCreated:1000,sustainedAt:2000,laterRecoveryAt:3000},1000+7*3600000),'sustained');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:95}}),'new');
 });
 

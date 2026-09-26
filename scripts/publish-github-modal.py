@@ -41,6 +41,8 @@ def main():
         raise RuntimeError("Resolve merge conflicts before publishing.")
     if importlib.util.find_spec("modal") is None:
         raise RuntimeError("Modal is missing. Install it with: py -m pip install modal")
+    if sys.platform == "win32" and importlib.util.find_spec("truststore") is None:
+        raise RuntimeError("Windows certificate support is missing. Install it with: py -m pip install truststore")
     config_path = Path(os.environ.get("MODAL_CONFIG_PATH", Path.home() / ".modal.toml"))
     try:
         config = tomllib.loads(config_path.read_text(encoding="utf-8"))
@@ -75,10 +77,23 @@ def main():
     print("GitHub updated. Deploying Modal app meme-fast with profile bytx24...", flush=True)
     env = os.environ.copy()
     env["MODAL_PROFILE"] = PROFILE
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     # Use this named profile, not credentials or an environment inherited from another workspace.
     for key in ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MODAL_ENVIRONMENT"):
         env.pop(key, None)
-    run(sys.executable, "-m", "modal", "deploy", "modal_app.py", env=env)
+    if sys.platform == "win32":
+        # Modal's Python client needs the Windows trust store on machines with
+        # a locally trusted TLS issuer that is absent from certifi.
+        modal_cli = (
+            "import runpy,sys,truststore;"
+            "truststore.inject_into_ssl();"
+            "sys.argv=['modal','deploy','modal_app.py'];"
+            "runpy.run_module('modal',run_name='__main__')"
+        )
+        run(sys.executable, "-c", modal_cli, env=env)
+    else:
+        run(sys.executable, "-m", "modal", "deploy", "modal_app.py", env=env)
     print("Done: GitHub updated and Modal deployment completed.")
 
 

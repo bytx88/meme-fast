@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
-import {evaluatePostMigration,POST_MIGRATION_WINDOW_MS} from '../dist/post-migration.mjs';
+import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
 
 export const RETENTION_MS=5*86400000;
 export const RECENT_MARKET_MS=4*3600000;
@@ -48,15 +48,71 @@ export function refreshLaunchpad(coins,tokens,now=Date.now()){
   return {...coin,launchpad,launchpadUpdatedAt:now,graduationObservedAt:launchpad.completed?launchpad.completedAt??coin.graduationObservedAt??now:coin.graduationObservedAt};
  });
 }
+export function selectPriceBackfills(coins,now=Date.now(),limit=8){
+ const eligible=coins.filter(coin=>{
+  const start=observationStart(coin),age=start===null?Infinity:now-start;
+  return coin.pool&&age>=0&&age<=RETENTION_MS&&!(coin.priceHistory5m||[]).length&&
+   (!coin.priceHistoryCheckedAt||now-coin.priceHistoryCheckedAt>=30*60000);
+ });
+ const byVolume=(a,b)=>(b.volume??0)-(a.volume??0);
+ const early=eligible.filter(coin=>now-observationStart(coin)<=EARLY_AGE_LIMIT_MS).sort(byVolume);
+ const later=eligible.filter(coin=>now-observationStart(coin)>EARLY_AGE_LIMIT_MS).sort(byVolume);
+ const selected=[...early.slice(0,Math.ceil(limit/2)),...later.slice(0,Math.floor(limit/2))];
+ if(selected.length<limit)selected.push(...[...early.slice(Math.ceil(limit/2)),...later.slice(Math.floor(limit/2))].sort(byVolume).slice(0,limit-selected.length));
+ return selected;
+}
+export async function backfillPriceHistory(coins,fetcher=fetch,now=Date.now()){
+ const selected=selectPriceBackfills(coins,now),byId=new Map();
+ await Promise.allSettled(selected.map(async coin=>{
+  try{
+   const end=Math.min(now,observationStart(coin)+LATE_RECOVERY_WINDOW_MS);
+   let pool=coin.pool;
+   try{if(coin.contract_address){
+    const lookup=await fetcher(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(coin.contract_address)}`,{signal:AbortSignal.timeout(15000)});
+    if(lookup.ok){
+     const payload=await lookup.json();
+     const sameAddress=address=>coin.network==='solana'?address===coin.contract_address:String(address).toLowerCase()===String(coin.contract_address).toLowerCase();
+     const pairs=(payload.pairs||[]).filter(pair=>pair.chainId===coin.network&&sameAddress(pair.baseToken?.address)&&Number(pair.liquidity?.usd)>=1000&&Number(pair.pairCreatedAt)>0);
+     pairs.sort((a,b)=>a.pairCreatedAt-b.pairCreatedAt);
+     if(pairs[0]?.pairAddress)pool=pairs[0].pairAddress;
+    }
+   }}catch{}
+   const url=`https://api.geckoterminal.com/api/v2/networks/${encodeURIComponent(coin.network)}/pools/${encodeURIComponent(pool)}/ohlcv/minute?aggregate=5&limit=288&currency=usd&before_timestamp=${Math.floor(end/1000)}`;
+   const response=await fetcher(url,{signal:AbortSignal.timeout(15000)});
+   if(!response.ok)throw new Error(`OHLCV HTTP ${response.status}`);
+   const payload=await response.json();
+   const rows=payload?.data?.attributes?.ohlcv_list;
+   if(!Array.isArray(rows))throw new Error('Invalid OHLCV');
+   const start=observationStart(coin);
+   const priceHistory5m=rows.filter(row=>Array.isArray(row)&&Number(row[0])>0&&Number(row[4])>0)
+    .map(row=>({at:Number(row[0])*1000+5*60000,priceUsd:Number(row[4])}))
+    .filter(row=>row.at>=start&&row.at<=start+LATE_RECOVERY_WINDOW_MS)
+    .sort((a,b)=>a.at-b.at);
+   byId.set(coin.id,{priceHistory5m,priceHistoryPool:pool,priceHistoryCheckedAt:now});
+  }catch{byId.set(coin.id,{priceHistoryCheckedAt:now})}
+ }));
+ return coins.map(coin=>byId.has(coin.id)?{...coin,...byId.get(coin.id)}:coin);
+}
 export function updateMigrationStates(coins,now=Date.now()){
  return coins.map(coin=>{
-  if(coin.ruggedAt)return coin;
-  if(coin.graduationObservedAt&&now-coin.graduationObservedAt>POST_MIGRATION_WINDOW_MS+10*60000)return coin;
-  const result=evaluatePostMigration(coin,now);
-  if(result?.state==='rugged')return {...coin,ruggedAt:result.at,rugDrawdownPercent:Math.round(result.drawdown*100)};
-  if(result?.state==='sustained')return {...coin,sustainedAt:result.at,washDrawdownPercent:Math.round(result.drawdown*100),recoveryPercent:Math.round(result.recovery*100)};
-  if(coin.sustainedAt&&(coin.priceUpdatedAt===now||now-coin.graduationObservedAt>=POST_MIGRATION_WINDOW_MS))return {...coin,sustainedAt:null,recoveryPercent:null};
-  return coin;
+  const start=observationStart(coin);
+  if(start===null||now<start)return coin;
+  const age=now-start;
+  let next=coin;
+  if(age<=EARLY_AGE_LIMIT_MS){
+   const result=evaluatePostMigration(coin,now);
+   if(result?.state==='rugged'){
+    next={...next,ruggedAt:result.at,rugDrawdownPercent:Math.round(result.drawdown*100)};
+    if(result.earlySuccess&&!coin.sustainedAt)next={...next,sustainedAt:result.earlySuccess.at,successScenario:result.earlySuccess.scenario,recoveryPercent:Math.round(result.earlySuccess.recovery*100)};
+   }
+   else if(result?.state==='sustained'&&!coin.sustainedAt)next={...next,sustainedAt:result.at,successScenario:result.scenario,washDrawdownPercent:Math.round(result.drawdown*100),recoveryPercent:Math.round(result.recovery*100)};
+  }
+  if(age>EARLY_AGE_LIMIT_MS&&age<=RETENTION_MS&&!next.laterRecoveryAt){
+   const result=evaluateLaterRecovery(next,now);
+   if(result)next={...next,laterRecoveryAt:result.at,laterRecoveryPercent:Math.round(result.recovery*100),laterDrawdownPercent:Math.round(result.drawdown*100)};
+  }
+  const successCoverage=age<POST_MIGRATION_WINDOW_MS?'observing':outcomeCoverage(next,age<=EARLY_AGE_LIMIT_MS?POST_MIGRATION_WINDOW_MS:LATE_RECOVERY_WINDOW_MS,now);
+  return {...next,successCoverage};
  });
 }
 export function selectLaunchCandidates(coins,limit=120){
@@ -73,7 +129,8 @@ export function mergeCoins(previous,incoming,now=Date.now()){
  for(const coin of incoming){
   const old=rows.get(coin.id);
   if(!old&&!(coin.poolCreated>=now-36*3600000&&coin.liquidity>=3000&&(coin.buys??0)+(coin.sells??0)>=5))continue;
-  rows.set(coin.id,{...old,...coin,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
+  const created=[old?.poolCreated,coin.poolCreated].filter(value=>Number.isFinite(Number(value))&&Number(value)>0).map(Number);
+  rows.set(coin.id,{...old,...coin,poolCreated:created.length?Math.min(...created):coin.poolCreated,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
  }
  return [...rows.values()];
 }
@@ -118,15 +175,16 @@ async function story(coin,fetcher){
 }
 export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  const previous=await readSnapshot(filename),feeds={...previous.feeds},incoming=[];
- const results=await Promise.allSettled(NETWORKS.map(async network=>{
-  const response=await fetcher('https://api.geckoterminal.com/api/v2/networks/'+network.id+'/new_pools?include=base_token,quote_token',{signal:AbortSignal.timeout(15000)});
+ const newPoolPages=NETWORKS.flatMap(network=>[1,2,3].map(page=>({network,page})));
+ const results=await Promise.allSettled(newPoolPages.map(async ({network,page})=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/new_pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error('HTTP '+response.status);
   return parsePools(await response.json(),network,now);
  }));
  results.forEach((r,i)=>{
-  const key=NETWORKS[i].id;
+  const key=newPoolPages[i].network.id;
   if(r.status==='fulfilled'){incoming.push(...r.value);feeds[key]={lastSuccess:now,error:null}}
-  else feeds[key]={...feeds[key],error:String(r.reason.message),lastAttempt:now};
+  else if(newPoolPages[i].page===1)feeds[key]={...feeds[key],error:String(r.reason.message),lastAttempt:now};
  });
  let coins=mergeCoins(previous.coins,incoming,now);
  const trending=[];
@@ -140,6 +198,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]={lastSuccess:now,error:null}}
   else feeds[key]={...feeds[key],error:String(result.reason.message),lastAttempt:now};
  });
+ coins=mergeCoins(coins,trending,now);
  let radarCoins=mergeRadarCoins(previous.radarCoins,trending,coins,now);
  const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
@@ -167,6 +226,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  coins=refreshLaunchpad(coins,launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
  const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
  coins=coins.map(coin=>checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
+ coins=await backfillPriceHistory(coins,fetcher,now);
  coins=updateMigrationStates(coins,now);
  const snapshot={version:2,coins,radarCoins,lastRun:now,feeds};
  // Commit discovery first so slow or failed story lookups cannot lose coins.

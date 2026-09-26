@@ -77,7 +77,7 @@ def web():
             snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
             if request.query_params.get("view") == "coin":
                 snapshot["coins"] = [
-                    {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly")}
+                    {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")}
                     for coin in snapshot["coins"]
                 ]
                 snapshot.pop("radarCoins", None)
