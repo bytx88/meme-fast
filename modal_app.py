@@ -26,7 +26,7 @@ if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("nodejs")
-    .pip_install("fastapi>=0.111.0", "httpx>=0.27.0")
+    .pip_install("fastapi>=0.111.0", "httpx>=0.27.0", "truststore>=0.10.0")
     .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST)
     .add_local_dir(Path("/app/worker") if RUNNING_IN_MODAL else Path(__file__).parent / "worker", remote_path="/app/worker")
 )
@@ -35,13 +35,22 @@ app = modal.App(APP_NAME, image=image)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=240, max_containers=1, volumes={"/history": history_volume})
+@app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
 def collect_coins():
     import subprocess
     history_volume.reload()
+    try:
+        indexer = subprocess.run(
+            ["python", "/app/worker/robinhood_indexer.py", "scan", "/history/robinhood-pools.sqlite", "/history/robinhood-pool-feed.json"],
+            capture_output=True, text=True, timeout=280,
+        )
+        if indexer.returncode:
+            print("Robinhood pool indexer:", indexer.stderr[-2000:])
+    except subprocess.TimeoutExpired:
+        print("Robinhood pool indexer timed out; using the previous feed")
     result = subprocess.run(
         ["node", "/app/worker/coin-collector.mjs", "/history/coins.json"],
-        capture_output=True, text=True, timeout=220,
+        capture_output=True, text=True, timeout=280,
     )
     history_volume.commit()
     if result.returncode:
@@ -61,6 +70,7 @@ def web():
     web_app.add_middleware(GZipMiddleware, minimum_size=1000)
     import asyncio
     import json
+    import sqlite3
     import time
     from fastapi.responses import JSONResponse
     history_lock = asyncio.Lock()
@@ -87,6 +97,27 @@ def web():
                     snapshot["coins"] = []
                 snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
         return JSONResponse(snapshot, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/pool-catalog")
+    async def pool_catalog(request: Request):
+        query = request.query_params.get("query", "").strip().lower()
+        if not re.fullmatch(r"0x[0-9a-f]{40}|0x[0-9a-f]{64}", query):
+            raise HTTPException(status_code=400, detail="Use a Robinhood token contract or pool ID")
+        async with history_lock:
+            await history_volume.reload.aio()
+            db_path = Path("/history/robinhood-pools.sqlite")
+            if not db_path.exists():
+                return JSONResponse({"network": "robinhood", "query": query, "pools": [], "total": 0}, headers={"cache-control": "no-store"})
+            connection = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            try:
+                rows = connection.execute(
+                    "SELECT source, pool, token0, token1, block, tx_hash FROM pools WHERE token0=? OR token1=? OR pool=? ORDER BY block DESC LIMIT 50",
+                    (query, query, query),
+                ).fetchall()
+            finally:
+                connection.close()
+        pools = [dict(zip(("source", "pool", "token0", "token1", "block", "txHash"), row)) for row in rows]
+        return JSONResponse({"network": "robinhood", "query": query, "pools": pools, "total": len(pools)}, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)
     allowed_types = {
         ".html": "text/html; charset=utf-8",

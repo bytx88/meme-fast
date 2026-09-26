@@ -1,7 +1,7 @@
 import {contractForCopy} from './contract-copy.mjs';
 export const FEEDS=[{id:'decrypt',name:'Decrypt',url:'https://decrypt.co/feed',host:'decrypt.co'},{id:'cointelegraph',name:'Cointelegraph',url:'https://cointelegraph.com/rss',host:'cointelegraph.com'}];
-export const NETWORKS=[{id:'solana',name:'Solana'},{id:'base',name:'Base'}];
-export const RADAR_NETWORKS=[...NETWORKS,{id:'robinhood',name:'Robinhood Chain'}];
+export const NETWORKS=[{id:'solana',name:'Solana'},{id:'base',name:'Base'},{id:'robinhood',name:'Robinhood Chain'}];
+export const RADAR_NETWORKS=NETWORKS;
 export const numeric=value=>value===null||value===undefined||value===''||!Number.isFinite(Number(value))?null:Number(value);
 export function safeURL(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null}catch{return null}}
 export function cleanText(value){return String(value??'').replace(/<[^>]*>/g,' ').replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Math.min(1114111,Number(n)))).replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim()}

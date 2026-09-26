@@ -22,3 +22,9 @@ test('other minimums and chain filter apply together; zero disables minimums',()
 test('invalid saved settings fall back to safe defaults',()=>{
  assert.deepEqual(normalizeScreener({volume24h:-1,liquidity:'oops',chain:'other'}),DEFAULT_SCREENER);
 });
+test('Robinhood Chain is available in Coin filters',()=>{
+ const settings=normalizeScreener({chain:'robinhood',volume24h:0});
+ assert.equal(settings.chain,'robinhood');
+ assert.equal(passesScreener({network:'robinhood'},settings),true);
+ assert.equal(passesScreener({network:'solana'},settings),false);
+});

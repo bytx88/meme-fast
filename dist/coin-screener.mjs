@@ -6,12 +6,12 @@ export function normalizeScreener(value={}){
   const number=Number(value[key]);
   if(value[key]!==''&&value[key]!=null&&Number.isFinite(number)&&number>=0)result[key]=Math.floor(number);
  }
- if(['all','solana','base'].includes(value.chain))result.chain=value.chain;
+ if(['all','solana','base','robinhood'].includes(value.chain))result.chain=value.chain;
  return result;
 }
 
 export function passesScreener(coin,settings){
- if(settings.chain!=='all'&&String(coin.chain||coin.network).toLowerCase()!==settings.chain)return false;
+ if(settings.chain!=='all'&&String(coin.network||coin.chain).toLowerCase()!==settings.chain)return false;
  for(const [key,minimum] of [['volume',settings.volume24h],['liquidity',settings.liquidity],['volume5m',settings.volume5m]]){
   if(minimum>0&&(!Number.isFinite(Number(coin[key]))||coin[key]==null||Number(coin[key])<minimum))return false;
  }

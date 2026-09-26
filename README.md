@@ -4,19 +4,21 @@ Meme Fast connects emerging crypto narratives with observed token activity. Its 
 
 ## Run locally
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. Robinhood pool indexing also uses Python with `httpx` and, on Windows, `truststore`.
 
 ```sh
+py -m pip install httpx truststore
 node preview.mjs
 ```
 
 Open `http://127.0.0.1:4173/narratives.html`.
+The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on each collection run. The public RPC is rate limited, so historical coverage builds gradually. Set `ROBINHOOD_RPC_URL` to a suitable archive endpoint when available to accelerate backfill.
 
 ## Product areas
 
-- **Tweet** — incoming public-news signals and active Solana/Base pools
+- **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
 - **New coins** — freshly discovered pools with evidence status and a research handoff
-- **Radar** — separate Scalp, Swing, and Longer-term attention rankings with input coverage and explanations
+- **Radar** — Swing and Longer-term research rankings with input coverage and explanations
 - **Narrative research** — evidence trail, lifecycle context, and associated tokens
 - **Token research** — observed swap flow, sizing, timeline, and transaction details
 - **Watchlist** — browser-local saved narratives and tokens
@@ -28,6 +30,7 @@ The current app uses public data providers and browser storage. See [ARCHITECTUR
 
 ```sh
 node --test
+py -m unittest discover -s test -p "test_*.py"
 node scripts/build-worker.mjs
 ```
 

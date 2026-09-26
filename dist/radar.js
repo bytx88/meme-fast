@@ -11,7 +11,7 @@ const age=timestamp=>{if(!Number.isFinite(timestamp))return 'unknown';const minu
 const initial=new URLSearchParams(location.search);
 const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
-const state={mode:RADAR_MODES[initialMode]?initialMode:'scalp',chain:'all',query:initialContract,selectedId:null,snapshot:null,error:null,loading:false};
+const state={mode:initialMode==='swing'?'swing':'research',chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false};
 const dialog=$('#radar-inspector');
 const scrollArea=$('#radar-results'),scrollShell=$('#radar-results-shell'),scrollTrack=$('#radar-scroll-track'),scrollThumb=$('#radar-scroll-thumb');
 function updateResultsScrollbar(){
@@ -44,7 +44,7 @@ scrollTrack.addEventListener('pointerdown',event=>{
 scrollTrack.addEventListener('pointermove',event=>{if(draggingScrollbar)scrollResultsToPointer(event.clientY)});
 for(const type of ['pointerup','pointercancel'])scrollTrack.addEventListener(type,()=>{draggingScrollbar=false;scrollTrack.classList.remove('dragging')});
 
-function universe(){return Array.isArray(state.snapshot?.radarCoins)?state.snapshot.radarCoins:state.snapshot?.coins||[]}
+function universe(){const coins=Array.isArray(state.snapshot?.radarCoins)?state.snapshot.radarCoins:state.snapshot?.coins||[];return state.catalogCoin&&!coins.some(coin=>coin.id.toLowerCase()===state.catalogCoin.id)?[...coins,state.catalogCoin]:coins}
 function coinId(coin){return String(coin.id||`${coin.network}:${coin.contract_address}`)}
 function ticker(coin){return `$${String(coin.symbol||'?').replace(/^\$+/, '')}`}
 function thumbnail(coin){
@@ -116,8 +116,9 @@ function render(){
  const ranked=rankRadar(coins,state.mode),shown=ranked.slice(0,60);
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
  const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error);
- status.textContent=`${ranked.length} observed coins · ${fresh} with recent market data · last collection ${snapshot.lastRun?age(Number(snapshot.lastRun))+' ago':'pending'}${degraded?' · some feeds unavailable':''}. ${historyNote}`;
- results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Radar will show coins when collection succeeds.':'No observed coins match these filters. Try another chain or search.'}</div>`;
+ const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
+ status.textContent=`${ranked.length} observed coins · ${fresh} with recent market data · last collection ${snapshot.lastRun?age(Number(snapshot.lastRun))+' ago':'pending'}${degraded?' · some feeds unavailable':''}${robinhoodIncomplete?' · Robinhood pool backfill in progress':''}. ${historyNote}`;
+ results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Radar will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
  renderInspector();
 }
 async function load(){
@@ -126,9 +127,24 @@ async function load(){
  catch(error){state.error=error.message||'Coin history unavailable'}
  finally{state.loading=false;$('#refresh').disabled=false;render()}
 }
+async function loadCatalogMatch(){
+ const query=state.query.trim().toLowerCase();
+ state.catalogCoin=null;
+ if(!/^0x[0-9a-f]{40}$/.test(query)||(state.chain!=='all'&&state.chain!=='robinhood')){render();return}
+ try{
+  const response=await fetch(`/api/pool-catalog?${new URLSearchParams({query})}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+  if(!response.ok)throw new Error('Pool catalog unavailable');
+  const catalog=await response.json();
+  if(query!==state.query.trim().toLowerCase())return;
+  const pool=catalog.pools?.[0];
+  if(pool)state.catalogCoin={id:`robinhood:${query}`,network:'robinhood',chain:'Robinhood Chain',contract_address:query,contract_verified:true,name:'On-chain pool token',symbol:'?',pool:pool.pool,catalogOnly:true};
+ }catch{}
+ render();
+}
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{state.mode=button.dataset.mode;render()}));
 $('#chain').addEventListener('change',event=>{state.chain=event.target.value;render()});
-$('#query').addEventListener('input',event=>{state.query=event.target.value.trim();render()});
+let catalogTimer;
+$('#query').addEventListener('input',event=>{state.query=event.target.value.trim();state.catalogCoin=null;render();clearTimeout(catalogTimer);catalogTimer=setTimeout(loadCatalogMatch,300)});
 $('#refresh').addEventListener('click',load);
 document.addEventListener('click',async event=>{
  const close=event.target.closest('[data-close-inspect]');if(close){dialog.close();return}
@@ -147,4 +163,4 @@ document.addEventListener('error',event=>{if(event.target.matches?.('.radar-thum
 dialog.addEventListener('close',()=>{state.selectedId=null});
 window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1')render()});
 $('#query').value=state.query;
-load().then(()=>{if(initialContract){const coin=universe().find(item=>String(item.contract_address).toLowerCase()===initialContract.toLowerCase());openInspector(coin?coinId(coin):`${state.chain}:${initialContract}`)}});
+load().then(async()=>{if(initialContract){await loadCatalogMatch();const coin=universe().find(item=>String(item.contract_address).toLowerCase()===initialContract.toLowerCase());openInspector(coin?coinId(coin):`${state.chain}:${initialContract}`)}});

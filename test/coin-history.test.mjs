@@ -78,7 +78,7 @@ test('tracked CASHED remains in a full Radar universe',()=>{
  const previous=Array.from({length:200},(_,i)=>({id:`base:0x${i.toString(16).padStart(40,'0')}`,network:'base',contract_address:`0x${i.toString(16).padStart(40,'0')}`,liquidity:4000,lastSeenRadarAt:now-1000}));
  const cash={id:'robinhood:0x6249519883b8d7ccf915dfcd6c0442984dae9d24',network:'robinhood',contract_address:'0x6249519883b8d7ccf915dfcd6c0442984dae9d24',liquidity:201900,volume:5500000};
  const result=mergeRadarCoins(previous,[cash],[],now);
- assert.equal(result.length,200);
+ assert.equal(result.length,201);
  assert.equal(result[0].id,cash.id);
 });
 test('collector fetches tracked Robinhood CASHED into Radar only',async()=>{
@@ -100,5 +100,26 @@ test('collector fetches tracked Robinhood CASHED into Radar only',async()=>{
   assert.equal(coin.chain,'Robinhood Chain');
   assert.equal(coin.marketHistory.length,1);
   assert.equal(snapshot.feeds.robinhood_tracked.error,null);
+ }finally{await rm(dir,{recursive:true,force:true})}
+});
+test('indexed Robinhood pool feed is shared by fresh Coin and Radar',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'meme-robinhood-shared-')),file=path.join(dir,'coins.json');
+ const now=1800000000000,contract='0x'+'5'.repeat(40),pair='0x'+'6'.repeat(40),pool='0x'+'7'.repeat(64);
+ const payload={data:[{attributes:{address:pool,pool_created_at:new Date(now-3600000).toISOString(),reserve_in_usd:'4000',volume_usd:{h24:'20000',m5:'900'},transactions:{h24:{buys:10,sells:8},m5:{buys:6,sells:2}}},relationships:{base_token:{data:{id:'robinhood_new'}}}}],included:[{id:'robinhood_new',type:'token',attributes:{address:contract,name:'New Robinhood pool',symbol:'NEW'}}]};
+ const json=data=>({ok:true,json:async()=>data});
+ const fetcher=async(url,options={})=>{
+  if(url.includes('/networks/robinhood/pools/multi/'))return json(payload);
+  if(url.includes('/networks/')&&(url.includes('/new_pools')||url.includes('/trending_pools')||url.includes('/pools?')))return json({data:[],included:[]});
+  if(url.includes('dexscreener.com/tokens/v1/'))return json([]);
+  if(url.includes('token-profiles/latest/v1'))return json([]);
+  return {ok:false,status:404};
+ };
+ try{
+  const {writeFile}=await import('node:fs/promises');
+  await writeFile(path.join(dir,'robinhood-pool-feed.json'),JSON.stringify({pools:[{pool,token0:contract,token1:pair}],status:{lastScanAt:now,count:1,backfillComplete:false,errors:{}}}));
+  const snapshot=await collect(file,{now,fetcher});
+  assert(snapshot.coins.some(coin=>coin.contract_address===contract));
+  assert(snapshot.radarCoins.some(coin=>coin.contract_address===contract));
+  assert.equal(snapshot.feeds.robinhood_rpc.error,null);
  }finally{await rm(dir,{recursive:true,force:true})}
 });
