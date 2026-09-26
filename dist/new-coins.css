@@ -234,6 +234,21 @@
 @media(max-width:800px){.new-coins .new-controls{flex-direction:row;flex-wrap:wrap;align-items:center}.coin-lookup{width:100%;margin-left:0}.new-coins .new-controls .search-filter{flex:1;width:auto}}
 .fresh-toggle[aria-pressed=true]{border-color:#617c32;background:#29351f;color:var(--accent)}
 
+/* The update controls use one height and stable widths so their labels do not shift the toolbar. */
+.new-coins .workspace-actions>button,.new-coins .workspace-actions .view-switch{box-sizing:border-box;height:36px;min-height:36px}
+.new-coins .workspace-actions>#refresh,.new-coins .workspace-actions>.fresh-toggle,.new-coins .workspace-actions>#full-mode,.new-coins .workspace-actions>.update-button{width:120px;min-width:120px}
+.view-switch .view-toggle{box-sizing:border-box;min-width:74px;height:30px;min-height:30px}
+.tiles-only .full-strip{gap:8px;overflow-x:auto;white-space:nowrap}
+.tiles-only .full-strip>button,.tiles-only .full-strip .view-switch,.tiles-only .full-strip select{box-sizing:border-box;height:36px;min-height:36px;flex:none;border-radius:6px}
+.tiles-only .full-strip>.full-refresh,.tiles-only .full-strip>.fresh-toggle,.tiles-only .full-strip>.full-exit,.tiles-only .full-strip>.update-button{width:120px;min-width:120px;padding:5px 9px;text-align:center;font:600 12px 'Space Grotesk',sans-serif}
+.tiles-only .full-strip>.screener-icon{width:88px;justify-content:center}
+.tiles-only .full-strip .view-switch{padding:2px;border-radius:7px}
+.tiles-only .full-strip .view-toggle{height:30px;min-height:30px;min-width:74px;padding:4px 8px}
+.tiles-only .full-strip #full-freshness{flex:none}
+.snapshot-new{animation:snapshot-arrival 5s ease-out}
+@keyframes snapshot-arrival{0%,30%{box-shadow:inset 0 0 0 2px #bde58a,0 0 18px #bde58a44}100%{box-shadow:none}}
+@media(prefers-reduced-motion:reduce){.snapshot-new{animation:none;outline:2px solid #bde58a}}
+
 /* Screener settings stay available in the normal and full-screen toolbars. */
 .screener-icon{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:2px 7px;border:1px solid #3b485a;border-radius:6px;background:#17212d;color:#cfe0f5;cursor:pointer}
 .screener-icon span:first-child{font-size:22px;line-height:1}
@@ -257,3 +272,7 @@
 .screener-actions button:first-child{margin-right:auto}
 .screener-actions button.primary{border-color:#9cc248;background:#c5f577;color:#172018}
 @media(max-width:400px){.screener-fields{grid-template-columns:1fr}.screener-fields label{grid-column:1/-1}.screener-actions{flex-wrap:wrap}}
+
+.skip-rug-control{display:inline-flex;flex:none;align-items:center;gap:5px;min-height:32px;color:#dceaff;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer}
+.skip-rug-control input{width:15px;height:15px;margin:0;accent-color:#c5f577;cursor:pointer}
+.tiles-only .full-strip .skip-rug-control{flex:none}

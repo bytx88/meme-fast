@@ -29,8 +29,9 @@ test('collector persists failures without erasing saved coins and prunes expired
   const snapshot=await collect(file,{now,fetcher:async()=>{throw new Error('offline')}});
   assert.deepEqual(snapshot.coins.map(c=>c.id),['kept']);
   assert.equal(snapshot.feeds.solana.lastSuccess,now-1000);
-  assert.equal(snapshot.feeds.solana.error,'offline');
-  assert.deepEqual(JSON.parse(await readFile(file,'utf8')),snapshot);
+   assert.equal(snapshot.feeds.solana.error,'offline');
+   assert.deepEqual(JSON.parse(await readFile(file,'utf8')),snapshot);
+   assert.deepEqual(JSON.parse(await readFile(file.replace(/\.json$/,'')+'.version.json','utf8')),{revision:`${now}:2`,lastRun:now});
  }finally{await rm(dir,{recursive:true,force:true})}
 });
 test('market refresh updates retained contracts with short-window activity and a real timestamp',()=>{

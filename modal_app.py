@@ -71,45 +71,52 @@ def web():
     import asyncio
     import json
     import sqlite3
+    import sys
     import time
     from fastapi.responses import JSONResponse
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    from worker.market_proxy import MarketProxy
+    from worker.snapshot_view import snapshot_view, snapshot_version
     history_lock = asyncio.Lock()
+    async def fetch_market(target):
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
+            return await client.get(target, headers={"accept": "application/json"})
+    market_cache = MarketProxy(fetch_market)
 
-    @web_app.get("/api/new-coins")
-    async def new_coins(request: Request):
+    async def load_snapshot():
         async with history_lock:
             await history_volume.reload.aio()
             try:
-                snapshot = json.loads(Path("/history/coins.json").read_text())
+                return json.loads(Path("/history/coins.json").read_text())
             except FileNotFoundError:
-                snapshot = {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
-            cutoff = time.time() * 1000 - 5 * 86400000
-            view = request.query_params.get("view")
-            if view == "watchlist":
-                ids = request.query_params.getlist("id")
-                if not 1 <= len(ids) <= 30 or any(len(item) > 160 or ":" not in item for item in ids):
-                    raise HTTPException(status_code=400, detail="Request 1 to 30 saved token IDs")
-                def key(value):
-                    return value if value.startswith("solana:") else value.lower()
-                available = {key(c["id"]): c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff}
-                for coin in snapshot.get("coins", []):
-                    if coin.get("firstSeen", 0) > cutoff:
-                        available.setdefault(key(coin["id"]), coin)
-                fields = ("id", "name", "symbol", "network", "chain", "contract_address", "image_url", "priceUsd", "priceChange", "mc", "fdv", "liquidity", "volume", "volume5m", "buys5m", "sells5m", "recentVolume1h", "poolCreated", "marketUpdatedAt", "priceUpdatedAt")
-                selected = [{field: available[key(item)].get(field) for field in fields} for item in ids if key(item) in available]
-                return JSONResponse({"version": 1, "lastRun": snapshot.get("lastRun"), "coins": selected}, headers={"cache-control": "no-store"})
-            snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
-            if view == "coin":
-                snapshot["coins"] = [
-                    {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")}
-                    for coin in snapshot["coins"]
-                ]
-                snapshot.pop("radarCoins", None)
+                return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+
+    @web_app.get("/api/new-coins/version")
+    async def new_coins_version():
+        async with history_lock:
+            await history_volume.reload.aio()
+            main = Path("/history/coins.json")
+            sidecar = Path("/history/coins.version.json")
+            if sidecar.exists() and main.exists() and sidecar.stat().st_mtime_ns >= main.stat().st_mtime_ns:
+                try:
+                    version = json.loads(sidecar.read_text())
+                except (OSError, ValueError):
+                    version = snapshot_version(json.loads(main.read_text()))
+            elif main.exists():
+                version = snapshot_version(json.loads(main.read_text()))
             else:
-                if view == "radar":
-                    snapshot["coins"] = []
-                snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
-        return JSONResponse(snapshot, headers={"cache-control": "no-store"})
+                version = {"revision": "0", "lastRun": None}
+        return JSONResponse(version, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/new-coins")
+    async def new_coins(request: Request):
+        snapshot = await load_snapshot()
+        try:
+            payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse(payload, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/pool-catalog")
     async def pool_catalog(request: Request):
@@ -139,11 +146,8 @@ def web():
         ".mjs": "text/javascript; charset=utf-8",
     }
 
-    holder_info_cache = {}
-
     @web_app.get("/api/market/{market_path:path}")
     async def market_proxy(market_path: str, request: Request):
-        import time
         path = "/" + market_path
         is_search = path == "/search/pools"
         is_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/tokens/[a-zA-Z0-9]{1,100}/pools", path))
@@ -165,27 +169,10 @@ def web():
         if is_search or is_pools or is_new_pools:
             params["include"] = "base_token,quote_token"
 
-        if is_info:
-            cached = holder_info_cache.get(path)
-            if cached and cached[0] > time.monotonic():
-                return Response(cached[1], media_type="application/json", headers={"cache-control": "public, max-age=300", "x-content-type-options": "nosniff"})
-
-        target = "https://api.geckoterminal.com/api/v2" + path
-        if params:
-            target += "?" + urlencode(params)
-        try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
-                upstream = await client.get(target, headers={"accept": "application/json"})
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Market provider unavailable") from exc
-        if is_info and upstream.status_code == 200:
-            if len(holder_info_cache) >= 256:
-                holder_info_cache.clear()
-            holder_info_cache[path] = (time.monotonic() + 900, upstream.content)
-        headers = {"cache-control": "public, max-age=300" if is_info and upstream.status_code == 200 else "no-store", "x-content-type-options": "nosniff"}
-        if retry_after := upstream.headers.get("retry-after"):
-            headers["retry-after"] = retry_after
-        return Response(upstream.content, status_code=upstream.status_code, media_type="application/json", headers=headers)
+        status, content, provider_headers = await market_cache.get(path + ("?" + urlencode(params) if params else ""))
+        headers = {"cache-control": "public, max-age=300" if is_info and status == 200 else "no-store", "x-content-type-options": "nosniff"}
+        headers.update(provider_headers)
+        return Response(content, status_code=status, media_type="application/json", headers=headers)
 
     context_cache = {}
     context_sources = {

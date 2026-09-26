@@ -1,4 +1,5 @@
 export const BANDS=[{name:'XL',label:'≥ $10K',min:10000},{name:'L',label:'$1K–<10K',min:1000},{name:'M',label:'$100–<1K',min:100},{name:'S',label:'< $100',min:0}];
+export const SAMPLE_LIMITS=Object.freeze({poolsPerListing:3,tradesPerPool:300});
 export const canonical=a=>typeof a==='string'&&/^0x/i.test(a)?a.toLowerCase():a;
 export const listingKey=t=>`${t.network}:${canonical(t.address)}`;
 export function uniqueListings(tokens){return [...new Map(tokens.map(t=>[listingKey(t),t])).values()]}

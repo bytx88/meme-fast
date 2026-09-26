@@ -2,6 +2,7 @@ import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-
 import {isSaved,toggleSaved} from './research-store.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {parseHolderInfo} from './holder-info.mjs';
+import {sourceCoverageNote} from './source-coverage.mjs';
 
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -185,11 +186,11 @@ function render(){
  const q=state.query.toLowerCase(),coins=universe().filter(coin=>(state.chain==='all'||coin.network===state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
  const ranked=rankRadar(coins,state.mode),shown=ranked.slice(0,60);
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
- const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error);
+ const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error),sourceNote=sourceCoverageNote(snapshot);
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
  const collected=snapshot.lastRun?`${age(Number(snapshot.lastRun))} ago`:'pending';
- status.textContent=`${ranked.length} coins · ${fresh} live · updated ${collected}${degraded?' · feeds partial':''}${robinhoodIncomplete?' · Robinhood indexing':''}`;
- const statusDetail=`${ranked.length} observed coins. ${fresh} with recent market data. Last collection ${collected}.${degraded?' Some feeds unavailable.':''}${robinhoodIncomplete?' Robinhood pool backfill in progress.':''} ${historyNote}`;
+ status.textContent=`${ranked.length} coins · ${fresh} live · updated ${collected}${sourceNote}${robinhoodIncomplete?' · Robinhood indexing':''}`;
+ const statusDetail=`${ranked.length} observed coins. ${fresh} with recent market data. Last collection ${collected}.${sourceNote?` ${sourceNote.slice(3)}.`:''}${robinhoodIncomplete?' Robinhood pool backfill in progress.':''} ${historyNote}`;
  status.title=statusDetail;
  status.setAttribute('aria-label',statusDetail);
  results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;

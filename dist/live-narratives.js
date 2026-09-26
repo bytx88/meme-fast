@@ -2,6 +2,7 @@ import {tokenActions as actions} from './token-actions.mjs?v=find-stats-v1';
 import {FEEDS,NETWORKS,buildPublicView,fetchPublicSource,mergeArticles,compareSnapshots,addressMatches,safeURL} from './public-radar.mjs';
 import {contractForCopy,copyContract,axiomLink} from './contract-copy.mjs';
 import {SOURCE_KEY,loadSources} from './source-watchlist.mjs';
+import {feedStatus} from './source-coverage.mjs';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n),num=n=>n===null?'—':n.toLocaleString('en-US');
 const ago=time=>!Number.isFinite(time)?'Unknown':Math.max(0,Math.round((Date.now()-time)/60000))<60?`${Math.max(0,Math.round((Date.now()-time)/60000))}m ago`:(Date.now()-time)<86400000?`${Math.floor((Date.now()-time)/3600000)}h ago`:`${Math.floor((Date.now()-time)/86400000)}d ago`;
@@ -41,11 +42,11 @@ async function refresh(){
  await Promise.allSettled([...FEEDS,...NETWORKS].map(async(s,index)=>{
   // Stagger market requests to respect the public provider's request budget.
   if(!s.url)await new Promise(resolve=>setTimeout(resolve,(index-FEEDS.length)*2200));
-  const old=sourceState.get(s.id);sourceState.set(s.id,{...old,status:'loading'});renderStatus();
-  try{const items=await fetchPublicSource(s);sourceState.set(s.id,{status:'loaded',count:items.length,at:Date.now()});
+   const old=sourceState.get(s.id);sourceState.set(s.id,{...old,status:'loading',lastAttempt:Date.now()});renderStatus();
+   try{const items=await fetchPublicSource(s),at=Date.now();sourceState.set(s.id,{...feedStatus(old,at,{records:items.length}),status:'loaded',count:items.length,at});
    if(s.url){dataset.articles=mergeArticles(dataset.articles,items);save('meme-fast-public-articles-v1',dataset.articles)}
    else {dataset.coins=[...dataset.coins.filter(c=>c.network!==s.id),...items];save('meme-fast-public-coins-v1',dataset.coins)}
-  }catch(error){sourceState.set(s.id,{...old,status:'failed',error:error.message||'Could not reach feed.'})}
+   }catch(error){sourceState.set(s.id,{...feedStatus(old,Date.now(),{error:error.message||'Could not reach feed.'}),status:'failed'})}
   render();
  }));
  loading=false;updateHistory();render();

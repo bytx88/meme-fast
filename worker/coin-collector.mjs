@@ -5,10 +5,12 @@ import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatche
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
+import {feedStatus,coverageFor,validateSnapshot,PIPELINE_LIMITS} from './snapshot-contract.mjs';
+import {snapshotVersion,versionFile} from './snapshot-view.mjs';
 
-export const RETENTION_MS=5*86400000;
+export const RETENTION_MS=PIPELINE_LIMITS.retentionMs;
 export const RECENT_MARKET_MS=4*3600000;
-export const RADAR_LIMIT_PER_CHAIN=200;
+export const RADAR_LIMIT_PER_CHAIN=PIPELINE_LIMITS.radarPerChain;
 export const TRACKED_RADAR_TOKENS=[{network:'robinhood',contract:'0x6249519883b8d7ccf915dfcd6c0442984dae9d24'}];
 const trackedRadarIds=new Set(TRACKED_RADAR_TOKENS.map(token=>`${token.network}:${token.contract.toLowerCase()}`));
 const chunks=(items,size)=>Array.from({length:Math.ceil(items.length/size)},(_,i)=>items.slice(i*size,i*size+size));
@@ -161,9 +163,13 @@ export async function readSnapshot(filename){
  }catch(error){if(error.code==='ENOENT')return {version:1,coins:[],lastRun:null,feeds:{}};throw error}
 }
 async function save(filename,snapshot){
+ validateSnapshot(snapshot);
  await mkdir(path.dirname(filename),{recursive:true});
  await writeFile(filename+'.tmp',JSON.stringify(snapshot));
  await rename(filename+'.tmp',filename);
+ const versionPath=versionFile(filename);
+ await writeFile(versionPath+'.tmp',JSON.stringify(snapshotVersion(snapshot)));
+ await rename(versionPath+'.tmp',versionPath);
 }
 async function story(coin,fetcher){
  for(const source of sourcesFor(coin)){
@@ -180,87 +186,7 @@ async function story(coin,fetcher){
  const lead=bestSearchLead((await response.text()).slice(0,60000));
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
-export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
- if(fetcher===fetch){
-  const direct=fetch;let nextGeckoAt=0,queue=Promise.resolve();
-  fetcher=(url,options)=>{
-   if(!String(url).startsWith('https://api.geckoterminal.com/'))return direct(url,options);
-   const turn=queue.then(async()=>{const wait=Math.max(0,nextGeckoAt-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait));nextGeckoAt=Date.now()+3500});
-   queue=turn.catch(()=>{});
-   return turn.then(()=>direct(url,options));
-  };
- }
- const previous=await readSnapshot(filename),feeds={...previous.feeds},incoming=[];
- let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
- try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
- const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
- feeds.robinhood_rpc={lastSuccess:rpcError?feeds.robinhood_rpc?.lastSuccess??null:indexedFeed.status?.lastScanAt??null,error:rpcError||null,lastAttempt:indexedFeed.status?.lastScanAt??null,pools:indexedFeed.status?.count??0,backfillComplete:indexedFeed.status?.backfillComplete===true};
- const trackedResults=await Promise.allSettled(TRACKED_RADAR_TOKENS.map(async token=>{
-  const network=RADAR_NETWORKS.find(network=>network.id===token.network);
-  try{
-   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/tokens/${encodeURIComponent(token.contract)}/pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
-   if(!response.ok)throw new Error(`Tracked token HTTP ${response.status}`);
-   const matches=parsePools(await response.json(),network,now).filter(coin=>coin.contract_address.toLowerCase()===token.contract.toLowerCase());
-   if(matches.length)return matches;
-  }catch{}
-  const response=await fetcher(`https://api.dexscreener.com/tokens/v1/${network.id}/${encodeURIComponent(token.contract)}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Tracked token fallback HTTP ${response.status}`);
-  const pairs=await response.json();
-  const pair=Array.isArray(pairs)?pairs.filter(pair=>pair.chainId===network.id&&pair.baseToken?.address?.toLowerCase()===token.contract.toLowerCase()&&/^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(pair.pairAddress||'')).sort((a,b)=>(b.liquidity?.usd??0)-(a.liquidity?.usd??0))[0]:null;
-  if(!pair)throw new Error('Tracked contract has no eligible pool');
-  return [{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',symbol:pair.baseToken.symbol||'?',image_url:safeURL(pair.info?.imageUrl),network:network.id,chain:network.name,contract_address:token.contract,contract_verified:true,pool:pair.pairAddress,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv),volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),liquidity:amount(pair.liquidity?.usd),buys:amount(pair.txns?.h24?.buys),sells:amount(pair.txns?.h24?.sells),buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceUsd:amount(pair.priceUsd),priceChange:amount(pair.priceChange?.h24),fetchedAt:now,marketUpdatedAt:now,priceUpdatedAt:now}];
- }));
- const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
- trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=result.status==='fulfilled'?{lastSuccess:now,error:null}:{...feeds[key],error:String(result.reason.message),lastAttempt:now}});
- const duePools=Array.isArray(indexedFeed.pools)?indexedFeed.pools:[];
- const indexedBatches=chunks(duePools,30);
- const indexedResults=await Promise.allSettled(indexedBatches.map(async batch=>{
-  const ids=batch.map(pool=>encodeURIComponent(pool.pool)).join(',');
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/robinhood/pools/multi/${ids}?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Indexed pools HTTP ${response.status}`);
-  return parsePools(await response.json(),NETWORKS.find(network=>network.id==='robinhood'),now);
- }));
- const indexedCoins=indexedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
- const indexedFailure=indexedResults.find(result=>result.status==='rejected');
- feeds.robinhood_indexed_pools=indexedFailure?{...feeds.robinhood_indexed_pools,error:String(indexedFailure.reason.message),lastAttempt:now}:{lastSuccess:now,error:null};
- const newPoolPages=NETWORKS.flatMap(network=>[1,2,3].map(page=>({network,page})));
- const results=await Promise.allSettled(newPoolPages.map(async ({network,page})=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/new_pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error('HTTP '+response.status);
-  return parsePools(await response.json(),network,now);
- }));
- results.forEach((r,i)=>{
-  const key=newPoolPages[i].network.id;
-  if(r.status==='fulfilled'){incoming.push(...r.value);feeds[key]={lastSuccess:now,error:null}}
-  else if(newPoolPages[i].page===1)feeds[key]={...feeds[key],error:String(r.reason.message),lastAttempt:now};
- });
- let coins=mergeCoins(previous.coins,incoming,now);
- const trending=[];
- const trendingResults=await Promise.allSettled(RADAR_NETWORKS.map(async network=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?include=base_token,quote_token&duration=1h`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Trending HTTP ${response.status}`);
-  return parsePools(await response.json(),network,now);
- }));
- trendingResults.forEach((result,index)=>{
-  const key=`${RADAR_NETWORKS[index].id}_trending`;
-  if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]={lastSuccess:now,error:null}}
-  else feeds[key]={...feeds[key],error:String(result.reason.message),lastAttempt:now};
- });
- coins=mergeCoins(coins,[...trending,...indexedCoins],now);
- const topPoolPages=RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood').flatMap(network=>[1,2,3].map(page=>({network,page})));
- const topResults=await Promise.allSettled(topPoolPages.map(async ({network,page})=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Top pools HTTP ${response.status}`);
-  return parsePools(await response.json(),network,now);
- }));
- const topPools=topResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
- for(const network of RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood')){
-  const results=topResults.filter((_,index)=>topPoolPages[index].network.id===network.id);
-  const failure=results.find(result=>result.status==='rejected');
-  const key=`${network.id}_top_pools`;
-  feeds[key]=failure?{...feeds[key],error:String(failure.reason.message),lastAttempt:now}:{lastSuccess:now,error:null};
- }
- let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
+async function enrichMarket(coins,radarCoins,fetcher,now,feeds){
  const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
   const addresses=targets.filter(c=>c.network===network).map(c=>c.contract_address);
@@ -271,11 +197,11 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   });
  }));
  const pairs=marketResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
- coins=refreshMarket(coins,pairs,now);
- coins=recordMarketHistory(coins,now);
+ const marketFailure=marketResults.find(r=>r.status==='rejected');
+ if(marketResults.length)feeds.dex_market=feedStatus(feeds.dex_market,now,marketFailure?{error:marketFailure.reason.message,returnedRecords:pairs.length}:{records:pairs.length});
+ else feeds.dex_market={...feeds.dex_market,status:'idle',error:null,returnedRecords:null};
+ coins=recordMarketHistory(refreshMarket(coins,pairs,now),now);
  radarCoins=recordMarketHistory(refreshMarket(radarCoins,pairs,now),now);
- // Keep fresh contracts current and rotate through older contracts so they can
- // enter Final Stretch after their first hour. Bound requests to 120 tokens.
  const launchCandidates=selectLaunchCandidates(coins);
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
@@ -284,14 +210,19 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
   if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
   const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
  }));
- coins=refreshLaunchpad(coins,launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
+ const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
+ const launchFailure=launchResults.find(r=>r.status==='rejected');
+ if(launchResults.length)feeds.launchpad=feedStatus(feeds.launchpad,now,launchFailure?{error:launchFailure.reason.message,returnedRecords:launchTokens.length}:{records:launchTokens.length});
+ else feeds.launchpad={...feeds.launchpad,status:'idle',error:null,returnedRecords:null};
+ coins=refreshLaunchpad(coins,launchTokens,now);
  const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
  coins=coins.map(coin=>checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
- coins=await backfillPriceHistory(coins,fetcher,now);
- coins=updateMigrationStates(coins,now);
- const snapshot={version:2,coins,radarCoins,lastRun:now,feeds};
- // Commit discovery first so slow or failed story lookups cannot lose coins.
- await save(filename,snapshot);
+ coins=updateMigrationStates(await backfillPriceHistory(coins,fetcher,now),now);
+ return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length+launchResults.length};
+}
+
+async function enrichContext(snapshot,fetcher,now){
+ const {coins,radarCoins,feeds}=snapshot;
  const news=await Promise.allSettled([...FEEDS.map(feed=>fetchPublicSource(feed,fetcher)),(async()=>{
   const response=await fetcher('https://api.dexscreener.com/token-profiles/latest/v1',{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error('Profiles unavailable');
@@ -299,6 +230,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  })()]);
  const articles=news.slice(0,FEEDS.length).flatMap(r=>r.status==='fulfilled'?r.value:[]);
  const profiles=news.at(-1).status==='fulfilled'?news.at(-1).value:[];
+ FEEDS.forEach((feed,index)=>{const result=news[index];feeds[`news_${feed.id}`]=feedStatus(feeds[`news_${feed.id}`],now,result.status==='fulfilled'?{records:result.value.length}:{error:result.reason.message})});
+ const profileResult=news.at(-1);
+ feeds.dex_profiles=feedStatus(feeds.dex_profiles,now,profileResult.status==='fulfilled'?{records:profiles.length}:{error:profileResult.reason.message});
  const coinIds=new Set(coins.map(c=>c.id));
  const contextTargets=[...coins,...radarCoins.filter(c=>!coinIds.has(c.id))];
  for(const coin of contextTargets){
@@ -316,7 +250,6 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
    if(related.length)coin.savedContext={kind:'rss',articles:related.slice(0,2)};
   }
  }
- // Bounded work; pending coins are retried on later scheduled runs.
  const queue=contextTargets.filter(c=>!c.savedContext&&(!c.contextCheckedAt||c.contextCheckedAt<now-6*3600000))
   .sort((a,b)=>(a.contextCheckedAt??0)-(b.contextCheckedAt??0)||b.firstSeen-a.firstSeen).slice(0,4);
  for(const coin of queue){
@@ -326,6 +259,111 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  }
  const byId=new Map(coins.map(c=>[c.id,c]));
  for(const coin of radarCoins){const current=byId.get(coin.id);if(current){coin.savedContext=current.savedContext;coin.contextCheckedAt=current.contextCheckedAt}}
+ return {articles:articles.length,profiles:profiles.length,checked:queue.length,failedLookups:queue.filter(coin=>coin.contextError).length};
+}
+export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
+ if(fetcher===fetch){
+  const direct=fetch;let nextGeckoAt=0,queue=Promise.resolve();
+  fetcher=(url,options)=>{
+   if(!String(url).startsWith('https://api.geckoterminal.com/'))return direct(url,options);
+   const turn=queue.then(async()=>{const wait=Math.max(0,nextGeckoAt-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait));nextGeckoAt=Date.now()+3500});
+   queue=turn.catch(()=>{});
+   return turn.then(()=>direct(url,options));
+  };
+ }
+ const previous=await readSnapshot(filename),feeds={...previous.feeds},incoming=[];
+ let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
+ try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
+ const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
+ feeds.robinhood_rpc=feedStatus(feeds.robinhood_rpc,indexedFeed.status?.lastScanAt??now,{error:rpcError||null,records:indexedFeed.status?.count??0,pools:indexedFeed.status?.count??0,backfillComplete:indexedFeed.status?.backfillComplete===true});
+ const trackedResults=await Promise.allSettled(TRACKED_RADAR_TOKENS.map(async token=>{
+  const network=RADAR_NETWORKS.find(network=>network.id===token.network);
+  try{
+   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/tokens/${encodeURIComponent(token.contract)}/pools?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
+   if(!response.ok)throw new Error(`Tracked token HTTP ${response.status}`);
+   const matches=parsePools(await response.json(),network,now).filter(coin=>coin.contract_address.toLowerCase()===token.contract.toLowerCase());
+   if(matches.length)return matches;
+  }catch{}
+  const response=await fetcher(`https://api.dexscreener.com/tokens/v1/${network.id}/${encodeURIComponent(token.contract)}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Tracked token fallback HTTP ${response.status}`);
+  const pairs=await response.json();
+  const pair=Array.isArray(pairs)?pairs.filter(pair=>pair.chainId===network.id&&pair.baseToken?.address?.toLowerCase()===token.contract.toLowerCase()&&/^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(pair.pairAddress||'')).sort((a,b)=>(b.liquidity?.usd??0)-(a.liquidity?.usd??0))[0]:null;
+  if(!pair)throw new Error('Tracked contract has no eligible pool');
+  return [{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',symbol:pair.baseToken.symbol||'?',image_url:safeURL(pair.info?.imageUrl),network:network.id,chain:network.name,contract_address:token.contract,contract_verified:true,pool:pair.pairAddress,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv),volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),liquidity:amount(pair.liquidity?.usd),buys:amount(pair.txns?.h24?.buys),sells:amount(pair.txns?.h24?.sells),buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceUsd:amount(pair.priceUsd),priceChange:amount(pair.priceChange?.h24),fetchedAt:now,marketUpdatedAt:now,priceUpdatedAt:now}];
+ }));
+ const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=feedStatus(feeds[key],now,result.status==='fulfilled'?{records:result.value.length}:{error:result.reason.message})});
+ const duePools=Array.isArray(indexedFeed.pools)?indexedFeed.pools:[];
+ const indexedBatches=chunks(duePools,30);
+ const indexedResults=await Promise.allSettled(indexedBatches.map(async batch=>{
+  const ids=batch.map(pool=>encodeURIComponent(pool.pool)).join(',');
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/robinhood/pools/multi/${ids}?include=base_token,quote_token`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Indexed pools HTTP ${response.status}`);
+  return parsePools(await response.json(),NETWORKS.find(network=>network.id==='robinhood'),now);
+ }));
+ const indexedCoins=indexedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ const indexedFailure=indexedResults.find(result=>result.status==='rejected');
+ if(indexedResults.length)feeds.robinhood_indexed_pools=feedStatus(feeds.robinhood_indexed_pools,now,indexedFailure?{error:indexedFailure.reason.message,returnedRecords:indexedCoins.length}:{records:indexedCoins.length});
+ else feeds.robinhood_indexed_pools={...feeds.robinhood_indexed_pools,status:'idle',error:null,returnedRecords:null};
+ const newPoolPages=NETWORKS.flatMap(network=>Array.from({length:PIPELINE_LIMITS.newPoolPages},(_,index)=>({network,page:index+1})));
+ const results=await Promise.allSettled(newPoolPages.map(async ({network,page})=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/new_pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  return parsePools(await response.json(),network,now);
+ }));
+ results.forEach(r=>{if(r.status==='fulfilled')incoming.push(...r.value)});
+ for(const network of NETWORKS){
+  const pages=results.filter((_,index)=>newPoolPages[index].network.id===network.id);
+  const failure=pages.find(result=>result.status==='rejected');
+  const returned=pages.flatMap(result=>result.status==='fulfilled'?result.value:[]).length;
+  feeds[network.id]=feedStatus(feeds[network.id],now,failure?{error:failure.reason.message,returnedRecords:returned}:{records:returned});
+ }
+ let coins=mergeCoins(previous.coins,incoming,now);
+ const trending=[];
+ const trendingResults=await Promise.allSettled(RADAR_NETWORKS.map(async network=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?include=base_token,quote_token&duration=1h`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Trending HTTP ${response.status}`);
+  return parsePools(await response.json(),network,now);
+ }));
+ trendingResults.forEach((result,index)=>{
+  const key=`${RADAR_NETWORKS[index].id}_trending`;
+   if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]=feedStatus(feeds[key],now,{records:result.value.length})}
+   else feeds[key]=feedStatus(feeds[key],now,{error:result.reason.message});
+ });
+ coins=mergeCoins(coins,[...trending,...indexedCoins],now);
+ const topPoolPages=RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood').flatMap(network=>Array.from({length:PIPELINE_LIMITS.newPoolPages},(_,index)=>({network,page:index+1})));
+ const topResults=await Promise.allSettled(topPoolPages.map(async ({network,page})=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Top pools HTTP ${response.status}`);
+  return parsePools(await response.json(),network,now);
+ }));
+ const topPools=topResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ for(const network of RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood')){
+  const results=topResults.filter((_,index)=>topPoolPages[index].network.id===network.id);
+  const failure=results.find(result=>result.status==='rejected');
+  const key=`${network.id}_top_pools`;
+   const returned=results.flatMap(result=>result.status==='fulfilled'?result.value:[]).length;
+   feeds[key]=feedStatus(feeds[key],now,failure?{error:failure.reason.message,returnedRecords:returned}:{records:returned});
+ }
+ let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
+ const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds);
+ coins=market.coins;radarCoins=market.radarCoins;
+ const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools'];
+ const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
+ const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
+ const snapshot={version:2,revision:`${now}:1`,coins,radarCoins,lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
+  discovery:{status:discoveryStatus,completedAt:now,coins:coins.length,radarCoins:radarCoins.length},
+  market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs},
+  context:{status:'pending'},
+ }};
+ // Commit discovery and market data before slower context lookups.
+ await save(filename,snapshot);
+ const context=await enrichContext(snapshot,fetcher,now);
+ const contextSources=[...FEEDS.map(feed=>`news_${feed.id}`),'dex_profiles'];
+ const contextStatus=contextSources.some(key=>feeds[key]?.error)||context.failedLookups?'degraded':'complete';
+ snapshot.pipeline.context={status:contextStatus,completedAt:now,...context};
+ snapshot.revision=`${now}:2`;
+ snapshot.coverage=coverageFor(feeds);
  await save(filename,snapshot);
  return snapshot;
 }
