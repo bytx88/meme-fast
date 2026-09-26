@@ -102,7 +102,7 @@ function inspector(reading){
 function renderInspector(){
  if(!dialog.open||!state.selectedId)return;
  const coin=universe().find(item=>coinId(item)===state.selectedId);
- $('#radar-inspector-content').innerHTML=coin?inspector(radarReading(coin,state.mode)):`<div class="inspect-head"><div><h2>Candidate no longer observed</h2><p>This contract has left Radar's retained sample.</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><p class="inspect-contract">Contract · <code>${esc(state.selectedId.split(':').slice(1).join(':'))}</code></p><div class="inspect-actions"><a href="${esc(`./order-flow.html?${new URLSearchParams({query:state.selectedId.split(':').slice(1).join(':')})}`)}">Order Flow ↗</a></div>`;
+ $('#radar-inspector-content').innerHTML=coin?inspector(radarReading(coin,state.mode)):`<div class="inspect-head"><div><h2>Candidate no longer observed</h2><p>This contract has left Hodl's retained sample.</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><p class="inspect-contract">Contract · <code>${esc(state.selectedId.split(':').slice(1).join(':'))}</code></p><div class="inspect-actions"><a href="${esc(`./order-flow.html?${new URLSearchParams({query:state.selectedId.split(':').slice(1).join(':')})}`)}">Order Flow ↗</a></div>`;
 }
 function openInspector(id){state.selectedId=id;if(!dialog.open)dialog.showModal();renderInspector()}
 function render(){
@@ -110,7 +110,7 @@ function render(){
  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode)));
  const status=$('#status'),results=$('#radar-results');
  if(state.loading){status.textContent='Loading observed coins…';return}
- if(state.error){status.textContent=state.error;results.innerHTML='<div class="radar-empty">Radar data is unavailable. Try refreshing.</div>';return}
+ if(state.error){status.textContent=state.error;results.innerHTML='<div class="radar-empty">Hodl data is unavailable. Try refreshing.</div>';return}
  const snapshot=state.snapshot;if(!snapshot){status.textContent='Waiting for coin collection…';results.innerHTML='';return}
  const q=state.query.toLowerCase(),coins=universe().filter(coin=>(state.chain==='all'||coin.network===state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
  const ranked=rankRadar(coins,state.mode),shown=ranked.slice(0,60);
@@ -118,13 +118,13 @@ function render(){
  const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error);
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
  status.textContent=`${ranked.length} observed coins · ${fresh} with recent market data · last collection ${snapshot.lastRun?age(Number(snapshot.lastRun))+' ago':'pending'}${degraded?' · some feeds unavailable':''}${robinhoodIncomplete?' · Robinhood pool backfill in progress':''}. ${historyNote}`;
- results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Radar will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
+ results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
  renderInspector();
 }
 async function load(){
  state.loading=true;state.error=null;render();$('#refresh').disabled=true;
- try{const response=await fetch('/api/new-coins?view=radar',{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('Coin history unavailable');const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid coin history');state.snapshot=snapshot}
- catch(error){state.error=error.message||'Coin history unavailable'}
+ try{const response=await fetch('/api/new-coins?view=radar',{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('Market history unavailable');const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid market history');state.snapshot=snapshot}
+ catch(error){state.error=error.message||'Market history unavailable'}
  finally{state.loading=false;$('#refresh').disabled=false;render()}
 }
 async function loadCatalogMatch(){

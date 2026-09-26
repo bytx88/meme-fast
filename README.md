@@ -17,10 +17,10 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 ## Product areas
 
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
-- **New coins** — freshly discovered pools with evidence status and a research handoff
-- **Radar** — Swing and Longer-term research rankings with input coverage and explanations
+- **Snipe** — freshly discovered pools with evidence status and a research handoff
+- **Hodl** — Swing and Longer-term research rankings with input coverage and explanations
 - **Narrative research** — evidence trail, lifecycle context, and associated tokens
-- **Token research** — observed swap flow, sizing, timeline, and transaction details
+- **Order Flow** — observed swap flow, sizing, timeline, and transaction details
 - **Watchlist** — browser-local saved narratives and tokens
 - **Sources** — current feed coverage and a planned X-account collector watchlist
 

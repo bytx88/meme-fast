@@ -78,7 +78,7 @@ export function radarReading(coin,mode='scalp',now=Date.now()){
 }
 
 export function rankRadar(coins,mode='scalp',now=Date.now()){
- if(!RADAR_MODES[mode])throw new Error('Unknown Radar mode');
+ if(!RADAR_MODES[mode])throw new Error('Unknown Hodl mode');
  const eligible=mode==='scalp'?coins.filter(coin=>{const created=number(coin.poolCreated);return created!==null&&created<=now&&now-created<=SCALP_MAX_POOL_AGE_MS}):coins;
  return eligible.map(coin=>radarReading(coin,mode,now)).sort((a,b)=>Number(a.stale)-Number(b.stale)||Number(b.score!==null)-Number(a.score!==null)||(b.rankScore??-1)-(a.rankScore??-1)||(b.updatedAt??0)-(a.updatedAt??0));
 }
