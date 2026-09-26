@@ -1,9 +1,17 @@
-import {watchlist,removeSaved,write,esc,ago,safeURL} from './research-store.mjs';
+import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs';
+import {NETWORKS,parsePools} from './public-radar.mjs';
 
 const items=document.getElementById('items');
 const count=document.getElementById('count');
 const refresh=document.getElementById('refresh-stats');
+const addButton=document.getElementById('add-token');
+const addDialog=document.getElementById('add-token-dialog');
+const addForm=document.getElementById('add-token-form');
+const addQuery=document.getElementById('add-token-query');
+const addStatus=document.getElementById('add-token-status');
+const addResults=document.getElementById('add-token-results');
 const market=new Map();
+let matches=[];
 let loading=false,loadError=false;
 
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
@@ -32,7 +40,7 @@ function stats(coin){
 }
 
 function tokenCard(item){
- const coin=market.get(key(item.id));
+ const coin=market.get(key(item.id))||item.marketSnapshot;
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
  const short=contract.length>14?`${contract.slice(0,6)}…${contract.slice(-4)}`:contract;
  const [chain,horizon]=String(item.subtitle||'').split(' · ');
@@ -54,7 +62,7 @@ function draw(){
  items.innerHTML=saved.length?saved.map(item=>item.type==='radar'||item.type==='coin'?tokenCard(item):otherCard(item)).join(''):'<div class="empty-workspace"><strong>Your research queue is empty.</strong>Save a token from Hodl or a narrative from Tweet to follow it here.</div>';
 }
 
-async function loadStats(){
+async function loadStats(refreshMissing=false){
  const saved=watchlist();
  const ids=[...new Set(saved.filter(item=>item.type==='radar'||item.type==='coin').map(item=>item.id))];
  if(!ids.length){draw();return}
@@ -72,10 +80,28 @@ async function loadStats(){
   for(const result of results){
    for(const coin of result.coins||[])market.set(key(coin.id),coin);
   }
+  if(refreshMissing){
+   const missing=saved.filter(item=>item.marketSnapshot&&!market.has(key(item.id)));
+   const queue=[...missing];
+   await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=>{
+    while(queue.length){
+     const item=queue.shift(),[networkId,contract]=item.id.split(':');
+     const network=NETWORKS.find(entry=>entry.id===networkId);
+     if(!network||!contract)continue;
+     try{
+      const response=await fetch(`/api/market/networks/${encodeURIComponent(networkId)}/tokens/${encodeURIComponent(contract)}/pools`,{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)continue;
+      const coin=parsePools(await response.json(),network).find(entry=>key(entry.id)===key(item.id));
+      if(coin){market.set(key(item.id),coin);item.marketSnapshot=coin}
+     }catch{}
+    }
+   }));
+  }
   let changed=false;
   for(const item of saved){
    const image=safeURL(market.get(key(item.id))?.image_url);
    if((item.type==='radar'||item.type==='coin')&&!safeURL(item.image_url)&&image){item.image_url=image;changed=true}
+   if(item.marketSnapshot&&market.has(key(item.id))){item.marketSnapshot=market.get(key(item.id));changed=true}
   }
   if(changed)write('meme-fast-watchlist-v1',saved);
  }catch{loadError=true}
@@ -83,7 +109,33 @@ async function loadStats(){
 }
 
 items.onclick=event=>{const button=event.target.closest('[data-remove]');if(button){removeSaved(button.dataset.type,button.dataset.remove);draw()}};
-refresh.onclick=loadStats;
+refresh.onclick=()=>loadStats(true);
+function drawMatches(){
+ addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong><small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved':'Add'}</button></div>`).join('');
+}
+addButton.onclick=()=>{addDialog.showModal();addQuery.focus()};
+document.getElementById('close-add-token').onclick=()=>addDialog.close();
+addForm.onsubmit=async event=>{
+ event.preventDefault();const query=addQuery.value.trim();if(!query)return;
+ addStatus.textContent='Searching trading pools…';addResults.innerHTML='';matches=[];
+ try{
+  const response=await fetch(`/api/market/search/pools?query=${encodeURIComponent(query)}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error('Search unavailable');
+  const payload=await response.json();
+  const normalized=query.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const exact=coin=>[coin.symbol,coin.name,coin.contract_address].some(value=>String(value).toLowerCase().replace(/[^a-z0-9]/g,'')===normalized);
+  matches=NETWORKS.flatMap(network=>parsePools({...payload,data:(payload.data||[]).filter(pool=>String(pool.id||'').startsWith(`${network.id}_`))},network)).sort((a,b)=>Number(exact(b))-Number(exact(a))||(b.liquidity||0)-(a.liquidity||0)).slice(0,12);
+  addStatus.textContent=matches.length?`Choose the exact token and chain (${matches.length} matches).`:'No trading pool found on Solana, Base, or Robinhood Chain.';
+  drawMatches();
+ }catch{addStatus.textContent='Search is unavailable. Try again in a moment.'}
+};
+addResults.onclick=event=>{
+ const button=event.target.closest('[data-add-index]');if(!button)return;
+ const coin=matches[Number(button.dataset.addIndex)];if(!coin)return;
+ const item={type:'radar',id:coin.id,title:`$${coin.symbol} · ${coin.name}`,subtitle:`${coin.chain} · Manual`,image_url:coin.image_url,marketSnapshot:coin};
+ if(addSaved(item)){market.set(key(coin.id),coin);draw();addStatus.textContent=`${coin.symbol} added to Watchlist.`}
+ drawMatches();
+};
 document.addEventListener('error',event=>{if(event.target.matches?.('.saved-item-icon img'))event.target.remove()},true);
 window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1'){draw();loadStats()}});
 draw();

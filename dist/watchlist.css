@@ -1,6 +1,9 @@
 .watchlist-page .workspace-head{align-items:center;padding:16px 0 12px}
 .watchlist-page .workspace-head h1{font-size:32px;margin:2px 0}
 .watchlist-page .workspace-head p{display:none}
+.watchlist-page .workspace-actions{flex-wrap:nowrap}
+.watchlist-page .workspace-actions>button,.watchlist-page .workspace-actions>a{display:inline-flex;align-items:center;justify-content:center;min-width:54px;min-height:30px;padding:5px 12px;border:1px solid #344356;border-radius:6px;background:#141d29;color:#dce9fa;font:600 12px 'Space Grotesk',sans-serif;text-decoration:none;cursor:pointer}
+.watchlist-page .workspace-actions>button:hover,.watchlist-page .workspace-actions>a:hover{border-color:#bdf36c;color:#d8ff85}
 .watchlist-page>.research-card{margin:12px 0 22px!important;padding:12px 16px}
 .watchlist-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .watchlist-heading h2{margin:0;font-size:17px}
@@ -8,7 +11,7 @@
 #refresh-stats{padding:6px 9px;font-size:11px;white-space:nowrap}
 #refresh-stats:disabled{opacity:.55;cursor:default}
 .watchlist-page .item-list{gap:6px}
-.saved-item.watch-token{display:grid;grid-template-columns:minmax(205px,1.6fr) minmax(0,5fr) auto;gap:12px;align-items:center;min-height:70px;padding:8px 11px}
+.saved-item.watch-token{display:grid;grid-template-columns:minmax(175px,1.6fr) minmax(0,5fr) auto;gap:12px;align-items:center;min-height:70px;padding:8px 11px}
 .watch-token .saved-item-main{gap:8px;min-width:0}
 .watch-token .saved-item-icon{width:40px;height:40px;border-radius:8px;font-size:18px}
 .watch-token .saved-item-copy{min-width:0}
@@ -23,6 +26,24 @@
 .watch-metric strong.watch-up{color:#67e6ab}
 .watch-metric strong.watch-down{color:#ff8c9d}
 .watch-token .saved-item-actions button{padding:6px 8px;font-size:10px}
+.watch-token .saved-item-actions{grid-column:3;grid-row:1;justify-self:end}
 .watch-no-data{grid-column:2;margin:0;color:var(--muted);font-size:11px}
-@media(max-width:1000px){.saved-item.watch-token{grid-template-columns:minmax(180px,1fr) auto}.watch-stats,.watch-no-data{grid-column:1/-1;grid-row:2}.watch-stats{padding-left:48px}.watch-token .saved-item-actions{grid-column:2;grid-row:1}}
+@media(max-width:760px){.saved-item.watch-token{grid-template-columns:minmax(0,1fr) auto}.watch-stats,.watch-no-data{grid-column:1/-1;grid-row:2}.watch-stats{padding-left:48px}.watch-token .saved-item-actions{grid-column:2;grid-row:1}}
 @media(max-width:650px){.watchlist-page .workspace-head{padding-top:12px}.watchlist-page .workspace-head h1{font-size:28px}.watchlist-page>.research-card{padding:10px}.saved-item.watch-token{padding:9px;gap:8px}.watch-stats{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:8px;padding-left:0}.watch-metric strong{font-size:11px}}
+#add-token-dialog{width:min(520px,calc(100vw - 28px));max-height:min(80vh,700px);padding:20px;border:1px solid #405167;border-radius:10px;background:#111924;color:var(--text);box-shadow:0 24px 80px #000b}
+#add-token-dialog::backdrop{background:#02060acc}
+.add-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+.add-dialog-head h2{margin:3px 0 0;font-size:21px}
+#close-add-token{padding:2px 8px;border:0;background:transparent;color:var(--muted);font-size:25px;cursor:pointer}
+#add-token-form label{display:block;margin-bottom:7px;color:var(--muted);font-size:12px}
+.add-search-line{display:flex;gap:8px}
+.add-search-line input{min-width:0;flex:1;padding:9px 10px;border:1px solid #405167;border-radius:6px;background:#0a111b;color:var(--text);font:inherit}
+.add-search-line button,.add-result button{padding:7px 12px;border:1px solid #52683d;border-radius:6px;background:#26341d;color:#d7fb99;font:600 12px 'Space Grotesk',sans-serif;cursor:pointer}
+#add-token-status{margin:14px 0 8px;color:var(--muted);font-size:12px}
+#add-token-results{display:grid;gap:7px;overflow:auto;max-height:48vh}
+.add-result{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px;border:1px solid var(--line);border-radius:7px;background:#0c141f}
+.add-result-copy{min-width:0}
+.add-result-copy strong,.add-result-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add-result-copy strong{font-size:13px}
+.add-result-copy small{margin-top:3px;color:var(--muted);font-size:10px}
+.add-result button:disabled{opacity:.55;cursor:default}

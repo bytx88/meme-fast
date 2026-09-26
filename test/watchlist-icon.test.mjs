@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 test('an existing saved CASHED item shows its icon and stats without opening Hodl',async()=>{
  const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
  const item={type:'radar',id:`robinhood:${contract}`,title:'$CASHED · Cashed Money',subtitle:`Robinhood Chain · ${contract}`,href:`./radar.html?contract=${contract}`,savedAt:Date.now()};
- const nodes={items:{innerHTML:'',onclick:null},count:{textContent:''},'refresh-stats':{disabled:false,textContent:'',onclick:null}};
+ const nodes={items:{innerHTML:'',onclick:null},count:{textContent:''},'refresh-stats':{disabled:false,textContent:'',onclick:null},'add-token':{onclick:null},'add-token-dialog':{showModal:()=>{},close:()=>{}},'add-token-form':{onsubmit:null},'add-token-query':{value:'',focus:()=>{}},'add-token-status':{textContent:''},'add-token-results':{innerHTML:'',onclick:null},'close-add-token':{onclick:null}};
  let saved=JSON.stringify([item]);
  globalThis.localStorage={getItem:key=>key==='meme-fast-watchlist-v1'?saved:null,setItem:(key,value)=>{if(key==='meme-fast-watchlist-v1')saved=value}};
  globalThis.document={getElementById:id=>nodes[id],addEventListener:()=>{}};
@@ -24,4 +24,19 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.equal(requests.length,1);
  assert.match(requests[0],/view=watchlist/);
  assert.equal(JSON.parse(saved)[0].image_url,'https://cdn.example/cashed.png');
+ const newContract=`0x${'a'.repeat(40)}`;
+ globalThis.fetch=async url=>{
+  requests.push(url);
+  return {ok:true,json:async()=>({data:[{id:'robinhood_pool',attributes:{address:`0x${'b'.repeat(64)}`,reserve_in_usd:'25000',base_token_price_usd:'0.12',volume_usd:{h24:'9000',m5:'500'},transactions:{m5:{buys:4,sells:2}},price_change_percentage:{h24:'5'}},relationships:{base_token:{data:{id:'robinhood_token'}}}}],included:[{type:'token',id:'robinhood_token',attributes:{address:newContract,symbol:'NEW',name:'New Token',image_url:'https://cdn.example/new.png'}}]})};
+ };
+ nodes['add-token-query'].value='NEW';
+ await nodes['add-token-form'].onsubmit({preventDefault:()=>{}});
+ assert.match(nodes['add-token-results'].innerHTML,/New Token/);
+ assert.match(nodes['add-token-results'].innerHTML,/Robinhood Chain/);
+ nodes['add-token-results'].onclick({target:{closest:()=>({dataset:{addIndex:'0'}})}});
+ assert.equal(JSON.parse(saved).length,2);
+ assert.equal(JSON.parse(saved)[0].id,`robinhood:${newContract}`);
+ assert.match(nodes.items.innerHTML,/\$NEW/);
+ assert.match(nodes.items.innerHTML,/\$0\.12/);
+ assert.match(nodes['add-token-results'].innerHTML,/Saved/);
 });
