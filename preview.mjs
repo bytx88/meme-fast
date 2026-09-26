@@ -1,6 +1,12 @@
 import {STORY_SOURCES} from './dist/coin-context.mjs';
 import http from 'node:http';
+import tls from 'node:tls';
 import {collect,readSnapshot,RETENTION_MS} from './worker/coin-collector.mjs';
+// Windows installations may trust a network certificate through the OS store
+// while Node's bundled CA list does not. Keep normal TLS verification enabled.
+if(process.platform==='win32'&&tls.setDefaultCACertificates&&tls.getCACertificates){
+ tls.setDefaultCACertificates([...tls.getCACertificates('default'),...tls.getCACertificates('system')]);
+}
 const historyFile=path.resolve('.data/coins.json');
 let collecting=false;
 async function tick(){if(collecting)return;collecting=true;try{await collect(historyFile)}catch(error){console.error('Coin collector:',error.message)}finally{collecting=false}}

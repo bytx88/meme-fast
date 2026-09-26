@@ -71,7 +71,7 @@ export function radarReading(coin,mode='scalp',now=Date.now()){
  const raw=coverage?available.reduce((sum,part)=>sum+part.value*part.weight,0)/coverage:null;
  const horizonReady=mode==='scalp'||mode==='swing'&&parts[2].value!==null&&parts[3].value!==null||mode==='research'&&parts[1].value!==null&&parts[2].value!==null;
  const score=coverage>=50&&horizonReady?Math.round(raw*100):null;
- return {coin,mode,parts,score,coverage,rankScore:score===null?null:score*coverage/100,stale,updatedAt:latest,
+ return {coin,mode,parts,score,coverage,rankScore:raw===null?null:raw*coverage,stale,updatedAt:latest,
   poolAgeHours:poolAge===null?null:Math.max(0,(now-poolAge)/3600000),
   context,historySamples:mode==='research'?lastDay.length:oneHour.length};
 }

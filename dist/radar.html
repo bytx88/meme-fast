@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Radar · Meme Fast</title>
   <meta name="description" content="Rank observed tokens for scalp, swing, and longer-term research using explainable market signals.">
-  <link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./radar.css">
-  <script type="module" src="./radar.js"></script>
+  <link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./radar.css"><link rel="stylesheet" href="./radar-inspect.css?v=radar-images-actions-v1">
+  <script type="module" src="./radar.js?v=radar-images-actions-v1"></script>
 </head>
 <body><main class="radar-page">
   <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Tweet</a><a href="./">Coin</a><a href="./radar.html" aria-current="page">Radar</a><a href="./order-flow.html">Order Flow</a><a href="./watchlist.html">Watchlist</a><a href="./sources.html">Sources</a></nav></header>
@@ -16,4 +16,4 @@
   <section id="radar-results" class="radar-results" aria-live="polite"></section>
   <details class="method radar-method"><summary>How Radar ranks coins and what it cannot assess</summary><p>Radar combines Coin's retained fresh pools with Solana and Base trending pools returned by GeckoTerminal. It keeps up to 200 recently observed contracts. This is a selected market sample, not a whole-market scan. Coin keeps its separate new-pool criteria.</p><p>Scalp uses current five-minute turnover, transaction count, buy share, liquidity, and comparison with an earlier five-minute sample. Swing uses current 24-hour turnover, liquidity, sampled one-hour activity and buy share, and available context. Longer-term uses current liquidity and turnover, sampled daily persistence, observed history, and context. These are separate heuristic rankings, not comparable return forecasts.</p><p>Samples are taken when the market provider refreshes a coin. They are not a continuous trade tape. Each card shows input coverage; unavailable inputs remain unknown. Market data over 15 minutes old is marked stale. Holder concentration, developer holdings, contract safety, and execution risk are not assessed here. Use Order Flow and external sources before any decision.</p></details>
   <footer><span>MEME FAST <span class="footer-divider">/</span> Attention before inspection.</span><span>Observed signals · not trade recommendations</span></footer>
-</main></body></html>
+</main><dialog id="radar-inspector" class="radar-inspector" aria-label="Inspect Radar candidate"><div id="radar-inspector-content"></div></dialog></body></html>

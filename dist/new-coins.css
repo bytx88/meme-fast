@@ -130,6 +130,7 @@
 .discovery-board .scan-card .new-metrics dt{font-size:9px}
 .discovery-board .scan-card .new-metrics dd{font-size:12px}
 .discovery-board .scan-card .card-actions a,.discovery-board .scan-card .card-actions button{padding:3px 6px;font-size:10px}
+.scan-card .card-actions .ca-compact{min-width:26px;margin-left:0;padding:3px 4px;font-weight:700;letter-spacing:.02em}
 .lane-empty{margin:0;padding:18px 10px;color:var(--muted);font-size:12px;line-height:1.5;text-align:center}
 .stage-tabs{display:none}
 .tiles-only .coin-scanner.discover-mode{margin:0;border:0;background:transparent}
