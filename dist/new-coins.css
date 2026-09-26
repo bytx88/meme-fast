@@ -110,6 +110,11 @@
 .discovery-lane-head h2{display:flex;align-items:center;gap:7px;margin:0;font-size:16px}
 .discovery-lane-head p{margin:3px 0 0;color:var(--muted);font-size:11px}
 .discovery-lane-list{display:flex;flex-direction:column;gap:8px;min-height:0;padding:8px;overflow-y:auto;scrollbar-color:#475468 transparent}
+.lane-subheading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:3px 8px;padding:6px 3px 4px;border-bottom:1px solid var(--line);color:#d9e5f3;font-size:11px}
+.lane-subheading strong{font-size:12px}
+.lane-subheading strong span{color:var(--accent)}
+.lane-subheading small{color:var(--muted);font-size:10px}
+.lane-empty.compact{padding:6px 3px 10px;text-align:left}
 .discovery-board .scan-card{flex:none;gap:0;padding:10px 11px;border-radius:7px}
 .discovery-board .scan-card .card-read{order:2;min-height:0;margin-top:8px}
 .discovery-board .scan-card .card-read p{font-size:12px;line-height:1.4}
