@@ -53,10 +53,12 @@ def collect_coins():
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
+    from fastapi.middleware.gzip import GZipMiddleware
     from fastapi.responses import FileResponse, Response
     import httpx
 
     web_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    web_app.add_middleware(GZipMiddleware, minimum_size=1000)
     import asyncio
     import json
     import time
@@ -64,7 +66,7 @@ def web():
     history_lock = asyncio.Lock()
 
     @web_app.get("/api/new-coins")
-    async def new_coins():
+    async def new_coins(request: Request):
         async with history_lock:
             await history_volume.reload.aio()
             try:
@@ -73,7 +75,14 @@ def web():
                 snapshot = {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
             cutoff = time.time() * 1000 - 5 * 86400000
             snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
-            snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
+            if request.query_params.get("view") == "coin":
+                snapshot["coins"] = [
+                    {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly")}
+                    for coin in snapshot["coins"]
+                ]
+                snapshot.pop("radarCoins", None)
+            else:
+                snapshot["radarCoins"] = [c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff]
         return JSONResponse(snapshot, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)
     allowed_types = {

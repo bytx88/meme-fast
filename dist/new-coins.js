@@ -119,7 +119,7 @@ function applySnapshot(snapshot){
  render();
 }
 async function getSnapshot(){
- const response=await fetch('/api/new-coins',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+ const response=await fetch('/api/new-coins?view=coin',{cache:'no-store',signal:AbortSignal.timeout(60000)});
  if(!response.ok)throw new Error('History unavailable');
  const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid history');return snapshot;
 }
