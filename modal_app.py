@@ -84,8 +84,21 @@ def web():
             except FileNotFoundError:
                 snapshot = {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
             cutoff = time.time() * 1000 - 5 * 86400000
-            snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
             view = request.query_params.get("view")
+            if view == "watchlist":
+                ids = request.query_params.getlist("id")
+                if not 1 <= len(ids) <= 30 or any(len(item) > 160 or ":" not in item for item in ids):
+                    raise HTTPException(status_code=400, detail="Request 1 to 30 saved token IDs")
+                def key(value):
+                    return value if value.startswith("solana:") else value.lower()
+                available = {key(c["id"]): c for c in snapshot.get("radarCoins", []) if c.get("lastSeenRadarAt", 0) > cutoff}
+                for coin in snapshot.get("coins", []):
+                    if coin.get("firstSeen", 0) > cutoff:
+                        available.setdefault(key(coin["id"]), coin)
+                fields = ("id", "name", "symbol", "network", "chain", "contract_address", "image_url", "priceUsd", "priceChange", "mc", "fdv", "liquidity", "volume", "volume5m", "buys5m", "sells5m", "recentVolume1h", "poolCreated", "marketUpdatedAt", "priceUpdatedAt")
+                selected = [{field: available[key(item)].get(field) for field in fields} for item in ids if key(item) in available]
+                return JSONResponse({"version": 1, "lastRun": snapshot.get("lastRun"), "coins": selected}, headers={"cache-control": "no-store"})
+            snapshot["coins"] = [c for c in snapshot["coins"] if c["firstSeen"] > cutoff]
             if view == "coin":
                 snapshot["coins"] = [
                     {key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")}
