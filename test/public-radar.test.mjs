@@ -42,7 +42,7 @@ test('Robinhood pools carry exact contract and short-window market data into Rad
  assert.equal(coin.volume5m,2270);
  assert.equal(coin.buys5m,8);
  assert.equal(fomoLink(coin),'https://fomo.family/tokens/robinhood/'+contract);
- assert.equal(axiomLink(coin),null);
+ assert.equal(axiomLink(coin),'https://axiom.trade/t/'+contract+'?chain=robinhood');
 });
 test('Fomo URLs open the verified token on the correct chain',()=>{
  const sol={chain:'Solana',contract_address:ca,contract_verified:true};
