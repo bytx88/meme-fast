@@ -16,8 +16,10 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.match(nodes.items.innerHTML,/class="saved-item-icon"/);
  assert.match(nodes.items.innerHTML,/src="https:\/\/cdn\.example\/cashed\.png"/);
  assert.match(nodes.items.innerHTML,/\$CASHED/);
- assert.match(nodes.items.innerHTML,/24h volume/);
+ assert.match(nodes.items.innerHTML,/Vol 24h/);
  assert.match(nodes.items.innerHTML,/\$1M/);
+ assert.equal((nodes.items.innerHTML.match(/class="watch-metric"/g)||[]).length,7);
+ assert.doesNotMatch(nodes.items.innerHTML,/watch-token-head|watch-data-note/);
  assert.doesNotMatch(nodes.items.innerHTML,/Open ↗/);
  assert.equal(requests.length,1);
  assert.match(requests[0],/view=watchlist/);

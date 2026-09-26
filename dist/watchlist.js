@@ -4,7 +4,7 @@ const items=document.getElementById('items');
 const count=document.getElementById('count');
 const refresh=document.getElementById('refresh-stats');
 const market=new Map();
-let lastRun=null,loading=false,loadError=false;
+let loading=false,loadError=false;
 
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
 const number=value=>value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);
@@ -27,14 +27,19 @@ function stats(coin){
  if(!coin)return `<p class="watch-no-data">${loading?'Loading the latest collected snapshot…':loadError?'Market snapshot unavailable right now.':'No current market snapshot for this saved token.'}</p>`;
  const cap=number(coin.mc)>0?['Market cap',coin.mc]:number(coin.fdv)>0?['FDV',coin.fdv]:['Market cap',null];
  const buys=number(coin.buys5m),sells=number(coin.sells5m),trades=buys===null||sells===null?'—':`${buys.toLocaleString()} / ${sells.toLocaleString()}`;
- const daily=number(coin.priceChange),updated=number(coin.marketUpdatedAt)??number(coin.priceUpdatedAt);
- const stale=updated===null||Date.now()-updated>15*60000;
- return `<div class="watch-stats">${metric('Price',price(coin.priceUsd))}${metric('24h change',change(daily),daily===null?'':daily>=0?'watch-up':'watch-down')}${metric(cap[0],money(cap[1]))}${metric('Liquidity',money(coin.liquidity))}${metric('24h volume',money(coin.volume))}${metric('5m volume',money(coin.volume5m))}${metric('5m buys / sells',trades)}${metric('Pool age',age(coin.poolCreated))}</div><p class="watch-data-note ${stale?'watch-stale':''}">${stale?'Market data stale':'Market updated '+age(updated)+' ago'}${lastRun?' · Snapshot collected '+age(lastRun)+' ago':''}</p>`;
+ const daily=number(coin.priceChange);
+ return `<div class="watch-stats">${metric('Price',price(coin.priceUsd))}${metric('24h',change(daily),daily===null?'':daily>=0?'watch-up':'watch-down')}${metric(cap[0],money(cap[1]))}${metric('Liquidity',money(coin.liquidity))}${metric('Vol 24h',money(coin.volume))}${metric('Vol 5m',money(coin.volume5m))}${metric('5m B / S',trades)}</div>`;
 }
 
 function tokenCard(item){
  const coin=market.get(key(item.id));
- return `<article class="saved-item watch-token"><div class="watch-token-head"><div class="saved-item-main">${tokenIcon(item,coin)}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(item.subtitle||'Saved token')} · saved ${esc(ago(item.savedAt))}</p></div></div><div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></div>${stats(coin)}</article>`;
+ const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
+ const short=contract.length>14?`${contract.slice(0,6)}…${contract.slice(-4)}`:contract;
+ const [chain,horizon]=String(item.subtitle||'').split(' · ');
+ const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
+ const stale=updated===null||Date.now()-updated>15*60000;
+ const detail=[chain||coin?.chain||'Token',horizon,short,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${tokenIcon(item,coin)}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
@@ -65,7 +70,6 @@ async function loadStats(){
   }));
   market.clear();
   for(const result of results){
-   lastRun=result.lastRun??lastRun;
    for(const coin of result.coins||[])market.set(key(coin.id),coin);
   }
   let changed=false;
