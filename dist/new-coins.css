@@ -135,8 +135,8 @@
 @media(max-width:800px){.new-coins .workspace-head{padding:8px 0}.new-coins .workspace-actions{width:100%}}
 
 /* Discover is a three-lane narrative feed; Research keeps the comparison table. */
-.view-switch{display:inline-flex;gap:3px;padding:3px;border:1px solid #354253;border-radius:7px;background:#111821}
-.view-switch .view-toggle{min-width:0;padding:5px 9px;border:0;background:transparent;color:#aebbd0;font-size:12px;white-space:nowrap}
+.view-switch{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid #354253;border-radius:7px;background:#111821}
+.view-switch .view-toggle{box-sizing:border-box;min-width:0;min-height:26px;height:26px;padding:4px 8px;border:0;background:transparent;color:#aebbd0;font-size:11px;line-height:16px;white-space:nowrap}
 .view-switch .view-toggle[aria-pressed=true]{background:#29351f;color:var(--accent)}
 .coin-scanner.discover-mode{border:0;background:transparent;overflow:visible}
 .coin-scanner.discover-mode .scanner-head,.coin-scanner.discover-mode .scanner-columns{display:none}
