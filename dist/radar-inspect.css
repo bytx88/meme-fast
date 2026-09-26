@@ -100,9 +100,10 @@
 .radar-heading{align-items:center;gap:12px;padding:10px 0 8px}
 .radar-heading .radar-kicker{margin-bottom:0;font-size:9px}
 .radar-heading h1{font-size:27px}
-.radar-heading .radar-modes{margin-left:auto;padding:0;border:0}
-.radar-heading .radar-modes button{min-height:30px;padding:5px 10px;font-size:12px}
-.radar-heading #refresh{min-height:30px;padding:5px 9px;font-size:11px}
+.radar-view-controls{display:flex;align-items:center;gap:8px}
+.radar-view-controls .radar-modes{padding:0;border:0}
+.radar-view-controls .radar-modes button{min-height:30px;padding:5px 10px;font-size:12px}
+.radar-view-controls #refresh{min-height:30px;padding:5px 9px;font-size:11px}
 .radar-controls{gap:8px;padding:7px 0}
 .radar-controls p{min-width:0;overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 .radar-controls>div{flex:none;gap:7px}
@@ -125,4 +126,4 @@
 .radar-more-reasons{min-height:0;border:1px solid #435269;border-radius:4px;background:#1c2735;color:#b9cbe0;cursor:pointer}
 @media(min-width:800px){.radar-card{grid-template-columns:26px minmax(180px,1.15fr) 120px minmax(150px,1fr) 194px;gap:8px}.radar-card .radar-actions{grid-column:auto;grid-row:auto}}
 @media(max-width:799px){.radar-card .radar-actions{width:min(100%,194px)}}
-@media(max-width:700px){.radar-heading{flex-wrap:wrap}.radar-heading .radar-modes{order:3;width:100%;margin-left:0}.radar-controls p{white-space:normal}.radar-controls>div{width:100%}}
+@media(max-width:700px){.radar-controls>div{width:100%}}
