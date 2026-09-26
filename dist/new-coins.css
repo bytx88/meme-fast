@@ -119,6 +119,11 @@
 .discovery-board .scan-card .card-read{order:2;min-height:0;margin-top:8px}
 .discovery-board .scan-card .card-read p{font-size:12px;line-height:1.4}
 .discovery-board .scan-card .card-stage-fact{order:3;margin-top:7px;color:#aebbd0;font-size:10px}
+.discovery-board .scan-card .card-stage-fact.rugged,.explore-grid .scan-card .card-stage-fact.rugged{color:#ff8585;font-weight:700}
+.discovery-board .scan-card .card-stage-fact.sustained,.explore-grid .scan-card .card-stage-fact.sustained{color:var(--accent);font-weight:700}
+.lifecycle-tag{display:inline-block;margin-left:5px;padding:2px 5px;border-radius:4px;font:700 10px 'Space Grotesk',sans-serif;vertical-align:middle}
+.lifecycle-tag.rugged{background:#442227;color:#ff9a9a}
+.lifecycle-tag.sustained{background:#293a22;color:var(--accent)}
 .discovery-board .scan-card .new-metrics{order:4;margin:7px 0;padding:6px 0}
 .discovery-board .scan-card .card-actions{order:5;margin-top:2px}
 .discovery-board .scan-card .new-metrics dt{font-size:9px}

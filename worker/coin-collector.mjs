@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
+import {evaluatePostMigration,POST_MIGRATION_WINDOW_MS} from '../dist/post-migration.mjs';
 
 export const RETENTION_MS=5*86400000;
 export const RECENT_MARKET_MS=4*3600000;
@@ -19,13 +20,13 @@ export function refreshMarket(coins,pairs,now=Date.now()){
  return coins.map(coin=>{
   const pair=byAddress.get(`${coin.network}:${String(coin.contract_address).toLowerCase()}`);
   if(!pair)return coin;
-  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
+  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
  return coins.map(coin=>{
   if(coin.marketUpdatedAt!==now)return coin;
-  const sample={at:now,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
+  const sample={at:now,priceUsd:coin.priceUpdatedAt===now?amount(coin.priceUsd):null,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
   const recent=(coin.marketHistory||[]).filter(row=>row.at>now-RECENT_MARKET_MS&&row.at<now);
   recent.push(sample);
   const hourly=(coin.marketHistoryHourly||[]).filter(row=>row.at>now-RETENTION_MS&&row.at<now);
@@ -42,7 +43,20 @@ export function refreshLaunchpad(coins,tokens,now=Date.now()){
  return coins.map(coin=>{
   const id=key(coin.network,coin.contract_address);
   if(!byId.has(id))return coin;
-  return {...coin,launchpad:byId.get(id),launchpadUpdatedAt:now};
+  const launchpad=byId.get(id);
+  if(!launchpad)return {...coin,launchpad:coin.launchpad??null,launchpadUpdatedAt:now};
+  return {...coin,launchpad,launchpadUpdatedAt:now,graduationObservedAt:launchpad.completed?launchpad.completedAt??coin.graduationObservedAt??now:coin.graduationObservedAt};
+ });
+}
+export function updateMigrationStates(coins,now=Date.now()){
+ return coins.map(coin=>{
+  if(coin.ruggedAt)return coin;
+  if(coin.graduationObservedAt&&now-coin.graduationObservedAt>POST_MIGRATION_WINDOW_MS+10*60000)return coin;
+  const result=evaluatePostMigration(coin,now);
+  if(result?.state==='rugged')return {...coin,ruggedAt:result.at,rugDrawdownPercent:Math.round(result.drawdown*100)};
+  if(result?.state==='sustained')return {...coin,sustainedAt:result.at,washDrawdownPercent:Math.round(result.drawdown*100),recoveryPercent:Math.round(result.recovery*100)};
+  if(coin.sustainedAt&&(coin.priceUpdatedAt===now||now-coin.graduationObservedAt>=POST_MIGRATION_WINDOW_MS))return {...coin,sustainedAt:null,recoveryPercent:null};
+  return coin;
  });
 }
 export function selectLaunchCandidates(coins,limit=120){
@@ -153,6 +167,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  coins=refreshLaunchpad(coins,launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]),now);
  const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
  coins=coins.map(coin=>checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
+ coins=updateMigrationStates(coins,now);
  const snapshot={version:2,coins,radarCoins,lastRun:now,feeds};
  // Commit discovery first so slow or failed story lookups cannot lose coins.
  await save(filename,snapshot);

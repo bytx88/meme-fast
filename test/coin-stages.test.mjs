@@ -11,6 +11,8 @@ test('discover stages require measured volume or launch progress',()=>{
  assert.equal(stageFor({volume:1000000,launchpad:{graduationPercentage:40,completed:false}}),'new');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:79.99,completed:false}}),'new');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true}}),'migrated');
+ assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234}),'sustained');
+ assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234,ruggedAt:1500}),'migrated');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:95}}),'new');
 });
 
@@ -24,8 +26,13 @@ test('collector attaches launch progress to the exact token and retains prior da
  const coins=[{id:'solana:AbC',network:'solana',contract_address:'AbC'},{id:'base:0xABC',network:'base',contract_address:'0xABC',launchpad:{graduationPercentage:85,completed:false}}];
  const tokens=[{id:'solana_AbC',attributes:{address:'AbC',launchpad_details:{graduation_percentage:91.4,completed:false}}}];
  const updated=refreshLaunchpad(coins,tokens,1234);
- assert.deepEqual(updated[0].launchpad,{graduationPercentage:91.4,completed:false});
+ assert.deepEqual(updated[0].launchpad,{graduationPercentage:91.4,completed:false,completedAt:null});
  assert.equal(updated[0].launchpadUpdatedAt,1234);
  assert.deepEqual(updated[1],coins[1]);
  assert.equal(normalizeLaunchpad({graduation_percentage:null,completed:false}),null);
+ assert.equal(normalizeLaunchpad({graduation_percentage:100,completed:true,completed_at:'2026-09-26T00:00:00Z'}).completedAt,Date.parse('2026-09-26T00:00:00Z'));
+ const [graduated]=refreshLaunchpad([{id:'solana:XYZ',network:'solana',contract_address:'XYZ'}],[{id:'solana_XYZ',attributes:{address:'XYZ',launchpad_details:{graduation_percentage:100,completed:true,completed_at:'2026-09-26T00:00:00Z'}}}],Date.parse('2026-09-26T00:05:00Z'));
+ assert.equal(graduated.graduationObservedAt,Date.parse('2026-09-26T00:00:00Z'));
+ const [retained]=refreshLaunchpad([graduated],[{id:'solana_XYZ',attributes:{address:'XYZ'}}],Date.parse('2026-09-26T00:10:00Z'));
+ assert.deepEqual(retained.launchpad,graduated.launchpad);
 });
