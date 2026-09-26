@@ -139,14 +139,18 @@ def web():
         ".mjs": "text/javascript; charset=utf-8",
     }
 
+    holder_info_cache = {}
+
     @web_app.get("/api/market/{market_path:path}")
     async def market_proxy(market_path: str, request: Request):
+        import time
         path = "/" + market_path
         is_search = path == "/search/pools"
         is_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/tokens/[a-zA-Z0-9]{1,100}/pools", path))
+        is_info = bool(re.fullmatch(r"/networks/(solana|base|robinhood)/tokens/[a-zA-Z0-9]{1,100}/info", path))
         is_new_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/new_pools", path))
         is_trades = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/trades", path))
-        if not (is_search or is_pools or is_new_pools or is_trades):
+        if not (is_search or is_pools or is_info or is_new_pools or is_trades):
             raise HTTPException(status_code=404, detail="Unknown market endpoint")
 
         supplied = set(request.query_params.keys())
@@ -161,6 +165,11 @@ def web():
         if is_search or is_pools or is_new_pools:
             params["include"] = "base_token,quote_token"
 
+        if is_info:
+            cached = holder_info_cache.get(path)
+            if cached and cached[0] > time.monotonic():
+                return Response(cached[1], media_type="application/json", headers={"cache-control": "public, max-age=300", "x-content-type-options": "nosniff"})
+
         target = "https://api.geckoterminal.com/api/v2" + path
         if params:
             target += "?" + urlencode(params)
@@ -169,7 +178,11 @@ def web():
                 upstream = await client.get(target, headers={"accept": "application/json"})
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail="Market provider unavailable") from exc
-        headers = {"cache-control": "no-store", "x-content-type-options": "nosniff"}
+        if is_info and upstream.status_code == 200:
+            if len(holder_info_cache) >= 256:
+                holder_info_cache.clear()
+            holder_info_cache[path] = (time.monotonic() + 900, upstream.content)
+        headers = {"cache-control": "public, max-age=300" if is_info and upstream.status_code == 200 else "no-store", "x-content-type-options": "nosniff"}
         if retry_after := upstream.headers.get("retry-after"):
             headers["retry-after"] = retry_after
         return Response(upstream.content, status_code=upstream.status_code, media_type="application/json", headers=headers)

@@ -6,6 +6,16 @@ test('Market route rejects arbitrary destinations and unsupported endpoints',()=
   for(const path of ['/api/market/https://attacker.test','/api/market/networks/solana/pools/a/trades?url=https://attacker.test','/api/market/networks/solana/pools/a%2Fb/trades','/api/market/admin'])assert.equal(marketPath(new URL('https://site.test'+path)),null);
   assert.equal(marketPath(new URL(url)),'/networks/solana/pools/abc/trades');
   assert.equal(marketPath(new URL('https://site.test/api/market/networks/solana/new_pools?include=base_token,quote_token')),'/networks/solana/new_pools?include=base_token%2Cquote_token');
+  assert.equal(marketPath(new URL('https://site.test/api/market/networks/robinhood/tokens/0x123/info')),'/networks/robinhood/tokens/0x123/info');
+  assert.equal(marketPath(new URL('https://site.test/api/market/networks/unknown/tokens/0x123/info')),null);
+});
+test('Token info accepts a single data object and caches the holder response',async()=>{
+  const infoUrl='https://site.test/api/market/networks/robinhood/tokens/0x123/info';
+  let calls=0;
+  const proxy=createMarketProxy({fetcher:async()=>{calls++;return Response.json({data:{id:'robinhood_0x123',attributes:{holders:{count:12}}}})}});
+  assert.equal((await proxy(new Request(infoUrl))).status,200);
+  assert.equal((await proxy(new Request(infoUrl))).status,200);
+  assert.equal(calls,1);
 });
 test('Server fetches real provider JSON without forwarding cookies and shares concurrent work',async()=>{
   let calls=0,options;const proxy=createMarketProxy({fetcher:async(destination,opts)=>{calls++;options=opts;assert.equal(destination,'https://api.geckoterminal.com/api/v2/networks/solana/pools/abc/trades');return Response.json({data:[{id:'actual'}]})}});

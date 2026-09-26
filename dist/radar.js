@@ -1,6 +1,7 @@
 import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-v1';
 import {isSaved,toggleSaved} from './research-store.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
+import {parseHolderInfo} from './holder-info.mjs';
 
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -8,12 +9,54 @@ const money=value=>value===null||value===undefined?'—':new Intl.NumberFormat('
 const count=value=>value===null||value===undefined?'—':Number(value).toLocaleString('en-US');
 const percent=value=>value===null||value===undefined||!Number.isFinite(Number(value))?'—':`${Number(value).toFixed(1)}%`;
 const age=timestamp=>{if(!Number.isFinite(timestamp))return 'unknown';const minutes=Math.max(0,Math.floor((Date.now()-timestamp)/60000));return minutes<60?`${minutes}m`:minutes<1440?`${Math.floor(minutes/60)}h`:`${Math.floor(minutes/1440)}d`};
+const holderCacheKey='meme-fast-radar-holders-v1',holderCacheMs=30*60000;
+const holderInfo=new Map(),holderQueue=[],queuedHolders=new Set();
+let holderRunning=false,lastHolderRequest=0;
+try{
+ const cached=JSON.parse(localStorage.getItem(holderCacheKey)||'{}');
+ for(const [id,value] of Object.entries(cached))if(value&&Date.now()-value.fetchedAt<holderCacheMs&&Number.isSafeInteger(value.count)&&value.count>=0)holderInfo.set(id,value);
+}catch{}
+function saveHolderCache(){
+ try{localStorage.setItem(holderCacheKey,JSON.stringify(Object.fromEntries([...holderInfo].slice(-150))))}catch{}
+}
+function holderLabel(id){const info=holderInfo.get(id);return `Holders ${count(info?.count)}`}
+function holderTitle(id){const info=holderInfo.get(id);return info?.updatedAt?`GeckoTerminal holder snapshot updated ${age(info.updatedAt)} ago`:info?'GeckoTerminal holder snapshot; update time unavailable':'GeckoTerminal holder count pending or unavailable'}
+function updateHolderDom(id){
+ document.querySelectorAll('[data-holder-id]').forEach(node=>{if(node.dataset.holderId===id){node.textContent=holderLabel(id);node.title=holderTitle(id)}});
+ if(state.selectedId!==id||!dialog.open)return;
+ const info=holderInfo.get(id),holders=$('[data-holder-fact="count"]'),top10=$('[data-holder-fact="top10"]'),source=$('[data-holder-source]');
+ if(holders)holders.textContent=count(info?.count);
+ if(top10)top10.textContent=percent(info?.top10);
+ if(source)source.textContent=info?.updatedAt?`GeckoTerminal holder snapshot updated ${age(info.updatedAt)} ago.`:'GeckoTerminal holder data pending or unavailable.';
+}
+async function pumpHolderQueue(){
+ if(holderRunning)return;
+ holderRunning=true;
+ try{while(holderQueue.length){
+  const id=holderQueue.shift();queuedHolders.delete(id);
+  if(holderInfo.has(id))continue;
+  const coin=universe().find(item=>coinId(item)===id),address=contractForCopy(coin);
+  if(!address||!['solana','base','robinhood'].includes(coin.network))continue;
+  const wait=Math.max(0,2200-(Date.now()-lastHolderRequest));
+  if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
+  lastHolderRequest=Date.now();
+  try{
+   const response=await fetch(`/api/market/networks/${coin.network}/tokens/${encodeURIComponent(address)}/info`,{signal:AbortSignal.timeout(12000)});
+   if(response.status===429){await new Promise(resolve=>setTimeout(resolve,60000));continue}
+   if(!response.ok)continue;
+   const info=parseHolderInfo(await response.json(),coin.network,address);
+   if(info){holderInfo.set(id,{...info,fetchedAt:Date.now()});saveHolderCache();updateHolderDom(id)}
+  }catch{}
+ }}finally{holderRunning=false}
+}
+function queueHolder(id){if(holderInfo.has(id)||queuedHolders.has(id))return;queuedHolders.add(id);holderQueue.push(id);void pumpHolderQueue()}
 const initial=new URLSearchParams(location.search);
 const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
 const state={mode:initialMode==='swing'?'swing':'research',chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false};
 const dialog=$('#radar-inspector');
 const scrollArea=$('#radar-results'),scrollShell=$('#radar-results-shell'),scrollTrack=$('#radar-scroll-track'),scrollThumb=$('#radar-scroll-thumb');
+const holderObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){holderObserver.unobserve(entry.target);queueHolder(entry.target.dataset.holderId)}},{root:scrollArea,rootMargin:'120px'});
 function updateResultsScrollbar(){
  const trackHeight=scrollTrack.clientHeight,overflow=scrollArea.scrollHeight-scrollArea.clientHeight;
  const visible=matchMedia('(min-width:701px)').matches&&overflow>2;
@@ -79,7 +122,7 @@ function card(reading,index){
  const {coin,score,coverage,stale,parts}=reading,id=coinId(coin),chain=String(coin.network||'');
  const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs available</small>`:`${score}<small>Signal / 100 · ${coverage}% coverage</small>`;
  const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
- return `<article class="radar-card ${stale?'stale':''}"><span class="radar-rank">${String(index+1).padStart(2,'0')}</span><div class="radar-token">${thumbnail(coin)}<div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div><small>${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small></div><div class="radar-signal"><strong>${signal}</strong><small class="${stale?'stale-note':''}">${stale?'Market data stale':`Updated ${age(reading.updatedAt)} ago`}</small><small>Liquidity ${money(coin.liquidity)} · 5m ${money(coin.volume5m)}</small></div><div class="radar-reasons">${parts.map(reason).join('')}</div><div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a href="${esc(flowLink(coin))}">Order Flow ↗</a><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button></div>${narrativeMarkup(narrative,true)}</article>`;
+ return `<article class="radar-card ${stale?'stale':''}"><span class="radar-rank">${String(index+1).padStart(2,'0')}</span><div class="radar-token">${thumbnail(coin)}<div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div><small>${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small></div><div class="radar-signal"><strong>${signal}</strong><small class="${stale?'stale-note':''}">${stale?'Market data stale':`Updated ${age(reading.updatedAt)} ago`}</small><small>Liquidity ${money(coin.liquidity)} · 5m ${money(coin.volume5m)}</small><small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small></div><div class="radar-reasons">${parts.map(reason).join('')}</div><div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a href="${esc(flowLink(coin))}">Order Flow ↗</a><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button></div>${narrativeMarkup(narrative,true)}</article>`;
 }
 
 function historyRows(coin){
@@ -97,15 +140,16 @@ function inspector(reading){
  const exact=coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact;
  const context=exact?'Exact contract evidence':coin.savedContext?'Related context only':'Context pending';
  const unknown=parts.filter(part=>part.value===null).map(part=>part.label);
- return `<div class="inspect-head"><div class="inspect-identity">${thumbnail(coin)}<span class="radar-kicker">${esc(RADAR_MODES[state.mode].title.toUpperCase())} INSPECTION</span><h2>${esc(ticker(coin))}</h2><p>${esc(coin.name||'Unknown')} · ${esc(coin.chain||coin.network)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><div class="inspect-score"><strong>${score===null?'Collecting history':`${score} / 100`}</strong><span>${coverage}% inputs available · ${stale?'Market data stale':`Market updated ${age(updatedAt)} ago`}</span></div><div class="inspect-actions"><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved to Watchlist ✓':'Save to Watchlist'}</button><a href="${esc(flowLink(coin))}">Order Flow ↗</a>${marketLinks}</div>${narrativeFor(coin)?`<section class="inspect-section"><h3>Narrative context</h3>${narrativeMarkup(narrativeFor(coin))}</section>`:''}<section class="inspect-section"><h3>Market snapshot</h3><dl class="inspect-facts"><div><dt>Liquidity</dt><dd>${money(coin.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(coin.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${count(coin.buys5m)} / ${count(coin.sells5m)}</dd></div><div><dt>24h volume</dt><dd>${money(coin.volume)}</dd></div><div><dt>24h price change</dt><dd>${percent(coin.priceChange)}</dd></div><div><dt>Pool age</dt><dd>${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))}</dd></div></dl></section><section class="inspect-section"><h3>Why this signal</h3><p>Weighted inputs for the ${esc(RADAR_MODES[state.mode].title.toLowerCase())} horizon. The score is a research priority, not a return forecast.</p><div class="inspect-parts">${parts.map(part=>`<div><strong>${esc(part.label)}</strong><span class="${partClass(part)}">${part.value===null?'Unknown':`${Math.round(part.value*100)}%`}</span><small>${esc(part.detail)} · ${part.weight}% weight</small></div>`).join('')}</div></section>${inspectedHistory(coin)}<section class="inspect-section"><h3>Evidence & unknowns</h3><p><strong>${context}</strong>${context==='Context pending'?' · No contract-linked context is available yet.':context==='Related context only'?' · The available source does not identify this exact contract.':' · This is source identity evidence, not a safety check.'}</p><p>${unknown.length?`Missing inputs: ${esc(unknown.join(', '))}. `:''}Holder concentration, developer holdings, contract safety, and execution risk are not assessed.</p><p class="inspect-contract">Contract · <code>${esc(coin.contract_address||'Unknown')}</code></p></section>`;
+ return `<div class="inspect-head"><div class="inspect-identity">${thumbnail(coin)}<span class="radar-kicker">${esc(RADAR_MODES[state.mode].title.toUpperCase())} INSPECTION</span><h2>${esc(ticker(coin))}</h2><p>${esc(coin.name||'Unknown')} · ${esc(coin.chain||coin.network)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><div class="inspect-score"><strong>${score===null?'Collecting history':`${score} / 100`}</strong><span>${coverage}% inputs available · ${stale?'Market data stale':`Market updated ${age(updatedAt)} ago`}</span></div><div class="inspect-actions"><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved to Watchlist ✓':'Save to Watchlist'}</button><a href="${esc(flowLink(coin))}">Order Flow ↗</a>${marketLinks}</div>${narrativeFor(coin)?`<section class="inspect-section"><h3>Narrative context</h3>${narrativeMarkup(narrativeFor(coin))}</section>`:''}<section class="inspect-section"><h3>Market snapshot</h3><dl class="inspect-facts"><div><dt>Liquidity</dt><dd>${money(coin.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(coin.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${count(coin.buys5m)} / ${count(coin.sells5m)}</dd></div><div><dt>24h volume</dt><dd>${money(coin.volume)}</dd></div><div><dt>24h price change</dt><dd>${percent(coin.priceChange)}</dd></div><div><dt>Pool age</dt><dd>${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))}</dd></div><div><dt>Holders</dt><dd data-holder-fact="count">${count(holderInfo.get(id)?.count)}</dd></div><div><dt>Top 10 share</dt><dd data-holder-fact="top10">${percent(holderInfo.get(id)?.top10)}</dd></div></dl><p data-holder-source>${esc(holderTitle(id))}</p></section><section class="inspect-section"><h3>Why this signal</h3><p>Weighted inputs for the ${esc(RADAR_MODES[state.mode].title.toLowerCase())} horizon. The score is a research priority, not a return forecast.</p><div class="inspect-parts">${parts.map(part=>`<div><strong>${esc(part.label)}</strong><span class="${partClass(part)}">${part.value===null?'Unknown':`${Math.round(part.value*100)}%`}</span><small>${esc(part.detail)} · ${part.weight}% weight</small></div>`).join('')}</div></section>${inspectedHistory(coin)}<section class="inspect-section"><h3>Evidence & unknowns</h3><p><strong>${context}</strong>${context==='Context pending'?' · No contract-linked context is available yet.':context==='Related context only'?' · The available source does not identify this exact contract.':' · This is source identity evidence, not a safety check.'}</p><p>${unknown.length?`Missing inputs: ${esc(unknown.join(', '))}. `:''}Holder count and top-10 concentration are informational and do not affect this score. Developer holdings, contract safety, and execution risk are not assessed.</p><p class="inspect-contract">Contract · <code>${esc(coin.contract_address||'Unknown')}</code></p></section>`;
 }
 function renderInspector(){
  if(!dialog.open||!state.selectedId)return;
  const coin=universe().find(item=>coinId(item)===state.selectedId);
  $('#radar-inspector-content').innerHTML=coin?inspector(radarReading(coin,state.mode)):`<div class="inspect-head"><div><h2>Candidate no longer observed</h2><p>This contract has left Hodl's retained sample.</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><p class="inspect-contract">Contract · <code>${esc(state.selectedId.split(':').slice(1).join(':'))}</code></p><div class="inspect-actions"><a href="${esc(`./order-flow.html?${new URLSearchParams({query:state.selectedId.split(':').slice(1).join(':')})}`)}">Order Flow ↗</a></div>`;
 }
-function openInspector(id){state.selectedId=id;if(!dialog.open)dialog.showModal();renderInspector()}
+function openInspector(id){state.selectedId=id;if(!dialog.open)dialog.showModal();renderInspector();queueHolder(id)}
 function render(){
+ holderObserver.disconnect();
  $('#mode-description').textContent=RADAR_MODES[state.mode].description;
  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode)));
  const status=$('#status'),results=$('#radar-results');
@@ -119,6 +163,7 @@ function render(){
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
  status.textContent=`${ranked.length} observed coins · ${fresh} with recent market data · last collection ${snapshot.lastRun?age(Number(snapshot.lastRun))+' ago':'pending'}${degraded?' · some feeds unavailable':''}${robinhoodIncomplete?' · Robinhood pool backfill in progress':''}. ${historyNote}`;
  results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
+ results.querySelectorAll('[data-holder-id]').forEach(node=>{if(!holderInfo.has(node.dataset.holderId))holderObserver.observe(node)});
  renderInspector();
 }
 async function load(){
