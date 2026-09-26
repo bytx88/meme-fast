@@ -1,6 +1,6 @@
 import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-v1';
 import {isSaved,toggleSaved} from './research-store.mjs';
-import {axiomLink,fomoLink} from './contract-copy.mjs';
+import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -48,8 +48,8 @@ function narrativeMarkup(narrative,compact=false){
 function card(reading,index){
  const {coin,score,coverage,stale,parts}=reading,id=coinId(coin),chain=String(coin.network||'');
  const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs available</small>`:`${score}<small>Signal / 100 · ${coverage}% coverage</small>`;
- const fomo=fomoLink(coin),axiom=axiomLink(coin),narrative=narrativeFor(coin);
- return `<article class="radar-card ${stale?'stale':''}"><span class="radar-rank">${String(index+1).padStart(2,'0')}</span><div class="radar-token">${thumbnail(coin)}<strong>${esc(ticker(coin))}</strong><small>${esc(coin.name||'Unknown')} · ${esc(chain==='solana'?'Solana':chain==='base'?'Base':chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small></div><div class="radar-signal"><strong>${signal}</strong><small class="${stale?'stale-note':''}">${stale?'Market data stale':`Updated ${age(reading.updatedAt)} ago`}</small><small>Liquidity ${money(coin.liquidity)} · 5m ${money(coin.volume5m)}</small></div><div class="radar-reasons">${parts.map(reason).join('')}</div><div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a href="${esc(flowLink(coin))}">Order Flow ↗</a><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button></div>${narrativeMarkup(narrative,true)}</article>`;
+ const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
+ return `<article class="radar-card ${stale?'stale':''}"><span class="radar-rank">${String(index+1).padStart(2,'0')}</span><div class="radar-token">${thumbnail(coin)}<div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div><small>${esc(coin.name||'Unknown')} · ${esc(chain==='solana'?'Solana':chain==='base'?'Base':chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small></div><div class="radar-signal"><strong>${signal}</strong><small class="${stale?'stale-note':''}">${stale?'Market data stale':`Updated ${age(reading.updatedAt)} ago`}</small><small>Liquidity ${money(coin.liquidity)} · 5m ${money(coin.volume5m)}</small></div><div class="radar-reasons">${parts.map(reason).join('')}</div><div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a href="${esc(flowLink(coin))}">Order Flow ↗</a><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button></div>${narrativeMarkup(narrative,true)}</article>`;
 }
 
 function historyRows(coin){
@@ -100,8 +100,14 @@ document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener
 $('#chain').addEventListener('change',event=>{state.chain=event.target.value;render()});
 $('#query').addEventListener('input',event=>{state.query=event.target.value.trim();render()});
 $('#refresh').addEventListener('click',load);
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
  const close=event.target.closest('[data-close-inspect]');if(close){dialog.close();return}
+ const copy=event.target.closest('[data-copy-ca]');if(copy){
+  const coin=universe().find(item=>coinId(item)===copy.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
+  if(result.status==='copied'){copy.textContent='Copied ✓';$('#radar-copy-status').textContent=`${ticker(coin)} contract copied.`;setTimeout(()=>{if(copy.isConnected)copy.textContent='CA'},1800)}
+  else if(result.status==='manual'){const input=$('#radar-manual-ca');input.value=result.address;$('#radar-ca-dialog').showModal();input.focus();input.select()}
+  return;
+ }
  const inspect=event.target.closest('[data-inspect]');if(inspect){openInspector(inspect.dataset.inspect);return}
  const save=event.target.closest('[data-save]');if(!save)return;
  const coin=universe().find(item=>coinId(item)===save.dataset.save);if(!coin)return;
