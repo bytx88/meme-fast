@@ -1,6 +1,11 @@
 export const MIGRATED_VOLUME_24H=50000;
 export const FINAL_STRETCH_PERCENT=80;
 
+export function isUnderObservation(coin,now=Date.now()){
+ const start=Number(coin?.graduationObservedAt);
+ return coin?.launchpad?.completed===true&&!coin.ruggedAt&&!coin.sustainedAt&&Number.isFinite(start)&&start>0&&now>=start&&now-start<=45*60000;
+}
+
 export function stageFor(coin){
  const progress=Number(coin?.launchpad?.graduationPercentage);
  if(coin?.launchpad?.completed===true)return coin.ruggedAt?'migrated':coin.sustainedAt?'sustained':'migrated';

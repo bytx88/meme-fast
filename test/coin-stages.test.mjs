@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stageFor,normalizeLaunchpad} from '../dist/coin-stages.mjs';
+import {stageFor,isUnderObservation,normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {refreshLaunchpad,selectLaunchCandidates} from '../worker/coin-collector.mjs';
 
 test('discover stages require measured volume or launch progress',()=>{
@@ -14,6 +14,15 @@ test('discover stages require measured volume or launch progress',()=>{
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234}),'sustained');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234,ruggedAt:1500}),'migrated');
  assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:95}}),'new');
+});
+
+test('recent completed coins remain under observation without being called Sustained',()=>{
+ const now=1000000000,coin={launchpad:{completed:true},graduationObservedAt:now-20*60000};
+ assert.equal(stageFor(coin),'migrated');
+ assert.equal(isUnderObservation(coin,now),true);
+ assert.equal(isUnderObservation({...coin,graduationObservedAt:now-46*60000},now),false);
+ assert.equal(isUnderObservation({...coin,sustainedAt:now-1000},now),false);
+ assert.equal(isUnderObservation({...coin,ruggedAt:now-1000},now),false);
 });
 
 test('launchpad checks rotate older contracts while retaining new and near-graduation coins',()=>{

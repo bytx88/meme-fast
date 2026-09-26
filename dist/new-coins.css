@@ -121,6 +121,7 @@
 .discovery-board .scan-card .card-stage-fact{order:3;margin-top:7px;color:#aebbd0;font-size:10px}
 .discovery-board .scan-card .card-stage-fact.rugged,.explore-grid .scan-card .card-stage-fact.rugged{color:#ff8585;font-weight:700}
 .discovery-board .scan-card .card-stage-fact.sustained,.explore-grid .scan-card .card-stage-fact.sustained{color:var(--accent);font-weight:700}
+.discovery-board .scan-card .card-stage-fact.tracking{color:#8ac7ef;font-weight:700}
 .lifecycle-tag{display:inline-block;margin-left:5px;padding:2px 5px;border-radius:4px;font:700 10px 'Space Grotesk',sans-serif;vertical-align:middle}
 .lifecycle-tag.rugged{background:#442227;color:#ff9a9a}
 .lifecycle-tag.sustained{background:#293a22;color:var(--accent)}
