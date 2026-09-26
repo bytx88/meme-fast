@@ -1,6 +1,26 @@
 """Public projections of the collector snapshot."""
+import math
 
 RETENTION_MS = 5 * 86400000
+
+
+def _number(value):
+    if value is None or value == "":
+        return None
+    try:
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _compact_flow(history):
+    rows = [row for row in history if isinstance(row, dict) and (_number(row.get("at")) or 0) > 0]
+    rows.sort(key=lambda row: _number(row["at"]))
+    return [{key: _number(row.get(key)) for key in ("at", "volume5m", "buys5m", "sells5m", "liquidity")}
+            for row in rows[-2:]]
+
+
 WATCHLIST_FIELDS = (
     "id", "name", "symbol", "network", "chain", "contract_address", "image_url",
     "priceUsd", "priceChange", "mc", "fdv", "liquidity", "volume", "volume5m",
@@ -46,8 +66,9 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None):
     result["coins"] = [coin for coin in snapshot.get("coins", []) if coin.get("firstSeen", 0) > cutoff]
     if view == "coin":
         result["coins"] = [
-            {key: value for key, value in coin.items()
-             if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")}
+            {**{key: value for key, value in coin.items()
+                if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")},
+             "flowSamples": _compact_flow(coin.get("marketHistory") or [])}
             for coin in result["coins"]
         ]
         result.pop("radarCoins", None)

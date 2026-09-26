@@ -16,6 +16,7 @@ test('Snapshot views have bounded, matching shapes and expose a lightweight revi
  assert.deepEqual(snapshotVersion(snapshot),{revision:`${now}:2`,lastRun:now});
  const snipe=snapshotView(snapshot,'coin',[],now);
  assert.equal(snipe.coins.length,1);assert.equal('marketHistory' in snipe.coins[0],false);assert.equal('radarCoins' in snipe,false);
+ assert.deepEqual(snipe.coins[0].flowSamples,[{at:now,volume5m:null,buys5m:null,sells5m:null,liquidity:null}]);
  const hodl=snapshotView(snapshot,'radar',[],now);
  assert.equal(hodl.coins.length,0);assert.equal(hodl.radarCoins.length,1);
  assert.equal(snapshot.coins[0].marketHistory.length,1);

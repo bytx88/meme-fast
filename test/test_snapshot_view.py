@@ -27,6 +27,7 @@ class SnapshotViewTests(unittest.TestCase):
                     "coins": [coin], "radarCoins": [coin], "feeds": {}}
         self.assertEqual(snapshot_version(snapshot), {"revision": f"{now}:2", "lastRun": now})
         self.assertNotIn("marketHistory", snapshot_view(snapshot, "coin", now_ms=now)["coins"][0])
+        self.assertEqual(len(snapshot_view(snapshot, "coin", now_ms=now)["coins"][0]["flowSamples"]), 1)
         self.assertNotIn("radarCoins", snapshot_view(snapshot, "coin", now_ms=now))
         self.assertEqual(snapshot_view(snapshot, "radar", now_ms=now)["coins"], [])
         self.assertEqual(len(snapshot_view(snapshot, "radar", now_ms=now)["radarCoins"]), 1)

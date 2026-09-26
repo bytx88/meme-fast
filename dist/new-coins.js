@@ -7,21 +7,24 @@ import {stageFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
 import {researchSummary} from './research-summary.mjs?v=research-refine-v1';
 import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from './coin-screener.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
+import {DEFAULT_ENTRY,normalizeEntry,assessEntry} from './snipe-decision.mjs';
 
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(v);
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
-const viewPreferenceKey='meme-fast.coin-view-v2';
+const viewPreferenceKey='meme-fast.coin-view-v3';
 const screenerPreferenceKey='meme-fast.coin-screener-v1';
 const skipRugPreferenceKey='meme-fast.skip-rug-v1';
+const entryPreferenceKey='meme-fast.entry-v1';
 const AUTO_UPDATE_MS=20000;
-function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['discover','explore','research'].includes(view)?view:'discover'}catch{return 'discover'}}
+function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['entry','discover','explore','research'].includes(view)?view:'entry'}catch{return 'entry'}}
 function savedScreener(){try{return normalizeScreener(JSON.parse(localStorage.getItem(screenerPreferenceKey)||'{}'))}catch{return {...DEFAULT_SCREENER}}}
 function savedSkipRug(){try{return localStorage.getItem(skipRugPreferenceKey)!=='false'}catch{return true}}
+function savedEntry(){try{return normalizeEntry(JSON.parse(localStorage.getItem(entryPreferenceKey)||'{}'))}catch{return {...DEFAULT_ENTRY}}}
 const contractQuery=new URLSearchParams(location.search).get('contract')?.trim()||'';
-const state={historyLoaded:false,historyError:false,hours:contractQuery?120:1,sort:'newest',sortDirection:'desc',screener:savedScreener(),skipRug:savedSkipRug(),researchFilters:{stage:'all',chain:'all',context:'all'},query:contractQuery,freshEnabled:false,checkError:false,notice:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:contractQuery?'research':savedView(),activeStage:'new'};
+const state={historyLoaded:false,historyError:false,hours:contractQuery?120:1,sort:'newest',sortDirection:'desc',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),researchFilters:{stage:'all',chain:'all',context:'all'},query:contractQuery,freshEnabled:false,checkError:false,notice:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:contractQuery?'research':savedView(),activeStage:'new'};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[],freshTimer=null,pollInFlight=false,highlightIds=new Set(),highlightTimer=null;
 const isNewGroup=coin=>highlightIds.has(coin.id)||coin.variants?.some(variant=>highlightIds.has(variant.id));
 
@@ -56,13 +59,16 @@ function compareCoins(a,b){
 function candidates(){
  const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
  const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff),manual=data.manualCoins;
- return [...new Map([...manual,...regular].filter(c=>(!state.skipRug||!c.ruggedAt)&&passesScreener(c,state.screener)&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
+ return [...new Map([...manual,...regular].filter(c=>(!state.skipRug||!c.ruggedAt)&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
   .sort((a,b)=>Number(Boolean(b.manual))-Number(Boolean(a.manual))||compareCoins(a,b));
 }
 function marketState(c){
  const timestamp=c.marketUpdatedAt??c.fetchedAt,minutes=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/60000)):Infinity;
- return {timestamp,minutes,label:minutes===Infinity?'No market timestamp':minutes<1?'Live':minutes<10?`${minutes}m fresh`:`Stale ${minutes<60?minutes+'m':Math.floor(minutes/60)+'h'}`,className:minutes<10?'fresh':'stale'};
+ return {timestamp,minutes,label:minutes===Infinity?'No market timestamp':minutes<1?'<1m old':minutes<6?`${minutes}m old`:`Stale ${minutes<60?minutes+'m':Math.floor(minutes/60)+'h'}`,className:minutes<6?'fresh':'stale'};
 }
+function duration(minutes){return minutes==null?'—':minutes<1?`${Math.floor(minutes*60)}s`:minutes<60?`${Math.floor(minutes)}m`:`${Math.floor(minutes/60)}h`}
+function signedMoney(value){return value==null?'—':`${value>=0?'+':'−'}${money(Math.abs(value))}`}
+function signedNum(value){return value==null?'—':`${value>=0?'+':'−'}${num(Math.abs(value))}`}
 function profileLinks(profile){return (profile.links||[]).filter(l=>/^https:\/\//.test(l.url||'')).slice(0,1).map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.type==='twitter'?'X source':l.label||'Source')} ↗</a>`).join('')}
 function explanation(found,c){
  if(found?.articles){const exact=verified(found),article=found.articles[0];return `<div class="story-block ${exact?'verified':'unverified'}"><span class="evidence-state">${exact?'Exact contract evidence':'Unverified context'}</span><p>${exact?'Public coverage identifies this contract.':'Name or ticker overlap; the source is not proof that it describes this contract.'}</p><a href="${esc(article.url)}" target="_blank" rel="noopener noreferrer">${esc(article.publisher)} · ${esc(article.title)} ↗</a></div>`}
@@ -106,6 +112,15 @@ function scannerRow(c,index){
  const stageLabel=researchStage(c).label;
  return `<article class="scanner-row${isNewGroup(c)?' snapshot-new':''}"><span class="scanner-rank">${String(index+1).padStart(2,'0')}</span><div class="scanner-coin">${thumbnail(c)}<div><strong>$${esc(c.symbol)}</strong>${lifecycleTag(c)}<small title="${esc(c.name)}">${esc(c.name)} · ${esc(c.chain)}${c.manual?' · Manual':''}${c.variants?.length>1?` · ${c.variants.length} listings`:''} · <span class="freshness ${market.className}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></small></div></div><span class="scanner-quick ${badge}" title="${esc(read)}">${esc(read)}</span><span class="scanner-stage">${stageLabel}</span><span class="scanner-age" title="Pool created ${esc(new Date(c.poolCreated).toLocaleString())}">${esc(age(c.poolCreated))}</span><strong class="scanner-number">${money(c.liquidity)}</strong><strong class="scanner-number scanner-volume5m">${money(c.volume5m)}</strong><strong class="scanner-number scanner-volume24h">${money(c.volume)}</strong><span class="scanner-flow ${c.buys5m==null&&c.sells5m==null?'unavailable':''}" title="5m buy and sell transaction counts">${num(c.buys5m)} <i>/</i> ${num(c.sells5m)}</span><span class="scanner-context ${badge}">${label}</span>${fomo?`<a class="scanner-trade" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Fomo">Fomo ↗</a>`:'<span class="scanner-trade unavailable">—</span>'}${trade?`<a class="scanner-trade" href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:'<span class="scanner-trade unavailable">—</span>'}<button class="scanner-detail-button" type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></article>`;
 }
+function entryCard(c){
+ const check=assessEntry(c,state.entry),trade=axiomLink(c),fomo=fomoLink(c),flow=check.volumeChange;
+ return `<article class="entry-row ${check.passesScreen?'entry-pass':'entry-hold'}${isNewGroup(c)?' snapshot-new':''}"><div class="entry-identity">${thumbnail(c)}<div><strong>$${esc(c.symbol)}</strong><small>${esc(c.chain)} · ${esc(c.name)}</small><small title="${esc(c.contract_address)}">${esc(c.contract_address)}</small></div><span class="entry-status ${check.passesScreen?'pass':'hold'}">${check.passesScreen?'Screen pass':'Hold'}</span></div><div class="entry-stat"><span>Pool</span><strong title="Created ${c.poolCreated?esc(new Date(c.poolCreated).toLocaleString()):'Unknown'}">${duration(check.poolAgeMinutes)}</strong></div><div class="entry-stat"><span>Detected after</span><strong>${duration(check.detectionLagMinutes)}</strong></div><div class="entry-stat"><span>Market fetch</span><strong class="${check.marketAgeMinutes==null||check.marketAgeMinutes>state.entry.maxMarketAgeMinutes?'risk':''}" title="Updated ${c.marketUpdatedAt??c.fetchedAt?esc(new Date(c.marketUpdatedAt??c.fetchedAt).toLocaleString()):'Unknown'}">${duration(check.marketAgeMinutes)} ago</strong></div><div class="entry-stat"><span>5m buys / sells</span><strong>${num(c.buys5m)} / ${num(c.sells5m)}</strong><small title="Change in overlapping five minute windows">Δ ${signedNum(check.buysChange)} / ${signedNum(check.sellsChange)}</small></div><div class="entry-stat"><span>5m volume Δ</span><strong title="Change in overlapping five minute windows; not incremental volume">${signedMoney(flow)}</strong></div><div class="entry-stat"><span>Liquidity</span><strong>${money(c.liquidity)}</strong><small title="Change since the prior collector sample">Δ ${signedMoney(check.liquidityChange)}</small></div><div class="entry-stat"><span>Size / liq</span><strong>${check.sizeLiquidityPercent==null?'—':check.sizeLiquidityPercent.toFixed(1)+'%'}</strong></div><div class="entry-verification"><span>Quote / sell simulation / contract checks: unverified</span>${check.reasons.length?`<small>Screen flags: ${esc(check.reasons.join(', '))}</small>`:'<small>Thresholds met. Check live quote and sellability before entry.</small>'}</div><div class="entry-actions"><button type="button" data-copy-ca="${esc(c.id)}" aria-label="Copy ${esc(c.symbol)} contract address">CA ⧉</button>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer">Fomo ↗</a>`:''}${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer">Axiom ↗</a>`:''}<button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button></div></article>`;
+}
+function entryBoard(rows){
+ const ranked=rows.map(c=>({coin:c,check:assessEntry(c,state.entry)})).sort((a,b)=>(b.coin.firstSeen??0)-(a.coin.firstSeen??0));
+ const passing=ranked.filter(row=>row.check.passesScreen).length;
+ return `<div class="entry-board"><div class="entry-summary"><strong>${passing} screen pass · ${ranked.length-passing} hold</strong><span>Screen pass is not trade approval. Times show collector fetches, not exchange event time. Live quote, sell simulation, and contract checks are unverified.</span></div>${ranked.length?ranked.map(row=>entryCard(row.coin)).join(''):'<div class="new-empty">No pools match this window. Try a longer time window.</div>'}</div>`;
+}
 function researchPane(rows,offset){
  const end=offset+rows.length;
  return `<section class="research-pane" aria-label="Research coins ${offset+1} to ${end}"><div class="research-pane-header"><span>#</span><span>Coin · quick read</span><button class="scanner-sort" type="button" data-research-sort="stage" aria-pressed="false">Stage</button><button class="scanner-sort" type="button" data-research-sort="poolAge" aria-pressed="false">Age</button><button class="scanner-sort" type="button" data-research-sort="liquidity" aria-pressed="false">Liq</button><button class="scanner-sort" type="button" data-research-sort="volume5m" aria-pressed="false">5m vol</button><button class="scanner-sort" type="button" data-research-sort="volume24h" aria-pressed="false">24h vol</button><button class="scanner-sort" type="button" data-research-sort="activity" aria-pressed="false">B / S</button><button class="scanner-sort" type="button" data-research-sort="context" aria-pressed="false">Context</button><span></span><span></span><span></span></div>${rows.map((coin,index)=>scannerRow(coin,offset+index)).join('')}</section>`;
@@ -144,28 +159,31 @@ function updateAvailable(){
  buttons.forEach(b=>{b.hidden=false;b.textContent=added?`+${added} new`:'Update available'});
 }
 function render(){
+ document.body.classList.toggle('entry-view',state.view==='entry');
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
  $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} verified · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
  const all=candidates(),rows=groupCoins(all,context),researchRows=state.view==='research'?rows.filter(c=>(state.researchFilters.stage==='all'||researchStage(c).key===state.researchFilters.stage)&&(state.researchFilters.chain==='all'||String(c.chain).toLowerCase()===state.researchFilters.chain)&&(state.researchFilters.context==='all'||researchContext(c)===state.researchFilters.context)):rows,wideResearch=state.view==='research'&&document.body.classList.contains('tiles-only')&&matchMedia('(min-width:1600px)').matches,stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[]};
  for(const coin of all){const stage=stageFor(coin);stages[stage==='migrated'&&isUnderObservation(coin)?'tracking':stage].push(coin)}
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
- visibleRows=state.view==='discover'?[...stages.stretch,...stages.new,...stages.sustained,...stages.tracking,...stages.migrated]:researchRows;
- $('#coin-count').textContent=researchRows.length;
- $('#coin-list').className=`coin-list ${state.view==='discover'?'discover-mode':state.view==='explore'?'explore-mode':'grid-mode'}${wideResearch?' split-research':''}`;
+ visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.sustained,...stages.tracking,...stages.migrated]:researchRows;
+ $('#coin-count').textContent=state.view==='entry'?all.length:researchRows.length;
+ $('#coin-list').className=`coin-list ${state.view==='entry'?'entry-mode':state.view==='discover'?'discover-mode':state.view==='explore'?'explore-mode':'grid-mode'}${wideResearch?' split-research':''}`;
+ $('.coin-scanner').classList.toggle('entry-mode',state.view==='entry');
  $('.coin-scanner').classList.toggle('discover-mode',state.view==='discover');
  $('.coin-scanner').classList.toggle('explore-mode',state.view==='explore');
  $('.coin-scanner').classList.toggle('split-research',wideResearch);
   document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
  document.querySelectorAll('[data-skip-rug]').forEach(input=>input.checked=state.skipRug);
  updateAutoButtons();
- $('#coin-list').innerHTML=state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):state.view==='explore'?exploreCards(rows):researchRows.length?wideResearch?researchPanes(researchRows):researchRows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins match these filters.</strong> Adjust the Research filters or time window.</div>';
+ $('#coin-list').innerHTML=state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):state.view==='explore'?exploreCards(rows):researchRows.length?wideResearch?researchPanes(researchRows):researchRows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins match these filters.</strong> Adjust the Research filters or time window.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  document.querySelectorAll('[data-open-screener]').forEach(button=>button.title=`Screener settings · minimum 24h volume $${state.screener.volume24h.toLocaleString('en-US')}`);
  document.querySelectorAll('[data-volume-min]').forEach(label=>label.textContent=state.screener.volume24h?`${money(state.screener.volume24h)}+`:'All vol');
  document.querySelectorAll('[data-research-sort]').forEach(button=>{const active=button.dataset.researchSort===state.sort;button.setAttribute('aria-pressed',String(active));button.dataset.direction=active?state.sortDirection:''});
  document.querySelectorAll('[data-research-filter]').forEach(select=>select.value=state.researchFilters[select.dataset.researchFilter]);
+ document.querySelectorAll('[data-entry]').forEach(input=>input.value=state.entry[input.dataset.entry]);
  $('#research-filter-count').textContent=`${researchRows.length} / ${rows.length} coins`;
  $('[data-clear-research-filters]').disabled=Object.values(state.researchFilters).every(value=>value==='all');
  updateFreshnessStatus();
@@ -237,8 +255,8 @@ async function investigate(){
   data.manualCoins=[...new Map([...coins,...data.manualCoins].map(c=>[c.id,c])).values()];render();await enrich(coins);state.notice=`Found ${coins.length} market match${coins.length===1?'':'es'} for “${query}”.`;
  }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
 }
-function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full';if(state.view==='research')render()}
-function setView(view){if(!['discover','explore','research'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}render()}
+function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full';if(['entry','research'].includes(state.view))render()}
+function setView(view){if(!['entry','discover','explore','research'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}if(view==='entry'&&!state.freshEnabled)setFresh(true);render()}
 function setSort(value){state.sort=value;state.sortDirection='desc';render()}
 function openScreener(){
  for(const [key,value] of Object.entries(state.screener))$('#screener-settings').elements.namedItem(key).value=value;
@@ -274,6 +292,7 @@ document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListen
 $('#screener-settings').addEventListener('submit',event=>{event.preventDefault();applyScreener(Object.fromEntries(new FormData(event.currentTarget)))});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-research-filter]').forEach(select=>select.addEventListener('change',event=>{state.researchFilters[select.dataset.researchFilter]=select.value;render()}));
+document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});
 $('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);$('#full-mode').addEventListener('click',()=>setFull(!document.body.classList.contains('tiles-only')));
 $('.full-refresh').addEventListener('click',refresh);
@@ -281,9 +300,10 @@ $('.full-exit').addEventListener('click',()=>setFull(false));
 matchMedia('(min-width:1600px)').addEventListener('change',()=>{if(state.view==='research'&&document.body.classList.contains('tiles-only'))render()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){setFull(false);$('.collection-info').open=false}});
 $('#query').value=state.query;
-setInterval(()=>{if(!state.freshEnabled)poll()},60000);setInterval(()=>{updateFreshnessStatus();document.querySelectorAll('[data-market-time]').forEach(node=>{const c={fetchedAt:Number(node.dataset.marketTime)},fresh=marketState(c);node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
+setInterval(()=>{if(!state.freshEnabled)poll()},60000);setInterval(()=>{updateFreshnessStatus();if(state.view==='entry'&&!document.activeElement?.matches('[data-entry]')&&!$('#coin-detail').open){preserveScroll(render);return}document.querySelectorAll('[data-market-time]').forEach(node=>{const c={fetchedAt:Number(node.dataset.marketTime)},fresh=marketState(c);node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 render();
+if(state.view==='entry')setFresh(true);
 refresh().then(()=>{
  if(contractQuery&&!data.coins.some(c=>String(c.contract_address).toLowerCase()===contractQuery.toLowerCase()))investigate();
 });
