@@ -11,7 +11,7 @@ const money=v=>v===null||v===undefined?'—':new Intl.NumberFormat('en-US',{styl
 const num=v=>v===null||v===undefined?'—':Number(v).toLocaleString('en-US');
 const age=time=>{const mins=Math.max(0,Math.round((Date.now()-time)/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h`:`${Math.floor(mins/1440)}d`};
 const viewPreferenceKey='meme-fast.coin-view-v2';
-function savedView(){try{return localStorage.getItem(viewPreferenceKey)==='research'?'research':'discover'}catch{return 'discover'}}
+function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['discover','explore','research'].includes(view)?view:'discover'}catch{return 'discover'}}
 const state={historyLoaded:false,historyError:false,hours:1,sort:'newest',query:'',notice:'',lastRun:0,pendingSnapshot:null,selectedId:null,view:savedView(),activeStage:'new'};
 const data={coins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[];
 
@@ -56,6 +56,12 @@ function card(c,index){
 }
 function cardSection(key,title,description,items,id){return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):'<p class="lane-empty">No coins in this stage for the selected window.</p>'}</div></section>`}
 function cards(stages){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs'],['stretch','Final Stretch'],['migrated','Migrated']].map(([key,label])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${stages[key].length}</span></button>`).join('')}</div>${cardSection('new','New Pairs','Fresh pools · narrative first',stages.new,'new-pairs-title')}${cardSection('stretch','Final Stretch','80–99% launch progress',stages.stretch,'final-stretch-title')}${cardSection('migrated','Migrated','$50K+ 24h volume or graduated',stages.migrated,'migrated-title')}</div>`}
+function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
+function exploreCards(rows){
+ if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
+ const exact=rows.filter(c=>verified(context(c))),other=rows.filter(c=>!verified(context(c)));
+ return `<div class="explore-board">${exploreSection('Verified context',exact,'explore-verified-title')}${exploreSection('Context pending or unverified',other,'explore-pending-title')}</div>`;
+}
 function contextLabel(found){return verified(found)?'Exact contract':found?'Unverified':'Pending'}
 function quickRead(found,c){
  if(found?.articles?.length)return clean(found.articles[0].title)||'Article available; open Details for the source.';
@@ -92,10 +98,11 @@ function render(){
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
  visibleRows=state.view==='discover'?Object.values(stages).flat():rows;
  $('#coin-count').textContent=rows.length;
- $('#coin-list').className=`coin-list ${state.view==='discover'?'discover-mode':'grid-mode'}`;
+ $('#coin-list').className=`coin-list ${state.view==='discover'?'discover-mode':state.view==='explore'?'explore-mode':'grid-mode'}`;
  $('.coin-scanner').classList.toggle('discover-mode',state.view==='discover');
+ $('.coin-scanner').classList.toggle('explore-mode',state.view==='explore');
  document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
- $('#coin-list').innerHTML=state.view==='discover'?cards(stages):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
+ $('#coin-list').innerHTML=state.view==='discover'?cards(stages):state.view==='explore'?exploreCards(rows):rows.length?rows.map(scannerRow).join(''):'<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  $('#full-freshness').textContent=state.lastRun?`Server ${age(state.lastRun)} ago`:'Server waiting';
@@ -145,7 +152,7 @@ async function investigate(){
  }catch{state.notice=`Could not investigate “${query}” right now.`}finally{loading=false;render()}
 }
 function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full'}
-function setView(view){if(!['discover','research'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}render()}
+function setView(view){if(!['discover','explore','research'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}render()}
 function setSort(value){state.sort=value;render()}
 document.addEventListener('click',async event=>{
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();return}
