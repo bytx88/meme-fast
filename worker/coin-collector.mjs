@@ -25,13 +25,14 @@ export function refreshMarket(coins,pairs,now=Date.now()){
 }
 export function recordMarketHistory(coins,now=Date.now()){
  return coins.map(coin=>{
-  if(coin.marketUpdatedAt!==now)return coin;
+  const recentVolume1h=rows=>rows.filter(row=>row.at>=now-60*60000).reduce((total,row)=>total+(Number(row.volume5m)>0?Number(row.volume5m):0),0);
+  if(coin.marketUpdatedAt!==now)return {...coin,recentVolume1h:recentVolume1h(coin.marketHistory||[])};
   const sample={at:now,priceUsd:coin.priceUpdatedAt===now?amount(coin.priceUsd):null,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
   const recent=(coin.marketHistory||[]).filter(row=>row.at>now-RECENT_MARKET_MS&&row.at<now);
   recent.push(sample);
   const hourly=(coin.marketHistoryHourly||[]).filter(row=>row.at>now-RETENTION_MS&&row.at<now);
   if(!hourly.length||now-hourly.at(-1).at>=55*60000)hourly.push(sample);
-  return {...coin,marketHistory:recent.slice(-48),marketHistoryHourly:hourly.slice(-120)};
+  return {...coin,marketHistory:recent.slice(-48),marketHistoryHourly:hourly.slice(-120),recentVolume1h:recentVolume1h(recent)};
  });
 }
 export function refreshLaunchpad(coins,tokens,now=Date.now()){

@@ -1,5 +1,11 @@
 export const MIGRATED_VOLUME_24H=50000;
 export const FINAL_STRETCH_PERCENT=80;
+export const SUCCESS_LIQUIDITY_USD=3000;
+
+export function hasLiveSuccessMarket(coin,now=Date.now()){
+ const updatedAt=Number(coin?.marketUpdatedAt);
+ return Number(coin?.liquidity)>=SUCCESS_LIQUIDITY_USD&&Number(coin?.recentVolume1h??coin?.volume5m)>0&&(!updatedAt||now-updatedAt<=15*60000);
+}
 
 export function isUnderObservation(coin,now=Date.now()){
  const start=Number(coin?.graduationObservedAt);
@@ -9,7 +15,7 @@ export function isUnderObservation(coin,now=Date.now()){
 export function stageFor(coin,now=Date.now()){
  const progress=Number(coin?.launchpad?.graduationPercentage);
  const start=coin?.launchpad?.completed===true?coin.graduationObservedAt:coin?.poolCreated;
- if(coin?.laterRecoveryAt||coin?.sustainedAt&&(!Number.isFinite(Number(start))||now-Number(start)<=6*3600000))return 'sustained';
+ if(hasLiveSuccessMarket(coin,now)&&(coin?.laterRecoveryAt||coin?.sustainedAt&&!coin.ruggedAt&&(!Number.isFinite(Number(start))||now-Number(start)<=6*3600000)))return 'sustained';
  if(coin?.launchpad?.completed===true)return 'migrated';
  if(coin?.launchpad?.completed===false){
   if(Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';

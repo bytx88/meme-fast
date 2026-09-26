@@ -52,12 +52,15 @@ test('market samples include only successful refreshes and remain bounded',()=>{
   marketHistory:[{at:now-5*3600000,volume5m:10},{at:now-5*60000,volume5m:400}],marketHistoryHourly:[{at:now-RETENTION_MS-1},{at:now-2*3600000}]};
  const [updated]=recordMarketHistory([fresh],now);
  assert.deepEqual(updated.marketHistory.map(row=>row.volume5m),[400,700]);
+ assert.equal(updated.recentVolume1h,1100);
  assert.equal(updated.marketHistory.at(-1).priceUsd,0.004);
  assert.equal(updated.marketHistoryHourly.length,2);
  assert.equal(updated.marketHistoryHourly.at(-1).at,now);
  const [unchanged]=recordMarketHistory([{...updated,marketUpdatedAt:now-60000}],now);
  assert.deepEqual(unchanged.marketHistory,updated.marketHistory);
  assert.deepEqual(unchanged.marketHistoryHourly,updated.marketHistoryHourly);
+ assert.equal(unchanged.recentVolume1h,1100);
+ assert.equal(recordMarketHistory([{...unchanged,marketHistory:[{at:now-61*60000,volume5m:400}]}],now)[0].recentVolume1h,0);
 });
 test('Radar accepts older trending pools without changing Coin intake and retains observed history',()=>{
  const now=1800000000000;
