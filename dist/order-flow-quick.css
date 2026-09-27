@@ -1,5 +1,5 @@
 /* Keep the token, selected window, summary, and trend visible together. */
-html:has(.order-flow-page){overflow-y:scroll;scrollbar-gutter:stable;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+html:has(.order-flow-page){overflow-y:auto;scrollbar-gutter:stable;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
 html:has(.order-flow-page)::-webkit-scrollbar{width:11px}
 html:has(.order-flow-page)::-webkit-scrollbar-track{background:#0b1119}
 html:has(.order-flow-page)::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}

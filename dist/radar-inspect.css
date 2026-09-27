@@ -209,6 +209,8 @@
 @media(min-width:701px) and (max-width:1019px){
  .radar-reasons{display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:3px}
  .radar-reasons>:first-child{grid-column:auto}
+ .radar-reasons span,.radar-reasons .radar-more-reasons{padding:3px 4px;font-size:10px}
+ .radar-reasons .x-factor-badge{min-height:21px;padding:2px 5px;font-size:10px}
 }
 
 /* Compact, labeled chain filters replace the wide select control. */
