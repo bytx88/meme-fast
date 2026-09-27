@@ -213,6 +213,12 @@
  .radar-reasons .x-factor-badge{min-height:21px;padding:2px 5px;font-size:10px}
 }
 
+/* Keep the document scrollbar visible while Hodl cards extend below the viewport. */
+html:has(.radar-page){overflow-y:scroll;scrollbar-gutter:stable;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+html:has(.radar-page)::-webkit-scrollbar{width:11px}
+html:has(.radar-page)::-webkit-scrollbar-track{background:#0b1119}
+html:has(.radar-page)::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}
+
 /* Compact, labeled chain filters replace the wide select control. */
 .radar-controls>.radar-filter-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .radar-chain-filters{display:flex;align-items:center;gap:3px}
