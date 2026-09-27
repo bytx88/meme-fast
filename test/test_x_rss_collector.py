@@ -10,10 +10,10 @@ NOW = 1_800_000_000_000
 ID = "solana:98kfF7rmsg1QDUEoCqNE7g7M1FdrTt92TEp2CLzypump"
 
 
-def item(guid, hours_ago, source="x.com"):
+def item(guid, hours_ago, source="x.com", title="UsePaid post"):
     date = format_datetime(datetime.fromtimestamp((NOW - hours_ago * 3_600_000) / 1000,
                                                  timezone.utc))
-    return (f"<item><title>UsePaid post</title>"
+    return (f"<item><title>{title}</title>"
             f"<link>https://news.google.com/rss/articles/{guid}?oc=5</link>"
             f"<guid>{guid}</guid><pubDate>{date}</pubDate>"
             f"<source url='https://x.com'>{source}</source></item>")
@@ -26,6 +26,7 @@ class XrssCollectorTests(unittest.TestCase):
 
     def test_counts_deduplicated_indexed_posts_in_both_windows(self):
         body = ("<rss><channel>" + item("A123", 2) + item("B456", 8)
+                + item("D111", 1, title="An unrelated indexed post")
                 + item("C789", 1, "example.com") + "</channel></rss>").encode()
         report = collect({"coins": []}, {"targets": [{"id": ID, "aliases": ["UsePaid"]}]},
                          fetcher=lambda _: body, now_ms=NOW, limit=1)

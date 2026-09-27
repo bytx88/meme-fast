@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from worker.coin_rss_evidence import collect_coin_evidence, select_target, FRESH_MS, STALE_MS
+from worker.x_rss_collector import title_matches
 
 
 NOW = 1_800_000_000_000
@@ -23,6 +24,11 @@ def feed(guid="A123", hours_ago=1):
 
 
 class CoinRssEvidenceTests(unittest.TestCase):
+    def test_only_visible_query_terms_count_as_indexed_mentions(self):
+        self.assertTrue(title_matches("@UsePaid announced a launch", "UsePaid"))
+        self.assertFalse(title_matches("Unrelated account update", "UsePaid"))
+        self.assertFalse(title_matches("NotUsePaid announced", "UsePaid"))
+
     def test_only_known_contracts_can_trigger_a_search(self):
         with self.assertRaisesRegex(ValueError, "not in the tracked"):
             select_target(SNAPSHOT, CONFIG, "solana:CbcyNo7m1amFWqEQm2m4PLv1UNvpcL3C1Ujm6AkzpKoU")
@@ -40,7 +46,7 @@ class CoinRssEvidenceTests(unittest.TestCase):
 
             first = collect_coin_evidence(SNAPSHOT, CONFIG, ID, directory, working, NOW)
             self.assertEqual(first["posts6h"], 1)
-            self.assertEqual(first["posts"][0]["reason"], "configured alias query")
+            self.assertEqual(first["posts"][0]["reason"], "visible configured alias query match")
             self.assertEqual(len(calls), 2)
             cached = collect_coin_evidence(SNAPSHOT, CONFIG, ID, directory, working, NOW+FRESH_MS-1)
             self.assertEqual(cached["cacheStatus"], "fresh")

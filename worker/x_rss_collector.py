@@ -51,6 +51,18 @@ def fetch_feed(url):
         return response.read()
 
 
+def title_matches(title, term):
+    text, needle = title.casefold(), term.casefold()
+    start = text.find(needle)
+    while start >= 0:
+        before = text[start - 1] if start else ""
+        after = text[start + len(needle):start + len(needle) + 1]
+        if not before.isalnum() and not after.isalnum():
+            return True
+        start = text.find(needle, start + 1)
+    return False
+
+
 def parse_feed(body, now_ms):
     root = ET.fromstring(body)
     if root.tag != "rss" or root.find("channel") is None:
@@ -91,6 +103,8 @@ def collect(snapshot, config, fetcher=fetch_feed, now_ms=None, limit=3):
         try:
             for term in [target["contract"], *target["aliases"]]:
                 for post in parse_feed(fetcher(search_url(term)), now_ms):
+                    if not title_matches(post["title"], term):
+                        continue
                     found[post["guid"]] = post
             posts = list(found.values())
             current = sorted((post for post in posts if post["publishedAt"] >= now_ms - 6 * HOUR_MS),
@@ -101,7 +115,7 @@ def collect(snapshot, config, fetcher=fetch_feed, now_ms=None, limit=3):
                 "source": "google-news-rss", "sampledAt": now_ms,
                 "posts6h": len(current), "previousPosts6h": previous,
                 "delta6h": len(current) - previous,
-                "coverage": "Google News RSS index of x.com; contract and configured aliases; sampled, incomplete coverage; alias matches do not prove a contract link",
+                "coverage": "Google News RSS index of x.com; visible title matches for contract or configured aliases; sampled, incomplete coverage; alias matches do not prove a contract link",
                 "posts": [{"url": post["url"], "title": post["title"],
                            "publishedAt": post["publishedAt"]} for post in current[:10]],
             }

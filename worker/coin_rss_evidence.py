@@ -7,12 +7,13 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from worker.x_rss_collector import ID_RE, fetch_feed, parse_feed, search_url
+from worker.x_rss_collector import ID_RE, fetch_feed, parse_feed, search_url, title_matches
 
 
 HOUR_MS = 3_600_000
 FRESH_MS = 4 * HOUR_MS
 STALE_MS = 8 * HOUR_MS
+REPORT_VERSION = 2
 BLOCKED_NAMES = {"bitcoin", "ethereum", "solana", "base", "paid", "money", "token", "coin", "crypto"}
 
 
@@ -44,7 +45,7 @@ def _path(cache_dir, token_id):
 def _read(path):
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-        return value if value.get("version") == 1 else None
+        return value if value.get("version") == REPORT_VERSION else None
     except (FileNotFoundError, ValueError, AttributeError):
         return None
 
@@ -74,7 +75,7 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
     if cache and now_ms - cache.get("lastAttemptAt", 0) < FRESH_MS:
         if age is not None and age < STALE_MS:
             return _serve(cache, now_ms, "stale")
-        return {"version": 1, "id": token_id, "status": "error", "cacheStatus": "error",
+        return {"version": REPORT_VERSION, "id": token_id, "status": "error", "cacheStatus": "error",
                 "message": "RSS retry cooldown is active.", "posts": [],
                 "nextRefreshAt": cache["lastAttemptAt"] + FRESH_MS}
 
@@ -82,10 +83,13 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
     for term, reason in target["terms"]:
         try:
             for post in parse_feed(fetcher(search_url(term)), now_ms):
+                if not title_matches(post["title"], term):
+                    continue
                 current = found.get(post["guid"])
                 if current is None or reason == "contract query":
                     found[post["guid"]] = {"url": post["url"], "title": post["title"],
-                                           "publishedAt": post["publishedAt"], "reason": reason}
+                                           "publishedAt": post["publishedAt"],
+                                           "reason": "visible " + reason + " match"}
         except Exception as error:
             errors.append({"query": reason, "message": str(error)[:200]})
     if len(errors) == len(target["terms"]):
@@ -94,18 +98,18 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
             if age is not None and age < STALE_MS:
                 return {**_serve(cache, now_ms, "stale"), "errors": errors}
         else:
-            _save(path, {"version": 1, "lastAttemptAt": now_ms})
-        return {"version": 1, "id": token_id, "status": "error", "cacheStatus": "error",
+            _save(path, {"version": REPORT_VERSION, "lastAttemptAt": now_ms})
+        return {"version": REPORT_VERSION, "id": token_id, "status": "error", "cacheStatus": "error",
                 "message": errors[0]["message"], "posts": [], "errors": errors,
                 "nextRefreshAt": now_ms + FRESH_MS}
 
     posts = sorted(found.values(), key=lambda row: row["publishedAt"], reverse=True)
     current = [row for row in posts if row["publishedAt"] >= now_ms - 6 * HOUR_MS]
     previous = [row for row in posts if row["publishedAt"] < now_ms - 6 * HOUR_MS]
-    report = {"version": 1, "id": token_id,
+    report = {"version": REPORT_VERSION, "id": token_id,
               "status": "partial" if errors else "connected", "source": "google-news-rss",
               "sampledAt": now_ms, "lastAttemptAt": now_ms,
-              "coverage": "Google News RSS index of x.com; incomplete sample; alias and name queries do not prove a contract link",
+              "coverage": "Google News RSS index of x.com; visible title matches only; incomplete sample; alias and name matches do not prove a contract link",
               "queries": [{"term": term, "reason": reason} for term, reason in target["terms"]],
               "posts6h": len(current), "previousPosts6h": len(previous),
               "posts": current[:10], "errors": errors}
