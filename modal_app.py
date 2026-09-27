@@ -59,7 +59,7 @@ def collect_coins():
     print(result.stdout)
 
 
-@app.function(timeout=300, max_containers=1,
+@app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
               volumes={"/history": history_volume})
 def collect_x_factor(target_limit=3):
     import subprocess

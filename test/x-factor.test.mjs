@@ -48,5 +48,5 @@ test('RSS signal shows indexed mentions without claiming an X score',()=>{
  assert.match(detail,/no author, like, or repost measurement/);
  assert.match(detail,/news.google.com\/rss\/articles\/ABC123/);
  assert.doesNotMatch(detail,/javascript:/);
- assert.equal(xFactorReading(rss,id,now+31*60_000).status,'stale');
+ assert.equal(xFactorReading(rss,id,now+46*60_000).status,'stale');
 });

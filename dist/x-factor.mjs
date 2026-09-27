@@ -5,7 +5,8 @@ export function xFactorReading(report,id,now=Date.now()){
  const row=report?.coins?.[id];
  if(report?.status!=='connected'||!row)return {status:report?.status==='connected'?'unobserved':report?.status==='error'?'error':'disconnected'};
  const sampledAt=Number(row.sampledAt);
- if(!Number.isFinite(sampledAt)||sampledAt>now+60_000||now-sampledAt>MAX_SAMPLE_AGE_MS)return {status:'stale',sampledAt};
+ const maxAge=report.source==='google-news-rss'?45*60_000:MAX_SAMPLE_AGE_MS;
+ if(!Number.isFinite(sampledAt)||sampledAt>now+60_000||now-sampledAt>maxAge)return {status:'stale',sampledAt};
  if(report.source==='google-news-rss'){
   if(!Number.isSafeInteger(row.posts6h)||row.posts6h<0||!Number.isSafeInteger(row.previousPosts6h)||row.previousPosts6h<0)return {status:'unobserved'};
   return {...row,sampledAt,status:'rss'};
@@ -20,7 +21,7 @@ export function xFactorBadge(report,id,now=Date.now()){
   const change=reading.posts6h-reading.previousPosts6h;
   const delta=reading.status==='rss'?` <span class="x-factor-delta">${change>0?'+':''}${change} vs prior 6h</span>`:'';
   const label=reading.status==='rss'?`X RSS <strong>${reading.posts6h}</strong>${delta}`:reading.status==='stale'?'X RSS · stale':'X RSS · —';
-  const title=reading.status==='rss'?'Google News RSS indexed x.com posts; incomplete sample':reading.status==='stale'?'RSS sample is older than 30 minutes':'No current X RSS sample for this contract';
+  const title=reading.status==='rss'?'Google News RSS indexed x.com posts; incomplete sample':reading.status==='stale'?'RSS sample is older than 45 minutes':'No current X RSS sample for this contract';
   return `<button type="button" class="x-factor-badge ${reading.status}" data-x-factor="${safeId}" title="${escapeHtml(title)}" aria-label="Inspect ${escapeHtml(label.replace(/<[^>]*>/g,''))}">${label}</button>`;
  }
  const delta=Number.isFinite(reading.delta6h)?` <span class="x-factor-delta">${reading.delta6h>0?'+':''}${reading.delta6h} pts / 6h</span>`:'';
@@ -42,7 +43,7 @@ export function xFactorDetail(report,id,now=Date.now()){
  }
  if(reading.status!=='ready'){
   const rss=report?.source==='google-news-rss';
-  const message=rss?(reading.status==='stale'?'The RSS sample is older than 30 minutes. Its count is withheld until collection resumes.':reading.status==='error'?'RSS collection failed. No mention count is shown until a sample succeeds.':'No RSS sample for this contract yet.'):reading.status==='disconnected'?'X collection is not connected. This coin has no measured social score yet.':reading.status==='error'?'X collection failed. No social score is shown until a complete sample succeeds.':reading.status==='stale'?'The last X sample is older than 30 minutes. Its score is withheld until collection resumes.':'No X posts have been measured for this contract yet.';
+  const message=rss?(reading.status==='stale'?'The RSS sample is older than 45 minutes. Its count is withheld until collection resumes.':reading.status==='error'?'RSS collection failed. No mention count is shown until a sample succeeds.':'No RSS sample for this contract yet.'):reading.status==='disconnected'?'X collection is not connected. This coin has no measured social score yet.':reading.status==='error'?'X collection failed. No social score is shown until a complete sample succeeds.':reading.status==='stale'?'The last X sample is older than 30 minutes. Its score is withheld until collection resumes.':'No X posts have been measured for this contract yet.';
   return `<p class="x-factor-note">${message}</p>`;
  }
  const count=value=>Number.isSafeInteger(value)&&value>=0?value.toLocaleString('en-US'):'—';
