@@ -191,6 +191,10 @@
 .inspect-image-link:focus-visible{outline:2px solid #bdf36c;outline-offset:3px}
 .radar-market-age{font-size:10px;overflow:visible;text-overflow:clip}
 .radar-token .radar-token-meta{font-size:11px}
+.radar-token .radar-token-meta{line-height:1.5}
+.radar-chain-marker{display:inline-grid;place-items:center;vertical-align:middle;width:15px;height:15px;margin:0 1px;border-radius:50%;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
+.radar-chain-marker.solana{background:#f5a14d;color:#261408}
+.radar-chain-marker.robinhood{background:#36d49b;color:#07251b}
 .radar-status{font-size:11px}
 .radar-holders>span,.radar-score-label{color:#aebbd0;font-size:11px;line-height:1.2}
 .radar-holders strong{color:#d9ff92;font-size:21px}

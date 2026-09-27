@@ -92,6 +92,13 @@ for(const type of ['pointerup','pointercancel'])scrollTrack.addEventListener(typ
 function universe(){const coins=Array.isArray(state.snapshot?.radarCoins)?state.snapshot.radarCoins:state.snapshot?.coins||[];return state.catalogCoin&&!coins.some(coin=>coin.id.toLowerCase()===state.catalogCoin.id)?[...coins,state.catalogCoin]:coins}
 function coinId(coin){return String(coin.id||`${coin.network}:${coin.contract_address}`)}
 function ticker(coin){return `$${String(coin.symbol||'?').replace(/^\$+/, '')}`}
+function chainMarker(coin){
+ const network=String(coin.network||'').toLowerCase();
+ const chain=String(coin.chain||coin.network||'Unknown');
+ if(network==='solana'||!network&&chain==='Solana')return '<span class="radar-chain-marker solana" role="img" aria-label="Solana" title="Solana">S</span>';
+ if(network==='robinhood'||!network&&chain==='Robinhood Chain')return '<span class="radar-chain-marker robinhood" role="img" aria-label="Robinhood Chain" title="Robinhood Chain">R</span>';
+ return esc(chain);
+}
 function thumbnail(coin){
  let image=null;try{const url=new URL(coin.image_url);if(url.protocol==='https:')image=url.href}catch{}
  const initial=String(coin.symbol||coin.name||'?').replace(/^\$+/, '').trim().slice(0,1).toUpperCase()||'?';
@@ -133,7 +140,7 @@ function cardReasons(parts,id){
 }
 
 function card(reading,index){
- const {coin,score,coverage,stale,parts}=reading,id=coinId(coin),chain=String(coin.network||'');
+ const {coin,score,coverage,stale,parts}=reading,id=coinId(coin);
  const updatedAt=reading.updatedAt==null?null:Number(reading.updatedAt);
  const updatedAge=updatedAt===null||!Number.isFinite(updatedAt)?'No data':`${age(updatedAt)} ago`;
  const updatedTitle=updatedAt===null||!Number.isFinite(updatedAt)?'Market update unavailable':`Market updated ${new Date(updatedAt).toLocaleString()}`;
@@ -146,7 +153,7 @@ function card(reading,index){
   <div class="radar-token">
    <div class="radar-thumb-stack">${fomo?`<a class="radar-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(ticker(coin))} on Fomo" aria-label="Open ${esc(ticker(coin))} on Fomo">${thumbnail(coin)}</a>`:thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
    <div class="radar-token-title"><span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
-   <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
+   <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${chainMarker(coin)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
   </div>
   <div class="radar-holders"><span>Holders</span><strong data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</strong><small>Top 10 <span data-holder-top10-id="${esc(id)}">${percent(holderInfo.get(id)?.top10)}</span></small></div>
   <div class="radar-signal"><span class="radar-score-label">Score</span><strong>${signal}</strong></div>
