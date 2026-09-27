@@ -61,8 +61,13 @@ function tokenCard(item){
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
  const mode=horizon&&horizon!==source&&horizon.toLowerCase()!==contract.toLowerCase()&&!/^(?:0x[a-f\d]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/i.test(horizon)?horizon:null;
- const detail=[marker?null:chain||coin?.chain||'Token',mode,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><div class="watch-token-title"><h2>${esc(item.title)}</h2>${marker}</div><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ const [savedTicker,...savedName]=String(item.title||'').split(' · ');
+ const symbol=String(coin?.symbol||savedTicker||'?').replace(/^\$+/,'');
+ const name=coin?.name||savedName.join(' · ');
+ const detail=[coin?.poolCreated?`pool ${age(coin.poolCreated)} old`:null,mode,marker?null:chain||coin?.chain||'Token'].filter(Boolean).join(' · ');
+ const freshness=updated===null?'No data':`${age(updated)} ago`;
+ const updatedTitle=updated===null?'Market update unavailable':`Market updated ${new Date(updated).toLocaleString()}${stale?' · stale':''}`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main"><div class="watch-thumb-stack">${artwork}<span class="watch-market-age" title="${esc(updatedTitle)}" aria-label="${esc(updatedTitle)}">${esc(freshness)}${updated!==null&&stale?'<span class="watch-stale-label">stale</span>':''}</span></div><div class="saved-item-copy"><div class="watch-token-title"><h2 title="${esc('$'+symbol)}">${esc('$'+symbol)}</h2>${marker}</div>${name?`<p class="watch-token-name" title="${esc(name)}">${esc(name)}</p>`:''}<p class="watch-token-meta" title="${esc(detail)}">${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
