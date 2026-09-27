@@ -24,6 +24,16 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 - **Watchlist** — browser-local saved narratives and tokens
 - **Sources** — current feed coverage and a planned X-account collector watchlist
 
+## X Factor
+
+Tweet shows a contract-level X Factor badge beside each Top Coins lifecycle tag. Hodl shows the same badge and an evidence section in its inspector. Both read `/api/x-factor` and withhold scores when a sample is over 30 minutes old. X Factor does not change either market ranking.
+
+The collector uses [X recent search](https://docs.x.com/x-api/posts/search-recent-posts) every 15 minutes on Modal. It selects up to eight coins, prioritizing configured targets in [x-factor-targets.json](x-factor-targets.json), then the highest buyer counts in the saved market snapshot. Automatic targets search their exact contract address. Configured targets may add up to three aliases and ten creator/project handles; aliases must be manually associated with the correct contract. Its 12-hour search supports current and previous six-hour windows. A score uses unique accounts, posts, capped engagement, and, when configured, posts by key handles. `delta6h` is the change in score points between the windows. If a search is incomplete or fails, its score is withheld. The score is an experimental observation, not a return forecast or proof of organic activity.
+
+The endpoint reads `.data/x-factor.json` in local preview or `/history/x-factor.json` on Modal. The report uses coin keys such as `solana:<contract>` and contains a 0–100 score, score-point change over six hours, unique accounts, posts, key interactions, sample time, matching coverage, and linked post evidence. A missing X token yields `disconnected`; the UI shows an unavailable badge instead of a fabricated number.
+
+To enable the live collector, set the `X_BEARER_TOKEN` key in the Modal secret `meme-fast-x-api` and redeploy `modal_app.py` with the `bytx24` profile. Local collection can be run explicitly with `X_BEARER_TOKEN` set: `node worker/x-factor-collector.mjs .data/coins.json .data/x-factor.json x-factor-targets.json`. Recent search is a paid X API operation. The collector limits each run to eight targets and three pages per target; adjust those caps only after checking usage and coverage.
+
 The current app uses public data providers and browser storage. See [ARCHITECTURE.md](ARCHITECTURE.md) for the application boundary and proposed persistent data model.
 
 ## Validate and build

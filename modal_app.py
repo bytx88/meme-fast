@@ -29,6 +29,7 @@ image = (
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0", "truststore>=0.10.0")
     .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST)
     .add_local_dir(Path("/app/worker") if RUNNING_IN_MODAL else Path(__file__).parent / "worker", remote_path="/app/worker")
+    .add_local_file(Path("/app/x-factor-targets.json") if RUNNING_IN_MODAL else Path(__file__).parent / "x-factor-targets.json", remote_path="/app/x-factor-targets.json")
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -55,6 +56,23 @@ def collect_coins():
     history_volume.commit()
     if result.returncode:
         raise RuntimeError(result.stderr)
+    print(result.stdout)
+
+
+@app.function(schedule=modal.Period(minutes=15), timeout=300, max_containers=1,
+              volumes={"/history": history_volume},
+              secrets=[modal.Secret.from_name("meme-fast-x-api")])
+def collect_x_factor():
+    import subprocess
+    history_volume.reload()
+    result = subprocess.run(
+        ["node", "/app/worker/x-factor-collector.mjs", "/history/coins.json",
+         "/history/x-factor.json", "/app/x-factor-targets.json"],
+        capture_output=True, text=True, timeout=260,
+    )
+    if result.returncode:
+        raise RuntimeError(result.stderr[-2000:])
+    history_volume.commit()
     print(result.stdout)
 
 
@@ -91,6 +109,16 @@ def web():
                 return json.loads(Path("/history/coins.json").read_text())
             except FileNotFoundError:
                 return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+
+    @web_app.get("/api/x-factor")
+    async def x_factor():
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                report = json.loads(Path("/history/x-factor.json").read_text())
+            except (FileNotFoundError, ValueError):
+                report = {"version": 1, "status": "disconnected", "coins": {}}
+        return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/new-coins/version")
     async def new_coins_version():

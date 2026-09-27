@@ -58,7 +58,7 @@ def _early_ramp_warning(coin, now_ms):
                 "minutes": math.floor(span / MINUTE + .5)}
     return None
 WATCHLIST_FIELDS = (
-    "id", "name", "symbol", "network", "chain", "contract_address", "image_url",
+    "id", "name", "symbol", "network", "chain", "contract_address", "contract_verified", "image_url",
     "priceUsd", "priceChange", "mc", "fdv", "liquidity", "volume", "volume5m",
     "buys5m", "sells5m", "recentVolume1h", "poolCreated", "marketUpdatedAt", "priceUpdatedAt",
 )
