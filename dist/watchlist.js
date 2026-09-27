@@ -76,7 +76,7 @@ function otherCard(item){
 
 function draw(){
  const saved=watchlist();
- count.textContent=`Watchlist · ${saved.length}`;
+ count.textContent=String(saved.length);
  refresh.disabled=loading||!saved.some(item=>tokenTypes.has(item.type));
  refresh.textContent=loading?'Refreshing…':'Refresh stats ↻';
  items.innerHTML=saved.length?sections.map(([key,label])=>{
