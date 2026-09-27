@@ -14,12 +14,16 @@ const THEMES=[
 ];
 const number=value=>Number.isFinite(Number(value))?Number(value):0;
 const errorMessage=error=>String(error?.message||error).slice(0,200);
+export function postTime(id){
+ try{return /^\d+$/.test(id)?Number((BigInt(id)>>22n)+1288834974657n):NaN}catch{return NaN}
+}
 
 export function summarizeTheme(theme,payload,now=Date.now()){
  if(!Array.isArray(payload?.data))throw new Error('Invalid XFlux search response');
  const seen=new Set(),posts=[];
  for(const item of payload.data){
-  const id=String(item?.id||''),at=Date.parse(item?.created_at),body=String(item?.text||'');
+  // XFlux currently reports near-fetch created_at for old posts. The Snowflake ID carries the post time.
+  const id=String(item?.id||''),at=postTime(id),body=String(item?.text||'');
   if(!/^\d+$/.test(id)||seen.has(id)||!Number.isFinite(at)||at<now-DAY_MS||at>now+5*60_000)continue;
   if(!theme.terms.some(term=>body.toLowerCase().includes(term)))continue;
   seen.add(id);
@@ -44,13 +48,13 @@ async function saveCache(filename,value){const temp=`${filename}.${process.pid}.
 function serve(cache,now,status){return {...cache,cacheStatus:status,nextRefreshAt:cache.sampledAt+FRESH_MS,staleAfter:cache.sampledAt+STALE_MS,ageMs:now-cache.sampledAt}}
 
 export async function collectXSort({filename,key=process.env.XFLUX_API_KEY,fetcher=fetch,now=Date.now()}){
- const cache=await readCache(filename),age=now-number(cache?.sampledAt);
+ const stored=await readCache(filename),cache=stored?.version===2?stored:null,age=now-number(cache?.sampledAt);
  if(cache?.sampledAt&&age>=0&&age<FRESH_MS)return serve(cache,now,'fresh');
  if(cache?.lastAttemptAt&&now-cache.lastAttemptAt<RETRY_MS){
   if(cache.sampledAt&&age<STALE_MS)return serve(cache,now,'stale');
-  return {version:1,status:'error',cacheStatus:'error',message:'XFlux retry cooldown is active.',nextRefreshAt:cache.lastAttemptAt+RETRY_MS,themes:[]};
+  return {version:2,status:'error',cacheStatus:'error',message:'XFlux retry cooldown is active.',nextRefreshAt:cache.lastAttemptAt+RETRY_MS,themes:[]};
  }
- if(!key)return {version:1,status:'error',cacheStatus:'error',message:'XFlux API key is unavailable.',themes:[]};
+ if(!key)return {version:2,status:'error',cacheStatus:'error',message:'XFlux API key is unavailable.',themes:[]};
  const themes=[],errors=[];
  for(const theme of THEMES){
   try{themes.push(await searchTheme(theme,key,fetcher,now))}
@@ -59,10 +63,10 @@ export async function collectXSort({filename,key=process.env.XFLUX_API_KEY,fetch
  if(!themes.length){
   const fallback={...(cache||{}),lastAttemptAt:now};await saveCache(filename,fallback);
   if(cache?.sampledAt&&age<STALE_MS)return {...serve(cache,now,'stale'),errors};
-  return {version:1,status:'error',cacheStatus:'error',message:errors[0]?.message||'XFlux returned no usable response.',nextRefreshAt:now+RETRY_MS,themes:[],errors};
+  return {version:2,status:'error',cacheStatus:'error',message:errors[0]?.message||'XFlux returned no usable response.',nextRefreshAt:now+RETRY_MS,themes:[],errors};
  }
  themes.sort((a,b)=>b.posts24h-a.posts24h||(b.latestAt||0)-(a.latestAt||0));
- const report={version:1,status:errors.length?'partial':themes.some(t=>t.posts24h)?'connected':'no-evidence',source:'xflux',sampledAt:now,lastAttemptAt:now,method:'24-hour matching posts in four tracked XFlux searches; ranked by sampled post count',themes,errors};
+ const report={version:2,status:errors.length?'partial':themes.some(t=>t.posts24h)?'connected':'no-evidence',source:'xflux',sampledAt:now,lastAttemptAt:now,method:'24-hour matching posts in four tracked XFlux searches; ranked by sampled post count; post time from X ID',themes,errors};
  await saveCache(filename,report);
  return serve(report,now,'fresh');
 }
