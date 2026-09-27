@@ -349,3 +349,15 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .discovery-board .scan-card .new-metrics dt{font-size:11px}
 .discovery-board .scan-card .card-stage-fact{font-size:12px}
 @media(min-width:1400px){.tiles-only .entry-priority,.tiles-only .entry-holds,.tiles-only .entry-no-pass{grid-column:1/-1}}
+
+/* Keep each card's actions beneath its image, beside the research and market facts. */
+.scan-card{display:grid;grid-template-columns:minmax(0,1fr) 66px;column-gap:8px;align-items:start}
+.discovery-board .scan-card,.explore-grid .scan-card{column-gap:8px}
+.scan-card .card-main{min-width:0}
+.scan-card .card-main .card-top{display:block}
+.scan-card .card-art{grid-column:2;grid-row:1;gap:5px}
+.scan-card .card-art .card-actions{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:100%;margin:2px 0 0}
+.scan-card .card-art .card-actions a,.scan-card .card-art .card-actions button{box-sizing:border-box;width:100%;min-height:28px;margin:0;padding:3px 4px;font-size:11px}
+.scan-card .card-main .new-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:0}
+.scan-card .card-main .new-metrics dt{white-space:normal}
+.scan-card .card-art .card-actions :focus-visible{outline:2px solid var(--accent);outline-offset:2px}

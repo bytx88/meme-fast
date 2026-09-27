@@ -139,7 +139,7 @@ async function loadStats(refreshMissing=false){
 items.onclick=event=>{const button=event.target.closest('[data-remove]');if(button){removeSaved(button.dataset.type,button.dataset.remove);draw()}};
 refresh.onclick=()=>loadStats(true);
 function drawMatches(){
- addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong>${chainMarker(coin)}<small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved ✓':'Watchlist +'}</button></div>`).join('');
+ addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong>${chainMarker(coin)}<small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved ✓':'Save +'}</button></div>`).join('');
 }
 addButton.onclick=()=>{addDialog.showModal();addQuery.focus()};
 document.getElementById('close-add-token').onclick=()=>addDialog.close();
