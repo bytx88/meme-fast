@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {selectTargets,searchQuery,summarizePosts,searchTarget,collectXFactor} from '../worker/x-factor-collector.mjs';
+import {selectTargets,searchQuery,summarizePosts,searchTarget,searchTargetXFlux,collectXFactor} from '../worker/x-factor-collector.mjs';
 
 const id='solana:So11111111111111111111111111111111111111112';
 const now=1_800_000_000_000;
@@ -41,6 +41,22 @@ test('search withholds a score when its page cap leaves posts unobserved',async(
  await assert.rejects(searchTarget(target,'secret',fetcher,now),/page cap/);
 });
 
+test('XFlux sample measures identified authors and withholds missing identities',async()=>{
+ const sample={data:[{id:'101',text:target.contract,author:{username:'creator'},created_at:new Date(now-HOUR).toISOString(),public_metrics:{like_count:5,retweet_count:2,reply_count:1}}]};
+ const fetcher=async url=>{
+  assert.equal(url.host,'www.xfluxapi.com');
+  assert.match(url.searchParams.get('q'),/e\/acc/);
+  return {ok:true,json:async()=>sample};
+ };
+ const row=await searchTargetXFlux(target,'key',fetcher,now);
+ assert.equal(row.uniqueAccounts6h,1);
+ assert.equal(row.source,'xflux');
+ sample.data[0].author={};
+ await assert.rejects(searchTargetXFlux(target,'key',fetcher,now),/omitted post, author/);
+ sample.data=[];
+ await assert.rejects(searchTargetXFlux(target,'key',fetcher,now),/no search evidence/);
+});
+
 test('collector writes a contract-keyed report and disconnects without a token',async()=>{
  const directory=await mkdtemp(path.join(tmpdir(),'meme-x-factor-'));
  try{
@@ -48,12 +64,12 @@ test('collector writes a contract-keyed report and disconnects without a token',
   const secondId='base:0x1111111111111111111111111111111111111111';
   await writeFile(snapshotFile,JSON.stringify({coins:[{id,buyers:10},{id:secondId,buyers:9}]}));
   const fetcher=async()=>({ok:true,json:async()=>({data:[],meta:{result_count:0}})});
-  const connected=await collectXFactor({snapshotFile,outputFile,token:'test',fetcher,now});
+  const connected=await collectXFactor({snapshotFile,outputFile,provider:'official',token:'test',fetcher,now});
   assert.equal(connected.status,'connected');
   assert.equal(connected.coverage.targeted,2);
   assert.equal(connected.coins[id].score,0);
   assert.equal(JSON.parse(await readFile(outputFile,'utf8')).coins[id].posts6h,0);
-  const limited=await collectXFactor({snapshotFile,outputFile,token:'test',fetcher,now,targetLimit:1});
+  const limited=await collectXFactor({snapshotFile,outputFile,provider:'official',token:'test',fetcher,now,targetLimit:1});
   assert.equal(limited.coverage.targeted,1);
   assert.deepEqual(Object.keys(limited.coins),[id]);
   const disconnected=await collectXFactor({snapshotFile,outputFile,token:'',fetcher,now});

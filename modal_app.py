@@ -69,7 +69,8 @@ def collect_x_factor(target_limit=8):
         ["node", "/app/worker/x-factor-collector.mjs", "/history/coins.json",
          "/history/x-factor.json", "/app/x-factor-targets.json"],
         capture_output=True, text=True, timeout=260,
-        env={**os.environ, "X_FACTOR_TARGET_LIMIT": str(max(1, min(8, int(target_limit))))},
+        env={**os.environ, "X_FACTOR_PROVIDER": "xflux",
+             "X_FACTOR_TARGET_LIMIT": str(max(1, min(8, int(target_limit))))},
     )
     if result.returncode:
         raise RuntimeError(result.stderr[-2000:])

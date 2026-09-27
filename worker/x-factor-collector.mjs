@@ -24,6 +24,10 @@ export function searchQuery(target){
  return `(${terms.join(' OR ')}) -is:retweet`;
 }
 
+export function xfluxQuery(target){
+ return [`"${target.contract}"`,...target.aliases.map(a=>`"${a.replaceAll('"','')}"`)].join(' OR ');
+}
+
 function matches(text,target){
  const lower=compact(text).toLowerCase();
  if(lower.includes(target.contract.toLowerCase()))return 'Exact contract mention';
@@ -79,6 +83,37 @@ export async function searchTarget(target,bearer,fetcher=fetch,now=Date.now()){
  throw new Error('X search exceeds the page cap; score withheld');
 }
 
+export async function searchTargetXFlux(target,key,fetcher=fetch,now=Date.now()){
+ const url=new URL('https://www.xfluxapi.com/api/v1/search');
+ url.searchParams.set('q',xfluxQuery(target));
+ url.searchParams.set('limit','100');
+ const response=await fetcher(url,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(20000)});
+ if(!response.ok)throw new Error(`XFlux search HTTP ${response.status}`);
+ const payload=await response.json();
+ if(!Array.isArray(payload.data))throw new Error('Invalid XFlux search response');
+ if(!payload.data.length)throw new Error('XFlux returned no search evidence; score withheld');
+ if(payload.data.length>=100)throw new Error('XFlux search reached the 100-post cap; score withheld');
+ const users=new Map(),posts=[];
+ for(const post of payload.data){
+  const at=Date.parse(post.created_at),reason=matches(post.text,target);
+  if(!reason||!Number.isFinite(at)||at<now-12*HOUR||at>now)continue;
+  const author=post.author||post.user||{};
+  const username=String(author.username||post.author_username||post.username||'').replace(/^@/,'');
+  const authorId=String(post.author_id||author.id||username.toLowerCase());
+  const metrics=post.public_metrics||{};
+  if(!/^\d+$/.test(String(post.id))||!authorId||(target.keyHandles.length&&!username)||!Number.isFinite(Number(metrics.like_count))||!Number.isFinite(Number(metrics.retweet_count))||!Number.isFinite(Number(metrics.reply_count)))throw new Error('XFlux omitted post, author, or engagement fields; score withheld');
+  users.set(authorId,{id:authorId,username});
+  posts.push({...post,author_id:authorId,public_metrics:metrics});
+ }
+ if(!posts.length){
+  const recent=payload.data.filter(post=>{const at=Date.parse(post.created_at);return Number.isFinite(at)&&at>=now-12*HOUR&&at<=now}).length;
+  const matching=payload.data.filter(post=>matches(post.text,target)).length;
+  throw new Error(`XFlux returned no matching recent posts (${payload.data.length} returned, ${recent} recent, ${matching} text matches); score withheld`);
+ }
+ const reading=summarizePosts(target,[{data:posts,includes:{users:[...users.values()]}}],now);
+ return {...reading,coverage:`XFlux sampled search (up to 100 posts); ${reading.coverage}`,source:'xflux'};
+}
+
 async function writeReport(filename,report){
  await mkdir(path.dirname(filename),{recursive:true});
  const temporary=`${filename}.tmp`;
@@ -86,17 +121,17 @@ async function writeReport(filename,report){
  await rename(temporary,filename);
 }
 
-export async function collectXFactor({snapshotFile,outputFile,configFile,token=process.env.X_BEARER_TOKEN,fetcher=fetch,now=Date.now(),targetLimit=Number(process.env.X_FACTOR_TARGET_LIMIT)||MAX_TARGETS}){
+export async function collectXFactor({snapshotFile,outputFile,configFile,provider=process.env.X_FACTOR_PROVIDER||'xflux',token=provider==='xflux'?process.env.XFLUX_API_KEY:process.env.X_BEARER_TOKEN,fetcher=fetch,now=Date.now(),targetLimit=Number(process.env.X_FACTOR_TARGET_LIMIT)||MAX_TARGETS}){
  if(!token){await writeReport(outputFile,EMPTY);return EMPTY}
  const snapshot=JSON.parse(await readFile(snapshotFile,'utf8'));
  let config={};
  if(configFile){try{config=JSON.parse(await readFile(configFile,'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}}
  const targets=selectTargets(snapshot,config,Math.min(MAX_TARGETS,Math.max(1,Math.floor(targetLimit)||1))),coins={},errors=[];
  for(const target of targets){
-  try{coins[target.id]=await searchTarget(target,token,fetcher,now)}
-  catch(error){errors.push({id:target.id,message:error.message});if(/HTTP (401|402|403|429)/.test(error.message))break}
+  try{coins[target.id]=await (provider==='xflux'?searchTargetXFlux(target,token,fetcher,now):searchTarget(target,token,fetcher,now))}
+  catch(error){errors.push({id:target.id,message:error.message});if(/HTTP (401|402|403|429|5\d\d)/.test(error.message))break}
  }
- const report={version:1,status:Object.keys(coins).length?'connected':'error',sampledAt:now,coverage:{sampled:Object.keys(coins).length,targeted:targets.length,method:'recent search; exact contract plus configured aliases'},coins,errors};
+ const report={version:1,status:Object.keys(coins).length?'connected':'error',source:provider,sampledAt:now,coverage:{sampled:Object.keys(coins).length,targeted:targets.length,method:'recent search; exact contract plus configured aliases'},coins,errors};
  await writeReport(outputFile,report);
  return report;
 }
