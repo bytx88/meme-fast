@@ -309,6 +309,35 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .discovery-lane{overflow:visible}
 .discovery-lane-list{overflow:visible}
 .discovery-board .scan-card .card-title-line .ca-compact{min-width:28px;min-height:28px;font-size:11px}
+
+/* Separate the entry decision from the market facts so neither has to compete for one line. */
+.entry-row,.tiles-only .entry-row{grid-template-columns:minmax(0,3fr) minmax(0,3fr) auto;column-gap:20px;row-gap:12px;align-items:center;padding:13px 14px}
+.entry-identity,.tiles-only .entry-identity{grid-column:1;grid-row:1;gap:10px}
+.entry-identity .coin-thumb{width:38px;height:38px}
+.entry-identity>div{gap:3px}
+.entry-name{display:flex;align-items:center;gap:5px;min-width:0}
+.entry-name strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry-copy{width:16px;height:16px;min-height:16px;border:0;border-radius:0;background:transparent}
+.entry-copy::before{top:2px;left:2px}
+.entry-copy::after{top:4px;left:4px;background:#141d28}
+.entry-copy:hover,.entry-copy:focus-visible{background:transparent;color:#d8edff;outline:0}
+.entry-copy:focus-visible{box-shadow:0 2px #9acb58}
+.entry-copy.copied::before{line-height:16px}
+.entry-status{display:inline-flex;margin-left:10px}
+.entry-verification,.tiles-only .entry-verification{grid-column:2;grid-row:1;align-self:center}
+.entry-actions,.tiles-only .entry-actions{grid-column:3;grid-row:1;justify-self:end}
+.entry-metrics{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;padding-top:11px;border-top:1px solid #2d3d4d}
+.entry-metrics .entry-stat:nth-of-type(n){display:flex}
+.entry-stat{gap:4px}
+.entry-stat span,.entry-stat small{white-space:normal;line-height:1.25}
+@media(max-width:950px){
+ .entry-row,.tiles-only .entry-row{grid-template-columns:minmax(0,1fr) auto;gap:10px 14px}
+ .entry-identity,.tiles-only .entry-identity{grid-column:1}
+ .entry-actions,.tiles-only .entry-actions{grid-column:2;grid-row:1}
+ .entry-metrics{grid-template-columns:repeat(4,minmax(0,1fr));grid-row:2}
+ .entry-verification,.tiles-only .entry-verification{grid-column:1/-1;grid-row:3}
+}
+@media(max-width:600px){.entry-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.entry-status{display:none}}
 .discovery-board .scan-card .card-actions a,.discovery-board .scan-card .card-actions button{min-height:28px;font-size:11px}
 .discovery-board .scan-card .new-metrics dt{font-size:11px}
 .discovery-board .scan-card .card-stage-fact{font-size:12px}
