@@ -86,12 +86,12 @@ async function writeReport(filename,report){
  await rename(temporary,filename);
 }
 
-export async function collectXFactor({snapshotFile,outputFile,configFile,token=process.env.X_BEARER_TOKEN,fetcher=fetch,now=Date.now()}){
+export async function collectXFactor({snapshotFile,outputFile,configFile,token=process.env.X_BEARER_TOKEN,fetcher=fetch,now=Date.now(),targetLimit=Number(process.env.X_FACTOR_TARGET_LIMIT)||MAX_TARGETS}){
  if(!token){await writeReport(outputFile,EMPTY);return EMPTY}
  const snapshot=JSON.parse(await readFile(snapshotFile,'utf8'));
  let config={};
  if(configFile){try{config=JSON.parse(await readFile(configFile,'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}}
- const targets=selectTargets(snapshot,config),coins={},errors=[];
+ const targets=selectTargets(snapshot,config,Math.min(MAX_TARGETS,Math.max(1,Math.floor(targetLimit)||1))),coins={},errors=[];
  for(const target of targets){
   try{coins[target.id]=await searchTarget(target,token,fetcher,now)}
   catch(error){errors.push({id:target.id,message:error.message});if(/HTTP (401|402|403|429)/.test(error.message))break}

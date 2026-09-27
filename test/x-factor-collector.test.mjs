@@ -45,12 +45,17 @@ test('collector writes a contract-keyed report and disconnects without a token',
  const directory=await mkdtemp(path.join(tmpdir(),'meme-x-factor-'));
  try{
   const snapshotFile=path.join(directory,'coins.json'),outputFile=path.join(directory,'x-factor.json');
-  await writeFile(snapshotFile,JSON.stringify({coins:[{id,buyers:10}]}));
+  const secondId='base:0x1111111111111111111111111111111111111111';
+  await writeFile(snapshotFile,JSON.stringify({coins:[{id,buyers:10},{id:secondId,buyers:9}]}));
   const fetcher=async()=>({ok:true,json:async()=>({data:[],meta:{result_count:0}})});
   const connected=await collectXFactor({snapshotFile,outputFile,token:'test',fetcher,now});
   assert.equal(connected.status,'connected');
+  assert.equal(connected.coverage.targeted,2);
   assert.equal(connected.coins[id].score,0);
   assert.equal(JSON.parse(await readFile(outputFile,'utf8')).coins[id].posts6h,0);
+  const limited=await collectXFactor({snapshotFile,outputFile,token:'test',fetcher,now,targetLimit:1});
+  assert.equal(limited.coverage.targeted,1);
+  assert.deepEqual(Object.keys(limited.coins),[id]);
   const disconnected=await collectXFactor({snapshotFile,outputFile,token:'',fetcher,now});
   assert.equal(disconnected.status,'disconnected');
   assert.equal(JSON.parse(await readFile(outputFile,'utf8')).status,'disconnected');
