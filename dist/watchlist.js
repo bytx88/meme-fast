@@ -1,5 +1,6 @@
 import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs';
 import {NETWORKS,parsePools} from './public-radar.mjs';
+import {fomoLink} from './contract-copy.mjs';
 
 const items=document.getElementById('items');
 const count=document.getElementById('count');
@@ -41,13 +42,16 @@ function stats(coin){
 
 function tokenCard(item){
  const coin=market.get(key(item.id))||item.marketSnapshot;
+ const fomo=fomoLink(coin);
+ const icon=tokenIcon(item,coin);
+ const artwork=fomo?`<a class="saved-item-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(item.title)} on Fomo" title="Open on Fomo">${icon}</a>`:icon;
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
  const short=contract.length>14?`${contract.slice(0,6)}…${contract.slice(-4)}`:contract;
  const [chain,horizon]=String(item.subtitle||'').split(' · ');
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
  const detail=[chain||coin?.chain||'Token',horizon,short,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${tokenIcon(item,coin)}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){

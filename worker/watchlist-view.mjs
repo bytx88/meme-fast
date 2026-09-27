@@ -1,4 +1,4 @@
-const FIELDS=['id','name','symbol','network','chain','contract_address','image_url','priceUsd','priceChange','mc','fdv','liquidity','volume','volume5m','buys5m','sells5m','recentVolume1h','poolCreated','marketUpdatedAt','priceUpdatedAt'];
+const FIELDS=['id','name','symbol','network','chain','contract_address','contract_verified','image_url','priceUsd','priceChange','mc','fdv','liquidity','volume','volume5m','buys5m','sells5m','recentVolume1h','poolCreated','marketUpdatedAt','priceUpdatedAt'];
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
 
 export function watchlistView(snapshot,ids,now=Date.now()){

@@ -10,11 +10,12 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  globalThis.document={getElementById:id=>nodes[id],addEventListener:()=>{}};
  globalThis.window={addEventListener:()=>{}};
  const requests=[];
- globalThis.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>({lastRun:Date.now(),coins:[{id:item.id,image_url:'https://cdn.example/cashed.png',priceUsd:0.005,priceChange:12,fdv:4600000,liquidity:200000,volume:1000000,volume5m:10000,buys5m:8,sells5m:3,marketUpdatedAt:Date.now()}]})}};
+ globalThis.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>({lastRun:Date.now(),coins:[{id:item.id,chain:'Robinhood Chain',contract_address:contract,contract_verified:true,image_url:'https://cdn.example/cashed.png',priceUsd:0.005,priceChange:12,fdv:4600000,liquidity:200000,volume:1000000,volume5m:10000,buys5m:8,sells5m:3,marketUpdatedAt:Date.now()}]})}};
  await import('../dist/watchlist.js');
  await new Promise(resolve=>setImmediate(resolve));
  assert.match(nodes.items.innerHTML,/class="saved-item-icon"/);
  assert.match(nodes.items.innerHTML,/src="https:\/\/cdn\.example\/cashed\.png"/);
+ assert.match(nodes.items.innerHTML,new RegExp(`class="saved-item-image-link" href="https://fomo\\.family/tokens/robinhood/${contract}" target="_blank"`));
  assert.match(nodes.items.innerHTML,/\$CASHED/);
  assert.match(nodes.items.innerHTML,/Vol 24h/);
  assert.match(nodes.items.innerHTML,/\$1M/);

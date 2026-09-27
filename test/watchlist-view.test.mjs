@@ -4,12 +4,13 @@ import {watchlistView} from '../worker/watchlist-view.mjs';
 
 test('saved-token view returns only requested snapshot stats without histories',()=>{
  const now=1800000000000,id='robinhood:0x'+'a'.repeat(40);
- const coin={id,name:'CASHED',network:'robinhood',priceUsd:0.005,liquidity:200000,volume:5000000,lastSeenRadarAt:now,marketHistory:[{at:now}],savedContext:{story:'Long narrative'}};
+ const coin={id,name:'CASHED',network:'robinhood',chain:'Robinhood Chain',contract_address:id.slice('robinhood:'.length),contract_verified:true,priceUsd:0.005,liquidity:200000,volume:5000000,lastSeenRadarAt:now,marketHistory:[{at:now}],savedContext:{story:'Long narrative'}};
  const snapshot={lastRun:now,radarCoins:[coin,{...coin,id:'robinhood:other'}],coins:[]};
  const result=watchlistView(snapshot,[id.toUpperCase()],now);
  assert.equal(result.coins.length,1);
  assert.equal(result.coins[0].priceUsd,0.005);
  assert.equal(result.coins[0].volume,5000000);
+ assert.equal(result.coins[0].contract_verified,true);
  assert.equal('marketHistory' in result.coins[0],false);
  assert.equal('savedContext' in result.coins[0],false);
  assert.equal(result.lastRun,now);
