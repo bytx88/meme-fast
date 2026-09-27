@@ -210,8 +210,9 @@
  .radar-reasons .x-factor-badge{min-height:21px;padding:2px 5px;font-size:10px}
 }
 
-/* Keep the document scrollbar visible while Hodl cards extend below the viewport. */
-html:has(.radar-page){overflow-y:scroll;scrollbar-gutter:stable;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+/* Let the document scroll naturally and clear taskbars that overlap the viewport edge. */
+html:has(.radar-page){overflow-y:auto;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+.radar-page{padding-bottom:80px}
 html:has(.radar-page)::-webkit-scrollbar{width:11px}
 html:has(.radar-page)::-webkit-scrollbar-track{background:#0b1119}
 html:has(.radar-page)::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}
