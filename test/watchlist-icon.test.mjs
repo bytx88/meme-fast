@@ -17,7 +17,9 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.match(nodes.items.innerHTML,/src="https:\/\/cdn\.example\/cashed\.png"/);
  assert.match(nodes.items.innerHTML,new RegExp(`class="saved-item-image-link" href="https://fomo\\.family/tokens/robinhood/${contract}" target="_blank"`));
  assert.match(nodes.items.innerHTML,/\$CASHED/);
- assert.match(nodes.items.innerHTML,/<div class="watch-token-title"><h2>\$CASHED · Cashed Money<\/h2><span class="chain-marker robinhood"[^>]*>R<\/span><span class="watch-source">Hodl<\/span><\/div>/);
+ assert.match(nodes.items.innerHTML,/<section class="watch-section" aria-labelledby="watch-section-radar"><div class="watch-section-head"><h3 id="watch-section-radar">Hodl<\/h3><span>1<\/span><\/div>/);
+ assert.match(nodes.items.innerHTML,/<div class="watch-token-title"><h2>\$CASHED · Cashed Money<\/h2><span class="chain-marker robinhood"[^>]*>R<\/span><\/div>/);
+ assert.doesNotMatch(nodes.items.innerHTML,/class="watch-source"/);
  const detail=nodes.items.innerHTML.match(/<div class="watch-token-title">.*?<\/div><p>(.*?)<\/p>/)?.[1];
  assert.doesNotMatch(detail,/Robinhood Chain|0x[a-f\d]{40}/i);
  assert.match(nodes.items.innerHTML,/Vol 24h/);
@@ -41,6 +43,9 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.equal(JSON.parse(saved).length,2);
  assert.equal(JSON.parse(saved)[0].id,`robinhood:${newContract}`);
  assert.match(nodes.items.innerHTML,/\$NEW/);
+ assert.doesNotMatch(nodes.items.innerHTML,/watch-section-added/);
+ assert.equal((nodes.items.innerHTML.match(/<h3 id="watch-section-radar">Hodl<\/h3>/g)||[]).length,1);
+ assert.match(nodes.items.innerHTML,/<h3 id="watch-section-radar">Hodl<\/h3><span>2<\/span>/);
  assert.match(nodes.items.innerHTML,/\$0\.12/);
  assert.match(nodes['add-token-results'].innerHTML,/Saved/);
 });

@@ -18,6 +18,8 @@ let loading=false,loadError=false;
 
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
 const tokenTypes=new Set(['radar','coin','token']);
+const sections=[['narrative','Tweet'],['coin','Snipe'],['radar','Hodl'],['token','Inspect'],['other','Other']];
+const sectionKey=item=>sections.some(([key])=>key===item.type)?item.type:'other';
 function savedContract(item){
  const id=String(item.id||''),split=id.indexOf(':');if(split<0)return null;
  const network=id.slice(0,split).toLowerCase(),chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[network];
@@ -55,16 +57,16 @@ function tokenCard(item){
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
  const [chain,horizon]=String(item.subtitle||'').split(' · ');
  const marker=chainMarker(savedContract(item)||coin||chain);
- const source=item.type==='radar'?'Hodl':item.type==='token'?'Inspect':'Snipe';
+ const source=sections.find(([key])=>key===item.type)?.[1];
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
  const mode=horizon&&horizon!==source&&horizon.toLowerCase()!==contract.toLowerCase()&&!/^(?:0x[a-f\d]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/i.test(horizon)?horizon:null;
  const detail=[marker?null:chain||coin?.chain||'Token',mode,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><div class="watch-token-title"><h2>${esc(item.title)}</h2>${marker}<span class="watch-source">${esc(source)}</span></div><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><div class="watch-token-title"><h2>${esc(item.title)}</h2>${marker}</div><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
- return `<article class="saved-item"><div><span class="kicker">${esc(item.type)}</span><h2>${esc(item.title)}</h2><p>${esc(item.subtitle||'Saved research item')} · saved ${esc(ago(item.savedAt))}</p></div><div class="saved-item-actions"><a href="${esc(item.href)}">Open ↗</a><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item"><div><h2>${esc(item.title)}</h2><p>${esc(item.subtitle||'Saved research item')} · saved ${esc(ago(item.savedAt))}</p></div><div class="saved-item-actions"><a href="${esc(item.href)}">Open ↗</a><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function draw(){
@@ -72,7 +74,10 @@ function draw(){
  count.textContent=`Watchlist · ${saved.length}`;
  refresh.disabled=loading||!saved.some(item=>tokenTypes.has(item.type));
  refresh.textContent=loading?'Refreshing…':'Refresh stats ↻';
- items.innerHTML=saved.length?saved.map(item=>tokenTypes.has(item.type)?tokenCard(item):otherCard(item)).join(''):'<div class="empty-workspace"><strong>Your research queue is empty.</strong>Save a token or narrative to follow it here.</div>';
+ items.innerHTML=saved.length?sections.map(([key,label])=>{
+  const group=saved.filter(item=>sectionKey(item)===key);
+  return group.length?`<section class="watch-section" aria-labelledby="watch-section-${key}"><div class="watch-section-head"><h3 id="watch-section-${key}">${esc(label)}</h3><span>${group.length}</span></div><div class="watch-section-items">${group.map(item=>tokenTypes.has(item.type)?tokenCard(item):otherCard(item)).join('')}</div></section>`:'';
+ }).join(''):'<div class="empty-workspace"><strong>Your research queue is empty.</strong>Save a token or narrative to follow it here.</div>';
 }
 
 async function loadStats(refreshMissing=false){
