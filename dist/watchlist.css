@@ -53,3 +53,6 @@
 .add-result-copy strong{font-size:13px}
 .add-result-copy small{margin-top:3px;color:var(--muted);font-size:10px}
 .add-result button:disabled{opacity:.55;cursor:default}
+
+.watch-token .watch-token-title{display:flex;align-items:center;gap:5px}
+.watch-token .watch-token-title>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

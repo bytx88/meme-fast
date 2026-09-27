@@ -1,6 +1,7 @@
 import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs?v=watchlist-fomo-v2';
 import {NETWORKS,parsePools} from './public-radar.mjs';
 import {fomoLink} from './contract-copy.mjs';
+import {chainMarker} from './chain-marker.mjs';
 
 const items=document.getElementById('items');
 const count=document.getElementById('count');
@@ -57,7 +58,7 @@ function tokenCard(item){
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
  const detail=[chain||coin?.chain||'Token',horizon,short,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':item.type==='token'?'Inspect':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':item.type==='token'?'Inspect':'Snipe')}</span><h2 class="watch-token-title"><span>${esc(item.title)}</span>${chainMarker(savedContract(item)||coin||chain)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
@@ -121,7 +122,7 @@ async function loadStats(refreshMissing=false){
 items.onclick=event=>{const button=event.target.closest('[data-remove]');if(button){removeSaved(button.dataset.type,button.dataset.remove);draw()}};
 refresh.onclick=()=>loadStats(true);
 function drawMatches(){
- addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong><small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved ✓':'Watchlist +'}</button></div>`).join('');
+ addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong>${chainMarker(coin)}<small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved ✓':'Watchlist +'}</button></div>`).join('');
 }
 addButton.onclick=()=>{addDialog.showModal();addQuery.focus()};
 document.getElementById('close-add-token').onclick=()=>addDialog.close();
