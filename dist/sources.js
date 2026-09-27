@@ -19,7 +19,7 @@ async function loadHealth(){
    const label=name.replaceAll('_',' '),attempt=Number(feed.lastAttempt),success=Number(feed.lastSuccess),status=feed.status||'unknown';
    return `<div class="source-health-item"><strong>${esc(label)}</strong><span class="source-health-state ${esc(status)}">${esc(status)}</span><small>Last attempt ${Number.isFinite(attempt)&&attempt>0?esc(new Date(attempt).toLocaleTimeString()):'—'} · last success ${Number.isFinite(success)&&success>0?esc(new Date(success).toLocaleTimeString()):'—'}${feed.error?` · ${esc(String(feed.error).slice(0,120))}`:''}</small></div>`;
   }).join('');
- }catch{summary.textContent='Collection health is unavailable right now. Check Tweet or Hodl for recent feed status.';feeds.innerHTML=''}
+ }catch{summary.textContent='Collection health is unavailable right now. Check Tweet or Swing for recent feed status.';feeds.innerHTML=''}
  finally{button.disabled=false}
 }
 $('refresh-health').addEventListener('click',loadHealth);

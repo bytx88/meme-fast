@@ -40,10 +40,10 @@ test('market refresh updates retained contracts with short-window activity and a
  assert.equal(updated.liquidity,9000);assert.equal(updated.volume5m,700);assert.equal(updated.buys5m,8);assert.equal(updated.sells5m,3);assert.equal(updated.marketUpdatedAt,5000);assert.equal(updated.image_url,'https://cdn.example/coin.png');
  assert.equal(updated.priceUsd,0.004);
 });
-test('market refresh keeps the last known metric when the live pair omits it',()=>{
+test('market refresh marks omitted liquidity and volume unknown while retaining separately timestamped price',()=>{
  const coin={id:'solana:ABC',network:'solana',contract_address:'ABC',liquidity:4000,volume:8000,priceUsd:0.004,priceUpdatedAt:4000};
  const [updated]=refreshMarket([coin],[{chainId:'solana',baseToken:{address:'ABC'},liquidity:{usd:null},volume:{m5:0},txns:{m5:{buys:0,sells:0}}}],5000);
- assert.equal(updated.liquidity,4000);assert.equal(updated.volume,8000);assert.equal(updated.volume5m,0);
+ assert.equal(updated.liquidity,null);assert.equal(updated.volume,null);assert.equal(updated.volume5m,0);
  assert.equal(updated.priceUsd,0.004);
  assert.equal(recordMarketHistory([updated],5000)[0].marketHistory[0].priceUsd,null);
 });

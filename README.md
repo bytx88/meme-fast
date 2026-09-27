@@ -18,15 +18,15 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
 - **Snipe** — Starter screening for pool timing, market age, flow, and order-size pressure; Discover and Explore views for stage and story context
-- **Hodl** — Swing and Longer-term research rankings with input coverage and explanations
+- **Swing** — Swing and Longer-term research rankings with input coverage and explanations
 - **Narrative research** — evidence trail, lifecycle context, and associated tokens
 - **Order Flow** — observed swap flow, sizing, timeline, and transaction details
 - **Watchlist** — browser-local saved narratives and tokens
-- **Sources** — current feed coverage and a planned X-account collector watchlist; X RSS mentions are shown on Tweet and Hodl
+- **Sources** — current feed coverage and a planned X-account collector watchlist; X RSS mentions are shown on Tweet and Swing
 
 ## X social signal
 
-Tweet and Hodl show an **X RSS** badge for each sampled contract. It counts x.com posts indexed by Google News RSS in the current six hours and shows the change versus the previous six hours. The inspector links to indexed items. A zero means none appeared in this RSS sample; it does not mean there were no X posts. The count does not include likes, reposts, author diversity, or a 0–100 X Factor score, and it does not affect market rankings.
+Tweet and Swing show an **X RSS** badge for each sampled contract. It counts x.com posts indexed by Google News RSS in the current six hours and shows the change versus the previous six hours. The inspector links to indexed items. A zero means none appeared in this RSS sample; it does not mean there were no X posts. The count does not include likes, reposts, author diversity, or a 0–100 X Factor score, and it does not affect market rankings.
 
 The collector in [x_rss_collector.py](worker/x_rss_collector.py) queries the exact contract and up to three configured aliases in a 12-hour RSS window. It deduplicates items, requires an x.com source, and withholds a target when a query reaches the 100-item result cap. It prioritizes [e/acc, PAID, and XLINK](x-factor-targets.json), then high-buyer market coins. e/acc uses its exact contract because the name also describes a broader movement; PAID adds UsePaid, and XLINK adds its project domain and handle. These aliases require manual contract association.
 
@@ -61,3 +61,13 @@ Double-click `update-github-and-modal.bat`. It validates the app, commits all no
 Requires Git, Node.js 20+, Python 3.11+, the Modal Python package, GitHub push access, and valid credentials in your `bytx24` Modal profile. The file runs from its own folder, so paths containing spaces work.
 
 Run `update-github-and-modal.bat --check` for local validation without committing, pushing, or deploying. This checks that the Modal profile is present, but does not verify its online credentials. Optionally pass `--message "Your commit message"` when publishing.
+
+## Trust and freshness
+
+The collector refreshes up to 1,800 retained contracts per run before discovery: saved refresh interests first (up to 300), then the Swing universe, recent discoveries, and older contracts rotated by last refresh attempt. Saving a supported token or opening Snipe, Swing, or Watchlist requests 24-hour refresh priority for contracts already in the retained sample. This sends contract IDs only; the watchlist itself remains browser-local. Unknown contracts use manual lookup and are not silently added to scheduled collection. The shared priority queue does not guarantee a fresh provider response.
+
+Provider requests are paced, stop during rate-limit cooldowns, and start their timeout after leaving the queue. Cooldowns survive collection runs. A bounded request/time budget preserves retained snapshots when providers are unavailable. The Robinhood indexer runs alongside market collection, using its last atomic export for this run. Freshness is measured per token, separately from the collection timestamp: Snipe uses six minutes and Swing/Watchlist use fifteen. Missing current liquidity or volume stays unknown. Swing withholds displayed research scores for stale or incomplete market data.
+
+Snipe separates confirmed launchpad completion from volume-only candidates. Observed recovery describes a historical pattern. The drawdown/rapid-rise filter is a price-pattern filter, not a contract-safety test. Existing `radar.html` links and saved `radar` items continue to work under the Swing name.
+
+For isolated UI checks, `PORT=4182` selects another preview port and `MEME_COLLECTOR_DISABLED=1` serves existing `.data` snapshots without starting collection.

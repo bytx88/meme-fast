@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('an existing saved CASHED item shows its icon and stats without opening Hodl',async()=>{
+test('an existing saved CASHED item shows its icon and stats without opening Swing',async()=>{
  const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
  const item={type:'radar',id:`robinhood:${contract}`,title:'$CASHED · Cashed Money',subtitle:`Robinhood Chain · ${contract}`,href:`./radar.html?contract=${contract}`,savedAt:Date.now()};
  const nodes={items:{innerHTML:'',onclick:null},count:{textContent:''},'refresh-stats':{disabled:false,textContent:'',onclick:null},'add-token':{onclick:null},'add-token-dialog':{showModal:()=>{},close:()=>{}},'add-token-form':{onsubmit:null},'add-token-query':{value:'',focus:()=>{}},'add-token-status':{textContent:''},'add-token-results':{innerHTML:'',onclick:null},'close-add-token':{onclick:null}};
@@ -17,10 +17,10 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.match(nodes.items.innerHTML,/src="https:\/\/cdn\.example\/cashed\.png"/);
  assert.match(nodes.items.innerHTML,new RegExp(`class="saved-item-image-link" href="https://fomo\\.family/tokens/robinhood/${contract}" target="_blank"`));
  assert.match(nodes.items.innerHTML,/\$CASHED/);
- assert.match(nodes.items.innerHTML,/<section class="watch-section" aria-labelledby="watch-section-radar"><div class="watch-section-head"><h3 id="watch-section-radar">Hodl<\/h3><span>1<\/span><\/div>/);
+ assert.match(nodes.items.innerHTML,/<section class="watch-section" aria-labelledby="watch-section-radar"><div class="watch-section-head"><h3 id="watch-section-radar">Swing<\/h3><span>1<\/span><\/div>/);
  assert.match(nodes.items.innerHTML,/<div class="watch-token-title"><h2 title="\$CASHED">\$CASHED<\/h2><span class="chain-marker robinhood"[^>]*>R<\/span><\/div>/);
  assert.match(nodes.items.innerHTML,/<p class="watch-token-name" title="Cashed Money">Cashed Money<\/p>/);
- assert.match(nodes.items.innerHTML,/<span class="watch-market-age"[^>]*>0m ago<\/span>/);
+ assert.match(nodes.items.innerHTML,/<span class="watch-market-age"[^>]*>Fresh · &lt;1m old<\/span>/);
  assert.doesNotMatch(nodes.items.innerHTML,/class="watch-source"/);
  const detail=nodes.items.innerHTML.match(/<p class="watch-token-meta"[^>]*>(.*?)<\/p>/)?.[1];
  assert.doesNotMatch(detail,/Robinhood Chain|0x[a-f\d]{40}/i);
@@ -29,8 +29,8 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.equal((nodes.items.innerHTML.match(/class="watch-metric"/g)||[]).length,7);
  assert.doesNotMatch(nodes.items.innerHTML,/watch-token-head|watch-data-note/);
  assert.doesNotMatch(nodes.items.innerHTML,/Open ↗/);
- assert.equal(requests.length,1);
- assert.match(requests[0],/view=watchlist/);
+ assert.equal(requests.filter(url=>url==='/api/refresh-priority').length,1);
+ assert.equal(requests.filter(url=>url.includes('view=watchlist')).length,1);
  assert.equal(JSON.parse(saved)[0].image_url,'https://cdn.example/cashed.png');
  const newContract=`0x${'a'.repeat(40)}`;
  globalThis.fetch=async url=>{
@@ -46,8 +46,8 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.equal(JSON.parse(saved)[0].id,`robinhood:${newContract}`);
  assert.match(nodes.items.innerHTML,/\$NEW/);
  assert.doesNotMatch(nodes.items.innerHTML,/watch-section-added/);
- assert.equal((nodes.items.innerHTML.match(/<h3 id="watch-section-radar">Hodl<\/h3>/g)||[]).length,1);
- assert.match(nodes.items.innerHTML,/<h3 id="watch-section-radar">Hodl<\/h3><span>2<\/span>/);
+ assert.equal((nodes.items.innerHTML.match(/<h3 id="watch-section-radar">Swing<\/h3>/g)||[]).length,1);
+ assert.match(nodes.items.innerHTML,/<h3 id="watch-section-radar">Swing<\/h3><span>2<\/span>/);
  assert.match(nodes.items.innerHTML,/\$0\.12/);
  assert.match(nodes['add-token-results'].innerHTML,/Saved/);
 });

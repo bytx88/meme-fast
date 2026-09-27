@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {addSaved,isSaved,removeSaved,toggleSaved,watchlist} from '../dist/research-store.mjs';
 
-test('token saved on one surface is shared across Snipe, Hodl, and Order Flow',()=>{
+test('token saved on one surface is shared across Snipe, Swing, and Order Flow',()=>{
  const entries=new Map();
  globalThis.localStorage={getItem:key=>entries.get(key)??null,setItem:(key,value)=>entries.set(key,value)};
  const id='solana:So11111111111111111111111111111111111111112';

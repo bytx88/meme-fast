@@ -24,6 +24,8 @@ test('missing or stale data cannot pass the entry screen',()=>{
  assert.equal(missing.passesScreen,false);
  assert.ok(missing.reasons.includes('Market stale'));
  assert.ok(missing.reasons.includes('Sell pressure'));
+ assert.equal(assessEntry({...coin,marketUpdatedAt:now+60000},DEFAULT_ENTRY,now).passesScreen,false);
+ assert.equal(assessEntry({...coin,volume5m:null},DEFAULT_ENTRY,now).passesScreen,false);
 });
 
 test('flow projection retains only two newest finite samples',()=>{

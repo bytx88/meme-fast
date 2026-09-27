@@ -4,7 +4,7 @@ export const SUCCESS_LIQUIDITY_USD=3000;
 
 export function hasLiveSuccessMarket(coin,now=Date.now()){
  const updatedAt=Number(coin?.marketUpdatedAt);
- return Number(coin?.liquidity)>=SUCCESS_LIQUIDITY_USD&&Number(coin?.recentVolume1h??coin?.volume5m)>0&&(!updatedAt||now-updatedAt<=15*60000);
+ return Number(coin?.liquidity)>=SUCCESS_LIQUIDITY_USD&&Number(coin?.recentVolume1h??coin?.volume5m)>0&&Number.isFinite(updatedAt)&&updatedAt>0&&updatedAt<=now&&now-updatedAt<=15*60000;
 }
 
 export function isUnderObservation(coin,now=Date.now()){
@@ -21,7 +21,7 @@ export function stageFor(coin,now=Date.now()){
   if(Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';
   return 'new';
  }
- if(Number(coin?.volume)>=MIGRATED_VOLUME_24H)return 'migrated';
+ if(Number(coin?.volume)>=MIGRATED_VOLUME_24H)return 'active';
  return 'new';
 }
 

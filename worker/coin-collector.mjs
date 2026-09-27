@@ -7,6 +7,8 @@ import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
 import {feedStatus,coverageFor,validateSnapshot,PIPELINE_LIMITS} from './snapshot-contract.mjs';
 import {snapshotVersion,versionFile} from './snapshot-view.mjs';
+import {createProviderFetch} from './provider-fetch.mjs';
+import {selectMarketTargets,tokenKey} from './refresh-priority.mjs';
 
 export const RETENTION_MS=PIPELINE_LIMITS.retentionMs;
 export const RECENT_MARKET_MS=4*3600000;
@@ -19,13 +21,13 @@ export function refreshMarket(coins,pairs,now=Date.now()){
  const byAddress=new Map();
  for(const pair of pairs){
   const address=pair?.baseToken?.address;if(!address)continue;
-  const key=`${String(pair.chainId).toLowerCase()}:${String(address).toLowerCase()}`,current=byAddress.get(key);
+  const key=tokenKey(`${String(pair.chainId).toLowerCase()}:${address}`),current=byAddress.get(key);
   if(!current||amount(pair.liquidity?.usd)>amount(current.liquidity?.usd))byAddress.set(key,pair);
  }
  return coins.map(coin=>{
-  const pair=byAddress.get(`${coin.network}:${String(coin.contract_address).toLowerCase()}`);
+  const pair=byAddress.get(tokenKey(`${coin.network}:${coin.contract_address}`));
   if(!pair)return coin;
-  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd)??coin.liquidity,priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24)??coin.volume,volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24)??coin.priceChange,marketUpdatedAt:now,fetchedAt:now};
+  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:now,fetchedAt:now};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
@@ -186,8 +188,8 @@ async function story(coin,fetcher){
  const lead=bestSearchLead((await response.text()).slice(0,60000));
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
-async function enrichMarket(coins,radarCoins,fetcher,now,feeds){
- const targets=[...new Map([...coins,...radarCoins].map(c=>[c.id,c])).values()];
+async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],marketOnly=false,skipMarket=false}={}){
+ const targets=skipMarket?[]:selectMarketTargets(coins,radarCoins,priorityIds,now);
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
   const addresses=targets.filter(c=>c.network===network).map(c=>c.contract_address);
   return chunks(addresses,30).map(async batch=>{
@@ -199,9 +201,13 @@ async function enrichMarket(coins,radarCoins,fetcher,now,feeds){
  const pairs=marketResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
  const marketFailure=marketResults.find(r=>r.status==='rejected');
  if(marketResults.length)feeds.dex_market=feedStatus(feeds.dex_market,now,marketFailure?{error:marketFailure.reason.message,returnedRecords:pairs.length}:{records:pairs.length});
- else feeds.dex_market={...feeds.dex_market,status:'idle',error:null,returnedRecords:null};
+ else if(!skipMarket)feeds.dex_market={...feeds.dex_market,status:'idle',error:null,returnedRecords:null};
+ const attempted=new Set(targets.map(c=>tokenKey(c.id)));
+ coins=coins.map(c=>attempted.has(tokenKey(c.id))?{...c,marketAttemptAt:now}:c);
+ radarCoins=radarCoins.map(c=>attempted.has(tokenKey(c.id))?{...c,marketAttemptAt:now}:c);
  coins=recordMarketHistory(refreshMarket(coins,pairs,now),now);
  radarCoins=recordMarketHistory(refreshMarket(radarCoins,pairs,now),now);
+ if(marketOnly)return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length,selected:targets.length};
  const launchCandidates=selectLaunchCandidates(coins);
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
@@ -261,17 +267,13 @@ async function enrichContext(snapshot,fetcher,now){
  for(const coin of radarCoins){const current=byId.get(coin.id);if(current){coin.savedContext=current.savedContext;coin.contextCheckedAt=current.contextCheckedAt}}
  return {articles:articles.length,profiles:profiles.length,checked:queue.length,failedLookups:queue.filter(coin=>coin.contextError).length};
 }
-export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
- if(fetcher===fetch){
-  const direct=fetch;let nextGeckoAt=0,queue=Promise.resolve();
-  fetcher=(url,options)=>{
-   if(!String(url).startsWith('https://api.geckoterminal.com/'))return direct(url,options);
-   const turn=queue.then(async()=>{const wait=Math.max(0,nextGeckoAt-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait));nextGeckoAt=Date.now()+3500});
-   queue=turn.catch(()=>{});
-   return turn.then(()=>direct(url,options));
-  };
- }
+export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[]}={}){
  const previous=await readSnapshot(filename),feeds={...previous.feeds},incoming=[];
+ const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
+ if(paced)fetcher=paced;
+ // Refresh existing watch interests and ranking candidates before discovery/context.
+ const retained=await enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
+ previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -346,14 +348,15 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
    feeds[key]=feedStatus(feeds[key],now,failure?{error:failure.reason.message,returnedRecords:returned}:{records:returned});
  }
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
- const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds);
+ const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
+ market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests;
  coins=market.coins;radarCoins=market.radarCoins;
  const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
  const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
- const snapshot={version:2,revision:`${now}:1`,coins,radarCoins,lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
+ const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
   discovery:{status:discoveryStatus,completedAt:now,coins:coins.length,radarCoins:radarCoins.length},
-  market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs},
+  market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs,selectedContracts:retained.selected,refreshLimit:1800,priorityContracts:priorityIds.length},
   context:{status:'pending'},
  }};
  // Commit discovery and market data before slower context lookups.
@@ -364,10 +367,11 @@ export async function collect(filename,{fetcher=fetch,now=Date.now()}={}){
  snapshot.pipeline.context={status:contextStatus,completedAt:now,...context};
  snapshot.revision=`${now}:2`;
  snapshot.coverage=coverageFor(feeds);
+ snapshot.providerState=paced?.state()||snapshot.providerState;
  await save(filename,snapshot);
  return snapshot;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const snapshot=await collect(process.argv[2]);
+ const snapshot=await collect(process.argv[2],{priorityIds:JSON.parse(process.env.MEME_REFRESH_PRIORITY_IDS||'[]')});
  console.log(JSON.stringify({coins:snapshot.coins.length,lastRun:snapshot.lastRun,feeds:snapshot.feeds}));
 }

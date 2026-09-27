@@ -33,30 +33,54 @@ image = (
 )
 
 app = modal.App(APP_NAME, image=image)
+refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 
 
 @app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
 def collect_coins():
+    import json
     import subprocess
+    import time
+    import sys
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    from worker.refresh_priority import PRIORITY_TTL
     history_volume.reload()
-    try:
-        indexer = subprocess.run(
-            ["python", "/app/worker/robinhood_indexer.py", "scan", "/history/robinhood-pools.sqlite", "/history/robinhood-pool-feed.json"],
-            capture_output=True, text=True, timeout=280,
-        )
-        if indexer.returncode:
-            print("Robinhood pool indexer:", indexer.stderr[-2000:])
-    except subprocess.TimeoutExpired:
-        print("Robinhood pool indexer timed out; using the previous feed")
-    result = subprocess.run(
-        ["node", "/app/worker/coin-collector.mjs", "/history/coins.json"],
-        capture_output=True, text=True, timeout=280,
+    now_ms = int(time.time() * 1000)
+    priorities = []
+    for token_id, requested_at in refresh_priorities.items():
+        if isinstance(requested_at, (int, float)) and 0 <= now_ms - requested_at < PRIORITY_TTL:
+            priorities.append((token_id, requested_at))
+        else:
+            refresh_priorities.pop(token_id, None)
+    priority_ids = [item[0] for item in sorted(priorities, key=lambda item: -item[1])[:300]]
+    # Index independently while market refresh uses the last atomic pool export.
+    indexer = subprocess.Popen(
+        ["python", "/app/worker/robinhood_indexer.py", "scan", "/history/robinhood-pools.sqlite", "/history/robinhood-pool-feed.json"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
     )
-    history_volume.commit()
-    if result.returncode:
-        raise RuntimeError(result.stderr)
-    print(result.stdout)
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            ["node", "/app/worker/coin-collector.mjs", "/history/coins.json"],
+            capture_output=True, text=True, timeout=280,
+            env={**os.environ, "MEME_REFRESH_PRIORITY_IDS": json.dumps(priority_ids)},
+        )
+        history_volume.commit()
+        if result.returncode:
+            raise RuntimeError(result.stderr)
+        print(result.stdout)
+    finally:
+        try:
+            _, error = indexer.communicate(timeout=max(1, 280 - (time.monotonic() - started)))
+            if indexer.returncode:
+                print("Robinhood pool indexer:", error[-2000:])
+        except subprocess.TimeoutExpired:
+            indexer.kill()
+            indexer.communicate()
+            print("Robinhood pool indexer timed out; keeping its previous atomic export")
+        history_volume.commit()
 
 
 @app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
@@ -125,6 +149,24 @@ def web():
                 return json.loads(Path("/history/coins.json").read_text())
             except FileNotFoundError:
                 return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+
+    @web_app.post("/api/refresh-priority")
+    async def refresh_priority(request: Request):
+        from worker.refresh_priority import valid_priority_ids
+        body = await request.body()
+        if len(body) > 6000:
+            raise HTTPException(status_code=400, detail="Priority request too large")
+        try:
+            ids = valid_priority_ids(json.loads(body).get("ids"))
+        except (ValueError, AttributeError, TypeError):
+            raise HTTPException(status_code=400, detail="Request 1 to 30 supported token contracts")
+        snapshot = await load_snapshot()
+        key = lambda value: value if value.startswith("solana:") else value.lower()
+        known = {key(coin["id"]) for coin in snapshot.get("coins", []) + snapshot.get("radarCoins", [])}
+        accepted = [token_id for token_id in ids if token_id in known]
+        now_ms = int(time.time() * 1000)
+        await asyncio.gather(*(refresh_priorities.put.aio(token_id, now_ms) for token_id in accepted))
+        return JSONResponse({"accepted": len(accepted), "expiresInHours": 24}, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/x-factor")
     async def x_factor():

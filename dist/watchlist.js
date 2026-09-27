@@ -1,3 +1,5 @@
+import {requestRefreshPriority} from './refresh-priority.mjs';
+import {marketFreshness} from './market-freshness.mjs';
 import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs?v=watchlist-fomo-v2';
 import {NETWORKS,parsePools} from './public-radar.mjs';
 import {fomoLink} from './contract-copy.mjs';
@@ -18,7 +20,7 @@ let loading=false,loadError=false;
 
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
 const tokenTypes=new Set(['radar','coin','token']);
-const sections=[['narrative','Tweet'],['coin','Snipe'],['radar','Hodl'],['token','Inspect'],['other','Other']];
+const sections=[['narrative','Tweet'],['coin','Snipe'],['radar','Swing'],['token','Inspect'],['other','Other']];
 const sectionKey=item=>sections.some(([key])=>key===item.type)?item.type:'other';
 function savedContract(item){
  const id=String(item.id||''),split=id.indexOf(':');if(split<0)return null;
@@ -55,7 +57,8 @@ function tokenCard(item){
  const icon=tokenIcon(item,coin);
  const artwork=fomo?`<a class="saved-item-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(item.title)} on Fomo" title="Open on Fomo">${icon}</a>`:icon;
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
- const [chain,horizon]=String(item.subtitle||'').split(' · ');
+ const [chain,storedHorizon]=String(item.subtitle||'').split(' · ');
+ const horizon=storedHorizon==='Hodl'?'Swing':storedHorizon;
  const marker=chainMarker(savedContract(item)||coin||chain);
  const source=sections.find(([key])=>key===item.type)?.[1];
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
@@ -65,7 +68,7 @@ function tokenCard(item){
  const symbol=String(coin?.symbol||savedTicker||'?').replace(/^\$+/,'');
  const name=coin?.name||savedName.join(' · ');
  const detail=[coin?.poolCreated?`pool ${age(coin.poolCreated)} old`:null,mode,marker?null:chain||coin?.chain||'Token'].filter(Boolean).join(' · ');
- const freshness=updated===null?'No data':`${age(updated)} ago`;
+ const freshness=marketFreshness(coin).label;
  const updatedTitle=updated===null?'Market update unavailable':`Market updated ${new Date(updated).toLocaleString()}${stale?' · stale':''}`;
  return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main"><div class="watch-thumb-stack">${artwork}<span class="watch-market-age" title="${esc(updatedTitle)}" aria-label="${esc(updatedTitle)}">${esc(freshness)}${updated!==null&&stale?'<span class="watch-stale-label">stale</span>':''}</span></div><div class="saved-item-copy"><div class="watch-token-title"><h2 title="${esc('$'+symbol)}">${esc('$'+symbol)}</h2>${marker}</div>${name?`<p class="watch-token-name" title="${esc(name)}">${esc(name)}</p>`:''}<p class="watch-token-meta" title="${esc(detail)}">${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
@@ -90,6 +93,8 @@ async function loadStats(refreshMissing=false){
  const ids=[...new Set(saved.filter(item=>tokenTypes.has(item.type)).map(item=>item.id))];
  if(!ids.length){draw();return}
  loading=true;loadError=false;draw();
+ const priority=await requestRefreshPriority(saved),priorityNote=document.getElementById('priority-status');
+ if(priorityNote)priorityNote.textContent=priority.ok?`${priority.accepted} saved token${priority.accepted===1?'':'s'} prioritized for scheduled refresh for 24h. Tokens outside the retained sample use manual lookup.`:'Refresh priority unavailable. Saved items are retained; displayed values show their market age.';
  try{
   const batches=Array.from({length:Math.ceil(ids.length/30)},(_,index)=>ids.slice(index*30,index*30+30));
   const results=await Promise.all(batches.map(async batch=>{
@@ -104,7 +109,7 @@ async function loadStats(refreshMissing=false){
    for(const coin of result.coins||[])market.set(key(coin.id),coin);
   }
   if(refreshMissing){
-   const missing=saved.filter(item=>tokenTypes.has(item.type)&&!market.has(key(item.id)));
+   const missing=saved.filter(item=>tokenTypes.has(item.type)&&!marketFreshness(market.get(key(item.id))).usable);
    const queue=[...missing];
    await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=>{
     while(queue.length){

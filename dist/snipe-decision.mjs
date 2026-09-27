@@ -18,13 +18,14 @@ export function compactFlow(history){
 
 export function assessEntry(coin,settings=DEFAULT_ENTRY,now=Date.now()){
  const poolCreated=number(coin.poolCreated),firstSeen=number(coin.firstSeen),marketUpdatedAt=number(coin.marketUpdatedAt??coin.fetchedAt);
- const poolAgeMinutes=poolCreated===null?null:Math.max(0,(now-poolCreated)/60000);
- const marketAgeMinutes=marketUpdatedAt===null?null:Math.max(0,(now-marketUpdatedAt)/60000);
+ const poolAgeMinutes=poolCreated===null||poolCreated<=0||poolCreated>now?null:Math.max(0,(now-poolCreated)/60000);
+ const marketAgeMinutes=marketUpdatedAt===null||marketUpdatedAt<=0||marketUpdatedAt>now?null:Math.max(0,(now-marketUpdatedAt)/60000);
  const detectionLagMinutes=poolCreated===null||firstSeen===null?null:Math.max(0,(firstSeen-poolCreated)/60000);
  const liquidity=number(coin.liquidity),buys=number(coin.buys5m),sells=number(coin.sells5m);
  const sizeLiquidityPercent=liquidity>0?100*settings.sizeUsd/liquidity:null;
  const sellBuyRatio=buys>0&&sells!==null?sells/buys:null;
  const reasons=[];
+ if(number(coin.volume5m)===null)reasons.push('Market incomplete');
  if(poolAgeMinutes===null||poolAgeMinutes>settings.maxPoolAgeMinutes)reasons.push('Pool age');
  if(marketAgeMinutes===null||marketAgeMinutes>settings.maxMarketAgeMinutes)reasons.push('Market stale');
  if(liquidity===null||liquidity<settings.minLiquidityUsd)reasons.push('Liquidity');

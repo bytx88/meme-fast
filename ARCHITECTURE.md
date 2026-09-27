@@ -8,7 +8,7 @@ Meme Fast is organized around an evidence path:
 
 - **Tweet** (`dist/narratives.html`) discovers changing narratives and active tokens.
 - **Snipe** (`dist/index.html`, also `dist/new-coins.html`) collects fresh pools into an investigation queue and promotes only exact-address evidence matches.
-- **Hodl** (`dist/radar.html`) ranks a separate universe of contracts retained by Snipe and discovered pools for swing and longer-term research. Its heuristic scores expose missing inputs and stale observations.
+- **Swing** (`dist/radar.html`) ranks a separate universe of contracts retained by Snipe and discovered pools for swing and longer-term research. Its heuristic scores expose missing inputs and stale observations.
 - **Narrative research** (`dist/narrative.html`) explains a story through evidence, lifecycle state, and exact-address token associations.
 - **Order Flow** (`dist/order-flow.html`) investigates recent swap flow for a contract or a set of listings.
 - **Watchlist** (`dist/watchlist.html`) keeps a personal queue of narratives and tokens.
@@ -20,9 +20,9 @@ The Snipe Entry view screens pool age, discovery delay, market sample age, five-
 
 The collector has discovery, market enrichment, and context enrichment stages. It saves discovery and market results before slower context work, then saves a second revision. Each snapshot includes `pipeline` stage status, `feeds` with last attempt, last success, error, and record counts, plus `coverage` with those source states and sampling limits. Partial batches report their current returned count separately from the last complete count. `coins.version.json` is a small revision sidecar. `/api/new-coins/version` reads it for polling; clients fetch `/api/new-coins?view=coin` only when the revision changes. Local preview and Modal project the same `coin`, `radar`, and `watchlist` response shapes. The JavaScript and Python projection modules are kept in parity by tests.
 
-Hodl uses that same snapshot but has a separate `radarCoins` ranking sample capped at 200 contracts per chain. It includes retained Snipe contracts, new and trending pools on Solana, Base, and Robinhood Chain, and top pools on Solana and Robinhood Chain. Successful market refreshes retain up to four hours of five-minute samples and five days of hourly samples per coin. A missing provider refresh adds no sample. The longer-term view ranks research attention only; holder, developer, contract, and execution risk remain outside the available data.
+Swing uses that same snapshot but has a separate `radarCoins` ranking sample capped at 200 contracts per chain. It includes retained Snipe contracts, new and trending pools on Solana, Base, and Robinhood Chain, and top pools on Solana and Robinhood Chain. Successful market refreshes retain up to four hours of five-minute samples and five days of hourly samples per coin. A missing provider refresh adds no sample. The longer-term view ranks research attention only; holder, developer, contract, and execution risk remain outside the available data.
 
-Robinhood Chain is a shared source for Snipe, Hodl, contract search, and Order Flow. A separate SQLite catalog (`robinhood-pools.sqlite`) indexes Uniswap v2 `PairCreated`, v3 `PoolCreated`, and v4 `Initialize` events through Robinhood's public RPC with persistent live and historical cursors. Each scheduled run exports a bounded `robinhood-pool-feed.json` for market enrichment through GeckoTerminal. `/api/pool-catalog?query=<contract-or-pool>` finds exact onchain pool evidence even when a token is outside the Hodl ranking sample. The catalog only claims coverage for its configured event sources; other DEX protocols and historical backfill remain explicit coverage gaps until indexed. Pool existence does not imply active liquidity or a reliable market quote.
+Robinhood Chain is a shared source for Snipe, Swing, contract search, and Order Flow. A separate SQLite catalog (`robinhood-pools.sqlite`) indexes Uniswap v2 `PairCreated`, v3 `PoolCreated`, and v4 `Initialize` events through Robinhood's public RPC with persistent live and historical cursors. Each scheduled run exports a bounded `robinhood-pool-feed.json` for market enrichment through GeckoTerminal. `/api/pool-catalog?query=<contract-or-pool>` finds exact onchain pool evidence even when a token is outside the Swing ranking sample. The catalog only claims coverage for its configured event sources; other DEX protocols and historical backfill remain explicit coverage gaps until indexed. Pool existence does not imply active liquidity or a reliable market quote.
 
 Other research surfaces still use browser storage as an adapter. The local preview runs the same collector while its Node server is running, storing `.data/coins.json`. The standalone Worker bundle does not provide this scheduled history backend; production Snipe is served by Modal.
 
@@ -55,3 +55,11 @@ Collectors append observations; clustering and association jobs update derived r
 - `/sources.html` — coverage configuration
 
 These browser-safe URLs can later map directly to server routes without changing the user flow.
+
+## Collection priority and backpressure
+
+`worker/provider-fetch.mjs` serializes requests per provider, paces dispatch, honors HTTP 429 Retry-After (with a one-minute minimum), persists cooldown timestamps in the snapshot, and starts network deadlines at dispatch. The collector has a 210-second request budget. The retained market refresh precedes discovery and is capped at 1,800 contracts; failed/skipped targets retain their old market timestamp, while last-attempt timestamps rotate the remainder of the retained universe.
+
+`POST /api/refresh-priority` accepts 1-30 validated Solana/Base/Robinhood contract IDs per request and only registers contracts already in the snapshot. Modal stores contract-to-request-time entries in the separate `meme-fast-refresh-priorities` Dict, avoiding concurrent writers to the market snapshot Volume. Entries expire after 24 hours; collection considers the newest 300. Local preview uses `.data/refresh-priorities.json`. This is a shared refresh-interest queue, not account storage or persistent watchlists. No user names, notes, or positions are submitted. Collection consumes the queue and refreshes existing records; it does not execute trades.
+
+The legacy `/new-coins.html` route serves the same Snipe interface as `/`. Swing continues to use `/radar.html` and existing browser storage identities, preserving bookmarks and saved items.
