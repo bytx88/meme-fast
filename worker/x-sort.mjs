@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 
 export const FRESH_MS=4*60*60_000;
 export const STALE_MS=8*60*60_000;
-const RETRY_MS=30*60_000;
+const RETRY_MS=FRESH_MS;
 const DAY_MS=24*60*60_000;
 const THEMES=[
  {id:'x-money',name:'X payments / xMoney',query:'xMoney',terms:['xmoney','x payments']},

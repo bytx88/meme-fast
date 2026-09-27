@@ -31,7 +31,7 @@ test('X Sort reuses the four-hour server cache and serves stale after a failed r
   fail=true;
   const stale=await collectXSort({filename,key:'test',fetcher,now:now+FRESH_MS+1});
   assert.equal(stale.cacheStatus,'stale');assert.equal(calls,5);
-  const cooled=await collectXSort({filename,key:'test',fetcher,now:now+FRESH_MS+60_000});
+  const cooled=await collectXSort({filename,key:'test',fetcher,now:now+STALE_MS-1});
   assert.equal(cooled.cacheStatus,'stale');assert.equal(calls,5);
   const expired=await collectXSort({filename,key:'test',fetcher,now:now+STALE_MS+1});
   assert.equal(expired.status,'error');
