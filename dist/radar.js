@@ -111,7 +111,7 @@ function narrativeFor(coin){
  let source=profile?.url||web?.url||article?.url||null;
  try{if(source&&new URL(source).protocol!=='https:')source=null}catch{source=null}
  const linked=found.kind==='verified'||found.kind==='web'&&web?.exact;
- return {summary,source,label:linked?'Contract-linked story':'Related theme · unverified'};
+ return {summary,source,label:linked?'Exact-address source':'Related theme · unverified'};
 }
 function shortNarrative(value,length=175){return value.length<=length?value:`${value.slice(0,length).replace(/\s+\S*$/,'')}…`}
 function narrativeMarkup(narrative,compact=false){
@@ -136,11 +136,11 @@ function card(reading,index){
  const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs</small>`:`${score}<small>${coverage}% coverage</small>`;
  const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
  return `<article class="radar-card ${stale?'stale':''}">
-  <span class="radar-rank">${String(index+1).padStart(2,'0')}</span>
+  <span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span>
   <div class="radar-token">
    <div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
-   <small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small>
    <div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div>
+   <small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small>
    <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
   </div>
   <div class="radar-signal"><strong>${signal}</strong><small>Liq ${money(coin.liquidity)}</small><small>5m ${money(coin.volume5m)}</small></div>
@@ -163,7 +163,7 @@ function inspector(reading){
  const {coin,score,coverage,stale,parts,updatedAt}=reading,id=coinId(coin);
  const marketLinks=[['Fomo',fomoLink(coin)],['Axiom',axiomLink(coin)]].filter(([,url])=>url).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`).join('');
  const exact=coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact;
- const context=exact?'Exact contract evidence':coin.savedContext?'Related context only':'Context pending';
+ const context=exact?'Exact-address source':coin.savedContext?'Related context only':'Context pending';
  const unknown=parts.filter(part=>part.value===null).map(part=>part.label);
  return `<div class="inspect-head"><div class="inspect-identity">${thumbnail(coin)}<span class="radar-kicker">${esc(RADAR_MODES[state.mode].title.toUpperCase())} INSPECTION</span><h2>${esc(ticker(coin))}</h2><p>${esc(coin.name||'Unknown')} · ${esc(coin.chain||coin.network)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><div class="inspect-score"><strong>${score===null?'Collecting history':`${score} / 100`}</strong><span>${coverage}% inputs available · ${stale?'Market data stale':`Market updated ${age(updatedAt)} ago`}</span></div><div class="inspect-actions"><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved to Watchlist ✓':'Save to Watchlist'}</button><a href="${esc(flowLink(coin))}">Order Flow ↗</a>${marketLinks}</div>${narrativeFor(coin)?`<section class="inspect-section"><h3>Narrative context</h3>${narrativeMarkup(narrativeFor(coin))}</section>`:''}<section class="inspect-section"><h3>Market snapshot</h3><dl class="inspect-facts"><div><dt>Liquidity</dt><dd>${money(coin.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(coin.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${count(coin.buys5m)} / ${count(coin.sells5m)}</dd></div><div><dt>24h volume</dt><dd>${money(coin.volume)}</dd></div><div><dt>24h price change</dt><dd>${percent(coin.priceChange)}</dd></div><div><dt>Pool age</dt><dd>${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))}</dd></div><div><dt>Holders</dt><dd data-holder-fact="count">${count(holderInfo.get(id)?.count)}</dd></div><div><dt>Top 10 share</dt><dd data-holder-fact="top10">${percent(holderInfo.get(id)?.top10)}</dd></div></dl><p data-holder-source>${esc(holderTitle(id))}</p></section><section class="inspect-section"><h3>Why this signal</h3><p>Weighted inputs for the ${esc(RADAR_MODES[state.mode].title.toLowerCase())} horizon. The score is a research priority, not a return forecast.</p><div class="inspect-parts">${parts.map(part=>`<div><strong>${esc(part.label)}</strong><span class="${partClass(part)}">${part.value===null?'Unknown':`${Math.round(part.value*100)}%`}</span><small>${esc(part.detail)} · ${part.weight}% weight</small></div>`).join('')}</div></section>${inspectedHistory(coin)}<section class="inspect-section"><h3>Evidence & unknowns</h3><p><strong>${context}</strong>${context==='Context pending'?' · No contract-linked context is available yet.':context==='Related context only'?' · The available source does not identify this exact contract.':' · This is source identity evidence, not a safety check.'}</p><p>${unknown.length?`Missing inputs: ${esc(unknown.join(', '))}. `:''}Holder count and top-10 concentration are informational and do not affect this score. Developer holdings, contract safety, and execution risk are not assessed.</p><p class="inspect-contract">Contract · <code>${esc(coin.contract_address||'Unknown')}</code></p></section>`;
 }
@@ -184,16 +184,17 @@ function render(){
  if(state.error){status.textContent=state.error;results.innerHTML='<div class="radar-empty">Hodl data is unavailable. Try refreshing.</div>';return}
  const snapshot=state.snapshot;if(!snapshot){status.textContent='Waiting for coin collection…';results.innerHTML='';return}
  const q=state.query.toLowerCase(),coins=universe().filter(coin=>(state.chain==='all'||coin.network===state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
- const ranked=rankRadar(coins,state.mode),shown=ranked.slice(0,60);
+ const ranked=rankRadar(coins,state.mode),ready=ranked.filter(row=>row.score!==null&&!row.stale),pending=ranked.filter(row=>row.score===null),staleRows=ranked.filter(row=>row.score!==null&&row.stale);
+ const shownReady=ready.slice(0,60),shownPending=pending.slice(0,Math.max(0,60-shownReady.length)),shownStale=staleRows.slice(0,Math.max(0,60-shownReady.length-shownPending.length));
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
  const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error),sourceNote=sourceCoverageNote(snapshot);
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
  const collected=snapshot.lastRun?`${age(Number(snapshot.lastRun))} ago`:'pending';
- status.textContent=`${ranked.length} coins · ${fresh} live · updated ${collected}${sourceNote}${robinhoodIncomplete?' · Robinhood indexing':''}`;
+ status.textContent=`${ready.length} ranked · ${pending.length} collecting · ${staleRows.length} stale · updated ${collected}${sourceNote}${robinhoodIncomplete?' · Robinhood indexing':''}`;
  const statusDetail=`${ranked.length} observed coins. ${fresh} with recent market data. Last collection ${collected}.${sourceNote?` ${sourceNote.slice(3)}.`:''}${robinhoodIncomplete?' Robinhood pool backfill in progress.':''} ${historyNote}`;
  status.title=statusDetail;
  status.setAttribute('aria-label',statusDetail);
- results.innerHTML=shown.length?shown.map(card).join(''):`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
+ results.innerHTML=ranked.length?`${shownReady.length?`<h2 class="radar-section-title">Ready to rank <span>${ready.length}</span></h2>${shownReady.map(card).join('')}`:''}${shownPending.length?`<h2 class="radar-section-title">Collecting history <span>${pending.length}</span></h2><p class="radar-section-note">These coins are visible for research and have no ranking yet. ${state.mode==='research'?'The Days view needs at least eight hourly samples.':'The Hours view needs repeated one-hour samples.'}</p>${shownPending.map(row=>card(row,null)).join('')}`:''}${shownStale.length?`<h2 class="radar-section-title">Stale market data <span>${staleRows.length}</span></h2><p class="radar-section-note">Refresh market data before comparing these coins with the current ranking.</p>${shownStale.map(row=>card(row,null)).join('')}`:''}`:`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Hodl will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
  results.querySelectorAll('[data-holder-id]').forEach(node=>{if(!holderInfo.has(node.dataset.holderId))holderObserver.observe(node)});
  renderInspector();
 }

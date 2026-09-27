@@ -1,0 +1,13 @@
+.source-health{margin-top:20px}
+.source-health-head{display:flex;align-items:start;justify-content:space-between;gap:16px}
+.source-health-head h2{margin-bottom:4px}
+.source-health-head p{font-size:13px}
+.source-health-head button{flex:none;min-height:34px;padding:6px 10px}
+.source-health-feeds{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:16px}
+.source-health-item{display:grid;grid-template-columns:1fr auto;gap:3px 8px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:#0d131b}
+.source-health-item strong{overflow-wrap:anywhere;font-size:13px;text-transform:capitalize}
+.source-health-item small{grid-column:1/-1;color:var(--muted);font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.source-health-state{font-size:11px;text-transform:uppercase;color:#b7c3d3}
+.source-health-state.ok{color:#bfe68a}
+.source-health-state.partial,.source-health-state.failed{color:#ffba92}
+@media(max-width:600px){.source-health-head{flex-direction:column}.source-health-head button{align-self:flex-start}}

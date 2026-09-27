@@ -271,8 +271,8 @@
 .entry-actions{display:flex;align-items:center;gap:4px}
 .entry-actions button,.entry-actions a{padding:5px 6px;border:1px solid #465367;border-radius:4px;background:#1a2431;color:#dceaff;font:600 10px 'Space Grotesk',sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer}
 .entry-actions button:hover,.entry-actions a:hover{border-color:#9acb58}
-.tiles-only .entry-actions [data-open-coin]{display:none}
-@media(max-width:1550px){.entry-row{grid-template-columns:minmax(180px,1.5fr) repeat(4,minmax(75px,.6fr)) minmax(170px,1.2fr) auto}.entry-stat:nth-of-type(5),.entry-stat:nth-of-type(6),.entry-stat:nth-of-type(7){display:none}}
+.tiles-only .entry-actions [data-open-coin]{display:inline-flex}
+@media(max-width:1550px){.entry-row{grid-template-columns:minmax(180px,1.5fr) repeat(5,minmax(75px,.6fr)) minmax(170px,1.2fr) auto}.entry-stat:nth-of-type(3),.entry-stat:nth-of-type(6){display:none}}
 @media(max-width:950px){.entry-row{grid-template-columns:minmax(160px,1fr) repeat(2,minmax(70px,.5fr));gap:9px}.entry-stat:nth-of-type(n){display:flex}.entry-verification,.entry-actions{grid-column:1/-1}.entry-actions{flex-wrap:wrap}.entry-status{display:none}}
 @media(min-width:1400px){
  .tiles-only .entry-board{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
@@ -284,3 +284,32 @@
  .tiles-only .entry-actions{justify-content:flex-end}
 }
 .discovery-board .scan-card .card-stage-fact.ramp-risk,.explore-grid .scan-card .card-stage-fact.ramp-risk{color:#ffb178;font-weight:700}
+
+/* Keep decisions and their supporting evidence in one page scroll. */
+.entry-priority,.entry-holds{display:grid;gap:6px;min-width:0}
+.entry-priority h3,.entry-holds summary{margin:4px 0;padding:8px 10px;border-radius:6px;background:#1b2925;color:#d9efb8;font-size:13px;font-weight:700}
+.entry-priority h3 span,.entry-holds summary span{margin-left:5px;color:#aebbd0}
+.entry-holds{display:block}
+.entry-holds summary{cursor:pointer;background:#1b2330;color:#dceaff;min-height:34px}
+.entry-holds[open] summary{margin-bottom:6px}
+.entry-holds .entry-row{margin-bottom:6px}
+.entry-no-pass{padding:16px;border:1px dashed #465367;border-radius:6px;color:#c7d4e1;font-size:13px}
+.entry-copy{width:28px;height:28px;min-height:28px;border:1px solid #465367;background:#1b2a38}
+.entry-copy::before{top:8px;left:8px}.entry-copy::after{top:10px;left:10px;background:#1b2a38}
+.entry-copy.copied::before{line-height:28px}
+.entry-summary,.entry-identity small,.entry-stat span,.entry-stat small,.entry-verification,.entry-verification small{font-size:12px}
+.entry-status{font-size:11px}
+.entry-actions a,.entry-actions button{min-height:30px;font-size:11px}
+.detail-screen{margin:12px 0;padding:12px;border:1px solid #4c5d45;border-radius:6px;background:#1a261d}
+.detail-screen h3{margin:0 0 5px;font-size:14px}.detail-screen p{margin:0;color:#c9d8c1;font-size:13px;line-height:1.45}
+.detail-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.detail-actions .detail-fomo{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid #465367;border-radius:5px;background:#1a2431;color:#dceaff;font-size:12px;text-decoration:none}
+.detail-actions .detail-fomo:hover{border-color:#9acb58}
+body:not(.tiles-only) .new-coins .discovery-board{height:auto}
+.discovery-lane{overflow:visible}
+.discovery-lane-list{overflow:visible}
+.discovery-board .scan-card .card-title-line .ca-compact{min-width:28px;min-height:28px;font-size:11px}
+.discovery-board .scan-card .card-actions a,.discovery-board .scan-card .card-actions button{min-height:28px;font-size:11px}
+.discovery-board .scan-card .new-metrics dt{font-size:11px}
+.discovery-board .scan-card .card-stage-fact{font-size:12px}
+@media(min-width:1400px){.tiles-only .entry-priority,.tiles-only .entry-holds,.tiles-only .entry-no-pass{grid-column:1/-1}}

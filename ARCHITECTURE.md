@@ -50,7 +50,7 @@ Collectors append observations; clustering and association jobs update derived r
 - `/narrative.html?id=<narrative-id>` — narrative research
 - `/new-coins.html` — newly discovered pools and story evidence status
 - `/radar.html` — horizon-specific attention rankings for retained coins
-- `/?query=<contract-or-ticker>` — token research
+- `/?contract=<contract-address>` — token research
 - `/watchlist.html` — saved research
 - `/sources.html` — coverage configuration
 
