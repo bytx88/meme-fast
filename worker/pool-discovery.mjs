@@ -14,14 +14,18 @@ export function discoveryPlan(){
  return plan;
 }
 
-export async function discoverPools(fetcher,now,feeds){
+export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{}}={}){
  const plan=discoveryPlan();
- const results=await Promise.allSettled(plan.map(async({network,kind,page})=>{
+ const request=async({network,kind,page})=>{
   const query=new URLSearchParams({include:'base_token,quote_token',...(kind==='trending_pools'?{duration:'1h'}:{page:String(page)})});
   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/${kind}?${query}`,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error(`HTTP ${response.status}`);
   return parsePools(await response.json(),network,now);
- }));
+ };
+ const split=plan.findIndex(item=>item.page>1);
+ const results=await Promise.allSettled(plan.slice(0,split).map(request));
+ await betweenPasses();
+ results.push(...await Promise.allSettled(plan.slice(split).map(request)));
  for(const key of new Set(plan.map(item=>item.key))){
   const group=results.filter((_,index)=>plan[index].key===key),failure=group.find(r=>r.status==='rejected');
   const returned=group.flatMap(r=>r.status==='fulfilled'?r.value:[]).length;

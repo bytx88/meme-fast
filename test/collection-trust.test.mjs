@@ -52,6 +52,21 @@ test('first discovery requests cover every chain and view before deeper paginati
  assert.equal(new Set(plan.slice(0,firstDeep).map(item=>item.key)).size,8);
  assert.equal(plan.length,18);
 });
+test('indexed refresh runs before deeper pages even when later discovery exhausts its budget',async()=>{
+ const calls=[],feeds={};let indexed=false;
+ const fetcher=async url=>{
+  calls.push(url);
+  if(calls.length>9)throw Error('collection budget reached');
+  if(url.endsWith('/indexed'))indexed=true;
+  return Response.json({data:[],included:[]});
+ };
+ await discoverPools(fetcher,1000,feeds,{betweenPasses:()=>fetcher('https://api.geckoterminal.com/indexed')});
+ assert.equal(indexed,true);
+ assert(calls[8].endsWith('/indexed'));
+ assert(calls[9].includes('page=2'));
+ assert.equal(feeds.solana_trending.status,'ok');
+ assert.equal(feeds.solana.error,'collection budget reached');
+});
 test('failed requests do not poison the provider queue',async()=>{
  let calls=0;
  const fetcher=createProviderFetch(async()=>{if(++calls===1)throw Error('network');return {status:200}}, {policies:{'api.dexscreener.com':{interval:0,limit:2}}});

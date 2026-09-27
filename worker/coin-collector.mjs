@@ -272,9 +272,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const previous=await readSnapshot(filename),feeds={...previous.feeds};
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
- // Independent providers progress together: discovery cannot be starved by market refresh.
- const discovery=discoverPools(fetcher,now,feeds);
- const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
+ // Cover essential discovery, then indexed pools, before deeper pagination.
+ let tracked=[],indexedCoins=[];
+ const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async()=>{
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -294,7 +294,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
   if(!pair)throw new Error('Tracked contract has no eligible pool');
   return [{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',symbol:pair.baseToken.symbol||'?',image_url:safeURL(pair.info?.imageUrl),network:network.id,chain:network.name,contract_address:token.contract,contract_verified:true,pool:pair.pairAddress,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv),volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),liquidity:amount(pair.liquidity?.usd),buys:amount(pair.txns?.h24?.buys),sells:amount(pair.txns?.h24?.sells),buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceUsd:amount(pair.priceUsd),priceChange:amount(pair.priceChange?.h24),fetchedAt:now,marketUpdatedAt:now,priceUpdatedAt:now}];
  }));
- const tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
  trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=feedStatus(feeds[key],now,result.status==='fulfilled'?{records:result.value.length}:{error:result.reason.message})});
  const duePools=Array.isArray(indexedFeed.pools)?indexedFeed.pools:[];
  const indexedBatches=chunks(duePools,30);
@@ -304,10 +304,13 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
   if(!response.ok)throw new Error(`Indexed pools HTTP ${response.status}`);
   return parsePools(await response.json(),NETWORKS.find(network=>network.id==='robinhood'),now);
  }));
- const indexedCoins=indexedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+ indexedCoins=indexedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
  const indexedFailure=indexedResults.find(result=>result.status==='rejected');
  if(indexedResults.length)feeds.robinhood_indexed_pools=feedStatus(feeds.robinhood_indexed_pools,now,indexedFailure?{error:indexedFailure.reason.message,returnedRecords:indexedCoins.length}:{records:indexedCoins.length});
  else feeds.robinhood_indexed_pools={...feeds.robinhood_indexed_pools,status:'idle',error:null,returnedRecords:null};
+ }});
+ // Dexscreener progresses independently while Gecko waits or backs off.
+ const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
  const [{incoming,trending,topPools},retained]=await Promise.all([discovery,retainedRefresh]);
  previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
@@ -326,13 +329,15 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  }};
  // Commit discovery and market data before slower context lookups.
  await save(filename,snapshot);
- const context=await enrichContext(snapshot,fetcher,now);
+ // Reserve a separate bounded window so discovery cooldowns cannot starve context.
+ const contextFetcher=paced?createProviderFetch(fetch,{initial:paced.state(),budgetMs:45000}):fetcher;
+ const context=await enrichContext(snapshot,contextFetcher,now);
  const contextSources=[...FEEDS.map(feed=>`news_${feed.id}`),'dex_profiles'];
  const contextStatus=contextSources.some(key=>feeds[key]?.error)||context.failedLookups?'degraded':'complete';
  snapshot.pipeline.context={status:contextStatus,completedAt:now,...context};
  snapshot.revision=`${now}:2`;
  snapshot.coverage=coverageFor(feeds);
- snapshot.providerState=paced?.state()||snapshot.providerState;
+ snapshot.providerState=paced?{...paced.state(),...contextFetcher.state()}:snapshot.providerState;
  await save(filename,snapshot);
  return snapshot;
 }
