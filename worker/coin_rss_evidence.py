@@ -13,7 +13,7 @@ from worker.x_rss_collector import ID_RE, fetch_feed, parse_feed, search_url, ti
 HOUR_MS = 3_600_000
 FRESH_MS = 4 * HOUR_MS
 STALE_MS = 8 * HOUR_MS
-REPORT_VERSION = 2
+REPORT_VERSION = 3
 BLOCKED_NAMES = {"bitcoin", "ethereum", "solana", "base", "paid", "money", "token", "coin", "crypto"}
 
 
@@ -80,6 +80,9 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
                 "nextRefreshAt": cache["lastAttemptAt"] + FRESH_MS}
 
     found, errors = {}, []
+    labels = {"contract query": ("exact", "Exact contract in indexed title"),
+              "configured alias query": ("lead", "Configured alias in indexed title; contract unverified"),
+              "name query; contract unverified": ("lead", "Token name in indexed title; contract unverified")}
     for term, reason in target["terms"]:
         try:
             for post in parse_feed(fetcher(search_url(term)), now_ms):
@@ -87,9 +90,10 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
                     continue
                 current = found.get(post["guid"])
                 if current is None or reason == "contract query":
+                    strength, label = labels[reason]
                     found[post["guid"]] = {"url": post["url"], "title": post["title"],
                                            "publishedAt": post["publishedAt"],
-                                           "reason": "visible " + reason + " match"}
+                                           "strength": strength, "reason": label}
         except Exception as error:
             errors.append({"query": reason, "message": str(error)[:200]})
     if len(errors) == len(target["terms"]):
@@ -112,6 +116,8 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
               "coverage": "Google News RSS index of x.com; visible title matches only; incomplete sample; alias and name matches do not prove a contract link",
               "queries": [{"term": term, "reason": reason} for term, reason in target["terms"]],
               "posts6h": len(current), "previousPosts6h": len(previous),
+              "exactPosts6h": sum(row["strength"] == "exact" for row in current),
+              "leadPosts6h": sum(row["strength"] == "lead" for row in current),
               "posts": current[:10], "errors": errors}
     _save(path, report)
     return _serve(report, now_ms, "fresh")

@@ -46,7 +46,10 @@ class CoinRssEvidenceTests(unittest.TestCase):
 
             first = collect_coin_evidence(SNAPSHOT, CONFIG, ID, directory, working, NOW)
             self.assertEqual(first["posts6h"], 1)
-            self.assertEqual(first["posts"][0]["reason"], "visible configured alias query match")
+            self.assertEqual((first["exactPosts6h"], first["leadPosts6h"]), (0, 1))
+            self.assertEqual(first["posts"][0]["reason"],
+                             "Configured alias in indexed title; contract unverified")
+            self.assertEqual(first["posts"][0]["strength"], "lead")
             self.assertEqual(len(calls), 2)
             cached = collect_coin_evidence(SNAPSHOT, CONFIG, ID, directory, working, NOW+FRESH_MS-1)
             self.assertEqual(cached["cacheStatus"], "fresh")
