@@ -27,7 +27,7 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("nodejs")
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0", "truststore>=0.10.0")
-    .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST)
+    .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST, copy=True)
     .add_local_dir(Path("/app/worker") if RUNNING_IN_MODAL else Path(__file__).parent / "worker", remote_path="/app/worker")
     .add_local_file(Path("/app/x-factor-targets.json") if RUNNING_IN_MODAL else Path(__file__).parent / "x-factor-targets.json", remote_path="/app/x-factor-targets.json")
 )
