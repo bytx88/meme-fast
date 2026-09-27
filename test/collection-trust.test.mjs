@@ -4,6 +4,7 @@ import {createProviderFetch} from '../worker/provider-fetch.mjs';
 import {selectMarketTargets,validPriorityIds} from '../worker/refresh-priority.mjs';
 import {marketFreshness,freshnessCounts} from '../dist/market-freshness.mjs';
 import {refreshMarket} from '../worker/coin-collector.mjs';
+import {discoveryPlan,discoverPools} from '../worker/pool-discovery.mjs';
 
 test('paced queue starts each timeout at dispatch and spaces actual requests',async()=>{
  let clock=1000;const calls=[];
@@ -13,14 +14,43 @@ test('paced queue starts each timeout at dispatch and spaces actual requests',as
  assert.deepEqual(calls,[{at:1000,aborted:false},{at:1500,aborted:false},{at:2000,aborted:false}]);
  await assert.rejects(fetcher('https://api.dexscreener.com/4'),/budget reached/);
 });
-test('429 stops queued provider traffic and persists Retry-After across runs',async()=>{
+test('long Retry-After skips traffic without exceeding the deadline and persists across runs',async()=>{
  let calls=0;
- const fetcher=createProviderFetch(async()=>{calls++;return {status:429,headers:new Headers({'retry-after':'120'})}}, {now:()=>1000});
+ const fetcher=createProviderFetch(async()=>{calls++;return {status:429,headers:new Headers({'retry-after':'120'})}}, {now:()=>1000,budgetMs:90000});
  const results=await Promise.allSettled([1,2,3].map(i=>fetcher(`https://api.geckoterminal.com/${i}`)));
  assert.equal(calls,1);assert.equal(results[1].status,'rejected');
- const next=createProviderFetch(async()=>{calls++;return {status:200}},{now:()=>2000,initial:fetcher.state()});
+ const next=createProviderFetch(async()=>{calls++;return {status:200}},{now:()=>2000,initial:fetcher.state(),budgetMs:90000});
  await assert.rejects(next('https://api.geckoterminal.com/test'),/cooldown/);
  assert.equal(calls,1);
+});
+test('a transient rate limit waits, retries once, and resumes discovery across chains',async()=>{
+ let clock=1000;const calls=[],feeds={};
+ const fetcher=createProviderFetch(async url=>{
+  calls.push({url,at:clock});
+  return calls.length===1?new Response(null,{status:429,headers:{'retry-after':'60'}}):Response.json({data:[],included:[]});
+ },{now:()=>clock,sleep:async ms=>{clock+=ms}});
+ await discoverPools(fetcher,clock,feeds);
+ assert.equal(calls[1].at,61000);
+ assert.equal(calls[0].url,calls[1].url);
+ assert(Object.values(feeds).every(feed=>feed.status==='ok'));
+ assert(clock<211000);
+});
+test('a provider in cooldown does not block another provider',async()=>{
+ let resume;const sleeping=new Promise(resolve=>{resume=resolve});let clock=1000;
+ const fetcher=createProviderFetch(async()=>new Response(null,{status:200}),{
+  now:()=>clock,sleep:async ms=>{await sleeping;clock+=ms},initial:{'api.geckoterminal.com':{cooldownUntil:61000}}
+ });
+ const discovery=fetcher('https://api.geckoterminal.com/discovery');
+ const market=await fetcher('https://api.dexscreener.com/market');
+ assert.equal(market.status,200);assert.equal(clock,1000);
+ resume();assert.equal((await discovery).status,200);
+});
+test('first discovery requests cover every chain and view before deeper pagination',()=>{
+ const plan=discoveryPlan(),firstDeep=plan.findIndex(item=>item.page>1);
+ assert.equal(firstDeep,8);
+ assert.deepEqual(plan.slice(0,3).map(item=>item.key),['solana','base','robinhood']);
+ assert.equal(new Set(plan.slice(0,firstDeep).map(item=>item.key)).size,8);
+ assert.equal(plan.length,18);
 });
 test('failed requests do not poison the provider queue',async()=>{
  let calls=0;

@@ -9,6 +9,7 @@ import {feedStatus,coverageFor,validateSnapshot,PIPELINE_LIMITS} from './snapsho
 import {snapshotVersion,versionFile} from './snapshot-view.mjs';
 import {createProviderFetch} from './provider-fetch.mjs';
 import {selectMarketTargets,tokenKey} from './refresh-priority.mjs';
+import {discoverPools} from './pool-discovery.mjs';
 
 export const RETENTION_MS=PIPELINE_LIMITS.retentionMs;
 export const RECENT_MARKET_MS=4*3600000;
@@ -268,12 +269,12 @@ async function enrichContext(snapshot,fetcher,now){
  return {articles:articles.length,profiles:profiles.length,checked:queue.length,failedLookups:queue.filter(coin=>coin.contextError).length};
 }
 export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[]}={}){
- const previous=await readSnapshot(filename),feeds={...previous.feeds},incoming=[];
+ const previous=await readSnapshot(filename),feeds={...previous.feeds};
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
- // Refresh existing watch interests and ranking candidates before discovery/context.
- const retained=await enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
- previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
+ // Independent providers progress together: discovery cannot be starved by market refresh.
+ const discovery=discoverPools(fetcher,now,feeds);
+ const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -307,46 +308,10 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const indexedFailure=indexedResults.find(result=>result.status==='rejected');
  if(indexedResults.length)feeds.robinhood_indexed_pools=feedStatus(feeds.robinhood_indexed_pools,now,indexedFailure?{error:indexedFailure.reason.message,returnedRecords:indexedCoins.length}:{records:indexedCoins.length});
  else feeds.robinhood_indexed_pools={...feeds.robinhood_indexed_pools,status:'idle',error:null,returnedRecords:null};
- const newPoolPages=NETWORKS.flatMap(network=>Array.from({length:PIPELINE_LIMITS.newPoolPages},(_,index)=>({network,page:index+1})));
- const results=await Promise.allSettled(newPoolPages.map(async ({network,page})=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/new_pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error('HTTP '+response.status);
-  return parsePools(await response.json(),network,now);
- }));
- results.forEach(r=>{if(r.status==='fulfilled')incoming.push(...r.value)});
- for(const network of NETWORKS){
-  const pages=results.filter((_,index)=>newPoolPages[index].network.id===network.id);
-  const failure=pages.find(result=>result.status==='rejected');
-  const returned=pages.flatMap(result=>result.status==='fulfilled'?result.value:[]).length;
-  feeds[network.id]=feedStatus(feeds[network.id],now,failure?{error:failure.reason.message,returnedRecords:returned}:{records:returned});
- }
- let coins=mergeCoins(previous.coins,incoming,now);
- const trending=[];
- const trendingResults=await Promise.allSettled(RADAR_NETWORKS.map(async network=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?include=base_token,quote_token&duration=1h`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Trending HTTP ${response.status}`);
-  return parsePools(await response.json(),network,now);
- }));
- trendingResults.forEach((result,index)=>{
-  const key=`${RADAR_NETWORKS[index].id}_trending`;
-   if(result.status==='fulfilled'){trending.push(...result.value);feeds[key]=feedStatus(feeds[key],now,{records:result.value.length})}
-   else feeds[key]=feedStatus(feeds[key],now,{error:result.reason.message});
- });
- coins=mergeCoins(coins,[...trending,...indexedCoins],now);
- const topPoolPages=RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood').flatMap(network=>Array.from({length:PIPELINE_LIMITS.newPoolPages},(_,index)=>({network,page:index+1})));
- const topResults=await Promise.allSettled(topPoolPages.map(async ({network,page})=>{
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/pools?include=base_token,quote_token&page=${page}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Top pools HTTP ${response.status}`);
-  return parsePools(await response.json(),network,now);
- }));
- const topPools=topResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
- for(const network of RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood')){
-  const results=topResults.filter((_,index)=>topPoolPages[index].network.id===network.id);
-  const failure=results.find(result=>result.status==='rejected');
-  const key=`${network.id}_top_pools`;
-   const returned=results.flatMap(result=>result.status==='fulfilled'?result.value:[]).length;
-   feeds[key]=feedStatus(feeds[key],now,failure?{error:failure.reason.message,returnedRecords:returned}:{records:returned});
- }
+ const [{incoming,trending,topPools},retained]=await Promise.all([discovery,retainedRefresh]);
+ previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
+ const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
+ let coins=mergeCoins(coinsFromDiscovery,[...trending,...indexedCoins],now);
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
  const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
  market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests;

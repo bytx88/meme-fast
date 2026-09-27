@@ -15,9 +15,11 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
   }
   const state=stateFor(host);
   const turn=state.tail.then(async()=>{
-   if(state.cooldownUntil>now())throw new Error(`${host} rate-limit cooldown until ${new Date(state.cooldownUntil).toISOString()}`);
+   const dispatch=async()=>{
    if(state.count>=policy.limit||now()-started>=budgetMs)throw new Error(`${host} collection budget reached; retained data kept`);
-   const wait=Math.max(0,state.next-now());
+   const wait=Math.max(0,state.next-now(),state.cooldownUntil-now());
+   // Recover within this run when possible; never sleep beyond the collection deadline.
+   if(wait>=budgetMs-(now()-started))throw new Error(`${host} rate-limit cooldown exceeds collection budget; retained data kept`);
    if(wait)await sleep(wait);
    if(now()-started>=budgetMs)throw new Error(`${host} collection budget reached; retained data kept`);
    state.count++;state.next=now()+policy.interval;
@@ -27,6 +29,14 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
     const header=response.headers?.get?.('retry-after'),seconds=header==null?NaN:Number(header);
     const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(header)-now();
     state.cooldownUntil=now()+Math.max(60000,Number.isFinite(delay)?delay:60000);
+   }
+   return response;
+   };
+   const response=await dispatch();
+   // One retry after the provider's cooldown recovers transient limits without a burst.
+   if(response.status===429&&state.cooldownUntil-now()<budgetMs-(now()-started)){
+    await response.body?.cancel?.();
+    return dispatch();
    }
    return response;
   });
