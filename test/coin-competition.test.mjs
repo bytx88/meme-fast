@@ -1,8 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCompetitionIndex,competitionKey} from '../dist/coin-competition.mjs';
+import {createCompetitionIndex,competitionKey,nameSearchHref} from '../dist/coin-competition.mjs';
 
 const coin=(network,address,extra={})=>({id:`${network}:${address}`,network,contract_address:address,name:'Effective Accelerationism',symbol:'e/acc',...extra});
+test('Name listing links preserve Unicode and reserved URL characters as one name parameter',()=>{
+ const name='부강이 / e&acc #1 + 100%';
+ const url=new URL(nameSearchHref(name),'https://meme.example/');
+ assert.equal(url.pathname,'/');assert.equal(url.searchParams.get('name'),name);
+ assert.deepEqual([...url.searchParams.keys()],['name']);assert.equal(url.hash,'');
+});
+test('Same-name search keeps contracts separate across chains and excludes ticker-only and substring matches',()=>{
+ const a=coin('solana','A',{firstSeen:10,liquidity:1,ruggedAt:20}),b=coin('base','0xAB',{name:' effective   accelerationism ',symbol:'DIFFERENT',firstSeen:1,liquidity:0});
+ const index=createCompetitionIndex([a,b,{...b,id:'base:0xab',contract_address:'0xab'},coin('solana','C',{name:'Other name'}),coin('solana','D',{name:'Effective Accelerationism Extra'})],
+  [{type:'token',id:'robinhood:0xCD',title:'$e/acc · Effective Accelerationism'}]);
+ const rows=index.sameName('Effective Accelerationism');
+ assert.equal(index.nameCount(a.name),3);assert.equal(rows.length,3);
+ assert.deepEqual(rows.map(c=>c.network),['solana','base','robinhood']);
+ assert.equal(rows[0].ruggedAt,20);assert.equal(rows[1].liquidity,0);assert.equal(rows[1].firstSeen,1);
+ assert.equal(rows[2].firstSeen,null);assert.equal(index.sameName('Effective').length,0);
+ assert.equal(index.nameCount(''),0);
+});
 test('Counts distinct contracts across chains, including a reused EVM address on another chain',()=>{
  const a=coin('solana','AAA'),b=coin('base','0xAB'),c=coin('robinhood','0xAB');
  const index=createCompetitionIndex([a,b,c,{...b,id:'pool:second',contract_address:'0xab'}]);

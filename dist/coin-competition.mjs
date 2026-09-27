@@ -6,6 +6,7 @@ const label=(value,ticker=false)=>{
 };
 const positive=value=>Number.isFinite(value)&&value>0?value:null;
 const marketTime=coin=>positive(coin.marketUpdatedAt)??positive(coin.fetchedAt)??0;
+export const nameSearchHref=name=>`./?name=${encodeURIComponent(String(name??'').trim())}`;
 export function competitionKey(coin){
  const [idNetwork,...idAddress]=String(coin?.id||'').split(':');
  const network=normalize(coin?.network||idNetwork),address=String(coin?.contract_address||idAddress.join(':')).trim();
@@ -36,6 +37,13 @@ export function createCompetitionIndex(coins=[],saved=[]){
  }
  return {
   get:coin=>records.get(competitionKey(coin)),
+  nameCount:name=>names.get(label(name))?.size||0,
+  sameName(name){
+   return [...(names.get(label(name))||[])].map(key=>{
+    const record=records.get(key);
+    return {...record.coin,firstSeen:record.firstSeen};
+   });
+  },
   matches(coin){
    const own=competitionKey(coin),name=label(coin.name),ticker=label(coin.symbol,true);
    const keys=new Set([...(names.get(name)||[]),...(tickers.get(ticker)||[])]);

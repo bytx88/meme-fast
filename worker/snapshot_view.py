@@ -2,7 +2,7 @@
 import math
 
 RETENTION_MS = 5 * 86400000
-COMPETITION_FIELDS = ("id", "network", "chain", "contract_address", "contract_verified", "name", "symbol",
+COMPETITION_FIELDS = ("id", "network", "chain", "contract_address", "contract_verified", "name", "symbol", "image_url", "poolCreated", "volume",
                       "firstSeen", "firstSeenRadarAt", "liquidity", "volume5m", "buys5m", "sells5m", "marketUpdatedAt", "fetchedAt")
 MINUTE = 60000
 

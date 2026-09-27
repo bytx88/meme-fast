@@ -4,7 +4,7 @@ import {tokenActions} from './token-actions.mjs?v=find-stats-v1';
 import {chainMarker} from './chain-marker.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs?v=fomo-scanner-v1';
 import {groupCoins} from './coin-groups.mjs';
-import {createCompetitionIndex} from './coin-competition.mjs';
+import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=name-search-v1';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
 import {stageFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
@@ -28,8 +28,10 @@ function savedScreener(){try{return normalizeScreener(JSON.parse(localStorage.ge
 function savedSkipRug(){try{return localStorage.getItem(skipRugPreferenceKey)!=='false'}catch{return true}}
 function savedEntry(){try{return normalizeEntry(JSON.parse(localStorage.getItem(entryPreferenceKey)||'{}'))}catch{return {...DEFAULT_ENTRY}}}
 const params=new URLSearchParams(location.search);
-const contractQuery=(params.get('contract')||params.get('query')||'').trim();
-const state={historyLoaded:false,historyError:false,hours:contractQuery?120:1,sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:contractQuery,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
+const nameQuery=(params.get('name')||'').trim();
+const nameSearch=Boolean(nameQuery);
+const contractQuery=nameSearch?'':(params.get('contract')||params.get('query')||'').trim();
+const state={historyLoaded:false,historyError:false,hours:nameSearch||contractQuery?120:1,sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:nameQuery||contractQuery,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:nameSearch?'explore':contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
 const data={coins:[],competitionCoins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[],freshTimer=null,pollInFlight=false,highlightIds=new Set(),highlightTimer=null;
 let competition=createCompetitionIndex([],watchlist()),comparisonOpen=false;
 function rebuildCompetition(){competition=createCompetitionIndex([...data.coins,...data.competitionCoins,...data.manualCoins],watchlist())}
@@ -65,6 +67,7 @@ function compareCoins(a,b){
  return second-first||(b.firstSeen??0)-(a.firstSeen??0);
 }
 function candidates(){
+ if(nameSearch)return competition.sameName(state.query).sort(compareCoins);
  const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
  const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff),manual=data.manualCoins;
  return [...new Map([...manual,...regular].filter(c=>(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
@@ -97,6 +100,8 @@ function watchButton(c){const saved=isSaved('coin',c.id);return `<button type="b
 function poolAgeLabel(created){return Number(created)>0&&Number(created)<=Date.now()?`Pool ${age(Number(created))} old`:'Pool age unknown'}
 function identitySubtitle(c){return [c.name,chainMarker(c)?null:c.chain].filter(Boolean).map(esc).join(' · ')}
 function repeatBadge(c){
+ const count=competition.nameCount(c.name);
+ if(count>1)return `<a class="repeat-badge" href="${esc(nameSearchHref(c.name))}" target="_blank" rel="noopener noreferrer" title="Search this token name across chains in a new Snipe tab" aria-label="Open ${count} listings for ${esc(c.name)} in a new Snipe tab">${count} listings ↗</a>`;
  const matches=competition.matches(c);if(!matches.length)return '';
  const label=matches.some(row=>row.match.includes('name'))?'Name repeat':'Ticker repeat';
  return `<button type="button" class="repeat-badge" data-compare-coin="${esc(c.id)}" title="Compare matching names or tickers across chains, retained history and saved tokens" aria-label="Compare ${matches.length} other contracts matching ${esc(c.symbol)}">${label} · ${matches.length} other${matches.length===1?'':'s'}</button>`;
@@ -116,7 +121,7 @@ function card(c,index,phase=''){
  <div class="card-main">
   <div class="card-top">
    <div class="card-thumb-stack">${thumbnail(c)}<span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div>
-   <div class="coin-head"><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}</div><small title="${esc(c.name)}">${identitySubtitle(c)}${c.manual?' · Manual':''}</small>${repeatBadge(c)}${!found?'<span class="card-context-unknown">Context unknown</span>':''}</div></div>
+   <div class="coin-head"><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}</div><small title="${esc(c.name)}">${identitySubtitle(c)}${c.manual?' · Manual':''}</small>${nameSearch?`<code class="card-contract" title="${esc(c.contract_address)}">${esc(c.contract_address.slice(0,6))}…${esc(c.contract_address.slice(-5))}</code>`:''}${repeatBadge(c)}${!found?'<span class="card-context-unknown">Context unknown</span>':''}</div></div>
   </div>
   ${stageFact?`<div class="card-stage-fact ${c.earlyRampWarning?'ramp-risk':phase==='tracking'?'tracking':c.ruggedAt?'rugged':stage==='sustained'?'sustained':''}">${esc(stageFact)}</div>`:''}
   ${metrics(c)}
@@ -131,6 +136,10 @@ function sustainedSection(stages){const early=stages.sustained.filter(c=>!c.late
 function activitySection(stages){return `<section class="discovery-lane ${state.activeStage==='migrated'?'stage-active':''}" aria-labelledby="migrated-title"><div class="discovery-lane-head"><h2 id="migrated-title">Pool activity <span class="count-badge">${stages.migrated.length+stages.active.length}</span></h2><p>Confirmed migration and volume-only evidence</p></div><div class="discovery-lane-list"><div class="lane-subheading"><strong>Migration confirmed <span>${stages.migrated.length}</span></strong></div>${stages.migrated.length?stages.migrated.map(card).join(''):'<p class="lane-empty compact">No confirmed migrations in this window.</p>'}<div class="lane-subheading"><strong>Volume only · migration unknown <span>${stages.active.length}</span></strong><small>$50K+ observed 24h pool volume</small></div>${stages.active.length?stages.active.map(card).join(''):'<p class="lane-empty compact">No volume-only candidates in this window.</p>'}</div></section>`}
 function cards(stages,known,total){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',stages.new.length+stages.stretch.length],['sustained','Recovery',stages.sustained.length+stages.tracking.length],['migrated','Pool activity',stages.migrated.length+stages.active.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newPairsSection(stages,known,total)}${sustainedSection(stages)}${activitySection(stages)}</div>`}
 function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
+function nameSearchCards(rows){
+ const chains=new Map();for(const c of rows)chains.set(c.chain,(chains.get(c.chain)||0)+1);
+ return `<div class="explore-board"><section class="name-search-summary"><h2>Same-name tokens · ${esc(state.query||'Enter a token name')}</h2><p>${state.historyLoaded?`${rows.length} distinct contracts · ${[...chains].map(([chain,count])=>`${esc(chain)} ${count}`).join(' · ')}`:'Loading retained contracts…'}</p><p>All chains · five-day Snipe history, retained Swing records and saved tokens. Name matching ignores case and extra spaces. Each card is one contract.</p><a href="./">Back to Snipe feed</a></section><div class="explore-grid">${rows.map(card).join('')}</div>${!rows.length&&state.historyLoaded?'<div class="new-empty">No same-name tokens in retained history or saved tokens. Try Look up for other pools.</div>':''}</div>`;
+}
 function exploreCards(rows){
  if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
  const exact=rows.filter(c=>verified(context(c))),other=rows.filter(c=>!verified(context(c)));
@@ -160,7 +169,7 @@ function entryBoard(rows){
 function lifecycleTag(c){return c.ruggedAt?'<span class="lifecycle-tag rugged" title="Observed price fell at least 78% from an early peak.">Deep drawdown</span>':c.earlyRampWarning?'<span class="lifecycle-tag rugged" title="Sharp early price rise with concentrated buying and thin liquidity; not proof of a rug.">Rapid rise</span>':stageFor(c)==='sustained'&&c.laterRecoveryAt?'<span class="lifecycle-tag sustained">Later recovery</span>':stageFor(c)==='sustained'&&c.sustainedAt?`<span class="lifecycle-tag sustained">45m ${c.successScenario==='continuation'?'B':'A'}</span>`:''}
 function detailHtml(c){
  const found=context(c),market=marketState(c),check=entryCheck(c);
- return `<div class="detail-head"><div class="detail-identity">${thumbnail(c)}<div><h2>$${esc(c.symbol)} ${chainMarker(c)} ${lifecycleTag(c)}</h2><p>${identitySubtitle(c)} · <span data-pool-created="${esc(c.poolCreated||'')}">${poolAgeLabel(c.poolCreated)}</span></p></div></div><button class="detail-close" type="button" data-close-detail aria-label="Close coin details">×</button></div><p class="detail-freshness"><span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}">${esc(market.label)}</span> · Seen ${esc(age(c.firstSeen))} ago</p>${state.view==='entry'?`<section class="detail-screen"><h3>Starter screen · ${check.passesScreen?'thresholds met':'hold'}</h3><p>${check.reasons.length?`Checks to review: ${esc(check.reasons.join(', '))}.`:'Pool age, market freshness, liquidity, buy activity, sell pressure, and order size meet the selected thresholds.'} Live quote, sellability, and contract risk are unverified.</p></section>`:''}${repeatBadge(c)}${metrics(c)}${explanation(found,c)}<div class="detail-actions">${watchButton(c)}${tokenActions(c)}</div>${variants(c)}`;
+ return `<div class="detail-head"><div class="detail-identity">${thumbnail(c)}<div><h2>$${esc(c.symbol)} ${chainMarker(c)} ${lifecycleTag(c)}</h2><p>${identitySubtitle(c)} · <span data-pool-created="${esc(c.poolCreated||'')}">${poolAgeLabel(c.poolCreated)}</span></p></div></div><button class="detail-close" type="button" data-close-detail aria-label="Close coin details">×</button></div><p class="detail-freshness"><span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}">${esc(market.label)}</span> · ${c.firstSeen?`Seen ${esc(age(c.firstSeen))} ago`:'First seen unknown'}</p>${state.view==='entry'?`<section class="detail-screen"><h3>Starter screen · ${check.passesScreen?'thresholds met':'hold'}</h3><p>${check.reasons.length?`Checks to review: ${esc(check.reasons.join(', '))}.`:'Pool age, market freshness, liquidity, buy activity, sell pressure, and order size meet the selected thresholds.'} Live quote, sellability, and contract risk are unverified.</p></section>`:''}${repeatBadge(c)}${metrics(c)}${explanation(found,c)}<div class="detail-actions">${watchButton(c)}${tokenActions(c)}</div>${variants(c)}`;
 }
 function renderDetail(){
  const dialog=$('#coin-detail');if(!dialog.open)return;
@@ -191,11 +200,12 @@ function updateAvailable(){
  buttons.forEach(b=>{b.hidden=false;b.textContent=added?`+${added} new`:'Update available'});
 }
 function render(){
+ document.body.classList.toggle('name-search',nameSearch);
  document.body.classList.toggle('entry-view',state.view==='entry');
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
  $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} address linked · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
- const all=candidates(),rows=groupCoins(all,context),stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[],active:[]};
+ const all=candidates(),rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[],active:[]};
  for(const coin of all){const stage=stageFor(coin);stages[stage==='migrated'&&isUnderObservation(coin)?'tracking':stage].push(coin)}
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
  visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.sustained,...stages.tracking,...stages.migrated,...stages.active]:rows;
@@ -207,9 +217,9 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
  document.querySelectorAll('[data-skip-rug]').forEach(input=>input.checked=state.skipRug);
  updateAutoButtons();
- $('#coin-list').innerHTML=state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):exploreCards(rows);
+ $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):exploreCards(rows);
  const health=$('#market-health');if(health)health.textContent=state.historyLoaded?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
- $('#status').textContent=loading?'Loading shared server history…':state.notice||`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`;
+ $('#status').textContent=loading?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  document.querySelectorAll('[data-open-screener]').forEach(button=>button.title=`Screener settings · minimum 24h volume $${state.screener.volume24h.toLocaleString('en-US')}`);
  document.querySelectorAll('[data-volume-min]').forEach(label=>label.textContent=state.screener.volume24h?`${money(state.screener.volume24h)}+`:'All vol');
@@ -306,11 +316,11 @@ document.addEventListener('click',async event=>{
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
  if(event.target.closest('[data-fresh]')){setFresh(!state.freshEnabled);return}
  const view=event.target.closest('[data-view]');if(view){setView(view.dataset.view);return}
- const save=event.target.closest('[data-save-coin]');if(save){const coin=[...data.manualCoins,...data.coins].find(c=>c.id===save.dataset.saveCoin);if(coin){const saved=toggleSaved({type:'coin',id:coin.id,title:`$${coin.symbol} · ${coin.name}`,subtitle:`${coin.chain} · Snipe`,href:`./?contract=${encodeURIComponent(coin.contract_address)}`,image_url:coin.image_url,marketSnapshot:coin});document.querySelectorAll('[data-save-coin]').forEach(button=>{if(button.dataset.saveCoin===coin.id){button.setAttribute('aria-pressed',String(saved));button.textContent=saved?'Saved ✓':'Save +'}});rebuildCompetition();preserveScroll(render)}return}
+ const save=event.target.closest('[data-save-coin]');if(save){const coin=visibleRows.find(c=>c.id===save.dataset.saveCoin)||[...data.manualCoins,...data.coins].find(c=>c.id===save.dataset.saveCoin);if(coin){const saved=toggleSaved({type:'coin',id:coin.id,title:`$${coin.symbol} · ${coin.name}`,subtitle:`${coin.chain} · Snipe`,href:`./?contract=${encodeURIComponent(coin.contract_address)}`,image_url:coin.image_url,marketSnapshot:coin});document.querySelectorAll('[data-save-coin]').forEach(button=>{if(button.dataset.saveCoin===coin.id){button.setAttribute('aria-pressed',String(saved));button.textContent=saved?'Saved ✓':'Save +'}});rebuildCompetition();preserveScroll(render)}return}
  const open=event.target.closest('[data-open-coin],[data-compare-coin]');if(open){comparisonOpen=Boolean(open.dataset.compareCoin);state.selectedId=open.dataset.compareCoin||open.dataset.openCoin;const coin=visibleRows.find(c=>c.id===state.selectedId)||data.coins.find(c=>c.id===state.selectedId)||data.manualCoins.find(c=>c.id===state.selectedId);if(coin){$('#coin-detail-content').innerHTML=comparisonOpen?competitionHtml(coin):detailHtml(coin);if(!$('#coin-detail').open)$('#coin-detail').showModal();$('#coin-detail').scrollTop=0}return}
  if(event.target.closest('[data-close-detail]')){$('#coin-detail').close();return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;
- const coin=[...data.manualCoins,...data.coins].find(c=>c.id===button.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
+ const coin=visibleRows.find(c=>c.id===button.dataset.copyCa)||[...data.manualCoins,...data.coins].find(c=>c.id===button.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
  if(result.status==='copied'){button.classList.add('copied');button.setAttribute('aria-label','Contract copied');$('#ca-status').textContent='Contract copied.';setTimeout(()=>{if(!button.isConnected)return;button.classList.remove('copied');button.setAttribute('aria-label',`Copy ${coin.symbol} contract address`)},1800)}
  else if(result.status==='manual'){const input=$('#manual-ca');input.value=result.address;$('#ca-dialog').showModal();input.focus();input.select()}
 });
@@ -329,6 +339,8 @@ $('.full-refresh').addEventListener('click',refresh);
 $('.full-exit').addEventListener('click',()=>setFull(false));
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){setFull(false);$('.collection-info').open=false}});
 $('#query').value=state.query;
+if(nameSearch){$('#query').placeholder='Exact token name';$('#query').title='Show every retained contract with this name across chains';$('#query').setAttribute('aria-label','Search same-name tokens');document.title=`${nameQuery} · Snipe listings · Meme Fast`}
+
 setInterval(()=>{if(!state.freshEnabled)poll()},60000);setInterval(()=>{updateFreshnessStatus();document.querySelectorAll('[data-pool-created]').forEach(node=>{node.textContent=poolAgeLabel(node.dataset.poolCreated)});if(state.view==='entry'&&!document.activeElement?.matches('[data-entry]')&&!$('#coin-detail').open){preserveScroll(render);return}document.querySelectorAll('[data-market-time]').forEach(node=>{const c=visibleRows.find(coin=>coin.id===node.dataset.marketId),fresh=marketState(c||{fetchedAt:Number(node.dataset.marketTime)});node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 render();

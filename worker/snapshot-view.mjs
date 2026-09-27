@@ -4,7 +4,7 @@ import {earlyRampWarning} from '../dist/rug-screen.mjs';
 import {readFile,stat} from 'node:fs/promises';
 
 export const RETENTION_MS=5*86400000;
-const COMPETITION_FIELDS=['id','network','chain','contract_address','contract_verified','name','symbol','firstSeen','firstSeenRadarAt','liquidity','volume5m','buys5m','sells5m','marketUpdatedAt','fetchedAt'];
+const COMPETITION_FIELDS=['id','network','chain','contract_address','contract_verified','name','symbol','image_url','poolCreated','volume','firstSeen','firstSeenRadarAt','liquidity','volume5m','buys5m','sells5m','marketUpdatedAt','fetchedAt'];
 export const snapshotRevision=snapshot=>snapshot.revision||String(snapshot.lastRun||0);
 export const versionFile=filename=>filename.replace(/\.json$/,'')+'.version.json';
 
