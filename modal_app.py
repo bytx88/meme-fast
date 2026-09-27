@@ -5,6 +5,7 @@ Deploy with:
 """
 
 from pathlib import Path
+import hashlib
 import os
 import re
 from urllib.parse import urlencode
@@ -19,12 +20,16 @@ RUNNING_IN_MODAL = Path(REMOTE_DIST).is_dir() or bool(
     os.getenv("MODAL_TASK_ID") or os.getenv("MODAL_ENVIRONMENT_NAME")
 )
 DIST_SOURCE = Path(REMOTE_DIST) if RUNNING_IN_MODAL else LOCAL_DIST
+ASSET_REVISION = os.getenv("MEME_FAST_ASSET_REVISION", "") if RUNNING_IN_MODAL else hashlib.sha256(
+    b"".join(path.name.encode() + path.read_bytes() for path in sorted(LOCAL_DIST.iterdir()) if path.is_file())
+).hexdigest()[:16]
 
 if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
     raise RuntimeError("dist/index.html is missing")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
+    .env({"MEME_FAST_ASSET_REVISION": ASSET_REVISION})
     .apt_install("nodejs")
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0", "truststore>=0.10.0")
     .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST, copy=True)
@@ -353,7 +358,7 @@ def web():
         return FileResponse(
             candidate,
             media_type=allowed_types[candidate.suffix],
-            headers={"cache-control": "no-store", "x-content-type-options": "nosniff"},
+            headers={"cache-control": "no-store", "x-content-type-options": "nosniff", "x-meme-fast-revision": ASSET_REVISION},
         )
 
     return web_app
