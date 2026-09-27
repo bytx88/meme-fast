@@ -141,6 +141,7 @@ function renderDetail(){
 }
 function updateAutoButtons(){document.querySelectorAll('[data-fresh]').forEach(button=>{button.setAttribute('aria-pressed',String(state.freshEnabled));button.textContent=`Auto ${state.freshEnabled?'On':'Off'}`})}
 function updateFreshnessStatus(){
+ const health=$('#market-health');if(health&&state.historyLoaded)health.textContent=`${freshnessCounts(candidates(),Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`;
  const status=$('#full-freshness'),timestamp=state.lastRun?`Collection ${age(state.lastRun)} ago`:'Server waiting';
  status.textContent=state.checkError?`Couldn’t check for updates · ${timestamp}`:timestamp;
  status.title=state.lastRun?`Latest server snapshot: ${new Date(state.lastRun).toLocaleString()}`:'';

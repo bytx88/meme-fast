@@ -168,3 +168,5 @@ document.addEventListener('error',event=>{if(event.target.matches?.('.saved-item
 window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1'){draw();loadStats()}});
 draw();
 loadStats();
+
+if(typeof window.setInterval==='function')window.setInterval(()=>{if(!document.hidden&&!loading)draw()},60000);
