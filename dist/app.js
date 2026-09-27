@@ -6,6 +6,8 @@ import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 import {toggleSaved,isSaved} from './research-store.mjs';
 import {createRecentContracts} from './recent-contracts.mjs';
+import {fomoLink} from './contract-copy.mjs';
+import {safeURL} from './public-radar.mjs';
 const renderTape=setupTape();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
@@ -53,7 +55,19 @@ async function search(query){
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
 function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));return {tokens,pools,listings,trades:scopeTrades(state.trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
-function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;$('avatar').textContent=combined?'Σ':t.symbol.slice(0,1).toUpperCase();$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);$('research-link').hidden=combined;$('research-link').href=`./?contract=${encodeURIComponent(t.address)}`;document.title=`${combined?'Combined':t.symbol} Flow · Meme Fast`;
+function updateAvatar(token,combined,listingImage=null){
+  const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
+  fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
+  const image=combined?null:safeURL(listingImage)||safeURL(token.image_url);
+  if(img.dataset.source!==String(image||'')){img.dataset.source=image||'';img.dataset.failed='';if(image)img.src=image;else img.removeAttribute('src')}
+  img.hidden=!image||img.dataset.failed===image;fallback.hidden=!img.hidden;
+  const chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[token.network];
+  const fomo=combined||token.unverified?null:fomoLink({chain,contract_address:token.address,contract_verified:true});
+  if(fomo){link.href=fomo;link.setAttribute('aria-label',`Open ${token.symbol} on Fomo`);link.title=`Open ${token.symbol} on Fomo`}
+  else{link.removeAttribute('href');link.removeAttribute('aria-label');link.removeAttribute('title')}
+}
+$('avatar-image').addEventListener('error',()=>{const img=$('avatar-image');img.dataset.failed=img.dataset.source;img.hidden=true;$('avatar-fallback').hidden=false});
+function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;updateAvatar(t,combined);$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);$('research-link').hidden=combined;$('research-link').href=`./?contract=${encodeURIComponent(t.address)}`;document.title=`${combined?'Combined':t.symbol} Flow · Meme Fast`;
   document.querySelector('.order-flow-page').classList.add('token-loaded');$('address').textContent=combined?'Multiple contracts':short(t.address);$('address').title=combined?'Use the listing selector for individual contracts':`Copy ${t.address}`;$('address').disabled=combined;
   $('save-token').hidden=combined;$('save-token').textContent=isSaved('token',listingKey(t))?'Saved ✓':'Save token';
   $('search-result-summary').hidden=!state.searchedQuery||(!combined&&state.matches.length===1);
@@ -84,6 +98,7 @@ function emptyRow(text){const tr=document.createElement('tr'),td=document.create
 function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {listings:view.tokens,view:state.scope,windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
+  updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
   $('quick-net').textContent=available?money(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
   $('quick-buy').textContent=available?money(s.buy):'—';$('quick-sell').textContent=available?money(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';$('mc-toggle').disabled=view.tokens.length>1;
   const mc=view.tokens.length===1?view.listings[0]?.marketCap:null;$('quick-mc').textContent=mc?compact(mc.value):'—';$('quick-mc').title=mc?`Latest reported MC · ${money(mc.value)} · retrieved ${new Date(mc.fetchedAt).toLocaleString()}`:'Market cap unavailable for this listing';

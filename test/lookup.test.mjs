@@ -31,3 +31,17 @@ test('Verified pool hints survive discovery failure and reject unrelated pools',
 test('Gecko matches EVM contract and pool relationship case consistently',()=>{
   const result=geckoMatches({included:[{id:'eth_0xAbC',type:'token',attributes:{address:'0xAbC',symbol:'XL'}}],data:[{attributes:{address:'pool',reserve_in_usd:10},relationships:{base_token:{data:{id:'eth_0xabc'}}}}]},'0xabc');assert.equal(result[0].poolHints.length,1);
 });
+test('Token lookup keeps exact-token artwork from supported feeds',()=>{
+  const gecko=geckoMatches({included:[{id:'solana_'+address,type:'token',attributes:{address,symbol:'ZODL',image_url:'https://cdn.example/zodl.png'}}],data:[]},address);
+  assert.equal(gecko[0].image_url,'https://cdn.example/zodl.png');
+  assert.equal(dexMatches([{...pair,info:{imageUrl:'https://cdn.example/zodl.png'}}],address)[0].image_url,'https://cdn.example/zodl.png');
+  assert.equal(dexMatches([{...pair,info:{imageUrl:'javascript:alert(1)'}}],address)[0].image_url,null);
+});
+test('Pool discovery fills missing artwork only from the exact token',async()=>{
+  const token={network:'solana',address,symbol:'ZODL',name:'Zodl'};
+  const result=await loadListings([token],async()=>({data:[],included:[
+    {id:'solana_other',type:'token',attributes:{address:'other',image_url:'https://cdn.example/wrong.png'}},
+    {id:'solana_'+address,type:'token',attributes:{address,image_url:'https://cdn.example/right.png'}}
+  ]}));
+  assert.equal(result.listings[0].image_url,'https://cdn.example/right.png');
+});

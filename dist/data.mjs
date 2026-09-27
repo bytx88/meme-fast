@@ -1,5 +1,6 @@
 import {canonical,listingKey,uniqueListings,normalizeTrade,SAMPLE_LIMITS} from './core.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
+import {safeURL} from './public-radar.mjs';
 
 // Read pools as soon as they are discovered, without waiting for other listings.
 export async function loadListings(input,request,progress=()=>{},isCurrent=()=>true,onSnapshot=()=>{},lookupMarketCap=null) {
@@ -39,6 +40,8 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       try {result=await request(`/networks/${encodeURIComponent(token.network)}/tokens/${encodeURIComponent(token.address)}/pools?include=base_token,quote_token`,{priority:0})}
       catch(e){if(!isCurrent()||!token.poolHints?.length)throw e;result={data:[]};listing.discoveryWarning=e.message}
       if(!isCurrent())return;
+      const exactToken=(result.included||[]).find(item=>item.type==='token'&&item.id?.startsWith(`${token.network}_`)&&canonical(item.attributes?.address)===canonical(token.address));
+      if(!listing.image_url)listing.image_url=safeURL(exactToken?.attributes?.image_url);
       const found=[...(token.poolHints||[]),...result.data].filter(p=>p.attributes?.address&&[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].some(id=>id?.startsWith(`${token.network}_`)&&canonical(id.slice(token.network.length+1))===canonical(token.address)));
       const unique=[...new Map(found.map(p=>[canonical(p.attributes.address),p])).values()].sort((a,b)=>(Number(b.attributes.reserve_in_usd)||0)-(Number(a.attributes.reserve_in_usd)||0)).slice(0,SAMPLE_LIMITS.poolsPerListing);
       listing.marketCap=marketCapSnapshot(token,[...unique,...(token.poolHints||[])]);

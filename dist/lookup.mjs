@@ -1,4 +1,5 @@
 import {canonical,listingKey,uniqueListings} from './core.mjs';
+import {safeURL} from './public-radar.mjs';
 const chains={solana:'solana',ethereum:'eth',base:'base',bsc:'bsc',robinhood:'robinhood',arbitrum:'arbitrum',optimism:'optimism',polygon:'polygon_pos',avalanche:'avax'};
 export function isSolanaAddress(value){
   if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value))return false;
@@ -18,7 +19,7 @@ export function geckoMatches(result,query){
   const tokens=(result.included||[]).filter(t=>t.type==='token'&&t.attributes?.address).map(t=>{
     const a=t.attributes,network=t.id.slice(0,-a.address.length-1);
     const poolHints=result.data.filter(p=>[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].some(id=>id?.startsWith(`${network}_`)&&canonical(id.slice(network.length+1))===canonical(a.address)));
-    return {address:a.address,network,symbol:a.symbol||a.name||'Token',name:a.name||a.symbol||'Token',poolHints,liquidity:poolHints.reduce((s,p)=>s+(Number(p.attributes.reserve_in_usd)||0),0)};
+    return {address:a.address,network,symbol:a.symbol||a.name||'Token',name:a.name||a.symbol||'Token',image_url:safeURL(a.image_url),poolHints,liquidity:poolHints.reduce((s,p)=>s+(Number(p.attributes.reserve_in_usd)||0),0)};
   });
   return uniqueListings(preferred(tokens,query)).sort((a,b)=>b.liquidity-a.liquidity).slice(0,12);
 }
@@ -29,8 +30,8 @@ export function dexMatches(pairs,query){
     for(const token of [pair.baseToken,pair.quoteToken]){
       if(!token?.address)continue;
       const t={address:token.address,network,symbol:token.symbol||'Token',name:token.name||token.symbol||'Token'};
-      const key=listingKey(t);if(!tokens.has(key))tokens.set(key,{...t,liquidity:0,poolHints:[],lookupSource:'DEX Screener'});
-      const match=tokens.get(key);if(match.poolHints.some(p=>canonical(p.attributes.address)===canonical(pair.pairAddress)))continue;
+      const key=listingKey(t);if(!tokens.has(key))tokens.set(key,{...t,image_url:token===pair.baseToken?safeURL(pair.info?.imageUrl):null,liquidity:0,poolHints:[],lookupSource:'DEX Screener'});
+      const match=tokens.get(key);if(!match.image_url&&token===pair.baseToken)match.image_url=safeURL(pair.info?.imageUrl);if(match.poolHints.some(p=>canonical(p.attributes.address)===canonical(pair.pairAddress)))continue;
       match.liquidity+=Number(pair.liquidity?.usd)||0;
       match.poolHints.push({attributes:{address:pair.pairAddress,name:`${pair.baseToken?.symbol||'Token'} / ${pair.quoteToken?.symbol||'Token'}`,reserve_in_usd:String(pair.liquidity?.usd||0),market_cap_usd:pair.marketCap??null,base_token_price_usd:pair.priceUsd??null},relationships:{base_token:{data:{id:`${network}_${pair.baseToken?.address}`}},quote_token:{data:{id:`${network}_${pair.quoteToken?.address}`}},dex:{data:{id:pair.dexId||''}}}});
     }
