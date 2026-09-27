@@ -124,7 +124,8 @@ function cardReasons(parts,id){
  const available=parts.filter(part=>part.value!==null);
  const strongest=[...available].sort((a,b)=>b.value-a.value)[0]||parts[0];
  const weakest=[...parts].filter(part=>part!==strongest).sort((a,b)=>(a.value??-1)-(b.value??-1))[0];
- const shown=[strongest,weakest].filter(Boolean),hidden=parts.filter(part=>!shown.includes(part));
+ const first=[strongest,weakest].filter(Boolean),extra=[...parts].filter(part=>!first.includes(part)).sort((a,b)=>b.weight-a.weight)[0];
+ const shown=[...first,extra].filter(Boolean),hidden=parts.filter(part=>!shown.includes(part));
  const more=hidden.length?`<button type="button" class="radar-more-reasons" data-inspect="${esc(id)}" title="${esc(hidden.map(part=>`${part.label}: ${part.value===null?'unknown':part.value>=.67?'strong':part.value>=.34?'mixed':'weak'}`).join('; '))}" aria-label="Inspect ${hidden.length} more signals">+${hidden.length}</button>`:'';
  return shown.map(reason).join('')+more;
 }

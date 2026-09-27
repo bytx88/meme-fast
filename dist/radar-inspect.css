@@ -131,7 +131,8 @@
 @media(max-width:700px){.radar-controls>div{width:100%}}
 
 /* Use the former rank and spacer columns for readable holder and pool facts. */
-.radar-card{grid-template-columns:minmax(190px,1.45fr) minmax(105px,.8fr) minmax(78px,.55fr) minmax(125px,.9fr) minmax(135px,.9fr) 194px;gap:8px;align-items:center}
+.radar-card{grid-template-columns:220px 80px 75px 100px minmax(155px,1fr) 194px;gap:8px;align-items:center}
+.radar-reasons{display:flex;flex-wrap:wrap;align-content:center;align-items:center;justify-content:flex-start}
 .radar-token{grid-template-columns:50px minmax(0,1fr);grid-template-rows:auto auto;column-gap:9px;align-content:center}
 .radar-token .radar-thumb-stack{grid-row:1/3}
 .radar-token-title{grid-row:1;gap:5px}
@@ -145,7 +146,7 @@
 .radar-activity span{min-width:0}
 .radar-activity b{color:#e1eaf4;font-weight:600;font-variant-numeric:tabular-nums}
 .radar-card .radar-narrative{grid-column:1/-1;margin-top:0}
-@media(max-width:959px){
+@media(max-width:1019px){
  .radar-card{grid-template-columns:minmax(190px,1.4fr) minmax(105px,.8fr) minmax(78px,.5fr) 194px;gap:9px}
  .radar-token{grid-column:1;grid-row:1}
  .radar-holders{grid-column:2;grid-row:1}
@@ -175,8 +176,6 @@
  .radar-card .radar-actions{grid-row:5}
  .radar-card .radar-narrative{grid-row:6}
 }
-@media(min-width:701px) and (max-width:959px){
+@media(min-width:701px) and (max-width:1019px){
  .radar-activity{grid-template-columns:repeat(3,minmax(0,1fr));align-items:center}
- .radar-reasons{display:flex;flex-wrap:wrap;align-items:center}
- .radar-reasons>:first-child{grid-column:auto}
 }
