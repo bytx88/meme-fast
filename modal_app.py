@@ -76,14 +76,14 @@ def collect_x_factor(target_limit=3):
     print(result.stdout)
 
 
-@app.function(timeout=120, max_containers=1, volumes={"/history": history_volume},
-              secrets=[modal.Secret.from_name("meme-fast-x-api")])
-def collect_x_sort():
+@app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})
+def collect_coin_evidence(token_id):
     import json
     import subprocess
     history_volume.reload()
     result = subprocess.run(
-        ["node", "/app/worker/x-sort.mjs", "/history/x-sort.json"],
+        ["python", "/app/worker/coin_rss_evidence.py", "/history/coins.json",
+         "/app/x-factor-targets.json", token_id, "/history/coin-rss-evidence"],
         capture_output=True, text=True, timeout=105,
     )
     if result.returncode:
@@ -136,13 +136,34 @@ def web():
                 report = {"version": 1, "status": "disconnected", "coins": {}}
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
-    @web_app.post("/api/x-sort")
-    async def x_sort():
+    @web_app.post("/api/coin-evidence")
+    async def coin_evidence(request: Request):
         try:
-            report = await collect_x_sort.remote.aio()
+            token_id = (await request.json()).get("id", "")
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid token request")
+        if not isinstance(token_id, str) or not re.fullmatch(
+            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40}", token_id
+        ):
+            raise HTTPException(status_code=400, detail="Invalid token ID")
+        try:
+            report = await collect_coin_evidence.remote.aio(token_id)
         except Exception as exc:
-            raise HTTPException(status_code=503, detail="X Sort is temporarily unavailable.") from exc
+            raise HTTPException(status_code=503, detail="Coin RSS evidence is temporarily unavailable.") from exc
         return JSONResponse(report, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/coin-context")
+    async def coin_context(request: Request):
+        token_id = request.query_params.get("id", "")
+        if not re.fullmatch(
+            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40}", token_id
+        ):
+            raise HTTPException(status_code=400, detail="Invalid token ID")
+        snapshot = await load_snapshot()
+        coin = next((row for field in ("coins", "radarCoins") for row in snapshot.get(field, [])
+                     if row.get("id") == token_id), None)
+        return JSONResponse({"id": token_id, "context": coin.get("savedContext") if coin else None},
+                            headers={"cache-control": "no-store"})
 
     @web_app.get("/api/new-coins/version")
     async def new_coins_version():

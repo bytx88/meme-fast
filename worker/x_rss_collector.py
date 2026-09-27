@@ -101,7 +101,7 @@ def collect(snapshot, config, fetcher=fetch_feed, now_ms=None, limit=3):
                 "source": "google-news-rss", "sampledAt": now_ms,
                 "posts6h": len(current), "previousPosts6h": previous,
                 "delta6h": len(current) - previous,
-                "coverage": "Google News RSS index of x.com; contract and configured aliases; sampled, incomplete coverage",
+                "coverage": "Google News RSS index of x.com; contract and configured aliases; sampled, incomplete coverage; alias matches do not prove a contract link",
                 "posts": [{"url": post["url"], "title": post["title"],
                            "publishedAt": post["publishedAt"]} for post in current[:10]],
             }

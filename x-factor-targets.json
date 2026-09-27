@@ -2,16 +2,22 @@
   "targets": [
     {
       "id": "solana:CbcyNo7m1amFWqEQm2m4PLv1UNvpcL3C1Ujm6AkzpKoU",
-      "aliases": [],
+      "name": "Effective Accelerationism",
+      "symbol": "e/acc",
+      "aliases": ["e/acc"],
       "keyHandles": ["beffjezos"]
     },
     {
       "id": "solana:98kfF7rmsg1QDUEoCqNE7g7M1FdrTt92TEp2CLzypump",
+      "name": "Paid",
+      "symbol": "PAID",
       "aliases": ["UsePaid"],
       "keyHandles": ["UsePaid"]
     },
     {
       "id": "robinhood:0x1cdb289befdfac8af945a288bcdccc382cb34d32",
+      "name": "XLINK",
+      "symbol": "XLINK",
       "aliases": ["xl.money", "@xLinkMoney"],
       "keyHandles": ["xLinkMoney"]
     }
