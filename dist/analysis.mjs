@@ -29,3 +29,10 @@ export function flowTimeline(rows, minutes, now) {
   for (const bin of bins) { cumulative += bin.buy-bin.sell; bin.cumulative = cumulative; }
   return {bins, stepMinutes, start, end: now};
 }
+
+// Preserve selected-window totals while omitting only the leading bins before returned swaps.
+export function visibleFlowRange(bins) {
+  const firstObserved=bins.findIndex(bin=>bin.count>0);
+  const firstShown=firstObserved<0?0:Math.max(0,firstObserved-1);
+  return {firstShown,bins:bins.slice(firstShown)};
+}

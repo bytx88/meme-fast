@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {groupTransactions,filterTrades,flowTimeline} from '../dist/analysis.mjs';
+import {groupTransactions,filterTrades,flowTimeline,visibleFlowRange} from '../dist/analysis.mjs';
 import {normalizeTrade,summarize} from '../dist/core.mjs';
 import {loadListings} from '../dist/data.mjs';
 const now=Date.parse('2026-09-21T12:00:00Z');
@@ -26,6 +26,14 @@ test('Timeline includes window boundaries exactly once and reconciles to observe
   assert.equal(result.bins.length,5);assert.equal(result.bins[0].buy,100);assert.equal(result.bins[1].sell,80);assert.equal(result.bins.at(-1).cumulative,-20);
   assert.equal(result.bins.reduce((s,b)=>s+b.count,0),3);assert.equal(result.bins.at(-1).cumulative,summarize(rows,5,now).net);
   assert.equal(flowTimeline(rows,1440,now).bins.length,24);
+});
+test('Trend chart omits leading empty bins without changing selected-window net',()=>{
+  const result=flowTimeline([row('late','buy',120,now-2*60000)],5,now);
+  const visible=visibleFlowRange(result.bins);
+  assert.equal(visible.firstShown,2);
+  assert.equal(visible.bins.length,3);
+  assert.equal(visible.bins.at(-1).cumulative,120);
+  assert.equal(visibleFlowRange(flowTimeline([],5,now).bins).bins.length,5);
 });
 test('Quantity and implied execution price follow the selected token on either side',()=>{
   const attributes={from_token_address:'USD',to_token_address:'TOKEN',from_token_amount:'50',to_token_amount:'200',volume_in_usd:'50',block_timestamp:new Date(now).toISOString()};
