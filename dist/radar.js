@@ -20,10 +20,11 @@ try{
 function saveHolderCache(){
  try{localStorage.setItem(holderCacheKey,JSON.stringify(Object.fromEntries([...holderInfo].slice(-150))))}catch{}
 }
-function holderLabel(id){const info=holderInfo.get(id);return `Holders ${count(info?.count)}`}
+function holderLabel(id){return count(holderInfo.get(id)?.count)}
 function holderTitle(id){const info=holderInfo.get(id);return info?.updatedAt?`GeckoTerminal holder snapshot updated ${age(info.updatedAt)} ago`:info?'GeckoTerminal holder snapshot; update time unavailable':'GeckoTerminal holder count pending or unavailable'}
 function updateHolderDom(id){
  document.querySelectorAll('[data-holder-id]').forEach(node=>{if(node.dataset.holderId===id){node.textContent=holderLabel(id);node.title=holderTitle(id)}});
+ document.querySelectorAll('[data-holder-top10-id]').forEach(node=>{if(node.dataset.holderTop10Id===id)node.textContent=percent(holderInfo.get(id)?.top10)});
  if(state.selectedId!==id||!dialog.open)return;
  const info=holderInfo.get(id),holders=$('[data-holder-fact="count"]'),top10=$('[data-holder-fact="top10"]'),source=$('[data-holder-source]');
  if(holders)holders.textContent=count(info?.count);
@@ -135,15 +136,18 @@ function card(reading,index){
  const updatedTitle=updatedAt===null||!Number.isFinite(updatedAt)?'Market update unavailable':`Market updated ${new Date(updatedAt).toLocaleString()}`;
  const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs</small>`:`${score}<small>${coverage}% coverage</small>`;
  const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
+ const activity=state.mode==='research'
+  ?[['Pool liq',money(coin.liquidity)],['24h pool vol',money(coin.volume)],['24h price',percent(coin.priceChange)]]
+  :[['Pool liq',money(coin.liquidity)],['5m pool vol',money(coin.volume5m)],['5m buys / sells',`${count(coin.buys5m)} / ${count(coin.sells5m)}`]];
  return `<article class="radar-card ${stale?'stale':''}">
-  <span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span>
   <div class="radar-token">
    <div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
-   <div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
-   <small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small>
+   <div class="radar-token-title"><span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
    <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
   </div>
-  <div class="radar-signal"><strong>${signal}</strong><small>Liq ${money(coin.liquidity)}</small><small>5m ${money(coin.volume5m)}</small></div>
+  <div class="radar-holders"><span>Holders</span><strong data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</strong><small>Top 10 <span data-holder-top10-id="${esc(id)}">${percent(holderInfo.get(id)?.top10)}</span></small></div>
+  <div class="radar-signal"><strong>${signal}</strong></div>
+  <div class="radar-activity">${activity.map(([label,value])=>`<span>${label} <b>${value}</b></span>`).join('')}</div>
   <div class="radar-reasons">${cardReasons(parts,id)}</div>
   <div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button><button type="button" class="radar-save-action" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button>${fomo?`<a class="radar-external-action" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a class="radar-external-action" href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a class="radar-external-action" href="${esc(flowLink(coin))}" aria-label="Open ${esc(ticker(coin))} Order Flow">Flow ↗</a></div>
   ${narrativeMarkup(narrative,true)}
