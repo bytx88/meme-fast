@@ -100,7 +100,10 @@ function thumbnail(coin){
 function flowLink(coin){return `./order-flow.html?${new URLSearchParams({query:String(coin.contract_address||'')})}`}
 function savedItem(coin){return {type:'radar',id:coinId(coin),title:`${ticker(coin)} · ${coin.name||'Unknown'}`,subtitle:`${coin.chain||coin.network} · ${RADAR_MODES[state.mode].title} · ${coin.contract_address}`,href:`./radar.html?${new URLSearchParams({contract:String(coin.contract_address||''),mode:state.mode})}`}}
 function partClass(part){return part.value===null?'unknown':part.value>=.67?'high':part.value>=.34?'mid':'low'}
-function reason(part){return `<span class="${partClass(part)}" title="${esc(part.detail)}">${esc(part.label)} ${part.value===null?'unknown':part.value>=.67?'strong':part.value>=.34?'mixed':'weak'}</span>`}
+function reason(part){
+ const shortLabel={'Observed history':'History','Day persistence':'Persistence','Repeated activity':'Activity','24h turnover':'Turnover','5m turnover':'Turnover'}[part.label]||part.label;
+ return `<span class="${partClass(part)}" title="${esc(`${part.label}: ${part.detail}`)}">${esc(shortLabel)} ${part.value===null?'unknown':part.value>=.67?'strong':part.value>=.34?'mixed':'weak'}</span>`;
+}
 function narrativeFor(coin){
  const found=coin.savedContext;
  if(!found)return null;
@@ -115,17 +118,16 @@ function narrativeFor(coin){
  return {summary,source,label:linked?'Exact-address source':'Related theme · unverified'};
 }
 function shortNarrative(value,length=175){return value.length<=length?value:`${value.slice(0,length).replace(/\s+\S*$/,'')}…`}
-function narrativeMarkup(narrative,compact=false){
+function narrativeMarkup(narrative,compact=false,inspectId=null){
  if(!narrative)return '';
- return `<div class="radar-narrative ${compact?'compact':''}"><span>${esc(narrative.label)}</span><p title="${esc(narrative.summary)}">${esc(compact?shortNarrative(narrative.summary):narrative.summary)}</p>${narrative.source?`<a href="${esc(narrative.source)}" target="_blank" rel="noopener noreferrer">Source ↗</a>`:''}</div>`;
+ return `<div class="radar-narrative ${compact?'compact':''}"><span>${esc(narrative.label)}</span><p title="${esc(narrative.summary)}">${esc(compact?shortNarrative(narrative.summary):narrative.summary)}</p>${compact&&inspectId?`<button type="button" class="radar-narrative-more" data-inspect="${esc(inspectId)}" aria-label="Read full source story for ${esc(inspectId)}">More</button>`:''}${narrative.source?`<a href="${esc(narrative.source)}" target="_blank" rel="noopener noreferrer">Source ↗</a>`:''}</div>`;
 }
 
 function cardReasons(parts,id){
  const available=parts.filter(part=>part.value!==null);
  const strongest=[...available].sort((a,b)=>b.value-a.value)[0]||parts[0];
  const weakest=[...parts].filter(part=>part!==strongest).sort((a,b)=>(a.value??-1)-(b.value??-1))[0];
- const first=[strongest,weakest].filter(Boolean),extra=[...parts].filter(part=>!first.includes(part)).sort((a,b)=>b.weight-a.weight)[0];
- const shown=[...first,extra].filter(Boolean),hidden=parts.filter(part=>!shown.includes(part));
+ const shown=[strongest,weakest].filter(Boolean),hidden=parts.filter(part=>!shown.includes(part));
  const more=hidden.length?`<button type="button" class="radar-more-reasons" data-inspect="${esc(id)}" title="${esc(hidden.map(part=>`${part.label}: ${part.value===null?'unknown':part.value>=.67?'strong':part.value>=.34?'mixed':'weak'}`).join('; '))}" aria-label="Inspect ${hidden.length} more signals">+${hidden.length}</button>`:'';
  return shown.map(reason).join('')+more;
 }
@@ -133,25 +135,25 @@ function cardReasons(parts,id){
 function card(reading,index){
  const {coin,score,coverage,stale,parts}=reading,id=coinId(coin),chain=String(coin.network||'');
  const updatedAt=reading.updatedAt==null?null:Number(reading.updatedAt);
- const updatedAge=updatedAt===null||!Number.isFinite(updatedAt)?'No update':stale?`Stale ${age(updatedAt)}`:`Updated ${age(updatedAt)}`;
+ const updatedAge=updatedAt===null||!Number.isFinite(updatedAt)?'No data':`${age(updatedAt)} ago`;
  const updatedTitle=updatedAt===null||!Number.isFinite(updatedAt)?'Market update unavailable':`Market updated ${new Date(updatedAt).toLocaleString()}`;
- const signal=score===null?`<span class="pending">Collecting history</span><small>${coverage}% inputs</small>`:`${score}<small>${coverage}% coverage</small>`;
+ const signal=score===null?`<span class="pending">Collecting</span><small>${coverage}% inputs</small>`:`${score}<small>${coverage}% coverage</small>`;
  const fomo=fomoLink(coin),axiom=axiomLink(coin),address=contractForCopy(coin),narrative=narrativeFor(coin);
  const activity=state.mode==='research'
   ?[['Pool liq',money(coin.liquidity)],['24h pool vol',money(coin.volume)],['24h price',percent(coin.priceChange)]]
   :[['Pool liq',money(coin.liquidity)],['5m pool vol',money(coin.volume5m)],['5m buys / sells',`${count(coin.buys5m)} / ${count(coin.sells5m)}`]];
  return `<article class="radar-card ${stale?'stale':''}">
   <div class="radar-token">
-   <div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
+   <div class="radar-thumb-stack">${fomo?`<a class="radar-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(ticker(coin))} on Fomo" aria-label="Open ${esc(ticker(coin))} on Fomo">${thumbnail(coin)}</a>`:thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
    <div class="radar-token-title"><span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
    <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
   </div>
   <div class="radar-holders"><span>Holders</span><strong data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</strong><small>Top 10 <span data-holder-top10-id="${esc(id)}">${percent(holderInfo.get(id)?.top10)}</span></small></div>
-  <div class="radar-signal"><strong>${signal}</strong></div>
+  <div class="radar-signal"><span class="radar-score-label">Score</span><strong>${signal}</strong></div>
   <div class="radar-activity">${activity.map(([label,value])=>`<span>${label} <b>${value}</b></span>`).join('')}</div>
   <div class="radar-reasons">${cardReasons(parts,id)}</div>
   <div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button><button type="button" class="radar-save-action" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button>${fomo?`<a class="radar-external-action" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a class="radar-external-action" href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a class="radar-external-action" href="${esc(flowLink(coin))}" aria-label="Open ${esc(ticker(coin))} Order Flow">Flow ↗</a></div>
-  ${narrativeMarkup(narrative,true)}
+  ${narrativeMarkup(narrative,true,id)}
  </article>`;
 }
 
@@ -166,11 +168,13 @@ function inspectedHistory(coin){
 }
 function inspector(reading){
  const {coin,score,coverage,stale,parts,updatedAt}=reading,id=coinId(coin);
- const marketLinks=[['Fomo',fomoLink(coin)],['Axiom',axiomLink(coin)]].filter(([,url])=>url).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`).join('');
+ const fomo=fomoLink(coin);
+ const marketLinks=[['Fomo',fomo],['Axiom',axiomLink(coin)]].filter(([,url])=>url).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`).join('');
+ const artwork=fomo?`<a class="inspect-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(ticker(coin))} on Fomo" aria-label="Open ${esc(ticker(coin))} on Fomo">${thumbnail(coin)}</a>`:thumbnail(coin);
  const exact=coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact;
  const context=exact?'Exact-address source':coin.savedContext?'Related context only':'Context pending';
  const unknown=parts.filter(part=>part.value===null).map(part=>part.label);
- return `<div class="inspect-head"><div class="inspect-identity">${thumbnail(coin)}<span class="radar-kicker">${esc(RADAR_MODES[state.mode].title.toUpperCase())} INSPECTION</span><h2>${esc(ticker(coin))}</h2><p>${esc(coin.name||'Unknown')} · ${esc(coin.chain||coin.network)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><div class="inspect-score"><strong>${score===null?'Collecting history':`${score} / 100`}</strong><span>${coverage}% inputs available · ${stale?'Market data stale':`Market updated ${age(updatedAt)} ago`}</span></div><div class="inspect-actions"><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved to Watchlist ✓':'Save to Watchlist'}</button><a href="${esc(flowLink(coin))}">Order Flow ↗</a>${marketLinks}</div>${narrativeFor(coin)?`<section class="inspect-section"><h3>Narrative context</h3>${narrativeMarkup(narrativeFor(coin))}</section>`:''}<section class="inspect-section"><h3>Market snapshot</h3><dl class="inspect-facts"><div><dt>Liquidity</dt><dd>${money(coin.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(coin.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${count(coin.buys5m)} / ${count(coin.sells5m)}</dd></div><div><dt>24h volume</dt><dd>${money(coin.volume)}</dd></div><div><dt>24h price change</dt><dd>${percent(coin.priceChange)}</dd></div><div><dt>Pool age</dt><dd>${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))}</dd></div><div><dt>Holders</dt><dd data-holder-fact="count">${count(holderInfo.get(id)?.count)}</dd></div><div><dt>Top 10 share</dt><dd data-holder-fact="top10">${percent(holderInfo.get(id)?.top10)}</dd></div></dl><p data-holder-source>${esc(holderTitle(id))}</p></section><section class="inspect-section"><h3>Why this signal</h3><p>Weighted inputs for the ${esc(RADAR_MODES[state.mode].title.toLowerCase())} horizon. The score is a research priority, not a return forecast.</p><div class="inspect-parts">${parts.map(part=>`<div><strong>${esc(part.label)}</strong><span class="${partClass(part)}">${part.value===null?'Unknown':`${Math.round(part.value*100)}%`}</span><small>${esc(part.detail)} · ${part.weight}% weight</small></div>`).join('')}</div></section>${inspectedHistory(coin)}<section class="inspect-section"><h3>Evidence & unknowns</h3><p><strong>${context}</strong>${context==='Context pending'?' · No contract-linked context is available yet.':context==='Related context only'?' · The available source does not identify this exact contract.':' · This is source identity evidence, not a safety check.'}</p><p>${unknown.length?`Missing inputs: ${esc(unknown.join(', '))}. `:''}Holder count and top-10 concentration are informational and do not affect this score. Developer holdings, contract safety, and execution risk are not assessed.</p><p class="inspect-contract">Contract · <code>${esc(coin.contract_address||'Unknown')}</code></p></section>`;
+ return `<div class="inspect-head"><div class="inspect-identity">${artwork}<span class="radar-kicker">${esc(RADAR_MODES[state.mode].title.toUpperCase())} INSPECTION</span><h2>${esc(ticker(coin))}</h2><p>${esc(coin.name||'Unknown')} · ${esc(coin.chain||coin.network)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</p></div><button type="button" class="inspect-close" data-close-inspect aria-label="Close inspection">×</button></div><div class="inspect-score"><strong>${score===null?'Collecting history':`${score} / 100`}</strong><span>${coverage}% inputs available · ${stale?'Market data stale':`Market updated ${age(updatedAt)} ago`}</span></div><div class="inspect-actions"><button type="button" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved to Watchlist ✓':'Save to Watchlist'}</button><a href="${esc(flowLink(coin))}">Order Flow ↗</a>${marketLinks}</div>${narrativeFor(coin)?`<section class="inspect-section"><h3>Narrative context</h3>${narrativeMarkup(narrativeFor(coin))}</section>`:''}<section class="inspect-section"><h3>Market snapshot</h3><dl class="inspect-facts"><div><dt>Liquidity</dt><dd>${money(coin.liquidity)}</dd></div><div><dt>5m volume</dt><dd>${money(coin.volume5m)}</dd></div><div><dt>5m buys / sells</dt><dd>${count(coin.buys5m)} / ${count(coin.sells5m)}</dd></div><div><dt>24h volume</dt><dd>${money(coin.volume)}</dd></div><div><dt>24h price change</dt><dd>${percent(coin.priceChange)}</dd></div><div><dt>Pool age</dt><dd>${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))}</dd></div><div><dt>Holders</dt><dd data-holder-fact="count">${count(holderInfo.get(id)?.count)}</dd></div><div><dt>Top 10 share</dt><dd data-holder-fact="top10">${percent(holderInfo.get(id)?.top10)}</dd></div></dl><p data-holder-source>${esc(holderTitle(id))}</p></section><section class="inspect-section"><h3>Why this signal</h3><p>Weighted inputs for the ${esc(RADAR_MODES[state.mode].title.toLowerCase())} horizon. The score is a research priority, not a return forecast.</p><div class="inspect-parts">${parts.map(part=>`<div><strong>${esc(part.label)}</strong><span class="${partClass(part)}">${part.value===null?'Unknown':`${Math.round(part.value*100)}%`}</span><small>${esc(part.detail)} · ${part.weight}% weight</small></div>`).join('')}</div></section>${inspectedHistory(coin)}<section class="inspect-section"><h3>Evidence & unknowns</h3><p><strong>${context}</strong>${context==='Context pending'?' · No contract-linked context is available yet.':context==='Related context only'?' · The available source does not identify this exact contract.':' · This is source identity evidence, not a safety check.'}</p><p>${unknown.length?`Missing inputs: ${esc(unknown.join(', '))}. `:''}Holder count and top-10 concentration are informational and do not affect this score. Developer holdings, contract safety, and execution risk are not assessed.</p><p class="inspect-contract">Contract · <code>${esc(coin.contract_address||'Unknown')}</code></p></section>`;
 }
 function renderInspector(){
  if(!dialog.open||!state.selectedId)return;
