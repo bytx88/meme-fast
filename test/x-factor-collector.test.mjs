@@ -51,6 +51,8 @@ test('XFlux sample measures identified authors and withholds missing identities'
  const row=await searchTargetXFlux(target,'key',fetcher,now);
  assert.equal(row.uniqueAccounts6h,1);
  assert.equal(row.source,'xflux');
+ sample.data[0].created_at=new Date(now+30_000).toISOString();
+ assert.equal((await searchTargetXFlux(target,'key',fetcher,now)).posts6h,1);
  sample.data[0].author={};
  await assert.rejects(searchTargetXFlux(target,'key',fetcher,now),/omitted post, author/);
  sample.data=[];

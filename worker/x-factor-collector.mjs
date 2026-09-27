@@ -95,20 +95,23 @@ export async function searchTargetXFlux(target,key,fetcher=fetch,now=Date.now())
  if(payload.data.length>=100)throw new Error('XFlux search reached the 100-post cap; score withheld');
  const users=new Map(),posts=[];
  for(const post of payload.data){
-  const at=Date.parse(post.created_at),reason=matches(post.text,target);
-  if(!reason||!Number.isFinite(at)||at<now-12*HOUR||at>now)continue;
+  const reportedAt=Date.parse(post.created_at),reason=matches(post.text,target);
+  if(!reason||!Number.isFinite(reportedAt)||reportedAt<now-12*HOUR||reportedAt>now+5*60_000)continue;
+  const at=Math.min(reportedAt,now);
   const author=post.author||post.user||{};
   const username=String(author.username||post.author_username||post.username||'').replace(/^@/,'');
   const authorId=String(post.author_id||author.id||username.toLowerCase());
   const metrics=post.public_metrics||{};
   if(!/^\d+$/.test(String(post.id))||!authorId||(target.keyHandles.length&&!username)||!Number.isFinite(Number(metrics.like_count))||!Number.isFinite(Number(metrics.retweet_count))||!Number.isFinite(Number(metrics.reply_count)))throw new Error('XFlux omitted post, author, or engagement fields; score withheld');
   users.set(authorId,{id:authorId,username});
-  posts.push({...post,author_id:authorId,public_metrics:metrics});
+  posts.push({...post,created_at:new Date(at).toISOString(),author_id:authorId,public_metrics:metrics});
  }
  if(!posts.length){
-  const recent=payload.data.filter(post=>{const at=Date.parse(post.created_at);return Number.isFinite(at)&&at>=now-12*HOUR&&at<=now}).length;
+  const recent=payload.data.filter(post=>{const at=Date.parse(post.created_at);return Number.isFinite(at)&&at>=now-12*HOUR&&at<=now+5*60_000}).length;
   const matching=payload.data.filter(post=>matches(post.text,target)).length;
-  throw new Error(`XFlux returned no matching recent posts (${payload.data.length} returned, ${recent} recent, ${matching} text matches); score withheld`);
+  const newest=Math.max(...payload.data.map(post=>Date.parse(post.created_at)).filter(Number.isFinite));
+  const newestAge=Number.isFinite(newest)?`${Math.round((now-newest)/60_000)}m old`:'unknown age';
+  throw new Error(`XFlux returned no matching recent posts (${payload.data.length} returned, ${recent} recent, ${matching} text matches, newest ${newestAge}); score withheld`);
  }
  const reading=summarizePosts(target,[{data:posts,includes:{users:[...users.values()]}}],now);
  return {...reading,coverage:`XFlux sampled search (up to 100 posts); ${reading.coverage}`,source:'xflux'};
