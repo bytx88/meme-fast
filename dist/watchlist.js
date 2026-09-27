@@ -1,4 +1,4 @@
-import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs';
+import {watchlist,removeSaved,addSaved,isSaved,write,esc,ago,safeURL} from './research-store.mjs?v=watchlist-fomo-v2';
 import {NETWORKS,parsePools} from './public-radar.mjs';
 import {fomoLink} from './contract-copy.mjs';
 

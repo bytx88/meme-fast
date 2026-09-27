@@ -4,7 +4,7 @@ import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
-import {toggleSaved,isSaved} from './research-store.mjs';
+import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts} from './recent-contracts.mjs';
 import {fomoLink} from './contract-copy.mjs';
 import {safeURL} from './public-radar.mjs';

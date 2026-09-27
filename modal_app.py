@@ -267,7 +267,7 @@ def web():
         return FileResponse(
             candidate,
             media_type=allowed_types[candidate.suffix],
-            headers={"cache-control": "no-cache", "x-content-type-options": "nosniff"},
+            headers={"cache-control": "no-store", "x-content-type-options": "nosniff"},
         )
 
     return web_app

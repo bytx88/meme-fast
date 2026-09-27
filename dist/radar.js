@@ -1,5 +1,5 @@
 import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-v1';
-import {isSaved,toggleSaved} from './research-store.mjs';
+import {isSaved,toggleSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {parseHolderInfo} from './holder-info.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';

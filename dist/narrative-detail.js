@@ -1,5 +1,5 @@
 import {buildPublicView,addressMatches} from './public-radar.mjs';
-import {read,toggleSaved,isSaved,esc,ago,safeURL} from './research-store.mjs';
+import {read,toggleSaved,isSaved,esc,ago,safeURL} from './research-store.mjs?v=watchlist-fomo-v2';
 const $=id=>document.getElementById(id),id=new URLSearchParams(location.search).get('id');
 const articles=read('meme-fast-public-articles-v1',[]),coins=read('meme-fast-public-coins-v1',[]);
 const narrative=buildPublicView({articles,coins},{hours:72},Date.now()).all.find(item=>item.id===id);

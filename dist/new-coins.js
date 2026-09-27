@@ -7,7 +7,7 @@ import {stageFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
 import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from './coin-screener.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
 import {DEFAULT_ENTRY,normalizeEntry,assessEntry} from './snipe-decision.mjs';
-import {isSaved,toggleSaved} from './research-store.mjs';
+import {isSaved,toggleSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
