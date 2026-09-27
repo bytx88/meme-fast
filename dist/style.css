@@ -46,16 +46,16 @@
 .chain-marker.solana{background:#f5a14d;color:#261408}
 .chain-marker.robinhood{background:#36d49b;color:#07251b}
 
-/* Keep the four research views on the browser's document scrollbar. */
-html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page)){overflow-y:auto;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
-html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar{width:11px}
-html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar-track{background:#0b1119}
-html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}
-@media(max-width:550px){main:is(.new-coins,.radar,.order-flow-page,.radar-page) .site-nav{flex-wrap:wrap;overflow-x:visible;white-space:normal}}
+/* Every page uses document scrolling, with a native fallback before enhancement. */
+html{overflow-y:auto;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+html::-webkit-scrollbar{width:11px}
+html::-webkit-scrollbar-track{background:#0b1119}
+html::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}
+@media(max-width:550px){main .site-nav{flex-wrap:wrap;overflow-x:visible;white-space:normal}}
 
 /* Keep a usable scroll handle visible when the browser hides or shrinks its native thumb. */
-html.page-scroll-enhanced:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page)){scrollbar-width:none}
-html.page-scroll-enhanced:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar{display:none}
+html.page-scroll-enhanced{scrollbar-width:none}
+html.page-scroll-enhanced::-webkit-scrollbar{display:none}
 .page-scroll-rail{position:fixed;z-index:40;top:8px;right:3px;bottom:8px;width:15px;border:1px solid #536376;border-radius:9px;background:#1a2634;box-shadow:0 0 0 2px #0b1119;cursor:pointer;touch-action:none}
 .page-scroll-rail:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .page-scroll-thumb{position:absolute;top:0;left:1px;right:1px;display:block;border:1px solid #c9f58b;border-radius:8px;background:#94c951;box-shadow:0 0 8px #94c95166}
