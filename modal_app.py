@@ -60,17 +60,15 @@ def collect_coins():
 
 
 @app.function(timeout=300, max_containers=1,
-              volumes={"/history": history_volume},
-              secrets=[modal.Secret.from_name("meme-fast-x-api")])
-def collect_x_factor(target_limit=8):
+              volumes={"/history": history_volume})
+def collect_x_factor(target_limit=3):
     import subprocess
     history_volume.reload()
     result = subprocess.run(
-        ["node", "/app/worker/x-factor-collector.mjs", "/history/coins.json",
+        ["python", "/app/worker/x_rss_collector.py", "/history/coins.json",
          "/history/x-factor.json", "/app/x-factor-targets.json"],
         capture_output=True, text=True, timeout=260,
-        env={**os.environ, "X_FACTOR_PROVIDER": "xflux",
-             "X_FACTOR_TARGET_LIMIT": str(max(1, min(8, int(target_limit))))},
+        env={**os.environ, "X_FACTOR_TARGET_LIMIT": str(max(1, min(8, int(target_limit))))},
     )
     if result.returncode:
         raise RuntimeError(result.stderr[-2000:])

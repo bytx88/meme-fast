@@ -34,3 +34,19 @@ test('X Factor rejects unsafe post links and escapes supplied text',()=>{
  assert.doesNotMatch(html,/<script>/);
  assert.match(html,/&lt;script&gt;/);
 });
+
+test('RSS signal shows indexed mentions without claiming an X score',()=>{
+ const rss={version:1,status:'connected',source:'google-news-rss',coins:{[id]:{
+  posts6h:7,previousPosts6h:3,sampledAt:now-5*60_000,
+  posts:[{url:'https://news.google.com/rss/articles/ABC123?oc=5',title:'UsePaid post'},
+   {url:'javascript:alert(1)',title:'unsafe'}],
+ }}};
+ assert.equal(xFactorReading(rss,id,now).status,'rss');
+ assert.match(xFactorBadge(rss,id,now),/X RSS <strong>7<\/strong>/);
+ const detail=xFactorDetail(rss,id,now);
+ assert.match(detail,/7 indexed X posts/);
+ assert.match(detail,/no author, like, or repost measurement/);
+ assert.match(detail,/news.google.com\/rss\/articles\/ABC123/);
+ assert.doesNotMatch(detail,/javascript:/);
+ assert.equal(xFactorReading(rss,id,now+31*60_000).status,'stale');
+});
