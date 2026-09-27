@@ -393,3 +393,4 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .name-search-summary p{margin-top:6px;font-size:12px;line-height:1.5;color:var(--muted)}
 .name-search-summary a{display:inline-block;margin-top:8px;font-size:12px;color:var(--accent)}
 .card-contract{display:block;margin-top:4px;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
+.name-search .collection-info{display:none}

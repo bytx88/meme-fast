@@ -33,6 +33,17 @@ test('Snipe competition projection includes retained Swing identities without hi
  assert.equal('flowSamples' in projected.competitionCoins[0],false);
 });
 
+test('Name projection returns only retained same-name contracts from both feeds',()=>{
+ const snipe={...coin,name:' Yee ',symbol:'YEE',liquidity:123},swing={...radar,id:'base:B',network:'base',contract_address:'B',name:'Yee',symbol:'OTHER',lastSeenRadarAt:now,image_url:'https://example.test/b.png'};
+ const other={...coin,id:'solana:other',name:'Yee Too'};
+ const projected=snapshotView({...snapshot,coins:[snipe,other,{...snipe,id:'solana:expired',firstSeen:now-6*86400000}],radarCoins:[swing,{...swing,id:'base:expired',lastSeenRadarAt:now-6*86400000}]},'name',[],now,' yee ');
+ assert.equal(projected.coins.length,1);assert.equal(projected.coins[0].id,snipe.id);
+ assert.equal(projected.competitionCoins.length,1);assert.equal(projected.competitionCoins[0].id,swing.id);
+ assert.equal(projected.competitionCoins[0].image_url,swing.image_url);
+ assert.equal('radarCoins' in projected,false);assert.equal('marketHistory' in projected.coins[0],false);
+ assert.throws(()=>snapshotView(snapshot,'name',[],now,''),/token name/);
+});
+
 test('Source status retains the last successful sample and reports current failures',()=>{
  const old=feedStatus({},now-1000,{records:7});
  const failed=feedStatus(old,now,{error:'offline'});

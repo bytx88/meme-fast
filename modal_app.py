@@ -233,7 +233,7 @@ def web():
     async def new_coins(request: Request):
         snapshot = await load_snapshot()
         try:
-            payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"))
+            payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"), name=request.query_params.get("name", ""))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse(payload, headers={"cache-control": "no-store"})

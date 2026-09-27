@@ -44,17 +44,19 @@ class SnapshotViewTests(unittest.TestCase):
         script = (
             "import {snapshotView} from './worker/snapshot-view.mjs';"
             "let text='';for await(const chunk of process.stdin)text+=chunk;"
-            "const {snapshot,view,ids,now}=JSON.parse(text);"
-            "console.log(JSON.stringify(snapshotView(snapshot,view,ids,now)));"
+            "const {snapshot,view,ids,now,name}=JSON.parse(text);"
+            "console.log(JSON.stringify(snapshotView(snapshot,view,ids,now,name)));"
         )
         root = Path(__file__).resolve().parents[1]
-        for view, ids in (("coin", []), ("radar", []), ("watchlist", ["solana:ABC"])):
+        for view, ids, name in (("coin", [], ""), ("radar", [], ""), ("watchlist", ["solana:ABC"], ""), ("name", [], "Yee")):
+            source = snapshot if view != "name" else {**snapshot, "coins": [{**coin, "name": " Yee "}],
+                                                      "radarCoins": [{**coin, "name": "Yee", "id": "base:B", "lastSeenRadarAt": now}]}
             result = subprocess.run(
                 ["node", "--input-type=module", "-e", script], cwd=root,
-                input=json.dumps({"snapshot": snapshot, "view": view, "ids": ids, "now": now}),
+                input=json.dumps({"snapshot": source, "view": view, "ids": ids, "now": now, "name": name}),
                 text=True, capture_output=True, check=True,
             )
-            self.assertEqual(json.loads(result.stdout), snapshot_view(snapshot, view, ids, now_ms=now))
+            self.assertEqual(json.loads(result.stdout), snapshot_view(source, view, ids, now_ms=now, name=name))
 
     def test_early_ramp_projection_matches_javascript(self):
         now = 1790454627407

@@ -1,10 +1,15 @@
 """Public projections of the collector snapshot."""
 import math
+import unicodedata
 
 RETENTION_MS = 5 * 86400000
 COMPETITION_FIELDS = ("id", "network", "chain", "contract_address", "contract_verified", "name", "symbol", "image_url", "poolCreated", "volume",
                       "firstSeen", "firstSeenRadarAt", "liquidity", "volume5m", "buys5m", "sells5m", "marketUpdatedAt", "fetchedAt")
 MINUTE = 60000
+
+
+def _name_key(value):
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).strip().lower().split())
 
 
 def _number(value):
@@ -78,11 +83,29 @@ def _key(value):
     return value if value.startswith("solana:") else value.lower()
 
 
-def snapshot_view(snapshot, view="", ids=(), now_ms=None):
+def snapshot_view(snapshot, view="", ids=(), now_ms=None, name=""):
     if now_ms is None:
         import time
         now_ms = time.time() * 1000
     cutoff = now_ms - RETENTION_MS
+    if view == "name":
+        key = _name_key(name)
+        if not key or len(key) > 100:
+            raise ValueError("Request a token name up to 100 characters")
+        result = {field: snapshot[field] for field in ("version", "revision", "lastRun", "coverage", "feeds") if field in snapshot}
+        result["coins"] = [
+            {**{field: value for field, value in coin.items()
+                if field not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")},
+             "flowSamples": _compact_flow(coin.get("marketHistory") or []),
+             "earlyRampWarning": _early_ramp_warning(coin, now_ms)}
+            for coin in snapshot.get("coins", []) if coin.get("firstSeen", 0) > cutoff and _name_key(coin.get("name")) == key
+        ]
+        result["competitionCoins"] = [
+            {field: coin[field] for field in COMPETITION_FIELDS if field in coin}
+            for coin in snapshot.get("radarCoins", [])
+            if coin.get("lastSeenRadarAt", 0) > cutoff and _name_key(coin.get("name")) == key
+        ]
+        return result
     if view == "watchlist":
         if not 1 <= len(ids) <= 30 or any(len(item) > 160 or ":" not in item for item in ids):
             raise ValueError("Request 1 to 30 saved token IDs")

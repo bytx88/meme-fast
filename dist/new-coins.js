@@ -31,8 +31,8 @@ const params=new URLSearchParams(location.search);
 const nameQuery=(params.get('name')||'').trim();
 const nameSearch=Boolean(nameQuery);
 const contractQuery=nameSearch?'':(params.get('contract')||params.get('query')||'').trim();
-const state={historyLoaded:false,historyError:false,hours:nameSearch||contractQuery?120:1,sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:nameQuery||contractQuery,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:nameSearch?'explore':contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
-const data={coins:[],competitionCoins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[],freshTimer=null,pollInFlight=false,highlightIds=new Set(),highlightTimer=null;
+const state={historyLoaded:false,historyError:false,hours:nameSearch||contractQuery?120:1,sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:nameQuery||contractQuery,nameDataQuery:null,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:nameSearch?'explore':contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
+const data={coins:[],competitionCoins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[],freshTimer=null,pollInFlight=false,highlightIds=new Set(),highlightTimer=null,nameSearchTimer=null;
 let competition=createCompetitionIndex([],watchlist()),comparisonOpen=false;
 function rebuildCompetition(){competition=createCompetitionIndex([...data.coins,...data.competitionCoins,...data.manualCoins],watchlist())}
 const isNewGroup=coin=>highlightIds.has(coin.id)||coin.variants?.some(variant=>highlightIds.has(variant.id));
@@ -137,8 +137,9 @@ function activitySection(stages){return `<section class="discovery-lane ${state.
 function cards(stages,known,total){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',stages.new.length+stages.stretch.length],['sustained','Recovery',stages.sustained.length+stages.tracking.length],['migrated','Pool activity',stages.migrated.length+stages.active.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newPairsSection(stages,known,total)}${sustainedSection(stages)}${activitySection(stages)}</div>`}
 function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
 function nameSearchCards(rows){
+ const ready=state.historyLoaded&&state.nameDataQuery===state.query;
  const chains=new Map();for(const c of rows)chains.set(c.chain,(chains.get(c.chain)||0)+1);
- return `<div class="explore-board"><section class="name-search-summary"><h2>Same-name tokens · ${esc(state.query||'Enter a token name')}</h2><p>${state.historyLoaded?`${rows.length} distinct contracts · ${[...chains].map(([chain,count])=>`${esc(chain)} ${count}`).join(' · ')}`:'Loading retained contracts…'}</p><p>All chains · five-day Snipe history, retained Swing records and saved tokens. Name matching ignores case and extra spaces. Each card is one contract.</p><a href="./">Back to Snipe feed</a></section><div class="explore-grid">${rows.map(card).join('')}</div>${!rows.length&&state.historyLoaded?'<div class="new-empty">No same-name tokens in retained history or saved tokens. Try Look up for other pools.</div>':''}</div>`;
+ return `<div class="explore-board"><section class="name-search-summary"><h2>Same-name tokens · ${esc(state.query||'Enter a token name')}</h2><p>${ready?`${rows.length} distinct contracts · ${[...chains].map(([chain,count])=>`${esc(chain)} ${count}`).join(' · ')}`:state.historyError?'History unavailable · retry Refresh':'Loading retained contracts…'}</p><p>All chains · five-day Snipe history, retained Swing records and saved tokens. Name matching ignores case and extra spaces. Each card is one contract.</p><a href="./">Back to Snipe feed</a></section><div class="explore-grid">${rows.map(card).join('')}</div>${!rows.length&&ready?'<div class="new-empty">No same-name tokens in retained history or saved tokens. Try Look up for other pools.</div>':''}</div>`;
 }
 function exploreCards(rows){
  if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
@@ -203,9 +204,10 @@ function render(){
  document.body.classList.toggle('name-search',nameSearch);
  document.body.classList.toggle('entry-view',state.view==='entry');
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),supported=retained.filter(c=>verified(context(c))).length;
- $('#collection-summary').textContent=state.historyLoaded?`5D: ${retained.length} total · ${supported} address linked · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
+ $('#collection-summary').textContent=nameSearch?(state.historyLoaded?`${competition.nameCount(state.query)} same-name contracts`:'Loading matches…'):state.historyLoaded?`5D: ${retained.length} total · ${supported} address linked · ${retained.length-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
- const all=candidates(),rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[],active:[]};
+ const nameReady=!nameSearch||state.nameDataQuery===state.query;
+ const all=nameReady?candidates():[],rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[],active:[]};
  for(const coin of all){const stage=stageFor(coin);stages[stage==='migrated'&&isUnderObservation(coin)?'tracking':stage].push(coin)}
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
  visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.sustained,...stages.tracking,...stages.migrated,...stages.active]:rows;
@@ -218,7 +220,7 @@ function render(){
  document.querySelectorAll('[data-skip-rug]').forEach(input=>input.checked=state.skipRug);
  updateAutoButtons();
  $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):exploreCards(rows);
- const health=$('#market-health');if(health)health.textContent=state.historyLoaded?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
+ const health=$('#market-health');if(health)health.textContent=state.historyLoaded&&nameReady?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
  $('#status').textContent=loading?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  document.querySelectorAll('[data-open-screener]').forEach(button=>button.title=`Screener settings · minimum 24h volume $${state.screener.volume24h.toLocaleString('en-US')}`);
@@ -228,29 +230,31 @@ function render(){
  updateAvailable();
  renderDetail();
 }
-function applySnapshot(snapshot){
+function applySnapshot(snapshot,requestedName=state.query){
  const known=new Set(data.coins.map(coin=>coin.id)),newIds=state.historyLoaded?snapshot.coins.filter(coin=>!known.has(coin.id)).map(coin=>coin.id):[];
  if(highlightTimer)clearTimeout(highlightTimer);
  highlightIds=new Set(newIds);
  const hadHistory=state.historyLoaded;
- data.coins=snapshot.coins;data.competitionCoins=snapshot.competitionCoins||[];state.historyLoaded=true;state.historyError=false;state.checkError=false;state.lastRun=snapshot.lastRun||0;state.revision=snapshot.revision||String(snapshot.lastRun||0);state.pendingSnapshot=null;
+ data.coins=snapshot.coins;data.competitionCoins=snapshot.competitionCoins||[];state.historyLoaded=true;state.historyError=false;state.checkError=false;state.lastRun=snapshot.lastRun||0;state.revision=snapshot.revision||String(snapshot.lastRun||0);state.pendingSnapshot=null;if(nameSearch)state.nameDataQuery=requestedName;
  rebuildCompetition();
  state.coverageNote=sourceCoverageNote(snapshot);
  state.notice=snapshot.lastRun?`Server checked ${new Date(snapshot.lastRun).toLocaleString()}${sourceCoverageNote(snapshot)}.`:'The server is preparing its first collection.';
  if(hadHistory)preserveScroll(render);else render();
  if(newIds.length)highlightTimer=setTimeout(()=>{highlightIds.clear();document.querySelectorAll('.snapshot-new').forEach(node=>node.classList.remove('snapshot-new'));highlightTimer=null},5000);
 }
-async function getSnapshot(){
- const response=await fetch('/api/new-coins?view=coin',{cache:'no-store',signal:AbortSignal.timeout(60000)});
+async function getSnapshot(name=state.query){
+ const url=nameSearch?`/api/new-coins?view=name&name=${encodeURIComponent(name.trim())}`:'/api/new-coins?view=coin';
+ const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(60000)});
  if(!response.ok)throw new Error('History unavailable');
  const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid history');return snapshot;
 }
 async function refresh(){
  if(loading)return;loading=true;
+ const requestedName=state.query;
  document.querySelectorAll('#refresh,.full-refresh').forEach(button=>{button.disabled=true;button.textContent='Checking…'});
- try{const snapshot=await getSnapshot();loading=false;applySnapshot(snapshot)}
- catch{state.historyError=true;state.checkError=true;state.notice='Server history unavailable. Displayed snapshots were retained.';$('#status').textContent=state.notice;updateFreshnessStatus()}
- finally{loading=false;document.querySelectorAll('#refresh,.full-refresh').forEach(button=>{button.disabled=false;button.textContent='Refresh ↻'})}
+ try{const snapshot=await getSnapshot(requestedName);loading=false;if(!nameSearch||requestedName===state.query)applySnapshot(snapshot,requestedName)}
+ catch{state.historyError=true;state.checkError=true;state.notice='Server history unavailable. Displayed snapshots were retained.';$('#status').textContent=state.notice;updateFreshnessStatus();if(nameSearch)render()}
+ finally{loading=false;document.querySelectorAll('#refresh,.full-refresh').forEach(button=>{button.disabled=false;button.textContent='Refresh ↻'});if(nameSearch&&requestedName!==state.query&&state.query.trim())void refresh()}
 }
 async function poll(){
  if(document.hidden||pollInFlight||loading)return;
@@ -261,8 +265,9 @@ async function poll(){
   const version=await response.json();
   state.checkError=false;updateFreshnessStatus();
   if(version.revision!==state.revision&&version.revision!==(state.pendingSnapshot?.revision||String(state.pendingSnapshot?.lastRun||0))){
-   const snapshot=await getSnapshot();
-   if(state.freshEnabled)applySnapshot(snapshot);else{state.pendingSnapshot=snapshot;updateAvailable()}
+   const query=state.query,snapshot=await getSnapshot(query);
+   if(nameSearch&&query!==state.query)return;
+   if(state.freshEnabled)applySnapshot(snapshot,query);else{state.pendingSnapshot=snapshot;updateAvailable()}
   }
  }catch{state.checkError=true;updateFreshnessStatus()}finally{pollInFlight=false}
 }
@@ -333,7 +338,7 @@ document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListen
 $('#screener-settings').addEventListener('submit',event=>{event.preventDefault();applyScreener(Object.fromEntries(new FormData(event.currentTarget)))});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));
-$('#query').addEventListener('input',event=>{state.query=event.target.value;render()});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();investigate()}});
+$('#query').addEventListener('input',event=>{state.query=event.target.value;if(nameSearch){document.title=`${state.query} · Snipe listings · Meme Fast`;state.pendingSnapshot=null}render();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim())nameSearchTimer=setTimeout(()=>{history.replaceState(null,'',nameSearchHref(state.query));void refresh()},300)}});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim()){history.replaceState(null,'',nameSearchHref(state.query));void refresh()}}else investigate()}});
 $('#investigate').addEventListener('click',investigate);$('#refresh').addEventListener('click',refresh);$('#full-mode').addEventListener('click',()=>setFull(!document.body.classList.contains('tiles-only')));
 $('.full-refresh').addEventListener('click',refresh);
 $('.full-exit').addEventListener('click',()=>setFull(false));
