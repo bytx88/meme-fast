@@ -3,7 +3,7 @@ const MAX_SAMPLE_AGE_MS=30*60_000;
 
 export function xFactorReading(report,id,now=Date.now()){
  const row=report?.coins?.[id];
- if(report?.status!=='connected'||!row)return {status:report?.status==='connected'?'unobserved':'disconnected'};
+ if(report?.status!=='connected'||!row)return {status:report?.status==='connected'?'unobserved':report?.status==='error'?'error':'disconnected'};
  const sampledAt=Number(row.sampledAt);
  if(!Number.isFinite(sampledAt)||sampledAt>now+60_000||now-sampledAt>MAX_SAMPLE_AGE_MS)return {status:'stale',sampledAt};
  if(!Number.isInteger(row.score)||row.score<0||row.score>100)return {status:'unobserved'};
@@ -14,14 +14,14 @@ export function xFactorBadge(report,id,now=Date.now()){
  const reading=xFactorReading(report,id,now),safeId=escapeHtml(id);
  const delta=Number.isFinite(reading.delta6h)?` <span class="x-factor-delta">${reading.delta6h>0?'+':''}${reading.delta6h} pts / 6h</span>`:'';
  const label=reading.status==='ready'?`X Factor <strong>${reading.score}</strong>${delta}`:reading.status==='stale'?'X Factor · stale':'X Factor · —';
- const title=reading.status==='ready'?`X Factor sampled ${new Date(reading.sampledAt).toLocaleString()}`:reading.status==='stale'?'X sample is older than 30 minutes':reading.status==='disconnected'?'X collection is not connected':'No X sample for this contract';
+ const title=reading.status==='ready'?`X Factor sampled ${new Date(reading.sampledAt).toLocaleString()}`:reading.status==='stale'?'X sample is older than 30 minutes':reading.status==='error'?'X collection failed':reading.status==='disconnected'?'X collection is not connected':'No X sample for this contract';
  return `<button type="button" class="x-factor-badge ${reading.status}" data-x-factor="${safeId}" title="${escapeHtml(title)}" aria-label="Inspect ${escapeHtml(label.replace(/<[^>]*>/g,''))}">${label}</button>`;
 }
 
 export function xFactorDetail(report,id,now=Date.now()){
  const reading=xFactorReading(report,id,now);
  if(reading.status!=='ready'){
-  const message=reading.status==='disconnected'?'X collection is not connected. This coin has no measured social score yet.':reading.status==='stale'?'The last X sample is older than 30 minutes. Its score is withheld until collection resumes.':'No X posts have been measured for this contract yet.';
+  const message=reading.status==='disconnected'?'X collection is not connected. This coin has no measured social score yet.':reading.status==='error'?'X collection failed. No social score is shown until a complete sample succeeds.':reading.status==='stale'?'The last X sample is older than 30 minutes. Its score is withheld until collection resumes.':'No X posts have been measured for this contract yet.';
   return `<p class="x-factor-note">${message}</p>`;
  }
  const count=value=>Number.isSafeInteger(value)&&value>=0?value.toLocaleString('en-US'):'—';

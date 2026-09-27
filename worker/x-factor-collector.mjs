@@ -65,7 +65,7 @@ export async function searchTarget(target,bearer,fetcher=fetch,now=Date.now()){
   url.searchParams.set('query',searchQuery(target));
   url.searchParams.set('start_time',new Date(now-12*HOUR).toISOString());
   url.searchParams.set('max_results','100');
-  url.searchParams.set('post.fields','created_at,author_id,public_metrics');
+  url.searchParams.set('post.fields','created_at,public_metrics');
   url.searchParams.set('expansions','author_id');
   url.searchParams.set('user.fields','username');
   if(nextToken)url.searchParams.set('next_token',nextToken);

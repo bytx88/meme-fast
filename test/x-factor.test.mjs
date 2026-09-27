@@ -20,6 +20,8 @@ test('X Factor withholds stale and disconnected numbers',()=>{
  assert.equal(xFactorReading(report,id,now+31*60_000).status,'stale');
  assert.doesNotMatch(xFactorBadge(report,id,now+31*60_000),/>72</);
  assert.equal(xFactorReading({version:1,status:'disconnected',coins:report.coins},id,now).status,'disconnected');
+ assert.equal(xFactorReading({version:1,status:'error',coins:{}},id,now).status,'error');
+ assert.match(xFactorDetail({version:1,status:'error',coins:{}},id,now),/collection failed/);
 });
 
 test('X Factor rejects unsafe post links and escapes supplied text',()=>{

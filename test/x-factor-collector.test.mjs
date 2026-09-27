@@ -34,7 +34,10 @@ test('measured score uses independent accounts, a prior six-hour window and crea
 });
 
 test('search withholds a score when its page cap leaves posts unobserved',async()=>{
- const fetcher=async()=>({ok:true,json:async()=>({data:[],meta:{next_token:'more',result_count:0}})});
+ const fetcher=async url=>{
+  assert.equal(url.searchParams.get('post.fields'),'created_at,public_metrics');
+  return {ok:true,json:async()=>({data:[],meta:{next_token:'more',result_count:0}})};
+ };
  await assert.rejects(searchTarget(target,'secret',fetcher,now),/page cap/);
 });
 
