@@ -139,7 +139,7 @@ function card(reading,index){
   <span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span>
   <div class="radar-token">
    <div class="radar-thumb-stack">${thumbnail(coin)}<time class="radar-market-age ${stale?'stale-note':''}" title="${esc(updatedTitle)}">${esc(updatedAge)}</time></div>
-   <div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="radar-copy-ca" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address">CA</button>`:''}</div>
+   <div class="radar-token-title"><strong>${esc(ticker(coin))}</strong>${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
    <small class="radar-holder" data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</small>
    <small class="radar-token-meta">${esc(coin.name||'Unknown')} · ${esc(coin.chain||chain)} · pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</small>
   </div>
@@ -227,7 +227,7 @@ document.addEventListener('click',async event=>{
  const close=event.target.closest('[data-close-inspect]');if(close){dialog.close();return}
  const copy=event.target.closest('[data-copy-ca]');if(copy){
   const coin=universe().find(item=>coinId(item)===copy.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
-  if(result.status==='copied'){copy.textContent='Copied ✓';$('#radar-copy-status').textContent=`${ticker(coin)} contract copied.`;setTimeout(()=>{if(copy.isConnected)copy.textContent='CA'},1800)}
+  if(result.status==='copied'){copy.classList.add('copied');copy.setAttribute('aria-label','Contract copied');$('#radar-copy-status').textContent=`${ticker(coin)} contract copied.`;setTimeout(()=>{if(!copy.isConnected)return;copy.classList.remove('copied');copy.setAttribute('aria-label',`Copy ${ticker(coin)} contract address`)},1800)}
   else if(result.status==='manual'){const input=$('#radar-manual-ca');input.value=result.address;$('#radar-ca-dialog').showModal();input.focus();input.select()}
   return;
  }

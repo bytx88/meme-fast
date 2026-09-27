@@ -17,7 +17,7 @@ function stageTag(n){return n.stage===null?'<span class="stage-tag">LC unclassif
 const originLabel=origin=>origin==='narrative_first'?'Narrative → Coin':origin==='coin_first'?'Coin → Narrative':'Origin not established';
 function caButton(c){
  const address=contractForCopy(c);
- return `<button type="button" class="ca-copy" data-copy-ca="${esc(c.id)}" ${address?'':'disabled'} aria-label="${address?'Copy':'Unavailable'} ${esc(c.symbol)} contract address on ${esc(c.chain)}" title="${address?esc(c.chain+' · '+address):'No verified contract address for this example token'}"><span>CA</span><span aria-hidden="true">⧉</span>${address?'':'<span class="ca-unavailable">—</span>'}</button>`;
+ return `<button type="button" class="contract-copy-icon" data-copy-ca="${esc(c.id)}" ${address?'':'disabled'} aria-label="${address?'Copy':'Unavailable'} ${esc(c.symbol)} contract address on ${esc(c.chain)}" title="${address?'Copy contract address':'No verified contract address for this example token'}"></button>`;
 }
 function tokenTags(n){
  const matched=coins.filter(c=>c.narrative===n.id);
@@ -51,10 +51,10 @@ function showCoin(id){
 async function handleCopy(button){
  const coin=coins.find(c=>c.id===button.dataset.copyCa),result=await copyContract(coin,navigator.clipboard);
  if(result.status==='copied'){
-  button.innerHTML='<span>Copied</span><span aria-hidden="true">✓</span>';
+  button.classList.add('copied');button.setAttribute('aria-label','Contract copied');
   $('#copy-status').textContent=`${coin.symbol} contract address copied on ${coin.chain}.`;
   clearTimeout(copyStatusTimer);copyStatusTimer=setTimeout(()=>{$('#copy-status').textContent=''},3500);
-  setTimeout(()=>{if(button.isConnected)button.innerHTML='<span>CA</span><span aria-hidden="true">⧉</span>'},1800);
+  setTimeout(()=>{if(!button.isConnected)return;button.classList.remove('copied');button.setAttribute('aria-label',`Copy ${coin.symbol} contract address on ${coin.chain}`)},1800);
  }else if(result.status==='manual'){
   $('#copy-address').value=result.address;$('#copy-note').textContent=`Clipboard access is unavailable. Copy the ${coin.symbol} address on ${coin.chain} below.`;
   $('#copy-dialog').showModal();$('#copy-address').focus();$('#copy-address').select();

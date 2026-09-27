@@ -2,3 +2,13 @@
 .compact-token-actions a,.compact-token-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:28px;margin:0;padding:4px 7px;border:1px solid #3b485a;border-radius:6px;background:#1a2431;color:#dceaff;font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
 .compact-token-actions a:hover,.compact-token-actions button:hover{background:#29384a;border-color:#71849e;color:#fff}
 .compact-token-actions a:focus-visible,.compact-token-actions button:focus-visible{outline:2px solid #c9ff49;outline-offset:2px}
+button.contract-copy-icon[data-copy-ca]{position:relative;display:inline-block;flex:none;width:16px;height:16px;min-width:16px;min-height:16px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:#91a5bb;font-size:12px;line-height:16px;vertical-align:middle;cursor:pointer}
+button.contract-copy-icon[data-copy-ca]::before,button.contract-copy-icon[data-copy-ca]::after{content:"";position:absolute;width:5px;height:6px;border:1px solid currentColor;border-radius:1px}
+button.contract-copy-icon[data-copy-ca]::before{top:3px;left:3px}
+button.contract-copy-icon[data-copy-ca]::after{top:5px;left:5px;background:#141d28}
+button.contract-copy-icon[data-copy-ca]:hover,button.contract-copy-icon[data-copy-ca]:focus-visible{border:0;background:transparent;color:#d8edff}
+button.contract-copy-icon[data-copy-ca]:focus-visible{outline:0;box-shadow:0 2px #9acb58}
+button.contract-copy-icon[data-copy-ca].copied{color:#c5f577}
+button.contract-copy-icon[data-copy-ca].copied::before{content:"✓";top:0;left:0;width:100%;height:100%;border:0;line-height:16px;text-align:center}
+button.contract-copy-icon[data-copy-ca].copied::after{display:none}
+button.contract-copy-icon[data-copy-ca]:disabled{opacity:.45;cursor:default}
