@@ -318,8 +318,9 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .entry-name{display:flex;align-items:center;gap:5px;min-width:0}
 .entry-name strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry-copy{width:16px;height:16px;min-height:16px;border:0;border-radius:0;background:transparent}
-.entry-copy::before{top:2px;left:2px}
-.entry-copy::after{top:4px;left:4px;background:#141d28}
+.entry-copy::before,.entry-copy::after{width:5px;height:6px}
+.entry-copy::before{top:3px;left:3px}
+.entry-copy::after{top:5px;left:5px;background:#141d28}
 .entry-copy:hover,.entry-copy:focus-visible{background:transparent;color:#d8edff;outline:0}
 .entry-copy:focus-visible{box-shadow:0 2px #9acb58}
 .entry-copy.copied::before{line-height:16px}
