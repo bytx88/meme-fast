@@ -131,7 +131,7 @@ function card(reading,index){
   <div class="radar-signal"><span class="radar-score-label">Score</span><strong>${signal}</strong></div>
   <div class="radar-activity">${activity.map(([label,value])=>`<span>${label} <b>${value}</b></span>`).join('')}</div>
   <div class="radar-reasons">${xFactorBadge(state.xFactorReport,id)}${cardReasons(parts,id)}</div>
-  <div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button><button type="button" class="radar-save-action" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button>${fomo?`<a class="radar-external-action" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Fomo">Fomo ↗</a>`:''}${axiom?`<a class="radar-external-action" href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a class="radar-external-action" href="${esc(flowLink(coin))}" aria-label="Open ${esc(ticker(coin))} Order Flow">Flow ↗</a></div>
+  <div class="radar-actions"><button type="button" class="radar-inspect-action" data-inspect="${esc(id)}">Inspect</button><button type="button" class="radar-save-action" data-save="${esc(id)}" aria-pressed="${isSaved('radar',id)}">${isSaved('radar',id)?'Saved ✓':'Watchlist +'}</button>${axiom?`<a class="radar-external-action" href="${esc(axiom)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(ticker(coin))} on Axiom">Axiom ↗</a>`:''}<a class="radar-external-action" href="${esc(flowLink(coin))}" aria-label="Open ${esc(ticker(coin))} Order Flow">Flow ↗</a></div>
   ${narrativeMarkup(narrative,true,id)}
  </article>`;
 }
@@ -148,7 +148,7 @@ function inspectedHistory(coin){
 function inspector(reading){
  const {coin,score,coverage,stale,parts,updatedAt}=reading,id=coinId(coin);
  const fomo=fomoLink(coin);
- const marketLinks=[['Fomo',fomo],['Axiom',axiomLink(coin)]].filter(([,url])=>url).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`).join('');
+ const marketLinks=[['Axiom',axiomLink(coin)]].filter(([,url])=>url).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`).join('');
  const artwork=fomo?`<a class="inspect-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(ticker(coin))} on Fomo" aria-label="Open ${esc(ticker(coin))} on Fomo">${thumbnail(coin)}</a>`:thumbnail(coin);
  const exact=coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact;
  const context=exact?'Exact-address source':coin.savedContext?'Related context only':'Context pending';

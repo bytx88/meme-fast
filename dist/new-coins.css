@@ -344,7 +344,8 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .coin-thumb[href]:hover{border-color:#bdf36c}
 .coin-thumb[href]:focus-visible{outline:2px solid #bdf36c;outline-offset:2px}
 .scan-card .card-actions [data-save-coin]{margin-left:0}
-.scan-card .card-actions [data-open-coin]{margin-left:auto}
+.scan-card .card-actions [data-open-coin]{margin-left:0}
+.scan-card .card-actions [data-save-coin][aria-pressed=true],.entry-actions [data-save-coin][aria-pressed=true],.detail-actions [data-save-coin][aria-pressed=true]{border-color:#647b35;background:#29351f;color:var(--accent)}
 .discovery-board .scan-card .new-metrics dt{font-size:11px}
 .discovery-board .scan-card .card-stage-fact{font-size:12px}
 @media(min-width:1400px){.tiles-only .entry-priority,.tiles-only .entry-holds,.tiles-only .entry-no-pass{grid-column:1/-1}}
