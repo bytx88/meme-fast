@@ -3,6 +3,7 @@ import {isSaved,toggleSaved} from './research-store.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {parseHolderInfo} from './holder-info.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
+import {matchesChainFilter} from './radar-filter.mjs';
 
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -195,11 +196,12 @@ function render(){
  modeDescription.textContent=state.mode==='swing'?'Hours · liquidity, repeat activity, buy pressure':'Days · persistence, liquidity, context';
  modeDescription.title=RADAR_MODES[state.mode].description;
  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode)));
+ document.querySelectorAll('[data-chain-filter]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.chainFilter===state.chain)));
  const status=$('#status'),results=$('#radar-results');
  if(state.loading){status.textContent='Loading observed coins…';return}
  if(state.error){status.textContent=state.error;results.innerHTML='<div class="radar-empty">Hodl data is unavailable. Try refreshing.</div>';return}
  const snapshot=state.snapshot;if(!snapshot){status.textContent='Waiting for coin collection…';results.innerHTML='';return}
- const q=state.query.toLowerCase(),coins=universe().filter(coin=>(state.chain==='all'||coin.network===state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
+ const q=state.query.toLowerCase(),coins=universe().filter(coin=>matchesChainFilter(coin,state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
  const ranked=rankRadar(coins,state.mode),ready=ranked.filter(row=>row.score!==null&&!row.stale),pending=ranked.filter(row=>row.score===null),staleRows=ranked.filter(row=>row.score!==null&&row.stale);
  const shownReady=ready.slice(0,60),shownPending=pending.slice(0,Math.max(0,60-shownReady.length)),shownStale=staleRows.slice(0,Math.max(0,60-shownReady.length-shownPending.length));
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
@@ -235,7 +237,7 @@ async function loadCatalogMatch(){
  render();
 }
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{state.mode=button.dataset.mode;render()}));
-$('#chain').addEventListener('change',event=>{state.chain=event.target.value;render()});
+document.querySelectorAll('[data-chain-filter]').forEach(button=>button.addEventListener('click',()=>{state.chain=button.dataset.chainFilter;render()}));
 let catalogTimer;
 $('#query').addEventListener('input',event=>{state.query=event.target.value.trim();state.catalogCoin=null;render();clearTimeout(catalogTimer);catalogTimer=setTimeout(loadCatalogMatch,300)});
 $('#refresh').addEventListener('click',load);

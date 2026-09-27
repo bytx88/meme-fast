@@ -217,3 +217,16 @@
 @media(max-width:700px){.radar-card{grid-template-columns:minmax(0,1fr) minmax(95px,.55fr)}}
 @media(max-width:430px){.radar-card{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.radar-image-link{width:44px;height:44px}}
+
+/* Compact, labeled chain filters replace the wide select control. */
+.radar-controls>.radar-filter-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.radar-chain-filters{display:flex;align-items:center;gap:5px}
+#chain-filter-label{margin-right:2px;color:var(--muted);font-size:11px}
+.radar-chain-filter{display:grid;flex:none;place-items:center;width:28px;height:28px;min-height:28px;padding:0;border:1px solid transparent;border-radius:50%;color:#15202a;font:700 12px 'Space Grotesk',sans-serif;line-height:1;opacity:.72}
+.radar-chain-filter.all{background:#ee7281}
+.radar-chain-filter.solana{background:#f5a14d}
+.radar-chain-filter.robinhood{background:#36d49b}
+.radar-chain-filter.other{background:#78b4f3}
+.radar-chain-filter:hover{opacity:1;border-color:#fff9}
+.radar-chain-filter[aria-pressed=true]{opacity:1;border-color:#fff;box-shadow:0 0 0 2px #0c111a,0 0 0 4px #e7f1ff}
+@media(max-width:430px){.radar-controls>.radar-filter-controls{flex-direction:row;align-items:center;justify-content:flex-start}.radar-filter-controls label{width:100%}}
