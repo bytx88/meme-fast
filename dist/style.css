@@ -45,3 +45,10 @@
 .chain-marker{display:inline-grid;flex:none;place-items:center;width:15px;height:15px;border-radius:50%;vertical-align:middle;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
 .chain-marker.solana{background:#f5a14d;color:#261408}
 .chain-marker.robinhood{background:#36d49b;color:#07251b}
+
+/* Keep the four research views on the browser's document scrollbar. */
+html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page)){overflow-y:auto;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}
+html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar{width:11px}
+html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar-track{background:#0b1119}
+html:has(main:is(.new-coins,.radar,.order-flow-page,.radar-page))::-webkit-scrollbar-thumb{border:2px solid #0b1119;border-radius:8px;background:#65778b}
+@media(max-width:550px){main:is(.new-coins,.radar,.order-flow-page,.radar-page) .site-nav{flex-wrap:wrap;overflow-x:visible;white-space:normal}}
