@@ -4,6 +4,7 @@ import {earlyRampWarning} from '../dist/rug-screen.mjs';
 import {readFile,stat} from 'node:fs/promises';
 
 export const RETENTION_MS=5*86400000;
+const COMPETITION_FIELDS=['id','network','chain','contract_address','contract_verified','name','symbol','firstSeen','firstSeenRadarAt','liquidity','volume5m','buys5m','sells5m','marketUpdatedAt','fetchedAt'];
 export const snapshotRevision=snapshot=>snapshot.revision||String(snapshot.lastRun||0);
 export const versionFile=filename=>filename.replace(/\.json$/,'')+'.version.json';
 
@@ -27,6 +28,7 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now()){
  if(view==='coin'){
   result.coins=result.coins.map(({marketHistory,marketHistoryHourly,priceHistory5m,...coin})=>({...coin,flowSamples:compactFlow(marketHistory),earlyRampWarning:earlyRampWarning({...coin,marketHistory},now)}));
   delete result.radarCoins;
+  result.competitionCoins=(snapshot.radarCoins||[]).filter(c=>c.lastSeenRadarAt>cutoff).map(c=>Object.fromEntries(COMPETITION_FIELDS.filter(key=>key in c).map(key=>[key,c[key]])));
  }else{
   if(view==='radar')result.coins=[];
   result.radarCoins=(snapshot.radarCoins||[]).filter(c=>c.lastSeenRadarAt>cutoff);

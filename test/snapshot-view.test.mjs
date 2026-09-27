@@ -22,6 +22,17 @@ test('Snapshot views have bounded, matching shapes and expose a lightweight revi
  assert.equal(snapshot.coins[0].marketHistory.length,1);
 });
 
+test('Snipe competition projection includes retained Swing identities without histories or expired records',()=>{
+ const fresh={...radar,name:'Shared',symbol:'SH',liquidity:123,marketUpdatedAt:now,firstSeenRadarAt:now-2000};
+ const projected=snapshotView({...snapshot,radarCoins:[fresh,{...fresh,id:'base:old',lastSeenRadarAt:now-6*86400000}]},'coin',[],now);
+ assert.equal(projected.competitionCoins.length,1);
+ assert.equal(projected.competitionCoins[0].name,'Shared');
+ assert.equal(projected.competitionCoins[0].firstSeenRadarAt,now-2000);
+ assert.equal(projected.competitionCoins[0].liquidity,123);
+ assert.equal('marketHistory' in projected.competitionCoins[0],false);
+ assert.equal('flowSamples' in projected.competitionCoins[0],false);
+});
+
 test('Source status retains the last successful sample and reports current failures',()=>{
  const old=feedStatus({},now-1000,{records:7});
  const failed=feedStatus(old,now,{error:'offline'});

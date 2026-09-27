@@ -2,6 +2,8 @@
 import math
 
 RETENTION_MS = 5 * 86400000
+COMPETITION_FIELDS = ("id", "network", "chain", "contract_address", "contract_verified", "name", "symbol",
+                      "firstSeen", "firstSeenRadarAt", "liquidity", "volume5m", "buys5m", "sells5m", "marketUpdatedAt", "fetchedAt")
 MINUTE = 60000
 
 
@@ -109,6 +111,10 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None):
             for coin in result["coins"]
         ]
         result.pop("radarCoins", None)
+        result["competitionCoins"] = [
+            {key: coin[key] for key in COMPETITION_FIELDS if key in coin}
+            for coin in snapshot.get("radarCoins", []) if coin.get("lastSeenRadarAt", 0) > cutoff
+        ]
     else:
         if view == "radar":
             result["coins"] = []
