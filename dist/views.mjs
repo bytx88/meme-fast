@@ -32,10 +32,10 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':busy?'Loading the flow timeline…':'Flow timeline unavailable','timeline-empty'));return}
   const ns='http://www.w3.org/2000/svg';
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
-  const chartWidth=Math.max(460,host.clientWidth);
+  const chartWidth=Math.max(320,host.clientWidth);
   const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 240`,role:'group','aria-label':'Observed buy and sell volume by interval, and cumulative net buy volume'});
   const label=(text,x,y,anchor='start')=>{const el=svgEl('text',{x,y,'text-anchor':anchor,fill:'#9da9b9','font-size':11});el.textContent=text;svg.append(el)};
-  const left=70,right=chartWidth-(hasMC?82:8),width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
+  const left=chartWidth<500?54:70,right=chartWidth-(hasMC?(chartWidth<500?68:82):8),width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
   const max=Math.max(...visibleBins.flatMap(b=>[b.buy,b.sell]),1e-8);
   const axisMoney=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
   for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
@@ -80,7 +80,9 @@ export function setupTape() {
     pool.append(make('small',`Wallet ${short(trade.wallet)}`));pool.lastChild.title=trade.wallet||'Wallet unavailable';
     if(trade.quantity!=null){const quantity=new Intl.NumberFormat('en-US',{maximumSignificantDigits:7}).format(trade.quantity);const price=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumSignificantDigits:7}).format(trade.price);pool.append(make('small',`${quantity} tokens · ${price} / token`))}
     const tx=make('td',short(trade.hash),'transaction');tx.title=trade.hash;
-    tr.append(time,side,make('td',money(trade.usd),'numeric'),pool,tx);return tr;
+    const value=make('td',money(trade.usd),'numeric');
+    for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool / wallet'],[tx,'Transaction']])cell.dataset.label=label;
+    tr.append(time,side,value,pool,tx);return tr;
   }
   function draw() {
     const rows=filterTrades(current,{side:$('trade-side').value,min:$('trade-min').value,wallet:$('trade-wallet').value});
@@ -94,7 +96,9 @@ export function setupTape() {
       time.append(button);const side=make('td'),mixed=item.buy>0&&item.sell>0;side.append(make('span',mixed?'Buy + sell':item.buy?'Buy':'Sell',`side-badge ${mixed?'mixed':item.buy?'buy':'sell'}`));
       const value=make('td',null,'numeric group-values');if(item.buy)value.append(make('span',`Buy ${money(item.buy)}`,'buy-text'));if(item.sell)value.append(make('span',`Sell ${money(item.sell)}`,'sell-text'));
       const pool=make('td',`${new Set(item.rows.map(t=>t.poolAddress)).size} pools · ${item.network}`,'pool-detail');pool.append(make('small','Grouped swap steps'));
-      const tx=make('td',short(item.hash),'transaction');tx.title=item.hash;tr.append(time,side,value,pool,tx);body.append(tr);
+      const tx=make('td',short(item.hash),'transaction');tx.title=item.hash;
+      for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool / wallet'],[tx,'Transaction']])cell.dataset.label=label;
+      tr.append(time,side,value,pool,tx);body.append(tr);
       const children=item.rows.map(row=>stepRow(row,true));for(const child of children){child.hidden=!expanded.has(item.key);body.append(child)}
       button.addEventListener('click',()=>{const open=!expanded.has(item.key);if(open)expanded.add(item.key);else expanded.delete(item.key);for(const child of children)child.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=`${open?'▾':'▸'} ${stamp(item.time)} · ${item.rows.length} steps`});
     }

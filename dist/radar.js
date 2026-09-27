@@ -58,37 +58,7 @@ const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
 const state={mode:initialMode==='swing'?'swing':'research',chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false};
 const dialog=$('#radar-inspector');
-const scrollArea=$('#radar-results'),scrollShell=$('#radar-results-shell'),scrollTrack=$('#radar-scroll-track'),scrollThumb=$('#radar-scroll-thumb');
-const holderObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){holderObserver.unobserve(entry.target);queueHolder(entry.target.dataset.holderId)}},{root:scrollArea,rootMargin:'120px'});
-function updateResultsScrollbar(){
- const trackHeight=scrollTrack.clientHeight,overflow=scrollArea.scrollHeight-scrollArea.clientHeight;
- const visible=matchMedia('(min-width:701px)').matches&&overflow>2;
- scrollShell.classList.toggle('has-overflow',visible);
- if(!visible||!trackHeight)return;
- const thumbHeight=Math.max(36,Math.round(trackHeight*scrollArea.clientHeight/scrollArea.scrollHeight));
- const thumbTop=Math.round(scrollArea.scrollTop/overflow*(trackHeight-thumbHeight));
- scrollThumb.style.height=`${thumbHeight}px`;
- scrollThumb.style.transform=`translateY(${thumbTop}px)`;
-}
-scrollArea.addEventListener('scroll',updateResultsScrollbar,{passive:true});
-new ResizeObserver(updateResultsScrollbar).observe(scrollArea);
-new MutationObserver(updateResultsScrollbar).observe(scrollArea,{childList:true});
-window.addEventListener('resize',updateResultsScrollbar);
-let draggingScrollbar=false,dragOffset=0;
-function scrollResultsToPointer(clientY){
- const track=scrollTrack.getBoundingClientRect(),thumbHeight=scrollThumb.offsetHeight;
- const position=Math.max(0,Math.min(track.height-thumbHeight,clientY-track.top-dragOffset));
- scrollArea.scrollTop=position/(track.height-thumbHeight||1)*(scrollArea.scrollHeight-scrollArea.clientHeight);
-}
-scrollTrack.addEventListener('pointerdown',event=>{
- if(!scrollShell.classList.contains('has-overflow'))return;
- draggingScrollbar=true;
- dragOffset=event.target===scrollThumb?event.clientY-scrollThumb.getBoundingClientRect().top:scrollThumb.offsetHeight/2;
- scrollTrack.classList.add('dragging');scrollTrack.setPointerCapture(event.pointerId);
- scrollResultsToPointer(event.clientY);event.preventDefault();
-});
-scrollTrack.addEventListener('pointermove',event=>{if(draggingScrollbar)scrollResultsToPointer(event.clientY)});
-for(const type of ['pointerup','pointercancel'])scrollTrack.addEventListener(type,()=>{draggingScrollbar=false;scrollTrack.classList.remove('dragging')});
+const holderObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){holderObserver.unobserve(entry.target);queueHolder(entry.target.dataset.holderId)}},{rootMargin:'120px'});
 
 function universe(){const coins=Array.isArray(state.snapshot?.radarCoins)?state.snapshot.radarCoins:state.snapshot?.coins||[];return state.catalogCoin&&!coins.some(coin=>coin.id.toLowerCase()===state.catalogCoin.id)?[...coins,state.catalogCoin]:coins}
 function coinId(coin){return String(coin.id||`${coin.network}:${coin.contract_address}`)}
