@@ -76,7 +76,23 @@ def collect_x_factor(target_limit=3):
     print(result.stdout)
 
 
-@app.function(min_containers=0, timeout=60, volumes={"/history": history_volume})
+@app.function(timeout=120, max_containers=1, volumes={"/history": history_volume},
+              secrets=[modal.Secret.from_name("meme-fast-x-api")])
+def collect_x_sort():
+    import json
+    import subprocess
+    history_volume.reload()
+    result = subprocess.run(
+        ["node", "/app/worker/x-sort.mjs", "/history/x-sort.json"],
+        capture_output=True, text=True, timeout=105,
+    )
+    if result.returncode:
+        raise RuntimeError(result.stderr[-1000:])
+    history_volume.commit()
+    return json.loads(result.stdout)
+
+
+@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -118,6 +134,14 @@ def web():
                 report = json.loads(Path("/history/x-factor.json").read_text())
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "status": "disconnected", "coins": {}}
+        return JSONResponse(report, headers={"cache-control": "no-store"})
+
+    @web_app.post("/api/x-sort")
+    async def x_sort():
+        try:
+            report = await collect_x_sort.remote.aio()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="X Sort is temporarily unavailable.") from exc
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/new-coins/version")
