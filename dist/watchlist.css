@@ -18,8 +18,8 @@
 .watch-token .saved-item-image-link:hover .saved-item-icon{border-color:#bdf36c}
 .watch-token .saved-item-image-link:focus-visible{outline:2px solid #bdf36c;outline-offset:3px}
 .watch-token .saved-item-copy{min-width:0}
-.watch-token .kicker{font-size:9px;line-height:1}
-.watch-token h2{overflow:hidden;margin:1px 0 2px;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.watch-token h2{min-width:0;overflow:hidden;margin:0;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.watch-token .watch-source{flex:none;color:#bdf36c;font:700 9px 'Space Grotesk',sans-serif;line-height:1}
 .watch-token .saved-item-copy p{overflow:hidden;font-size:10px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
 .watch-token.watch-stale .saved-item-copy p{color:#f3bd77}
 .watch-stats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;min-width:0}
@@ -54,5 +54,4 @@
 .add-result-copy small{margin-top:3px;color:var(--muted);font-size:10px}
 .add-result button:disabled{opacity:.55;cursor:default}
 
-.watch-token .watch-token-title{display:flex;align-items:center;gap:5px}
-.watch-token .watch-token-title>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.watch-token .watch-token-title{display:flex;align-items:center;gap:5px;min-width:0;margin-bottom:3px}

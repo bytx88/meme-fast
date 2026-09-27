@@ -17,6 +17,9 @@ test('an existing saved CASHED item shows its icon and stats without opening Hod
  assert.match(nodes.items.innerHTML,/src="https:\/\/cdn\.example\/cashed\.png"/);
  assert.match(nodes.items.innerHTML,new RegExp(`class="saved-item-image-link" href="https://fomo\\.family/tokens/robinhood/${contract}" target="_blank"`));
  assert.match(nodes.items.innerHTML,/\$CASHED/);
+ assert.match(nodes.items.innerHTML,/<div class="watch-token-title"><h2>\$CASHED · Cashed Money<\/h2><span class="chain-marker robinhood"[^>]*>R<\/span><span class="watch-source">Hodl<\/span><\/div>/);
+ const detail=nodes.items.innerHTML.match(/<div class="watch-token-title">.*?<\/div><p>(.*?)<\/p>/)?.[1];
+ assert.doesNotMatch(detail,/Robinhood Chain|0x[a-f\d]{40}/i);
  assert.match(nodes.items.innerHTML,/Vol 24h/);
  assert.match(nodes.items.innerHTML,/\$1M/);
  assert.equal((nodes.items.innerHTML.match(/class="watch-metric"/g)||[]).length,7);

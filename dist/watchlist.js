@@ -53,12 +53,14 @@ function tokenCard(item){
  const icon=tokenIcon(item,coin);
  const artwork=fomo?`<a class="saved-item-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(item.title)} on Fomo" title="Open on Fomo">${icon}</a>`:icon;
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
- const short=contract.length>14?`${contract.slice(0,6)}…${contract.slice(-4)}`:contract;
  const [chain,horizon]=String(item.subtitle||'').split(' · ');
+ const marker=chainMarker(savedContract(item)||coin||chain);
+ const source=item.type==='radar'?'Hodl':item.type==='token'?'Inspect':'Snipe';
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
- const detail=[chain||coin?.chain||'Token',horizon,short,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':item.type==='token'?'Inspect':'Snipe')}</span><h2 class="watch-token-title"><span>${esc(item.title)}</span>${chainMarker(savedContract(item)||coin||chain)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ const mode=horizon&&horizon!==source&&horizon.toLowerCase()!==contract.toLowerCase()&&!/^(?:0x[a-f\d]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/i.test(horizon)?horizon:null;
+ const detail=[marker?null:chain||coin?.chain||'Token',mode,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><div class="watch-token-title"><h2>${esc(item.title)}</h2>${marker}<span class="watch-source">${esc(source)}</span></div><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
