@@ -16,6 +16,12 @@ let matches=[];
 let loading=false,loadError=false;
 
 const key=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
+const tokenTypes=new Set(['radar','coin','token']);
+function savedContract(item){
+ const id=String(item.id||''),split=id.indexOf(':');if(split<0)return null;
+ const network=id.slice(0,split).toLowerCase(),chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[network];
+ return chain?{chain,contract_address:id.slice(split+1),contract_verified:true}:null;
+}
 const number=value=>value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);
 const money=value=>number(value)===null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(Number(value));
 const price=value=>number(value)===null?'—':`$${new Intl.NumberFormat('en-US',{maximumSignificantDigits:6,maximumFractionDigits:10}).format(Number(value))}`;
@@ -42,7 +48,7 @@ function stats(coin){
 
 function tokenCard(item){
  const coin=market.get(key(item.id))||item.marketSnapshot;
- const fomo=fomoLink(coin);
+ const fomo=fomoLink(coin)||fomoLink(savedContract(item));
  const icon=tokenIcon(item,coin);
  const artwork=fomo?`<a class="saved-item-image-link" href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(item.title)} on Fomo" title="Open on Fomo">${icon}</a>`:icon;
  const contract=String(coin?.contract_address||item.id.split(':').slice(1).join(':'));
@@ -51,7 +57,7 @@ function tokenCard(item){
  const updated=number(coin?.marketUpdatedAt)??number(coin?.priceUpdatedAt);
  const stale=updated===null||Date.now()-updated>15*60000;
  const detail=[chain||coin?.chain||'Token',horizon,short,coin?.poolCreated?`pool ${age(coin.poolCreated)}`:null,coin?(stale?'stale':`updated ${age(updated)}`):null].filter(Boolean).join(' · ');
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main">${artwork}<div class="saved-item-copy"><span class="kicker">${esc(item.type==='radar'?'Hodl':item.type==='token'?'Order Flow':'Snipe')}</span><h2>${esc(item.title)}</h2><p>${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
@@ -61,14 +67,14 @@ function otherCard(item){
 function draw(){
  const saved=watchlist();
  count.textContent=`Watchlist · ${saved.length}`;
- refresh.disabled=loading||!saved.some(item=>item.type==='radar'||item.type==='coin');
+ refresh.disabled=loading||!saved.some(item=>tokenTypes.has(item.type));
  refresh.textContent=loading?'Refreshing…':'Refresh stats ↻';
- items.innerHTML=saved.length?saved.map(item=>item.type==='radar'||item.type==='coin'?tokenCard(item):otherCard(item)).join(''):'<div class="empty-workspace"><strong>Your research queue is empty.</strong>Save a token from Hodl or a narrative from Tweet to follow it here.</div>';
+ items.innerHTML=saved.length?saved.map(item=>tokenTypes.has(item.type)?tokenCard(item):otherCard(item)).join(''):'<div class="empty-workspace"><strong>Your research queue is empty.</strong>Save a token or narrative to follow it here.</div>';
 }
 
 async function loadStats(refreshMissing=false){
  const saved=watchlist();
- const ids=[...new Set(saved.filter(item=>item.type==='radar'||item.type==='coin').map(item=>item.id))];
+ const ids=[...new Set(saved.filter(item=>tokenTypes.has(item.type)).map(item=>item.id))];
  if(!ids.length){draw();return}
  loading=true;loadError=false;draw();
  try{
@@ -85,7 +91,7 @@ async function loadStats(refreshMissing=false){
    for(const coin of result.coins||[])market.set(key(coin.id),coin);
   }
   if(refreshMissing){
-   const missing=saved.filter(item=>item.marketSnapshot&&!market.has(key(item.id)));
+   const missing=saved.filter(item=>tokenTypes.has(item.type)&&!market.has(key(item.id)));
    const queue=[...missing];
    await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=>{
     while(queue.length){
@@ -104,8 +110,8 @@ async function loadStats(refreshMissing=false){
   let changed=false;
   for(const item of saved){
    const image=safeURL(market.get(key(item.id))?.image_url);
-   if((item.type==='radar'||item.type==='coin')&&!safeURL(item.image_url)&&image){item.image_url=image;changed=true}
-   if(item.marketSnapshot&&market.has(key(item.id))){item.marketSnapshot=market.get(key(item.id));changed=true}
+   if(tokenTypes.has(item.type)&&!safeURL(item.image_url)&&image){item.image_url=image;changed=true}
+   if(tokenTypes.has(item.type)&&market.has(key(item.id))){item.marketSnapshot=market.get(key(item.id));changed=true}
   }
   if(changed)write('meme-fast-watchlist-v1',saved);
  }catch{loadError=true}
@@ -115,7 +121,7 @@ async function loadStats(refreshMissing=false){
 items.onclick=event=>{const button=event.target.closest('[data-remove]');if(button){removeSaved(button.dataset.type,button.dataset.remove);draw()}};
 refresh.onclick=()=>loadStats(true);
 function drawMatches(){
- addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong><small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved':'Add'}</button></div>`).join('');
+ addResults.innerHTML=matches.map((coin,index)=>`<div class="add-result"><div class="add-result-copy"><strong>${esc(coin.symbol)} · ${esc(coin.name)}</strong><small>${esc(coin.chain)} · ${esc(coin.contract_address)} · Liq ${esc(money(coin.liquidity))}</small></div><button type="button" data-add-index="${index}" ${isSaved('radar',coin.id)?'disabled':''}>${isSaved('radar',coin.id)?'Saved ✓':'Watchlist +'}</button></div>`).join('');
 }
 addButton.onclick=()=>{addDialog.showModal();addQuery.focus()};
 document.getElementById('close-add-token').onclick=()=>addDialog.close();

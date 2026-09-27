@@ -340,6 +340,11 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 }
 @media(max-width:600px){.entry-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.entry-status{display:none}}
 .discovery-board .scan-card .card-actions a,.discovery-board .scan-card .card-actions button{min-height:28px;font-size:11px}
+.coin-thumb[href]{text-decoration:none;cursor:pointer}
+.coin-thumb[href]:hover{border-color:#bdf36c}
+.coin-thumb[href]:focus-visible{outline:2px solid #bdf36c;outline-offset:2px}
+.scan-card .card-actions [data-save-coin]{margin-left:0}
+.scan-card .card-actions [data-open-coin]{margin-left:auto}
 .discovery-board .scan-card .new-metrics dt{font-size:11px}
 .discovery-board .scan-card .card-stage-fact{font-size:12px}
 @media(min-width:1400px){.tiles-only .entry-priority,.tiles-only .entry-holds,.tiles-only .entry-no-pass{grid-column:1/-1}}
