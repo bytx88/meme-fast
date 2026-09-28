@@ -70,15 +70,15 @@
 .order-flow-page .size-panel .bar-heading{margin:12px 0 8px}
 .order-flow-page .size-panel .size-row{margin:9px 0}
 .order-flow-page .size-panel .size-foot{margin-top:10px}
-@media(min-width:901px){
- .order-flow-page .table-wrap table{table-layout:fixed;min-width:1080px}
- .order-flow-page .table-wrap th:first-child{width:140px}
- .order-flow-page .table-wrap th:nth-child(2){width:90px}
- .order-flow-page .table-wrap th:nth-child(3){width:150px}
- .order-flow-page .table-wrap th:nth-child(4){width:210px}
- .order-flow-page .table-wrap th:nth-child(5){width:145px}
- .order-flow-page .table-wrap th:nth-child(6){width:200px}
- .order-flow-page .table-wrap th:last-child{width:145px}
+@media(min-width:1001px){
+ .order-flow-page .table-wrap table{table-layout:fixed}
+ .order-flow-page .table-wrap th:first-child{width:13%}
+ .order-flow-page .table-wrap th:nth-child(2){width:8%}
+ .order-flow-page .table-wrap th:nth-child(3){width:15%}
+ .order-flow-page .table-wrap th:nth-child(4){width:19%}
+ .order-flow-page .table-wrap th:nth-child(5){width:13%}
+ .order-flow-page .table-wrap th:nth-child(6){width:19%}
+ .order-flow-page .table-wrap th:last-child{width:13%}
  .order-flow-page .table-wrap td{padding-top:10px;padding-bottom:10px}
  .order-flow-page .table-wrap td.pool-detail,.order-flow-page .table-wrap td.wallet-detail,.order-flow-page .table-wrap td.execution-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
  .order-flow-page .table-wrap .expand-trade{min-height:30px;padding:4px 5px;font-size:12px}
@@ -86,7 +86,7 @@
 @media(max-width:1000px){.order-flow-page.token-loaded .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}.order-flow-page .token-row{min-height:46px;flex-wrap:wrap;align-items:center}.order-flow-page .identity{flex:1}.order-flow-page .token-row>.listing-actions{width:auto;margin-left:0}.order-flow-page .flow-metric strong{font-size:16px}}
 @media(max-width:720px){.order-flow-page .masthead{align-items:stretch}.order-flow-page .site-nav{min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}.order-flow-page .site-nav a{flex:none;padding:7px 8px;font-size:12px}.order-flow-page .token-row>.listing-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.order-flow-page .token-row>.listing-actions>*{justify-content:center;text-align:center}}
 @media(max-width:580px){.order-flow-page.token-loaded .search-area form{width:100%}.order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.order-flow-page .flow-metric:last-child{grid-column:span 2}.order-flow-page .flow-metric strong{font-size:14px}.order-flow-page .timeline-meta{gap:5px}.order-flow-page .timeline-legend{gap:5px 9px}.order-flow-page .flow-metric{padding:6px 8px}.order-flow-page .coverage-card strong{font-size:10px}}
-@media(max-width:900px){
+@media(max-width:1000px){
  .order-flow-page .trade-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
  .order-flow-page .trade-filters label{min-width:0}
  .order-flow-page .trade-filters input[type=number],.order-flow-page .trade-filters select{width:100%}
