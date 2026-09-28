@@ -26,7 +26,8 @@
 .order-flow-page .identity h2{font-size:19px;line-height:1}
 .order-flow-page .network{padding:2px 6px;font-size:10px}
 .order-flow-page .identity p{display:block;max-width:270px;margin:1px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:1.1}
-.order-flow-page .address-copy{display:block;min-height:0;margin:1px 0 0;padding:0;border:0;background:none;color:var(--muted);font-family:monospace;font-size:10px;line-height:1.1;text-align:left}
+.order-flow-page .address-copy{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;min-height:22px;margin:0;padding:0;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--muted);font-size:15px;line-height:1}
+.order-flow-page .address-copy:hover{border-color:var(--muted);color:var(--text)}
 .order-flow-page .token-row>.listing-actions{gap:5px}
 .order-flow-page .token-row>.listing-actions button,.order-flow-page .token-row>.listing-actions a{min-height:28px;padding:5px 7px;font-size:11px}
 .order-flow-page .token-row>.listing-actions a{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:5px}
