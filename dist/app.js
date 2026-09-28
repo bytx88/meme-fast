@@ -6,7 +6,7 @@ import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts} from './recent-contracts.mjs';
-import {fomoLink} from './contract-copy.mjs';
+import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
 const renderTape=setupTape();
@@ -31,6 +31,7 @@ const state={token:{address:'So11111111111111111111111111111111111111112',networ
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
+function axiomUrl(token){const chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[token.network];return token.unverified?null:axiomLink({chain,contract_address:token.address,contract_verified:true})}
 async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
   document.querySelector('.order-flow-page').classList.remove('token-loaded');
@@ -68,7 +69,7 @@ function updateAvatar(token,combined,listingImage=null){
   else{link.removeAttribute('href');link.removeAttribute('aria-label');link.removeAttribute('title')}
 }
 $('avatar-image').addEventListener('error',()=>{const img=$('avatar-image');img.dataset.failed=img.dataset.source;img.hidden=true;$('avatar-fallback').hidden=false});
-function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('chain-marker-slot').innerHTML=combined?'':chainMarker(t);$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;updateAvatar(t,combined);$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);$('research-link').hidden=combined;$('research-link').href=`./?contract=${encodeURIComponent(t.address)}`;document.title=`${combined?'Combined':t.symbol} · Inspect · Meme Fast`;
+function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.token,combined=tokens.length>1,symbols=[...new Set(tokens.map(t=>t.symbol.toUpperCase()))];$('symbol').textContent=combined?(symbols.length===1?symbols[0]:'Combined flow'):t.symbol;$('chain-marker-slot').innerHTML=combined?'':chainMarker(t);$('network').textContent=combined?`${tokens.length} listings · ${new Set(tokens.map(t=>t.network)).size} chains`:t.network;$('token-name').textContent=combined?'Combined USD flow of selected listings':t.name;$('address').textContent=combined?'Included contracts are listed below.':t.address;updateAvatar(t,combined);$('token-link').hidden=combined;$('token-link').href=safeUrl(t.network,t.address);const axiom=combined?null:axiomUrl(t);$('research-link').hidden=!axiom;if(axiom)$('research-link').href=axiom;else $('research-link').removeAttribute('href');document.title=`${combined?'Combined':t.symbol} · Inspect · Meme Fast`;
   document.querySelector('.order-flow-page').classList.add('token-loaded');$('address').textContent=combined?'Multiple contracts':short(t.address);$('address').title=combined?'Use the listing selector for individual contracts':`Copy ${t.address}`;$('address').disabled=combined;
   const saved=isSaved('token',listingKey(t));$('save-token').hidden=combined;$('save-token').textContent=saved?'Saved ✓':'Save +';$('save-token').setAttribute('aria-pressed',String(saved));
   $('search-result-summary').hidden=!state.searchedQuery||(!combined&&state.matches.length===1);
