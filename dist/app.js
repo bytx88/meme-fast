@@ -3,7 +3,7 @@ import {loadListings} from './data.mjs';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=tape-columns-v1';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts} from './recent-contracts.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
@@ -96,7 +96,7 @@ async function load(){
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=false;$('charts').setAttribute('aria-busy','false')}}
 }
-function emptyRow(text){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='table-empty';td.textContent=text;tr.append(td);return tr}
+function emptyRow(text){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.className='table-empty';td.textContent=text;tr.append(td);return tr}
 function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {listings:view.tokens,view:state.scope,windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);

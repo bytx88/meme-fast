@@ -76,13 +76,14 @@ export function setupTape() {
     const tr=make('tr',null,child?'swap-step':''),time=make('td',new Date(trade.time).toLocaleTimeString());
     time.title=new Date(trade.time).toLocaleString();
     const side=make('td');side.append(make('span',trade.side==='buy'?'Buy':'Sell',`side-badge ${trade.side}`));
-    const pool=make('td',`${trade.pool} · ${trade.network}`,'pool-detail');
-    pool.append(make('small',`Wallet ${short(trade.wallet)}`));pool.lastChild.title=trade.wallet||'Wallet unavailable';
-    if(trade.quantity!=null){const quantity=new Intl.NumberFormat('en-US',{maximumSignificantDigits:7}).format(trade.quantity);const price=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumSignificantDigits:7}).format(trade.price);pool.append(make('small',`${quantity} tokens · ${price} / token`))}
+    const pool=make('td',`${trade.pool} · ${trade.network}`,'pool-detail');pool.title=`${trade.pool} · ${trade.network}`;
+    const wallet=make('td',short(trade.wallet),'wallet-detail');wallet.title=trade.wallet||'Wallet unavailable';
+    const execution=make('td','—','execution-detail');
+    if(trade.quantity!=null){const quantity=new Intl.NumberFormat('en-US',{maximumSignificantDigits:7}).format(trade.quantity);const price=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumSignificantDigits:7}).format(trade.price);execution.textContent=`${quantity} @ ${price}`;execution.title=`${trade.quantity} tokens at $${trade.price} per token`}
     const tx=make('td',short(trade.hash),'transaction');tx.title=trade.hash;
     const value=make('td',money(trade.usd),'numeric');
-    for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool / wallet'],[tx,'Transaction']])cell.dataset.label=label;
-    tr.append(time,side,value,pool,tx);return tr;
+    for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool'],[wallet,'Wallet'],[execution,'Quantity @ price'],[tx,'Transaction']])cell.dataset.label=label;
+    tr.append(time,side,value,pool,wallet,execution,tx);return tr;
   }
   function draw() {
     const rows=filterTrades(current,{side:$('trade-side').value,min:$('trade-min').value,wallet:$('trade-wallet').value});
@@ -95,14 +96,15 @@ export function setupTape() {
       button.type='button';button.setAttribute('aria-expanded',String(expanded.has(item.key)));button.setAttribute('aria-label',`Expand transaction ${short(item.hash)}, ${item.rows.length} matching swap steps`);
       time.append(button);const side=make('td'),mixed=item.buy>0&&item.sell>0;side.append(make('span',mixed?'Buy + sell':item.buy?'Buy':'Sell',`side-badge ${mixed?'mixed':item.buy?'buy':'sell'}`));
       const value=make('td',null,'numeric group-values');if(item.buy)value.append(make('span',`Buy ${money(item.buy)}`,'buy-text'));if(item.sell)value.append(make('span',`Sell ${money(item.sell)}`,'sell-text'));
-      const pool=make('td',`${new Set(item.rows.map(t=>t.poolAddress)).size} pools · ${item.network}`,'pool-detail');pool.append(make('small','Grouped swap steps'));
+      const pool=make('td',`${new Set(item.rows.map(t=>t.poolAddress)).size} pools · ${item.network}`,'pool-detail');
+      const wallet=make('td','See steps','wallet-detail'),execution=make('td','See steps','execution-detail');
       const tx=make('td',short(item.hash),'transaction');tx.title=item.hash;
-      for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool / wallet'],[tx,'Transaction']])cell.dataset.label=label;
-      tr.append(time,side,value,pool,tx);body.append(tr);
+      for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool'],[wallet,'Wallet'],[execution,'Quantity @ price'],[tx,'Transaction']])cell.dataset.label=label;
+      tr.append(time,side,value,pool,wallet,execution,tx);body.append(tr);
       const children=item.rows.map(row=>stepRow(row,true));for(const child of children){child.hidden=!expanded.has(item.key);body.append(child)}
       button.addEventListener('click',()=>{const open=!expanded.has(item.key);if(open)expanded.add(item.key);else expanded.delete(item.key);for(const child of children)child.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=`${open?'▾':'▸'} ${stamp(item.time)} · ${item.rows.length} steps`});
     }
-    if(!items.length){const tr=make('tr'),td=make('td',!loaded?(busy?'Waiting for swap data.':'Swap data unavailable. Refresh to try again.'):current.length?'No swaps match these filters. Reset filters to see the sample.':'No observed swaps in this window.','table-empty');td.colSpan=5;tr.append(td);body.append(tr)}
+    if(!items.length){const tr=make('tr'),td=make('td',!loaded?(busy?'Waiting for swap data.':'Swap data unavailable. Refresh to try again.'):current.length?'No swaps match these filters. Reset filters to see the sample.':'No observed swaps in this window.','table-empty');td.colSpan=7;tr.append(td);body.append(tr)}
     $('tape-count').textContent=`${Math.min(limit,items.length)} / ${items.length} ${grouped?'GROUPS':'STEPS'} · ${rows.length} / ${current.length} STEPS MATCH`;
     $('load-more').hidden=limit>=items.length;$('load-more').textContent=`Load more (${Math.min(20,items.length-limit)})`;
   }
