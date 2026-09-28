@@ -105,6 +105,21 @@ def collect_x_factor(target_limit=3):
     print(result.stdout)
 
 
+@app.function(schedule=modal.Period(minutes=5), timeout=120, max_containers=1,
+              volumes={"/history": history_volume})
+def collect_jeanphil_monitor():
+    import subprocess
+    history_volume.reload()
+    result = subprocess.run(
+        ["python", "/app/worker/jeanphil_monitor.py", "/history/jeanphil-monitor.json"],
+        capture_output=True, text=True, timeout=110,
+    )
+    if result.returncode:
+        raise RuntimeError(result.stderr[-2000:])
+    history_volume.commit()
+    print(result.stdout)
+
+
 @app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})
 def collect_coin_evidence(token_id):
     import json
@@ -181,6 +196,16 @@ def web():
                 report = json.loads(Path("/history/x-factor.json").read_text())
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "status": "disconnected", "coins": {}}
+        return JSONResponse(report, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/jeanphil-monitor")
+    async def jeanphil_monitor():
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                report = json.loads(Path("/history/jeanphil-monitor.json").read_text())
+            except (FileNotFoundError, ValueError):
+                report = {"version": 1, "id": "solana:GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump", "market": [], "social": []}
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/coin-evidence")
@@ -350,6 +375,7 @@ def web():
             "radar": "radar.html",
             "watchlist": "watchlist.html",
             "sources": "sources.html",
+            "jeanphil": "jeanphil.html",
         }
         relative = routes.get(asset_path, asset_path)
         candidate = (dist / relative).resolve()
