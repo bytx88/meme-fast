@@ -305,6 +305,17 @@
 .detail-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .detail-actions .detail-fomo{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid #465367;border-radius:5px;background:#1a2431;color:#dceaff;font-size:12px;text-decoration:none}
 .detail-actions .detail-fomo:hover{border-color:#9acb58}
+.detail-title-line{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+.detail-title-line h2{margin:0}
+.detail-title-line .lifecycle-tag{margin-left:4px}
+.detail-contract{margin:5px 0 0;color:var(--muted);font-size:11px}
+.detail-contract code{color:var(--text);overflow-wrap:anywhere}
+.detail-context-unknown{margin:6px 0 0;color:var(--muted);font-size:12px}
+.detail-stage-fact{margin:12px 0 0;color:#aebbd0;font-size:13px;font-weight:700}
+.detail-stage-fact.sustained{color:var(--accent)}
+.detail-stage-fact.tracking{color:#8ac7ef}
+.detail-stage-fact.rugged{color:#ff8585}
+.detail-stage-fact.ramp-risk{color:#ffb178}
 body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .discovery-lane{overflow:visible}
 .discovery-lane-list{overflow:visible}
