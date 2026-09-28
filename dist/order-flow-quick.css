@@ -70,6 +70,17 @@
 .order-flow-page .size-panel .bar-heading{margin:12px 0 8px}
 .order-flow-page .size-panel .size-row{margin:9px 0}
 .order-flow-page .size-panel .size-foot{margin-top:10px}
+@media(min-width:821px){
+ .order-flow-page .table-wrap table{table-layout:fixed}
+ .order-flow-page .table-wrap th:first-child{width:155px}
+ .order-flow-page .table-wrap th:nth-child(2){width:90px}
+ .order-flow-page .table-wrap th:nth-child(3){width:115px}
+ .order-flow-page .table-wrap th:last-child{width:160px}
+ .order-flow-page .table-wrap td{padding-top:9px;padding-bottom:9px}
+ .order-flow-page .table-wrap .pool-detail{line-height:1.3}
+ .order-flow-page .table-wrap .pool-detail small{margin-top:2px}
+ .order-flow-page .table-wrap .expand-trade{min-height:30px;padding:4px 5px;font-size:12px}
+}
 @media(max-width:1000px){.order-flow-page.token-loaded .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}.order-flow-page .token-row{min-height:46px;flex-wrap:wrap;align-items:center}.order-flow-page .identity{flex:1}.order-flow-page .token-row>.listing-actions{width:auto;margin-left:0}.order-flow-page .flow-metric strong{font-size:16px}}
 @media(max-width:720px){.order-flow-page .masthead{align-items:stretch}.order-flow-page .site-nav{min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}.order-flow-page .site-nav a{flex:none;padding:7px 8px;font-size:12px}.order-flow-page .token-row>.listing-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.order-flow-page .token-row>.listing-actions>*{justify-content:center;text-align:center}}
 @media(max-width:580px){.order-flow-page.token-loaded .search-area form{width:100%}.order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.order-flow-page .flow-metric:last-child{grid-column:span 2}.order-flow-page .flow-metric strong{font-size:14px}.order-flow-page .timeline-meta{gap:5px}.order-flow-page .timeline-legend{gap:5px 9px}.order-flow-page .flow-metric{padding:6px 8px}.order-flow-page .coverage-card strong{font-size:10px}}
