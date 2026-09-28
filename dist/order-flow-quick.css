@@ -71,6 +71,12 @@
 .order-flow-page .size-panel .size-row{margin:9px 0}
 .order-flow-page .size-panel .size-foot{margin-top:10px}
 @media(min-width:1001px){
+ .order-flow-page .chart-grid .panel{padding:12px}
+ .order-flow-page .size-panel .bar-heading{margin:6px 0 4px}
+ .order-flow-page .size-panel .size-row{margin:3px 0}
+ .order-flow-page .size-panel .size-label small{margin-top:2px}
+ .order-flow-page .size-panel .bar-track{margin-top:4px}
+ .order-flow-page .size-panel .size-foot{flex-direction:row;flex-wrap:wrap;gap:6px 12px;margin-top:5px;line-height:1.2}
  .order-flow-page .table-wrap table{table-layout:fixed}
  .order-flow-page .table-wrap th:first-child{width:13%}
  .order-flow-page .table-wrap th:nth-child(2){width:8%}
