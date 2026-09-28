@@ -1,11 +1,12 @@
 /* Keep the token, selected window, summary, and trend visible together. */
 .order-flow-page{position:relative;padding-bottom:80px}
-.order-flow-page.token-loaded .search-area{display:flex;justify-content:flex-end;align-items:flex-start;position:absolute;top:69px;right:0;width:min(340px,100%);padding:0;min-height:0;z-index:3}
+.order-flow-page.token-loaded .search-area{display:flex;justify-content:flex-end;align-items:flex-start;position:absolute;top:69px;right:0;width:min(385px,100%);padding:0;min-height:0;z-index:3}
 .order-flow-page.token-loaded:has(#search-result-summary:not([hidden])) .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}
 .order-flow-page.token-loaded .search-heading{display:none}
-.order-flow-page.token-loaded .search-area form{width:min(340px,100%);margin:0;gap:5px}
+.order-flow-page.token-loaded .search-area form{width:min(385px,100%);margin:0;gap:5px}
 .order-flow-page.token-loaded .search-area input{height:31px;padding:5px 9px;font-size:11px}
 .order-flow-page.token-loaded .search-area button{min-width:32px;min-height:31px;height:31px;padding:3px 8px;font-size:14px}
+.order-flow-page .search-area #paste-contract{flex:none;font-size:12px}
 .order-flow-page.token-loaded .search-area .search-button-label{display:none}
 .order-flow-page.token-loaded .search-area .primary span:last-child{display:inline;margin:0}
 .order-flow-page.token-loaded .recent-contracts{display:none}
