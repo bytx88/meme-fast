@@ -1,3 +1,4 @@
+import {chartRange} from './jeanphil-range.mjs';
 const $=id=>document.getElementById(id);
 const fmtTime=at=>new Date(at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 const fmtPrice=value=>value==null?'—':'$'+Number(value).toLocaleString('en-US',{maximumFractionDigits:9,minimumSignificantDigits:2,maximumSignificantDigits:5});
@@ -6,15 +7,15 @@ const fmtNum=value=>value==null?'—':Number(value).toLocaleString('en-US');
 let report={market:[],social:[]},hours=24,selectedAt=null;
 const now=()=>Date.now();
 const latestBefore=(rows,at,maxAge)=>{for(let i=rows.length-1;i>=0;i--)if(rows[i].at<=at)return at-rows[i].at<=maxAge?rows[i]:null;return null};
-const range=()=>{const end=now(),start=end-hours*3600000;return {start,end}};
-function plot(svgId,rows,key,domain,color,maxGap){
- const svg=$(svgId),{start,end}=range(),W=1000,H=190,L=55,R=16,T=12,B=12;
- const values=rows.map(row=>row[key]).filter(Number.isFinite);
+function plot(svgId,rows,key,domain,color,maxGap,view){
+ const svg=$(svgId),{start,end}=view,W=1000,H=190,L=55,R=16,T=12,B=12;
+ const clean=rows.filter(row=>row.at>=start&&row.at<=end&&Number.isFinite(row[key]));
+ const values=clean.map(row=>row[key]);
  let [min,max]=domain||[Math.min(...values),Math.max(...values)];
  if(!values.length&&!domain){min=0;max=1}
  if(max===min){min=Math.max(0,min*.95);max=max*1.05||1}
+ else if(!domain){const padding=(max-min)*.15;min=Math.max(0,min-padding);max+=padding}
  const x=at=>L+(at-start)/(end-start)*(W-L-R),y=value=>H-B-(value-min)/(max-min)*(H-T-B);
- const clean=rows.filter(row=>row.at>=start&&row.at<=end&&Number.isFinite(row[key]));
  let paths=[],part=[];
  for(const row of clean){if(part.length&&row.at-part.at(-1).at>maxGap){paths.push(part);part=[]}part.push(row)}
  if(part.length)paths.push(part);
@@ -27,10 +28,15 @@ function plot(svgId,rows,key,domain,color,maxGap){
  svg.onpointerleave=()=>{};
 }
 function renderPlots(){
- const {start,end}=range(),market=(report.market||[]).filter(row=>row.at>=start),social=(report.social||[]).filter(row=>row.at>=start);
- plot('social-chart',social,'warmth',[0,100],'#efb565',70*60000);
- plot('price-chart',market,'priceUsd',null,'#6bd5b6',16*60000);
+ const view=chartRange(report,hours,now()),{start,end,selectedStart}=view;
+ const market=(report.market||[]).filter(row=>row.at>=selectedStart),social=(report.social||[]).filter(row=>row.at>=selectedStart);
+ plot('social-chart',social,'warmth',[0,100],'#efb565',70*60000,view);
+ plot('price-chart',market,'priceUsd',null,'#6bd5b6',16*60000,view);
  $('time-axis').innerHTML=`<span>${fmtTime(start)}</span><span>${fmtTime(start+(end-start)/2)}</span><span>${fmtTime(end)}</span>`;
+ const label=hours===24?'24 hours':`${hours/24} days`;
+ $('chart-context').textContent=view.zoomed
+  ?`Only ${Math.max(1,Math.round((now()-view.first)/60000))} minutes of history collected in the selected ${label}. Zoomed to available samples · ${market.length} price reading${market.length===1?'':'s'} · ${social.length} social reading${social.length===1?'':'s'}.${social.length<2?' Waiting for another social sample to draw its line.':''}`
+  :view.first?`Showing collected samples within the selected ${label}. History began ${fmtTime(view.first)}.`:`No collected samples in the selected ${label} yet.`;
  $('chart-empty').hidden=market.length>0||social.length>0;
  $('chart-empty').textContent='No samples in this window yet. Collection begins when the monitor is deployed.';
 }
