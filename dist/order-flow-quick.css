@@ -50,6 +50,9 @@
 .order-flow-page .timeline-panel h3{font-size:15px}
 .order-flow-page .timeline-meta{flex-direction:row;align-items:center;gap:12px}
 .order-flow-page .timeline-legend{gap:12px;margin:6px 0 3px;font-size:11px}
+.order-flow-page .timeline-legend .mc-value{color:inherit;font-size:inherit}
+.order-flow-page .timeline-legend .mc-key{display:inline-block;position:relative;width:16px;height:2px;margin:0 5px 3px 0;background:#7db9ff;vertical-align:middle}
+.order-flow-page .timeline-legend .mc-key::after{content:'';position:absolute;top:-2px;left:6px;width:5px;height:5px;border-radius:50%;background:#7db9ff}
 .order-flow-page #timeline svg{height:auto;min-width:0}
 .order-flow-page .timeline-footer{display:flex;align-items:flex-end;gap:8px}
 .order-flow-page .timeline-detail{flex:1;min-width:0;min-height:0;margin:2px 0 0;font-size:11px;line-height:1.3}
