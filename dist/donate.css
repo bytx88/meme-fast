@@ -22,11 +22,14 @@
 .masthead:has(.site-disclaimer){position:relative}
 .masthead .header-brand-group{display:flex;flex-direction:column;gap:3px;flex:none}
 .masthead .site-disclaimer{color:#e0ff91;opacity:.75;font-size:10px;line-height:1.3;white-space:nowrap;text-align:left}
-.masthead .market-overview{flex:1;min-width:180px;max-width:280px;min-height:48px;padding:6px 12px;text-align:left;background:#15212b;border:1px solid #91b8ca30;border-radius:9px}
+.masthead .market-overview{flex:1;min-width:218px;max-width:240px;min-height:42px;padding:5px 12px;text-align:left;background:#172635;border:1px solid #91b8ca38;border-radius:9px}
+.masthead .market-overview:hover{border-color:#91b8ca70;background:#1b2d3e}
 .market-overview-title{display:flex;justify-content:space-between;gap:12px;color:#b2c4d5;font-size:10px;letter-spacing:.1em;line-height:1.5}
-.market-overview-values{display:flex;align-items:center;gap:12px;font-size:11px;line-height:1.6;color:#b2c4d5;white-space:nowrap}
-.market-overview-values b{color:#edf3fa;margin-left:3px}
-.market-overview-values small{font-size:9px;color:#92a2b2}
+.market-overview-values{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;line-height:1.6;color:#b2c4d5;white-space:nowrap}
+.market-overview-values>span+span{padding-left:8px;border-left:1px solid #91b8ca30}
+.market-overview-values b{color:#edf3fa;margin-left:3px;font-variant-numeric:tabular-nums}
+.market-overview-values b.up{color:#74e1c1}
+.market-overview-values b.down{color:#ff8c9e}
 .market-overview-dialog{width:min(540px,calc(100% - 32px))}
 .market-chart-empty{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;min-height:160px;margin:18px 0;padding:20px;text-align:center;border:1px dashed #415163;border-radius:10px;background:#0c141e}
 .market-chart-empty strong{font-size:14px;font-weight:500}.market-chart-empty span{font-size:12px;color:#aebdcd}
@@ -35,11 +38,8 @@
 .market-alt-key{display:inline-block;width:15px;height:2px;background:#81baff;vertical-align:middle;margin-right:6px}
 .market-method{margin-top:16px;color:#aebdcd;font-size:12px}.market-method summary{cursor:pointer}.market-method p{margin-top:10px}
 @media(max-width:1100px){main .masthead:has(.donate-trigger) .site-nav{order:2}main .masthead .market-overview{margin-left:auto;flex:1}}
-@media(max-width:420px){main .masthead .market-overview{min-width:145px;padding:6px 8px}.market-overview-values{gap:8px;flex-wrap:wrap}.market-overview-values small{width:100%}.masthead .header-brand-group .brand{font-size:15px;gap:6px}.masthead .site-disclaimer{font-size:9px}}
-.market-status{display:block;font-size:9px;color:#92a2b2;line-height:1.2}
+@media(max-width:420px){main .masthead .market-overview{min-width:190px;padding:5px 8px}.market-overview-values{font-size:10px;gap:6px}.masthead .header-brand-group .brand{font-size:15px;gap:6px}.masthead .site-disclaimer{font-size:9px}}
 .market-horizons{display:flex;gap:6px;margin:16px 0 12px}.market-horizons button{min-height:32px;padding:5px 14px;font-size:12px}.market-horizons button[aria-pressed=true]{background:#303e24;color:#d7f778}
 .market-chart svg{width:100%;display:block;margin:12px 0}.market-chart svg text{fill:#aebdcd;font-size:10px}.market-chart rect:focus{outline:2px solid #e9eff6}
 .market-method ol{padding-left:22px;line-height:1.8}.market-method li{margin-top:8px}.market-method li small{display:block;overflow-wrap:anywhere;color:#899bae;font-size:10px}
 .market-overview-dialog .market-timestamp{font-size:11px}.market-reading strong{color:#e9eff6}
-.masthead .market-overview{min-width:218px}.market-overview-values{gap:10px}
-@media(max-width:420px){main .masthead .market-overview{min-width:172px}.market-overview-values{font-size:10px;gap:6px}}

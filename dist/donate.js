@@ -1,4 +1,4 @@
-import {mountMarket} from './market-delta.mjs?v=one-hour-v1';
+import {mountMarket} from './market-delta.mjs?v=market-two-rows-v1';
 const address = 'BNoUUtinMiHdARMwEM6YXaNJ1MhGmTiJ4a5FmCgyJL8R';
 const header = document.querySelector('.masthead');
 
@@ -33,7 +33,7 @@ if (header) {
   market.className = 'market-overview';
   market.setAttribute('aria-haspopup', 'dialog');
   market.setAttribute('aria-label', 'Market Delta overview. Meme and Alt data unavailable. Open details');
-  market.innerHTML = '<span class="market-overview-title">MARKET DELTA <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span><small>Awaiting data</small></span>';
+  market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span></span>';
   header.querySelector('.site-nav')?.before(market);
   const marketDialog = document.createElement('dialog');
   marketDialog.className = 'donate-dialog market-overview-dialog';

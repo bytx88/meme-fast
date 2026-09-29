@@ -1,5 +1,6 @@
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct=value=>typeof value==='number'&&Number.isFinite(value)?`${value>=0?'+':''}${value.toFixed(2)}%`:'—';
+const direction=value=>typeof value==='number'&&Number.isFinite(value)?value>0?'up':value<0?'down':'flat':'flat';
 const when=value=>value?new Date(value).toLocaleString():'—';
 export function chart(rows){
  const points=(rows||[]).filter(r=>Number.isFinite(r.at)&&Number.isFinite(r.meme)&&Number.isFinite(r.altDelta)).slice(-48);
@@ -17,7 +18,8 @@ export function mountMarket(market,dialog){
   const last=report?.readings?.at(-1),stale=!last||Date.now()-last.at>15*60000;
   const ready=!failed&&!stale&&last;
   const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):report.error?'Partial update':'Live';
-  market.innerHTML=`<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>${pct(ready?last.meme:null)}</b></span><span>Alt <b>${pct(ready?last.altDelta:null)}</b></span></span><small class="market-status">${status}</small>`;
+  const meme=ready?last.meme:null,alt=ready?last.altDelta:null;
+  market.innerHTML=`<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b class="${direction(meme)}">${pct(meme)}</b></span><span>Alt <b class="${direction(alt)}">${pct(alt)}</b></span></span>`;
   market.setAttribute('aria-label',`Market Delta 1 hour overview. Meme ${pct(ready?last.meme:null)}, Alt ${pct(ready?last.altDelta:null)}. ${status}. Open details`);
   body.innerHTML=`<p>Market-wide · one-hour change · independent of the selected token.</p><p class="market-reading">Meme <strong>${pct(ready?last.meme:null)}</strong> · Alt <strong>${pct(ready?last.altDelta:null)}</strong> · ${status}</p><div class="market-chart">${chart(report?.readings)}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${report?.error?`<p role="status">${esc(report.error)}</p>`:''}<details class="market-method"><summary>Basket · ${report?.basket?.length||0}/10 constituents</summary><p>Meme: average of the one-hour USD price changes for 10 equal-weight FOMO Most Held tokens. Membership is refreshed once every three days. Each token must have an exact-contract liquid pool; missing changes withhold the reading.</p><p>Alt: market-cap-weighted one-hour change of the 25 largest eligible altcoins in CoinLore's top-50 feed, excluding BTC, ETH, stablecoins, and wrapped assets. The group is selected from each fresh feed. Readings are sampled every five minutes; the chart grows from the first sample.</p><p>Basket set ${esc(when(report?.rebalancedAt))} · next due ${esc(when(report?.rebalancedAt?report.rebalancedAt+72*3600000:null))}</p><ol>${(report?.basket||[]).map(t=>`<li><strong>${esc(t.symbol)}</strong> · ${esc(t.chain)} · 10% · ${esc(t.priceSource)}<small>${esc(t.address)}</small></li>`).join('')}</ol></details>`;
  }
