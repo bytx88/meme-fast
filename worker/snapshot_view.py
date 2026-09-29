@@ -12,6 +12,10 @@ def _name_key(value):
     return " ".join(unicodedata.normalize("NFKC", str(value or "")).strip().lower().split())
 
 
+def _ticker_key(value):
+    return _name_key(str(value or "").lstrip("$"))
+
+
 def _number(value):
     if value is None or value == "":
         return None
@@ -83,11 +87,13 @@ def _key(value):
     return value if value.startswith("solana:") else value.lower()
 
 
-def snapshot_view(snapshot, view="", ids=(), now_ms=None, name=""):
+def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
     if now_ms is None:
         import time
         now_ms = time.time() * 1000
     cutoff = now_ms - RETENTION_MS
+    if view == "health":
+        return {field: snapshot.get(field) for field in ("revision", "lastRun", "feeds")}
     if view == "name":
         key = _name_key(name)
         if not key or len(key) > 100:
@@ -123,26 +129,45 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name=""):
                 for item in ids if _key(item) in available
             ],
         }
-    result = dict(snapshot)
-    result["coins"] = [coin for coin in snapshot.get("coins", []) if coin.get("firstSeen", 0) > cutoff]
     if view == "coin":
+        if hours not in (1, 6, 12, 36, 120):
+            raise ValueError("Choose a supported Snipe time window")
+        retained = [coin for coin in snapshot.get("coins", []) if (coin.get("firstSeen") or 0) > cutoff]
+        window_cutoff = now_ms - hours * 3600000
+        visible = [coin for coin in retained if (coin.get("firstSeen") or 0) >= window_cutoff
+                   or (coin.get("graduationObservedAt") or 0) >= window_cutoff]
+        visible_ids = {coin["id"] for coin in visible}
+        result = {field: snapshot[field] for field in ("version", "revision", "lastRun", "coverage", "feeds") if field in snapshot}
+        result["retainedTotal"] = len(retained)
+        result["retainedAddressLinked"] = sum(
+            context.get("kind") == "verified" or context.get("kind") == "web" and bool((context.get("web") or {}).get("exact"))
+            for coin in retained if isinstance(context := coin.get("savedContext"), dict)
+        )
         result["coins"] = [
             {**{key: value for key, value in coin.items()
                 if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")},
              "flowSamples": _compact_flow(coin.get("marketHistory") or []),
              "earlyRampWarning": _early_ramp_warning(coin, now_ms)}
-            for coin in result["coins"]
+            for coin in visible
         ]
-        result.pop("radarCoins", None)
+        names = {_name_key(coin.get("name")) for coin in visible} - {""}
+        tickers = {_ticker_key(coin.get("symbol")) for coin in visible} - {""}
         result["competitionCoins"] = [
             {key: coin[key] for key in COMPETITION_FIELDS if key in coin}
+            for coin in [*retained, *(coin for coin in snapshot.get("radarCoins", []) if (coin.get("lastSeenRadarAt") or 0) > cutoff)]
+            if coin.get("id") not in visible_ids
+            and (_name_key(coin.get("name")) in names or _ticker_key(coin.get("symbol")) in tickers)
+        ]
+        return result
+    result = dict(snapshot)
+    result["coins"] = [] if view == "radar" else [coin for coin in snapshot.get("coins", []) if coin.get("firstSeen", 0) > cutoff]
+    if view == "radar":
+        result["radarCoins"] = [
+            {**{key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")},
+             "marketHistory": [row for row in coin.get("marketHistory", []) if row.get("at", 0) >= now_ms - 3600000][-12:],
+             "marketHistoryHourly": [row for row in coin.get("marketHistoryHourly", []) if row.get("at", 0) >= now_ms - 86400000][-24:]}
             for coin in snapshot.get("radarCoins", []) if coin.get("lastSeenRadarAt", 0) > cutoff
         ]
     else:
-        if view == "radar":
-            result["coins"] = []
-        result["radarCoins"] = [
-            coin for coin in snapshot.get("radarCoins", [])
-            if coin.get("lastSeenRadarAt", 0) > cutoff
-        ]
+        result["radarCoins"] = [coin for coin in snapshot.get("radarCoins", []) if coin.get("lastSeenRadarAt", 0) > cutoff]
     return result

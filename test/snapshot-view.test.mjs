@@ -23,14 +23,26 @@ test('Snapshot views have bounded, matching shapes and expose a lightweight revi
 });
 
 test('Snipe competition projection includes retained Swing identities without histories or expired records',()=>{
- const fresh={...radar,name:'Shared',symbol:'SH',liquidity:123,marketUpdatedAt:now,firstSeenRadarAt:now-2000};
- const projected=snapshotView({...snapshot,radarCoins:[fresh,{...fresh,id:'base:old',lastSeenRadarAt:now-6*86400000}]},'coin',[],now);
+ const fresh={...radar,id:'base:shared',name:'Shared',symbol:'SH',liquidity:123,marketUpdatedAt:now,firstSeenRadarAt:now-2000};
+ const projected=snapshotView({...snapshot,coins:[{...coin,name:'Shared',symbol:'SH'}],radarCoins:[fresh,{...fresh,id:'base:old',lastSeenRadarAt:now-6*86400000}]},'coin',[],now);
  assert.equal(projected.competitionCoins.length,1);
  assert.equal(projected.competitionCoins[0].name,'Shared');
  assert.equal(projected.competitionCoins[0].firstSeenRadarAt,now-2000);
  assert.equal(projected.competitionCoins[0].liquidity,123);
  assert.equal('marketHistory' in projected.competitionCoins[0],false);
  assert.equal('flowSamples' in projected.competitionCoins[0],false);
+});
+
+test('Snipe returns only the selected window while preserving five-day totals',()=>{
+ const earlier={...coin,id:'solana:earlier',firstSeen:now-2*3600000,name:'Shared',symbol:'SH'};
+ const recent={...coin,name:'Shared',symbol:'SH'};
+ const oneHour=snapshotView({...snapshot,coins:[recent,earlier]},'coin',[],now,'',1);
+ assert.deepEqual(oneHour.coins.map(c=>c.id),[recent.id]);
+ assert.equal(oneHour.retainedTotal,2);
+ assert.deepEqual(oneHour.competitionCoins.map(c=>c.id),[earlier.id]);
+ assert.equal(snapshotView({...snapshot,coins:[recent,earlier]},'coin',[],now,'',120).coins.length,2);
+ assert.throws(()=>snapshotView(snapshot,'coin',[],now,'',2),/supported Snipe/);
+ assert.deepEqual(snapshotView(snapshot,'health',[],now),{revision:snapshot.revision,lastRun:now,feeds:{}});
 });
 
 test('Name projection returns only retained same-name contracts from both feeds',()=>{

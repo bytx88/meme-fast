@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('an existing saved CASHED item shows its icon and stats without opening Swing',async()=>{
+test('an existing saved CASHED item shows its icon, stats, and Swing link',async()=>{
  const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
  const item={type:'radar',id:`robinhood:${contract}`,title:'$CASHED · Cashed Money',subtitle:`Robinhood Chain · ${contract}`,href:`./radar.html?contract=${contract}`,savedAt:Date.now()};
  const nodes={items:{innerHTML:'',onclick:null},count:{textContent:''},'refresh-stats':{disabled:false,textContent:'',onclick:null},'add-token':{onclick:null},'add-token-dialog':{showModal:()=>{},close:()=>{}},'add-token-form':{onsubmit:null},'add-token-query':{value:'',focus:()=>{}},'add-token-status':{textContent:''},'add-token-results':{innerHTML:'',onclick:null},'close-add-token':{onclick:null}};
@@ -28,7 +28,7 @@ test('an existing saved CASHED item shows its icon and stats without opening Swi
  assert.match(nodes.items.innerHTML,/\$1M/);
  assert.equal((nodes.items.innerHTML.match(/class="watch-metric"/g)||[]).length,7);
  assert.doesNotMatch(nodes.items.innerHTML,/watch-token-head|watch-data-note/);
- assert.doesNotMatch(nodes.items.innerHTML,/Open ↗/);
+ assert.match(nodes.items.innerHTML,new RegExp(`href="\\./radar\\.html\\?contract=${contract}">Open ↗<\\/a>`));
  assert.equal(requests.filter(url=>url==='/api/refresh-priority').length,1);
  assert.equal(requests.filter(url=>url.includes('view=watchlist')).length,1);
  assert.equal(JSON.parse(saved)[0].image_url,'https://cdn.example/cashed.png');

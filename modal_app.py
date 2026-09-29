@@ -76,11 +76,13 @@ def collect_coins():
         if result.returncode:
             raise RuntimeError(result.stderr)
         main = Path("/history/coins.json")
-        projection = Path("/history/coins.snipe.json")
-        temporary = projection.with_suffix(".json.tmp")
-        payload = snapshot_view(json.loads(main.read_text()), "coin")
-        temporary.write_text(json.dumps(payload, separators=(",", ":")))
-        os.replace(temporary, projection)
+        snapshot = json.loads(main.read_text())
+        for hours in (1, 6, 12, 36, 120):
+            projection = Path(f"/history/coins.snipe.{hours}.json")
+            temporary = projection.with_suffix(".json.tmp")
+            payload = snapshot_view(snapshot, "coin", hours=hours)
+            temporary.write_text(json.dumps(payload, separators=(",", ":")))
+            os.replace(temporary, projection)
         history_volume.commit()
         print(result.stdout)
     finally:
@@ -293,15 +295,19 @@ def web():
 
     @web_app.get("/api/new-coins")
     async def new_coins(request: Request):
-        if request.query_params.get("view", "") == "coin":
+        view = request.query_params.get("view", "")
+        hours_text = request.query_params.get("hours", "120")
+        if view == "coin" and hours_text not in ("1", "6", "12", "36", "120"):
+            raise HTTPException(status_code=400, detail="Choose a supported Snipe time window")
+        if view in ("coin", "health"):
             main = Path("/history/coins.json")
-            projection = Path("/history/coins.snipe.json")
+            projection = Path(f"/history/coins.snipe.{hours_text}.json") if view == "coin" else Path("/history/coins.health.json")
             if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
                 return Response(projection.read_bytes(), media_type="application/json",
                                 headers={"cache-control": "no-store"})
         snapshot = await load_snapshot()
         try:
-            payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"), name=request.query_params.get("name", ""))
+            payload = snapshot_view(snapshot, view, request.query_params.getlist("id"), name=request.query_params.get("name", ""), hours=int(hours_text) if view == "coin" else 120)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse(payload, headers={"cache-control": "no-store"})
@@ -412,7 +418,7 @@ def web():
     @web_app.api_route("/{asset_path:path}", methods=["GET", "HEAD"])
     async def static_app(asset_path: str, request: Request):
         routes = {
-            "": "index.html",
+            "": "order-flow.html",
             "narratives": "narratives.html",
             "narrative": "narrative.html",
             "new-coins": "new-coins.html",
@@ -425,10 +431,15 @@ def web():
         candidate = (dist / relative).resolve()
         if dist.resolve() not in candidate.parents or not candidate.is_file() or candidate.suffix not in allowed_types:
             raise HTTPException(status_code=404, detail="Not found")
+        etag = f'"{ASSET_REVISION}-{candidate.name}"'
+        headers = {"cache-control": "no-cache", "etag": etag,
+                   "x-content-type-options": "nosniff", "x-meme-fast-revision": ASSET_REVISION}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=headers)
         return FileResponse(
             candidate,
             media_type=allowed_types[candidate.suffix],
-            headers={"cache-control": "no-store", "x-content-type-options": "nosniff", "x-meme-fast-revision": ASSET_REVISION},
+            headers=headers,
         )
 
     return web_app

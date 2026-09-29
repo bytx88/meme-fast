@@ -173,6 +173,9 @@ async function save(filename,snapshot){
  const versionPath=versionFile(filename);
  await writeFile(versionPath+'.tmp',JSON.stringify(snapshotVersion(snapshot)));
  await rename(versionPath+'.tmp',versionPath);
+ const healthPath=filename.replace(/\.json$/,'')+'.health.json';
+ await writeFile(healthPath+'.tmp',JSON.stringify({revision:snapshot.revision??null,lastRun:snapshot.lastRun??null,feeds:snapshot.feeds??null}));
+ await rename(healthPath+'.tmp',healthPath);
 }
 async function story(coin,fetcher){
  for(const source of sourcesFor(coin)){

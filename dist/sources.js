@@ -9,7 +9,7 @@ async function loadHealth(){
  const summary=$('health-summary'),feeds=$('health-feeds'),button=$('refresh-health');
  button.disabled=true;summary.textContent='Checking the latest server snapshot…';
  try{
-  const response=await fetch('/api/new-coins?view=coin',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+  const response=await fetch('/api/new-coins?view=health',{cache:'no-store',signal:AbortSignal.timeout(12000)});
   if(!response.ok)throw new Error('Snapshot unavailable');
   const snapshot=await response.json(),entries=Object.entries(snapshot.feeds||{});
   if(!entries.length){summary.textContent='No feed attempts have been recorded yet.';feeds.innerHTML='';return}

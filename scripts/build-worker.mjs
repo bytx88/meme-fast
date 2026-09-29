@@ -1,4 +1,5 @@
 import {readFile,writeFile,readdir,mkdir} from 'node:fs/promises';
+import './render-shared-pages.mjs';
 // Embed the existing static app so every route ships with the Worker, without asset bindings.
 const assets={};
 for(const entry of await readdir('dist',{withFileTypes:true})){
@@ -15,7 +16,7 @@ export default {async fetch(request){
   const url=new URL(request.url);
   if(url.pathname.startsWith('/api/market/'))return market(request);
   if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
-  const path=url.pathname==='/'?'/index.html':url.pathname==='/narratives'?'/narratives.html':url.pathname;
+  const path=url.pathname==='/'?'/order-flow.html':url.pathname==='/narratives'?'/narratives.html':url.pathname;
   const asset=assets[path];
   if(!asset)return new Response('Not found',{status:404});
   return new Response(request.method==='HEAD'?null:asset.body,{headers:{'content-type':asset.type,'cache-control':'no-cache','x-content-type-options':'nosniff'}});
