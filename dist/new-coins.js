@@ -240,7 +240,7 @@ function render(){
  updateAutoButtons();
  $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):exploreCards(rows);
  const health=$('#market-health');if(health)health.textContent=state.historyLoaded&&nameReady?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
- $('#status').textContent=loading?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
+ $('#status').textContent=loading&&!state.historyLoaded?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  document.querySelectorAll('[data-open-screener]').forEach(button=>button.title=`Screener settings · minimum 24h volume $${state.screener.volume24h.toLocaleString('en-US')}`);
  document.querySelectorAll('[data-volume-min]').forEach(label=>label.textContent=state.screener.volume24h?`${money(state.screener.volume24h)}+`:'All vol');
