@@ -6,8 +6,8 @@
   <meta name="description" content="Find a token and see observed on-chain buy volume, sell volume, net flow, and swap-size breakdowns.">
   <link rel="icon" type="image/svg+xml" sizes="any" href="./brand-mark.svg?v=2">
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
-  <link rel="stylesheet" href="./order-flow-quick.css?v=legend-v2">
-  <link rel="stylesheet" href="./order-flow-depth.css?v=aligned-mc-v1">
+  <link rel="stylesheet" href="./order-flow-quick.css?v=history-wrap-v1">
+  <link rel="stylesheet" href="./order-flow-depth.css?v=mc-tint-v2">
   <script type="module" src="./app.js?v=clipboard-url-v1"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 <link rel="stylesheet" href="./donate.css?v=market-two-rows-v1"><script type="module" src="./donate.js?v=market-two-rows-v1"></script></head>
@@ -17,7 +17,7 @@
   <section class="search-area" aria-label="Find a token">
     <div class="search-heading"><div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div><span id="search-status" role="status"></span></div>
     <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="Ticker or contract address · default: CASHED" required><button id="paste-contract" type="button" title="Read copied contract address">Paste CA</button><button id="search-button" class="primary" type="submit" aria-label="Find token"><span class="search-button-label">Find token</span> <span aria-hidden="true">↗</span></button></form>
-    <section id="recent-contracts" class="recent-contracts" aria-label="Recent tokens" hidden><div class="recent-heading"><span id="recent-caption">Recent tokens · saved on this device</span><button id="clear-recent" type="button">Clear history</button></div><div id="recent-list" class="recent-list"></div></section>
+    <section id="recent-contracts" class="recent-contracts" aria-label="Recent tokens" hidden><div class="recent-heading"><span id="recent-caption">Recent tokens · saved on this device</span><button id="clear-recent" type="button" aria-label="Clear recent tokens">Clear</button></div><div id="recent-list" class="recent-list"></div></section>
     <details id="match-chooser" class="match-chooser" hidden><summary id="match-chooser-label">Change included listings</summary><div id="results" class="results" hidden></div>
     <div id="combine-controls" class="combine-controls" hidden><p>Matching names may be different tokens. Review the chains and contracts included in the combined view.</p><div><button id="select-matches" type="button">Select all shown</button><button id="clear-matches" type="button">Clear</button><button id="combine-selected" class="primary" type="button" disabled>Combine selected (0)</button></div></div></details>
   </section>

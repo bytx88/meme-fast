@@ -30,7 +30,7 @@ body.inspect-depth{
 .inspect-depth .order-flow-page .flow-price{background:linear-gradient(150deg,#253a44,#172530 70%);border-color:#5d8b9970}
 .inspect-depth .order-flow-page .flow-price strong{color:#b7ebed;letter-spacing:-.025em}
 .inspect-depth .order-flow-page .flow-price .price-scale{position:absolute;top:11px;right:12px;color:#aab7c5;font-size:10px;letter-spacing:.01em;text-shadow:none}
-.inspect-depth .order-flow-page .flow-metric:last-child{background:linear-gradient(150deg,#bddf6b18,#9fc76108 70%);border-color:#bddf6b38}
+.inspect-depth .order-flow-page .flow-metric:last-child{background:linear-gradient(150deg,#bddf6b38,#9fc7611a 70%);border-color:#bddf6b66}
 .inspect-depth .order-flow-page .flow-metric:last-child strong{color:#c4dfff}
 .inspect-depth .order-flow-page button,
 .inspect-depth .order-flow-page .listing-actions a{background:linear-gradient(165deg,#253446,#141e2b);border-color:#43576e80;box-shadow:inset 0 1px #ffffff0d,0 2px 3px #0005}

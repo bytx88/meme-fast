@@ -10,7 +10,9 @@
 .order-flow-page.token-loaded .search-area .search-button-label{display:none}
 .order-flow-page.token-loaded .search-area .primary span:last-child{display:inline;margin:0}
 .order-flow-page.token-loaded .recent-contracts{display:none}
-.order-flow-page.token-loaded .search-area:focus-within .recent-contracts:not([hidden]){display:block;position:absolute;z-index:5;right:0;top:35px;width:min(480px,100%);margin:0;padding:8px 72px 8px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);box-shadow:0 12px 22px #0008}
+.order-flow-page.token-loaded .search-area:focus-within .recent-contracts:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;position:absolute;z-index:5;right:0;top:35px;width:min(385px,100%);margin:0;padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);box-shadow:0 12px 22px #0008}
+.order-flow-page.token-loaded .recent-list{grid-column:1;grid-row:1;min-width:0;flex-wrap:wrap;overflow:visible;gap:4px;padding:0}
+.order-flow-page.token-loaded .recent-heading{grid-column:2;grid-row:1;position:static;align-self:end}
 .order-flow-page.token-loaded .match-chooser:not([hidden]){position:absolute;z-index:4;top:36px;right:0;width:min(550px,100%);margin:0;padding:4px 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
 .order-flow-page #search-result-summary{margin:5px 0;padding:6px 10px}
 .order-flow-page #search-result-summary strong,.order-flow-page #search-result-summary p{font-size:11px;line-height:1.25}
