@@ -7,7 +7,7 @@ import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=chart-info-
 import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
-import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
+import {createRecentContracts,isContractAddress,tokenQueryFromSearch} from './recent-contracts.mjs?v=clipboard-url-v1';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
@@ -154,17 +154,18 @@ function render(){
 
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
-let clipboardReadPending=false,clipboardAutoBlocked=false,lastClipboardAddress='',suppressClipboardUntilBlur=Boolean(new URLSearchParams(location.search).get('query'));
+const explicitQuery=tokenQueryFromSearch(location.search);
+let clipboardReadPending=false,clipboardAutoBlocked=false,lastClipboardAddress='';
 async function readCopiedAddress(automatic=false){
   if(clipboardReadPending||!navigator.clipboard?.readText){if(!automatic)error('Clipboard access is unavailable here. Paste the address into the search field.');return}
   if(automatic){
-    if(clipboardAutoBlocked||document.hidden||!document.hasFocus()||document.activeElement===$('query')||suppressClipboardUntilBlur)return;
+    if(explicitQuery||clipboardAutoBlocked||document.hidden||!document.hasFocus()||document.activeElement===$('query'))return;
   }
   clipboardReadPending=true;
   try{
     const address=(await navigator.clipboard.readText()).trim();
     if(!isContractAddress(address)){if(!automatic)error('Clipboard does not contain a supported contract address.');return}
-    if(automatic&&(document.hidden||document.activeElement===$('query')||suppressClipboardUntilBlur))return;
+    if(automatic&&(document.hidden||document.activeElement===$('query')))return;
     clipboardAutoBlocked=false;
     if(automatic&&canonical(address)===canonical(lastClipboardAddress))return;
     lastClipboardAddress=address;
@@ -176,7 +177,6 @@ async function readCopiedAddress(automatic=false){
   finally{clipboardReadPending=false}
 }
 $('paste-contract').addEventListener('click',()=>readCopiedAddress());
-window.addEventListener('blur',()=>{suppressClipboardUntilBlur=false});
 window.addEventListener('focus',()=>readCopiedAddress(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)readCopiedAddress(true)});
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
@@ -202,7 +202,6 @@ window.addEventListener('pagehide',()=>{if(recentInputTimer)recentContracts.reme
 $('clear-recent').addEventListener('click',()=>{clearTimeout(recentInputTimer);recentInputTimer=null;recentContracts.clear();renderRecentContracts()});
 renderRecentContracts();
 updateIdentity();render();
-const params=new URLSearchParams(location.search),bareAddress=[...params.keys()][0];
-const initialQuery=params.get('query')?.trim()||(params.size===1&&isContractAddress(bareAddress)?bareAddress:'')||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
+const initialQuery=explicitQuery||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();
 readCopiedAddress(true);

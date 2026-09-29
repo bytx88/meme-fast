@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createRecentContracts,RECENT_CONTRACTS_KEY} from '../dist/recent-contracts.mjs';
+import {createRecentContracts,RECENT_CONTRACTS_KEY,tokenQueryFromSearch} from '../dist/recent-contracts.mjs';
 const ca=i=>'0x'+i.toString(16).padStart(40,'0');
 function memory(){const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)}}
 test('Seven newest unique contracts persist in order; duplicate becomes default',()=>{
@@ -19,4 +19,12 @@ test('Only contracts are retained, with EVM case-insensitive deduplication',()=>
 test('Blocked or corrupt storage does not break search history',()=>{
   const unavailable=createRecentContracts(()=>{throw Error('blocked')});assert.equal(unavailable.remember(ca(1)),true);assert.equal(unavailable.persistent,false);assert.equal(unavailable.entries[0].address,ca(1));
   const storage=memory();storage.setItem(RECENT_CONTRACTS_KEY,'not json');const recovered=createRecentContracts(()=>storage);assert.deepEqual(recovered.entries,[]);recovered.remember(ca(2));assert.equal(recovered.persistent,true);
+});
+test('Explicit token links take precedence over automatic clipboard search',()=>{
+  const address=ca(42);
+  assert.equal(tokenQueryFromSearch(`?${address}`),address);
+  assert.equal(tokenQueryFromSearch(`?query=${address}`),address);
+  assert.equal(tokenQueryFromSearch('?query=CASHED'),'CASHED');
+  assert.equal(tokenQueryFromSearch(''),'');
+  assert.equal(tokenQueryFromSearch('?view=coin'),'');
 });

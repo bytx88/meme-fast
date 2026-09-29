@@ -2,6 +2,12 @@ import {canonical} from './core.mjs';
 import {isSolanaAddress} from './lookup.mjs';
 export const RECENT_CONTRACTS_KEY='meme-fast:recent-contracts:v1';
 export const isContractAddress=value=>typeof value==='string'&&(/^0x[0-9a-f]{40}$/i.test(value.trim())||isSolanaAddress(value.trim()));
+export function tokenQueryFromSearch(search){
+  const params=new URLSearchParams(search),named=params.get('query')?.trim();
+  if(named)return named;
+  const bare=[...params.keys()][0];
+  return params.size===1&&isContractAddress(bare)?bare:'';
+}
 export function normalizeHistory(value){
   if(!Array.isArray(value))return [];
   const seen=new Set(),result=[];
