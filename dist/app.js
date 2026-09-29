@@ -47,7 +47,6 @@ async function search(query){
     $('results').replaceChildren();$('results').hidden=true;$('combine-controls').hidden=true;$('match-chooser').hidden=true;
     await selectListings(cached.tokens,cached);return cached.tokens;
   }
-  document.querySelector('.order-flow-page').classList.remove('token-loaded');
   if(recentContracts.remember(query))renderRecentContracts();
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
   try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];

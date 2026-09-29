@@ -8,12 +8,12 @@
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
   <link rel="stylesheet" href="./order-flow-quick.css?v=history-wrap-v1">
   <link rel="stylesheet" href="./order-flow-depth.css?v=mc-tint-v2">
-  <script type="module" src="./app.js?v=clipboard-url-v1"></script>
+  <script type="module" src="./app.js?v=stable-inspect-layout-v1"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
-<link rel="stylesheet" href="./donate.css?v=market-two-rows-v1"><script type="module" src="./donate.js?v=market-two-rows-v1"></script></head>
+<link rel="stylesheet" href="./donate.css?v=market-two-rows-v1"><script type="module" src="./donate.js?v=static-inspect-header-v1"></script></head>
 <body class="inspect-depth">
-<main class="order-flow-page">
-  <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Tweet</a><a href="./">Snipe</a><a href="./radar.html">Swing</a><a href="./order-flow.html" aria-current="page">Inspect</a><a href="./watchlist.html">Watchlist</a></nav></header>
+<main class="order-flow-page token-loaded">
+  <header class="masthead"><div class="header-brand-group"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><span class="site-disclaimer">Not financial advice, DYOR.</span></div><button class="market-overview" type="button" aria-haspopup="dialog" aria-label="Market Delta overview. Meme and Alt data unavailable. Open details"><span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span></span></button><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Tweet</a><a href="./">Snipe</a><a href="./radar.html">Swing</a><a href="./order-flow.html" aria-current="page">Inspect</a><a href="./watchlist.html">Watchlist</a><div class="header-support"><button class="donate-trigger" type="button" aria-haspopup="dialog">♡ Donate SOL</button><a class="contact-support" href="mailto:microtoken1688@gmail.com" aria-label="Contact support" title="Email microtoken1688@gmail.com"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></a></div></nav></header>
   <section class="search-area" aria-label="Find a token">
     <div class="search-heading"><div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div><span id="search-status" role="status"></span></div>
     <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="Ticker or contract address · default: CASHED" required><button id="paste-contract" type="button" title="Read copied contract address">Paste CA</button><button id="search-button" class="primary" type="submit" aria-label="Find token"><span class="search-button-label">Find token</span> <span aria-hidden="true">↗</span></button></form>
