@@ -16,6 +16,10 @@ if (header) {
   support.title = 'Email microtoken1688@gmail.com';
   actions.append(trigger, support);
   header.querySelector('.brand')?.after(actions);
+  const disclaimer = document.createElement('span');
+  disclaimer.className = 'site-disclaimer';
+  disclaimer.textContent = 'Not financial advice, DYOR.';
+  header.querySelector('.site-nav')?.before(disclaimer);
 
   const dialog = document.createElement('dialog');
   dialog.className = 'donate-dialog';
