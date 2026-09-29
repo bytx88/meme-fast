@@ -75,6 +75,10 @@ body.inspect-depth{
   .inspect-depth .order-flow-page button:active{transform:translateY(1px)}
 }
 @media(max-width:1000px){.inspect-depth .order-flow-page .flow-metric strong{font-size:18px}}
+@media(max-width:720px){
+  .inspect-depth .order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .inspect-depth .order-flow-page .flow-metric:last-child{grid-column:span 2}
+}
 @media(max-width:580px){
   .inspect-depth .order-flow-page .flow-summary{gap:6px}
   .inspect-depth .order-flow-page .flow-metric{padding:9px;min-height:59px}
