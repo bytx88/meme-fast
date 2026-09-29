@@ -68,5 +68,5 @@ body:has(dialog:modal) .page-scroll-rail{visibility:hidden}
 /* One sculpted ring mark for the header and browser icon. */
 .brand{gap:10px;letter-spacing:.035em;text-shadow:0 2px 2px #0006}
 .brand:hover{text-decoration:none}
-.brand-mark{display:inline-block;flex:none;width:30px;height:30px;border-radius:8px;background:url('./brand-mark.svg?v=1') center/contain no-repeat;box-shadow:0 3px 6px #0006}
+.brand-mark{display:inline-block;flex:none;width:30px;height:30px;border-radius:8px;background:url('./brand-mark.svg?v=2') center/contain no-repeat;box-shadow:0 3px 6px #0006}
 .brand-mark:after{display:none}
