@@ -12,10 +12,11 @@ if (header) {
   const support = document.createElement('a');
   support.className = 'contact-support';
   support.href = 'mailto:microtoken1688@gmail.com';
-  support.textContent = 'Contact support';
+  support.setAttribute('aria-label', 'Contact support');
+  support.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
   support.title = 'Email microtoken1688@gmail.com';
   actions.append(trigger, support);
-  header.querySelector('.brand')?.after(actions);
+  header.querySelector('.site-nav')?.append(actions);
   const disclaimer = document.createElement('span');
   disclaimer.className = 'site-disclaimer';
   disclaimer.textContent = 'Not financial advice, DYOR.';
