@@ -179,6 +179,7 @@ window.addEventListener('pagehide',()=>{if(recentInputTimer)recentContracts.reme
 $('clear-recent').addEventListener('click',()=>{clearTimeout(recentInputTimer);recentInputTimer=null;recentContracts.clear();renderRecentContracts()});
 renderRecentContracts();
 updateIdentity();render();
-const initialQuery=new URLSearchParams(location.search).get('query')?.trim()||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
+const params=new URLSearchParams(location.search),bareAddress=[...params.keys()][0];
+const initialQuery=params.get('query')?.trim()||(params.size===1&&isContractAddress(bareAddress)?bareAddress:'')||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();
 readCopiedAddress(true);
