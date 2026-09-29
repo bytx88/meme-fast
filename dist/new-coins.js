@@ -36,7 +36,7 @@ async function saveSnapshot(snapshot){
  if(nameSearch||!('caches' in window))return;
  try{const cache=await caches.open(SNAPSHOT_CACHE);await cache.put(SNAPSHOT_CACHE_KEY,new Response(JSON.stringify(snapshot),{headers:{'content-type':'application/json','x-snapshot-saved-at':String(Date.now())}}))}catch{}
 }
-function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['entry','discover','explore'].includes(view)?view:'entry'}catch{return 'entry'}}
+function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['entry','discover','explore'].includes(view)?view:'discover'}catch{return 'discover'}}
 function savedScreener(){try{return normalizeScreener(JSON.parse(localStorage.getItem(screenerPreferenceKey)||'{}'))}catch{return {...DEFAULT_SCREENER}}}
 function savedSkipRug(){try{return localStorage.getItem(skipRugPreferenceKey)!=='false'}catch{return true}}
 function savedEntry(){try{return normalizeEntry(JSON.parse(localStorage.getItem(entryPreferenceKey)||'{}'))}catch{return {...DEFAULT_ENTRY}}}
