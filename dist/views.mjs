@@ -1,10 +1,11 @@
 import {formatUSD, summarize} from './core.mjs';
 import {filterTrades, groupTransactions, flowTimeline, visibleFlowRange} from './analysis.mjs';
 import {marketCapTimeline} from './market-cap.mjs';
+import {easternDate,easternDateTime,easternRange,easternTime,easternTimeWithSeconds} from './eastern-time.mjs';
 const $ = id => document.getElementById(id);
 const money = formatUSD;
 const short = value => value?.length > 18 ? value.slice(0,7)+'…'+value.slice(-6) : value || '—';
-const stamp = value => new Date(value).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const stamp = easternTime;
 const make = (tag, text, className) => {const el=document.createElement(tag);if(text!=null)el.textContent=text;if(className)el.className=className;return el};
 
 export function renderCoverage(view, state, rows) {
@@ -13,7 +14,7 @@ export function renderCoverage(view, state, rows) {
   const partial=missing>0||capped>0||state.loadError;
   $('coverage-badge').textContent=state.busy?'LOADING SAMPLE':!view.loaded?'DATA UNAVAILABLE':partial?'PARTIAL SAMPLE':'RECENT SWAP SAMPLE';
   $('coverage-badge').dataset.partial=String(partial||(!view.loaded&&!state.busy));
-  const span=rows.length?` · ${stamp(rows[rows.length-1].time)}–${stamp(rows[0].time)} observed`:'';
+  const span=rows.length?` · ${easternRange(rows[rows.length-1].time,rows[0].time)} observed`:'';
   $('coverage-summary').textContent=`${ok}/${view.pools.length} discovered pools loaded · ${rows.length} swap steps${span}`;
 }
 
@@ -23,11 +24,11 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const {firstShown,bins:visibleBins}=visibleFlowRange(bins),visibleStart=visibleBins[0]?.start??start;
   const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=values.length>0;
   $('market-cap-value').textContent=combined?'MC · select one listing':valuation?`Latest MC ${money(valuation.value)}`:busy?'Loading MC…':'MC unavailable';
-  $('market-cap-value').title=valuation?`Latest reported snapshot retrieved ${new Date(valuation.fetchedAt).toLocaleString()}`:'';
+  $('market-cap-value').title=valuation?`Latest reported snapshot retrieved ${easternDateTime(valuation.fetchedAt)}`:'';
   $('market-cap-note').textContent=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
   $('mc-legend').hidden=!hasMC;
-  $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals`;
-  const defaultDetail=rows.length?`${minutes===1440?'24h':minutes===60?'1h':minutes+'m'} selected · ${firstShown>0?'Chart starts near first returned swap at '+stamp(visibleStart)+'; earlier intervals have no returned swaps. ':''}Net ${money(bins.at(-1).cumulative)} · Hover or focus for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';
+  $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals · ET`;
+  const defaultDetail=rows.length?`${minutes===1440?'24h':minutes===60?'1h':minutes+'m'} selected · ${firstShown>0?'Chart starts near first returned swap at '+easternDateTime(visibleStart)+'; earlier intervals have no returned swaps. ':''}Net ${money(bins.at(-1).cumulative)} · Hover or focus for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';
   $('timeline-detail').textContent=defaultDetail;
   if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':busy?'Loading the flow timeline…':'Flow timeline unavailable','timeline-empty'));return}
   const ns='http://www.w3.org/2000/svg';
@@ -58,7 +59,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   visibleBins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,Math.min(18,unit*.34));
     for(const [side,offset]of [['buy',-.5],['sell',.5]]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*.5+offset*barWidth,y:bottom-h,width:barWidth,height:h,fill:`url(#flow-${side})`}))}
-    const description=`${stamp(bin.start)}–${stamp(bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
+    const description=`${easternRange(bin.start,bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
     g.setAttribute('aria-label',description);
     const title=svgEl('title');title.textContent=description;g.append(title);
     const target=svgEl('rect',{x,y:top,width:unit,height:bottom-top,fill:'transparent',class:'interval-hit'});g.append(target);
@@ -73,8 +74,8 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
 export function setupTape() {
   let current=[],loaded=false,busy=true,limit=20,expanded=new Set(),scope='';
   function stepRow(trade, child=false) {
-    const tr=make('tr',null,child?'swap-step':''),time=make('td',new Date(trade.time).toLocaleTimeString());
-    time.title=new Date(trade.time).toLocaleString();
+    const tr=make('tr',null,child?'swap-step':''),time=make('td',`${easternDate(trade.time)}, ${easternTimeWithSeconds(trade.time)} ET`);
+    time.title=easternDateTime(trade.time);
     const side=make('td');side.append(make('span',trade.side==='buy'?'Buy':'Sell',`side-badge ${trade.side}`));
     const pool=make('td',`${trade.pool} · ${trade.network}`,'pool-detail');pool.title=`${trade.pool} · ${trade.network}`;
     const wallet=make('td',short(trade.wallet),'wallet-detail');wallet.title=trade.wallet||'Wallet unavailable';
@@ -92,7 +93,8 @@ export function setupTape() {
     for(const item of items.slice(0,limit)){
       if(!grouped){body.append(stepRow(item));continue}
       if(item.rows.length===1){body.append(stepRow(item.rows[0]));continue}
-      const tr=make('tr',null,'transaction-group'),time=make('td'),button=make('button',`${expanded.has(item.key)?'▾':'▸'} ${stamp(item.time)} · ${item.rows.length} steps`,'expand-trade');
+      const tr=make('tr',null,'transaction-group'),time=make('td'),button=make('button',`${expanded.has(item.key)?'▾':'▸'} ${easternDateTime(item.time)} · ${item.rows.length} steps`,'expand-trade');
+      time.title=easternDateTime(item.time);
       button.type='button';button.setAttribute('aria-expanded',String(expanded.has(item.key)));button.setAttribute('aria-label',`Expand transaction ${short(item.hash)}, ${item.rows.length} matching swap steps`);
       time.append(button);const side=make('td'),mixed=item.buy>0&&item.sell>0;side.append(make('span',mixed?'Buy + sell':item.buy?'Buy':'Sell',`side-badge ${mixed?'mixed':item.buy?'buy':'sell'}`));
       const value=make('td',null,'numeric group-values');if(item.buy)value.append(make('span',`Buy ${money(item.buy)}`,'buy-text'));if(item.sell)value.append(make('span',`Sell ${money(item.sell)}`,'sell-text'));
@@ -102,7 +104,7 @@ export function setupTape() {
       for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool'],[wallet,'Wallet'],[execution,'Quantity @ price'],[tx,'Transaction']])cell.dataset.label=label;
       tr.append(time,side,value,pool,wallet,execution,tx);body.append(tr);
       const children=item.rows.map(row=>stepRow(row,true));for(const child of children){child.hidden=!expanded.has(item.key);body.append(child)}
-      button.addEventListener('click',()=>{const open=!expanded.has(item.key);if(open)expanded.add(item.key);else expanded.delete(item.key);for(const child of children)child.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=`${open?'▾':'▸'} ${stamp(item.time)} · ${item.rows.length} steps`});
+      button.addEventListener('click',()=>{const open=!expanded.has(item.key);if(open)expanded.add(item.key);else expanded.delete(item.key);for(const child of children)child.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=`${open?'▾':'▸'} ${easternDateTime(item.time)} · ${item.rows.length} steps`});
     }
     if(!items.length){const tr=make('tr'),td=make('td',!loaded?(busy?'Waiting for swap data.':'Swap data unavailable. Refresh to try again.'):current.length?'No swaps match these filters. Reset filters to see the sample.':'No observed swaps in this window.','table-empty');td.colSpan=7;tr.append(td);body.append(tr)}
     $('tape-count').textContent=`${Math.min(limit,items.length)} / ${items.length} ${grouped?'GROUPS':'STEPS'} · ${rows.length} / ${current.length} STEPS MATCH`;
