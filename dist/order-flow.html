@@ -6,14 +6,14 @@
   <meta name="description" content="Find a token and see observed on-chain buy volume, sell volume, net flow, and swap-size breakdowns.">
   <link rel="icon" type="image/svg+xml" sizes="any" href="./brand-mark.svg?v=2">
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
-  <link rel="stylesheet" href="./order-flow-quick.css?v=chart-info-v1">
+  <link rel="stylesheet" href="./order-flow-quick.css?v=dyor-note-v1">
   <link rel="stylesheet" href="./order-flow-depth.css?v=chart-info-v1">
   <script type="module" src="./app.js?v=chart-info-v1"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 <link rel="stylesheet" href="./donate.css?v=2"><script type="module" src="./donate.js?v=2"></script></head>
 <body class="inspect-depth">
 <main class="order-flow-page">
-  <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Tweet</a><a href="./">Snipe</a><a href="./radar.html">Swing</a><a href="./order-flow.html" aria-current="page">Inspect</a><a href="./watchlist.html">Watchlist</a></nav></header>
+  <header class="masthead"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><span class="inspect-disclaimer">Not financial advice, DYOR.</span><nav class="site-nav" aria-label="Main navigation"><a href="./narratives.html">Tweet</a><a href="./">Snipe</a><a href="./radar.html">Swing</a><a href="./order-flow.html" aria-current="page">Inspect</a><a href="./watchlist.html">Watchlist</a></nav></header>
   <section class="search-area" aria-label="Find a token">
     <div class="search-heading"><div><h1>See where the swaps flow.</h1><p>Search a meme ticker or paste a contract address.</p></div><span id="search-status" role="status"></span></div>
     <form id="search-form"><label class="sr-only" for="query">Token ticker or contract address</label><input id="query" autocomplete="off" maxlength="160" placeholder="Ticker or contract address · default: CASHED" required><button id="paste-contract" type="button" title="Read copied contract address">Paste CA</button><button id="search-button" class="primary" type="submit" aria-label="Find token"><span class="search-button-label">Find token</span> <span aria-hidden="true">↗</span></button></form>
