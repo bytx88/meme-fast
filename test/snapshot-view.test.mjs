@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {snapshotView,snapshotVersion,readSnapshotVersion,versionFile} from '../worker/snapshot-view.mjs';
 import {feedStatus,coverageFor,validateSnapshot} from '../worker/snapshot-contract.mjs';
 import {sourceCoverageNote} from '../dist/source-coverage.mjs';
+import {radarReading} from '../dist/radar-model.mjs';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -43,6 +44,22 @@ test('Snipe returns only the selected window while preserving five-day totals',(
  assert.equal(snapshotView({...snapshot,coins:[recent,earlier]},'coin',[],now,'',120).coins.length,2);
  assert.throws(()=>snapshotView(snapshot,'coin',[],now,'',2),/supported Snipe/);
  assert.deepEqual(snapshotView(snapshot,'health',[],now),{revision:snapshot.revision,lastRun:now,feeds:{}});
+});
+
+test('Swing projection preserves the history used by Hours and Days ranking',()=>{
+ const sample=at=>({at,volume5m:1000,buys5m:10,sells5m:5,liquidity:100000,priceUsd:0.01});
+ const marketHistory=Array.from({length:12},(_,i)=>sample(now-(11-i)*5*60000));
+ const marketHistoryHourly=[sample(now-72*3600000),...Array.from({length:8},(_,i)=>sample(now-(7-i)*3600000))];
+ const observed={...radar,id:'base:history',lastSeenRadarAt:now,marketUpdatedAt:now,liquidity:100000,volume:500000,
+  savedContext:{kind:'verified'},marketHistory,marketHistoryHourly};
+ const projected=snapshotView({...snapshot,radarCoins:[observed]},'radar',[],now).radarCoins[0];
+ for(const mode of ['scalp','swing','research']){
+  const original=radarReading(observed,mode,now),compact=radarReading(projected,mode,now);
+  assert.equal(compact.score,original.score,mode);
+  assert.equal(compact.coverage,original.coverage,mode);
+ }
+ assert.equal(projected.marketHistoryHourly[0].at,now-72*3600000);
+ assert.equal('priceUsd' in projected.marketHistory[0],false);
 });
 
 test('Name projection returns only retained same-name contracts from both feeds',()=>{

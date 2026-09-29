@@ -13,7 +13,7 @@ let stale=false;
 for(const page of pages){
  const file=`dist/${page}.html`,source=await readFile(file,'utf8');
  if(!pattern.test(source))throw new Error(`${file} masthead missing`);
- const header=base.replace(/ aria-current="page"/g,'').replace(`href="./${active[page]}"`,`href="./${active[page]}" aria-current="page"`);
+ const header=base.replace(/ aria-current="page"/g,'').replace(`<a href="./${active[page]}">`,`<a href="./${active[page]}" aria-current="page">`);
  const generated=source.replace(pattern,header);
  if(generated!==source){stale=true;if(!check)await writeFile(file,generated)}
 }

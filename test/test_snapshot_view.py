@@ -38,7 +38,11 @@ class SnapshotViewTests(unittest.TestCase):
     def test_python_and_javascript_projections_match(self):
         now = 1800000000000
         coin = {"id": "solana:ABC", "network": "solana", "contract_address": "ABC",
-                "firstSeen": now, "lastSeenRadarAt": now, "marketHistory": [{"at": now}]}
+                "firstSeen": now, "lastSeenRadarAt": now,
+                "marketHistory": [{"at": now, "volume5m": 1000, "priceUsd": 0.01}],
+                "marketHistoryHourly": [{"at": now - 72 * 3600000, "volume5m": 500, "priceUsd": 0.02},
+                                        {"at": now, "volume5m": 1000}],
+                "priceHistory5m": [{"at": now, "priceUsd": 0.01}]}
         snapshot = {"version": 2, "revision": f"{now}:2", "lastRun": now,
                     "coins": [coin], "radarCoins": [coin], "feeds": {}}
         script = (

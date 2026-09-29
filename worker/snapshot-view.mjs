@@ -53,7 +53,8 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now(),name='',hour
  result.radarCoins=(snapshot.radarCoins||[]).filter(c=>c.lastSeenRadarAt>cutoff).map(coin=>{
   if(view!=='radar')return coin;
   const {marketHistory,marketHistoryHourly,priceHistory5m,...fields}=coin;
-  return {...fields,marketHistory:(marketHistory||[]).filter(row=>row.at>=now-3600000).slice(-12),marketHistoryHourly:(marketHistoryHourly||[]).filter(row=>row.at>=now-86400000).slice(-24)};
+  const sample=row=>Object.fromEntries(['at','volume5m','buys5m','sells5m','liquidity'].filter(key=>key in row).map(key=>[key,row[key]]));
+  return {...fields,marketHistory:(marketHistory||[]).filter(row=>row.at>=now-4*3600000).slice(-48).map(sample),marketHistoryHourly:(marketHistoryHourly||[]).filter(row=>row.at>=now-RETENTION_MS).slice(-120).map(sample)};
  });
  return result;
 }

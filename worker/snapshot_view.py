@@ -162,10 +162,13 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
     result = dict(snapshot)
     result["coins"] = [] if view == "radar" else [coin for coin in snapshot.get("coins", []) if coin.get("firstSeen", 0) > cutoff]
     if view == "radar":
+        sample_fields = ("at", "volume5m", "buys5m", "sells5m", "liquidity")
         result["radarCoins"] = [
             {**{key: value for key, value in coin.items() if key not in ("marketHistory", "marketHistoryHourly", "priceHistory5m")},
-             "marketHistory": [row for row in coin.get("marketHistory", []) if row.get("at", 0) >= now_ms - 3600000][-12:],
-             "marketHistoryHourly": [row for row in coin.get("marketHistoryHourly", []) if row.get("at", 0) >= now_ms - 86400000][-24:]}
+             "marketHistory": [{key: row[key] for key in sample_fields if key in row}
+                               for row in coin.get("marketHistory", []) if row.get("at", 0) >= now_ms - 4 * 3600000][-48:],
+             "marketHistoryHourly": [{key: row[key] for key in sample_fields if key in row}
+                                     for row in coin.get("marketHistoryHourly", []) if row.get("at", 0) >= now_ms - RETENTION_MS][-120:]}
             for coin in snapshot.get("radarCoins", []) if coin.get("lastSeenRadarAt", 0) > cutoff
         ]
     else:
