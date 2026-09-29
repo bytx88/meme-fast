@@ -17,14 +17,14 @@ export function renderCoverage(view, state, rows) {
   $('coverage-summary').textContent=`${ok}/${view.pools.length} discovered pools loaded · ${rows.length} swap steps${span}`;
 }
 
-export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=null, combined=false, showMarketCap=false) {
+export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=null, combined=false) {
   const host=$('timeline');host.replaceChildren();
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
   const {firstShown,bins:visibleBins}=visibleFlowRange(bins),visibleStart=visibleBins[0]?.start??start;
-  const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=showMarketCap&&values.length>0;
+  const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=values.length>0;
   $('market-cap-value').textContent=combined?'MC · select one listing':valuation?`Latest MC ${money(valuation.value)}`:busy?'Loading MC…':'MC unavailable';
   $('market-cap-value').title=valuation?`Latest reported snapshot retrieved ${new Date(valuation.fetchedAt).toLocaleString()}`:'';
-  $('market-cap-note').textContent=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'MC overlay uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  $('market-cap-note').textContent=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
   $('mc-legend').hidden=!hasMC;
   $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals`;
   const defaultDetail=rows.length?`${minutes===1440?'24h':minutes===60?'1h':minutes+'m'} selected · ${firstShown>0?'Chart starts near first returned swap at '+stamp(visibleStart)+'; earlier intervals have no returned swaps. ':''}Net ${money(bins.at(-1).cumulative)} · Hover or focus for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';

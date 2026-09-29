@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
   <link rel="stylesheet" href="./order-flow-quick.css?v=clipboard-ca-v1">
   <link rel="stylesheet" href="./order-flow-depth.css?v=3">
-  <script type="module" src="./app.js?v=snapshot-v1"></script>
+  <script type="module" src="./app.js?v=mc-auto-v1"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 </head>
 <body class="inspect-depth">
@@ -30,7 +30,7 @@
     <div class="toolbar order-flow-toolbar"><div class="periods" aria-label="Time window"><button type="button" data-window="5" aria-pressed="false">5m</button><button type="button" data-window="15" aria-pressed="false">15m</button><button type="button" data-window="60" aria-pressed="false">1h</button><button type="button" data-window="1440" aria-pressed="true">24h</button></div><div class="refresh-group"><span id="updated">Loading swaps…</span><button type="button" id="refresh">Refresh ↻</button></div></div>
     <section class="flow-summary" aria-label="Observed flow in selected window"><div class="flow-metric flow-net"><span>Net flow</span><strong id="quick-net">—</strong></div><div class="flow-metric"><span>Buy volume</span><strong id="quick-buy">—</strong></div><div class="flow-metric"><span>Sell volume</span><strong id="quick-sell">—</strong></div><div class="flow-metric"><span>Swap steps</span><strong id="quick-steps">—</strong></div><div class="flow-metric"><span>Latest MC</span><strong id="quick-mc">—</strong></div></section>
     <div class="chart-stage">
-    <section id="timeline-pane"><section class="panel timeline-panel" aria-labelledby="timeline-title"><div class="panel-heading"><h3 id="timeline-title">Flow trend</h3><div class="timeline-meta"><label class="mc-toggle"><input id="mc-toggle" type="checkbox"> MC overlay</label><span id="timeline-interval" class="eyebrow"></span></div></div><div class="timeline-legend"><span><i class="dot buy"></i>Buy volume</span><span><i class="dot sell"></i>Sell volume</span><span class="net-legend">— Cumulative net buy volume</span><span id="mc-legend" class="mc-value" hidden>— Est. market cap · right axis</span></div><div id="timeline"></div><p id="timeline-detail" class="timeline-detail"></p></section></section>
+    <section id="timeline-pane"><section class="panel timeline-panel" aria-labelledby="timeline-title"><div class="panel-heading"><h3 id="timeline-title">Flow trend</h3><div class="timeline-meta"><span id="timeline-interval" class="eyebrow"></span></div></div><div class="timeline-legend"><span><i class="dot buy"></i>Buy volume</span><span><i class="dot sell"></i>Sell volume</span><span class="net-legend">— Cumulative net buy volume</span><span id="mc-legend" class="mc-value" hidden>— Est. market cap · right axis</span></div><div id="timeline"></div><p id="timeline-detail" class="timeline-detail"></p></section></section>
     </div>
     <div class="coverage coverage-card" role="status"><div><span id="coverage-badge" class="sample-tag">LOADING SAMPLE</span><strong id="coverage-summary">Finding indexed pools</strong></div></div>
     <div id="empty-notice" class="empty-notice" role="status" hidden><div><strong id="empty-title"></strong><p id="empty-detail"></p></div><button id="show-all" type="button" hidden>Show 24h</button></div>

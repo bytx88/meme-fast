@@ -3,7 +3,7 @@ import {loadListings} from './data.mjs';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=depth-v1';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=mc-auto-v1';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
@@ -113,7 +113,7 @@ function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
   $('quick-net').textContent=available?money(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
-  $('quick-buy').textContent=available?money(s.buy):'—';$('quick-sell').textContent=available?money(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';$('mc-toggle').disabled=view.tokens.length>1;
+  $('quick-buy').textContent=available?money(s.buy):'—';$('quick-sell').textContent=available?money(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';
   const mc=view.tokens.length===1?view.listings[0]?.marketCap:null;$('quick-mc').textContent=mc?compact(mc.value):'—';$('quick-mc').title=mc?`Latest reported MC · ${money(mc.value)} · retrieved ${new Date(mc.fetchedAt).toLocaleString()}`:'Market cap unavailable for this listing';
   $('empty-notice').hidden=!loaded||available;$('show-all').hidden=availability.status!=='outside-window';
   $('empty-title').textContent=availability.status==='outside-window'?'No swaps in this window':'No usable swaps returned';
@@ -134,7 +134,7 @@ function render(){
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('coverage-text').textContent='No usable pool data returned for this selection. Missing data is not zero trading.';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('coverage-text').textContent='The latest request failed. No market-flow conclusion is available.';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
-  renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1,$('mc-toggle').checked);
+  renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
   if(loaded&&(state.cached||state.busy||state.loadError)){
@@ -170,7 +170,6 @@ $('paste-contract').addEventListener('click',()=>readCopiedAddress());
 window.addEventListener('blur',()=>{suppressClipboardUntilBlur=false});
 window.addEventListener('focus',()=>readCopiedAddress(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)readCopiedAddress(true)});
-$('mc-toggle').addEventListener('change',render);
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});

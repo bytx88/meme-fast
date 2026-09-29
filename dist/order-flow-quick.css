@@ -49,8 +49,6 @@
 .order-flow-page .timeline-panel{padding:10px 14px 8px}
 .order-flow-page .timeline-panel h3{font-size:15px}
 .order-flow-page .timeline-meta{flex-direction:row;align-items:center;gap:12px}
-.order-flow-page .mc-toggle{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:11px;white-space:nowrap}
-.order-flow-page .mc-toggle input{flex:none;width:13px;height:13px;margin:0;accent-color:var(--accent)}
 .order-flow-page .timeline-legend{gap:12px;margin:6px 0 3px;font-size:11px}
 .order-flow-page #timeline svg{height:auto;min-width:0}
 .order-flow-page .timeline-detail{min-height:0;margin-top:2px;font-size:11px;line-height:1.3}
