@@ -9,6 +9,8 @@ import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
+import {createFlowCache} from './flow-cache.mjs';
+const flowCache=createFlowCache();
 const renderTape=setupTape();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
@@ -35,6 +37,14 @@ function safeUrl(network,address,type='tokens'){return `https://www.geckotermina
 function axiomUrl(token){const chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[token.network];return token.unverified?null:axiomLink({chain,contract_address:token.address,contract_verified:true})}
 async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
+  const cached=isContractAddress(query)?flowCache.read(query):null;
+  if(cached){
+    state.searchController?.abort();state.searchGeneration++;state.searchBusy=false;$('search-button').disabled=false;
+    state.searchedQuery=query;state.matches=cached.tokens;
+    if(recentContracts.remember(query)){recentContracts.label(query,cached.tokens[0].symbol,cached.tokens[0].name);renderRecentContracts()}
+    $('results').replaceChildren();$('results').hidden=true;$('combine-controls').hidden=true;$('match-chooser').hidden=true;
+    await selectListings(cached.tokens,cached);return cached.tokens;
+  }
   document.querySelector('.order-flow-page').classList.remove('token-loaded');
   if(recentContracts.remember(query))renderRecentContracts();
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
@@ -81,7 +91,7 @@ function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.toke
   $('scope-tabs').hidden=state.tokens.length<2;$('scope-tabs').replaceChildren();if(state.tokens.length>1)for(const entry of [{key:'all',label:`All combined (${state.tokens.length})`},...state.tokens.map(t=>({key:listingKey(t),label:`${t.symbol} · ${t.network} · ${short(t.address)}`}))]){const button=document.createElement('button');button.type='button';button.textContent=entry.label;button.setAttribute('aria-pressed',String(state.scope===entry.key));button.addEventListener('click',()=>{state.scope=entry.key;updateIdentity();render()});$('scope-tabs').append(button)}
 }
 async function selectToken(token){return selectListings([token])}
-async function selectListings(tokens){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=[];state.pools=[];state.listings=[];state.skipped=0;state.loadError=false;state.fetched=0;state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} match${state.matches.length===1?'':'es'} found.`:'';updateIdentity();render();return load()}
+async function selectListings(tokens,cached=null){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=cached?.trades||[];state.pools=cached?.pools||[];state.listings=cached?.listings||[];state.skipped=cached?.skipped||0;state.loadError=false;state.fetched=cached?.fetched||0;state.cached=Boolean(cached);state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} match${state.matches.length===1?'':'es'} found.`:'';updateIdentity();render();return load()}
 async function load(){
   if(state.tokens.some(t=>t.unverified)){
     state.busy=false;state.fetched=Date.now();state.listings=state.tokens.map(t=>({...t,key:listingKey(t),status:'failed',error:t.lookupWarning}));
@@ -89,16 +99,16 @@ async function load(){
   }
   state.loadController?.abort();const controller=new AbortController();state.loadController=controller;
   const generation=++state.generation,tokens=[...state.tokens],hadData=state.pools.some(p=>p.status==='loaded');state.busy=true;state.loadError=false;state.progress='Fetching swaps…';$('refresh').disabled=true;$('charts').setAttribute('aria-busy','true');$('updated').textContent='Fetching swaps…';error('');render();
-  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&(!hadData||snapshot.pools.some(p=>p.status==='loaded'))){Object.assign(state,snapshot);state.fetched=Date.now();render()}},async token=>{const result=await dexApi('/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints):null});
+  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;if(!hadData)$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&!hadData){Object.assign(state,snapshot);state.fetched=Date.now();render()}},async token=>{const result=await dexApi('/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints):null});
     if(!result||generation!==state.generation)return;
     if(hadData&&!result.pools.some(p=>p.status==='loaded')){state.loadError=true;error('Refresh failed. Showing the previous sample with its original update time.');return currentSummary()}
-    Object.assign(state,result);state.fetched=Date.now();render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
+    Object.assign(state,result);state.fetched=Date.now();state.cached=false;flowCache.write(state);render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
     return currentSummary();
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=false;$('charts').setAttribute('aria-busy','false')}}
 }
 function emptyRow(text){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.className='table-empty';td.textContent=text;tr.append(td);return tr}
-function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {listings:view.tokens,view:state.scope,windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
+function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
@@ -127,6 +137,11 @@ function render(){
   renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1,$('mc-toggle').checked);
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
+  if(loaded&&(state.cached||state.busy||state.loadError)){
+    const stamp=new Date(state.fetched).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    $('updated').textContent=`Snapshot ${stamp} · ${state.busy?'refreshing…':state.loadError?'refresh failed':'saved'}`;
+    $('coverage-badge').textContent=state.busy?'REFRESHING · SAVED SAMPLE':'SAVED SAMPLE';
+  }
 
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));

@@ -28,6 +28,8 @@ Other research surfaces still use browser storage as an adapter. The local previ
 
 Order Flow uses live provider data through a restricted market proxy. Local preview and Modal both cache successful responses, combine concurrent requests for the same path, and honor provider rate-limit cooldowns. The cache is process-local, so different Modal containers do not share entries. Its reported flow is a bounded sample, with pool and swap limits included in the read summary.
 
+Inspect also retains up to three exact-contract flow snapshots in browser storage for up to 24 hours, bounded to 1.8 million characters. Reopening a previously resolved single listing restores its identity, charts, and swaps synchronously, labels the original snapshot time, and refreshes pools in the background. Existing data stays visible until the refresh finishes; a failed refresh preserves the saved sample and timestamp. Ambiguous/ticker searches, unverified tokens, expired snapshots, and unavailable storage use the normal lookup flow. A first visit still requires a network fetch.
+
 ## Backend boundary
 
 The next implementation should replace browser storage with one application API and a relational database. Suggested core records:
