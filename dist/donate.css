@@ -1,5 +1,5 @@
-.masthead .donate-trigger{flex:none;min-height:34px;padding:6px 10px;border:1px solid #a5cb7040;border-radius:20px;background:#a5cb700a;color:#c8dda6;font-size:12px;white-space:nowrap}
-.masthead .donate-trigger:hover{background:#a5cb701c;border-color:#a5cb7080}
+.masthead .donate-trigger{flex:none;min-height:28px;padding:4px 8px;border:1px solid #a5cb7030;border-radius:16px;background:#a5cb7006;color:#bacd9d;font-size:11px;white-space:nowrap}
+.masthead .donate-trigger:hover{background:#a5cb7016;border-color:#a5cb7060}
 .donate-dialog{width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 32px);padding:24px;border:1px solid #415163;border-radius:16px;background:#131e29;color:#e9eff6;box-shadow:0 24px 100px #0009}
 .donate-dialog::backdrop{background:#030912b8;backdrop-filter:blur(4px)}
 .donate-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}

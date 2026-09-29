@@ -7,7 +7,7 @@ import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=chart-info-
 import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
-import {createRecentContracts,isContractAddress,tokenQueryFromSearch} from './recent-contracts.mjs?v=clipboard-url-v1';
+import {createRecentContracts,isContractAddress,tokenQueryFromSearch} from './recent-contracts.mjs?v=symbol-history-v1';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
@@ -24,10 +24,9 @@ function renderRecentContracts(){
   const entries=recentContracts.entries;$('recent-contracts').hidden=!entries.length;$('recent-list').replaceChildren();
   $('recent-caption').textContent=recentContracts.persistent?'Recent tokens · saved on this device':'Recent tokens · this session only';
   for(const [index,item]of entries.entries()){
-    const button=document.createElement('button');button.type='button';button.className='recent-contract';button.title=item.address;
-    button.setAttribute('aria-label',`Search ${item.symbol?item.symbol+' ':''}${item.address}${index===0?' · local default':''}`);
-    const name=document.createElement('span');name.textContent=item.name||item.symbol||(canonical(item.address)===DEFAULT_ADDRESS?'Cashed Money':short(item.address));button.append(name);
-    if(index===0){const badge=document.createElement('small');badge.textContent='Default';button.append(badge)}
+    const button=document.createElement('button');button.type='button';button.className='recent-contract';button.title=`${item.symbol} · ${item.address}`;
+    button.setAttribute('aria-label',`Search ${item.symbol} ${item.address}${index===0?' · most recent':''}`);
+    const name=document.createElement('span');name.textContent=item.symbol;button.append(name);
     button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
   }
 }
@@ -43,7 +42,7 @@ async function search(query){
   if(cached){
     state.searchController?.abort();state.searchGeneration++;state.searchBusy=false;$('search-button').disabled=false;
     state.searchedQuery=query;state.matches=cached.tokens;
-    if(recentContracts.remember(query)){recentContracts.label(query,cached.tokens[0].symbol,cached.tokens[0].name);renderRecentContracts()}
+    if(!cached.tokens[0]?.unverified&&recentContracts.label(query,cached.tokens[0]?.symbol))renderRecentContracts();
     $('results').replaceChildren();$('results').hidden=true;$('combine-controls').hidden=true;$('match-chooser').hidden=true;
     await selectListings(cached.tokens,cached);return cached.tokens;
   }
@@ -51,7 +50,7 @@ async function search(query){
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
   try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];
     state.matches=uniqueListings(found);state.draft=new Set(state.matches.map(listingKey));
-    const remembered=state.matches.find(t=>!t.unverified&&canonical(t.address)===canonical(query));if(remembered){recentContracts.label(query,remembered.symbol,remembered.name);renderRecentContracts()}
+    const remembered=state.matches.find(t=>!t.unverified&&canonical(t.address)===canonical(query));if(remembered&&recentContracts.label(query,remembered.symbol))renderRecentContracts();
     $('results').replaceChildren();for(const token of state.matches){const row=document.createElement('div');row.className='result-choice';const label=document.createElement('label'),check=document.createElement('input'),copy=document.createElement('span');check.type='checkbox';check.value=listingKey(token);check.checked=state.draft.has(check.value);check.addEventListener('change',()=>{if(check.checked)state.draft.add(check.value);else state.draft.delete(check.value);updateSelection()});copy.className='result-copy';const main=document.createElement('strong');main.textContent=`${token.symbol} · ${token.name} · ${token.network}`;main.insertAdjacentHTML('beforeend',chainMarker(token));const meta=document.createElement('small');meta.textContent=`${token.unverified?'Unverified address':compact(token.liquidity)+' indexed liquidity'}`;const address=document.createElement('small');address.textContent=token.address;copy.append(main,meta,address);label.append(check,copy);const view=document.createElement('button');view.type='button';view.textContent='View only';view.setAttribute('aria-label',`View only ${token.symbol} on ${token.network} ${short(token.address)}`);view.addEventListener('click',()=>selectToken(token));row.append(label,view);$('results').append(row)}
     updateSelection();
     if(state.matches.length){

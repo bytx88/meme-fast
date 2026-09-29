@@ -6,7 +6,8 @@ if (header) {
   const trigger = header.querySelector('.donate-trigger') || document.createElement('button');
   trigger.type = 'button';
   trigger.className = 'donate-trigger';
-  trigger.textContent = '♡ Donate SOL';
+  trigger.textContent = '♡ Donate';
+  trigger.setAttribute('aria-label', 'Donate SOL');
   trigger.setAttribute('aria-haspopup', 'dialog');
   const actions = header.querySelector('.header-support') || document.createElement('div');
   actions.className = 'header-support';

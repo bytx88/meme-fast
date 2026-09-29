@@ -13,19 +13,21 @@ export function normalizeHistory(value){
   const seen=new Set(),result=[];
   for(const item of value){
     if(!isContractAddress(item?.address))continue;
+    const symbol=typeof item.symbol==='string'?item.symbol.trim().slice(0,16):'';
+    if(!symbol||isContractAddress(symbol))continue;
     const address=item.address.trim(),key=canonical(address);if(seen.has(key))continue;seen.add(key);
-    result.push({address,symbol:typeof item.symbol==='string'?item.symbol.slice(0,32):'',name:typeof item.name==='string'?item.name.slice(0,80):''});if(result.length===7)break;
+    result.push({address,symbol});if(result.length===4)break;
   }
   return result;
 }
 export function createRecentContracts(getStorage=()=>window.localStorage){
   let entries=[],persistent=true;
-  try{entries=normalizeHistory(JSON.parse(getStorage().getItem(RECENT_CONTRACTS_KEY)||'[]'))}catch{persistent=false}
+  try{const storage=getStorage(),raw=JSON.parse(storage.getItem(RECENT_CONTRACTS_KEY)||'[]');entries=normalizeHistory(raw);if(JSON.stringify(raw)!==JSON.stringify(entries))storage.setItem(RECENT_CONTRACTS_KEY,JSON.stringify(entries))}catch{persistent=false}
   function save(){try{getStorage().setItem(RECENT_CONTRACTS_KEY,JSON.stringify(entries));persistent=true}catch{persistent=false}}
   return {
     get entries(){return entries.map(item=>({...item}))},get persistent(){return persistent},
-    remember(value){if(!isContractAddress(value))return false;const address=value.trim(),old=entries.find(item=>canonical(item.address)===canonical(address));entries=normalizeHistory([{address,symbol:old?.symbol||'',name:old?.name||''},...entries]);save();return true},
-    label(address,symbol,name){entries=entries.map(item=>canonical(item.address)===canonical(address)?{...item,symbol,name}:item);entries=normalizeHistory(entries);save()},
+    remember(value){if(!isContractAddress(value))return false;const old=entries.find(item=>canonical(item.address)===canonical(value.trim()));if(!old)return false;entries=normalizeHistory([old,...entries]);save();return true},
+    label(address,symbol){if(!isContractAddress(address)||typeof symbol!=='string'||!symbol.trim())return false;entries=normalizeHistory([{address:address.trim(),symbol},...entries]);save();return true},
     clear(){entries=[];try{getStorage().removeItem(RECENT_CONTRACTS_KEY);persistent=true}catch{persistent=false}}
   };
 }
