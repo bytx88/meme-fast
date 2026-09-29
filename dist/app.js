@@ -153,30 +153,21 @@ function render(){
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
 const explicitQuery=tokenQueryFromSearch(location.search);
-let clipboardReadPending=false,clipboardAutoBlocked=false,lastClipboardAddress='';
-async function readCopiedAddress(automatic=false){
-  if(clipboardReadPending||!navigator.clipboard?.readText){if(!automatic)error('Clipboard access is unavailable here. Paste the address into the search field.');return}
-  if(automatic){
-    if(explicitQuery||clipboardAutoBlocked||document.hidden||!document.hasFocus()||document.activeElement===$('query'))return;
-  }
+let clipboardReadPending=false;
+async function readCopiedAddress(){
+  if(clipboardReadPending||!navigator.clipboard?.readText){error('Clipboard access is unavailable here. Paste the address into the search field.');return}
   clipboardReadPending=true;
   try{
     const address=(await navigator.clipboard.readText()).trim();
-    if(!isContractAddress(address)){if(!automatic)error('Clipboard does not contain a supported contract address.');return}
-    if(automatic&&(document.hidden||document.activeElement===$('query')))return;
-    clipboardAutoBlocked=false;
-    if(automatic&&canonical(address)===canonical(lastClipboardAddress))return;
-    lastClipboardAddress=address;
+    if(!isContractAddress(address)){error('Clipboard does not contain a supported contract address.');return}
     if(canonical(address)===canonical(state.searchedQuery))return;
     $('query').value=address;
     search(address).catch(e=>error(e.message));
     return true;
-  }catch{if(automatic)clipboardAutoBlocked=true;else error('Clipboard access was blocked. Paste the address into the search field instead.')}
+  }catch{error('Clipboard access was blocked. Paste the address into the search field instead.')}
   finally{clipboardReadPending=false}
 }
 $('paste-contract').addEventListener('click',()=>readCopiedAddress());
-window.addEventListener('focus',()=>readCopiedAddress(true));
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)readCopiedAddress(true)});
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
@@ -202,4 +193,3 @@ renderRecentContracts();
 updateIdentity();render();
 const initialQuery=explicitQuery||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();
-readCopiedAddress(true);
