@@ -1,3 +1,4 @@
+import {mountMarket} from './market-delta.mjs?v=live-v1';
 const address = 'BNoUUtinMiHdARMwEM6YXaNJ1MhGmTiJ4a5FmCgyJL8R';
 const header = document.querySelector('.masthead');
 
@@ -37,13 +38,9 @@ if (header) {
   const marketDialog = document.createElement('dialog');
   marketDialog.className = 'donate-dialog market-overview-dialog';
   marketDialog.setAttribute('aria-labelledby', 'market-overview-title');
-  marketDialog.innerHTML = `<div class="donate-heading"><h2 id="market-overview-title">Meme Market Delta</h2><button type="button" aria-label="Close market overview">×</button></div>
-    <p>Market-wide context · shared across all tokens and pages.</p>
-    <div class="market-chart-empty"><strong>Market history is not connected yet</strong><span>Meme Delta and Alt Delta are unavailable.</span></div>
-    <div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme Delta · histogram</span><span><i class="market-alt-key"></i>Alt Delta · line</span></div>
-    <p>Compare the percentage change of a FOMO Most Held meme basket with the broader alt market over the same lookback, centered on zero.</p>
-    <details class="market-method"><summary>Basket and data status</summary><p>Planned basket: 10 eligible tokens, equally weighted and rebalanced every 3 days. The leaderboard source and historical collection still need to be connected. No index values or market direction are available yet.</p></details>`;
+  marketDialog.innerHTML = `<div class="donate-heading"><h2 id="market-overview-title">Meme Market Delta</h2><button type="button" aria-label="Close market overview">×</button></div><div class="market-content"></div>`;
   document.body.append(marketDialog);
+  mountMarket(market, marketDialog);
   market.addEventListener('click', () => marketDialog.showModal());
   marketDialog.querySelector('button').addEventListener('click', () => marketDialog.close());
   marketDialog.addEventListener('click', event => {

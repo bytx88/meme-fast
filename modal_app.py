@@ -127,6 +127,22 @@ def collect_jeanphil_monitor():
     print(result.stdout)
 
 
+@app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1,
+              secrets=[modal.Secret.from_name("meme-fast-fomolist")], volumes={"/history": history_volume})
+@modal.concurrent(max_inputs=1)
+def collect_meme_index():
+    import sys
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    from worker.meme_index import collect
+    history_volume.reload()
+    try:
+        report = collect("/history/meme-index.json", checkpoint_commit=history_volume.commit)
+    finally:
+        history_volume.commit()
+    return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
+
+
 @app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})
 def collect_coin_evidence(token_id):
     import json
@@ -203,6 +219,17 @@ def web():
                 report = json.loads(Path("/history/x-factor.json").read_text())
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "status": "disconnected", "coins": {}}
+        return JSONResponse(report, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/meme-index")
+    async def meme_index():
+        from worker.meme_index import public_report
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                report = public_report(json.loads(Path("/history/meme-index.json").read_text()))
+            except (FileNotFoundError, ValueError):
+                report = {"version": 1, "basket": [], "samples": [], "error": "Awaiting first collection"}
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/jeanphil-monitor")
