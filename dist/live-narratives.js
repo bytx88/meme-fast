@@ -1,4 +1,4 @@
-import {tokenActions as actions} from './token-actions.mjs?v=copy-icon-v1';
+import {tokenActions as actions} from './token-actions.mjs?v=snipe-route-v1';
 import {FEEDS,NETWORKS,buildPublicView,fetchPublicSource,mergeArticles,compareSnapshots,safeURL} from './public-radar.mjs';
 import {contractForCopy,copyContract,axiomLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';

@@ -1,10 +1,10 @@
 import {requestRefreshPriority} from './refresh-priority.mjs';
 import {marketFreshness,freshnessCounts} from './market-freshness.mjs';
-import {tokenActions} from './token-actions.mjs?v=detail-parity-v1';
+import {tokenActions} from './token-actions.mjs?v=snipe-route-v1';
 import {chainMarker} from './chain-marker.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs?v=fomo-scanner-v1';
 import {groupCoins} from './coin-groups.mjs';
-import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=name-search-v1';
+import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=snipe-route-v1';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
 import {stageFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
@@ -156,7 +156,7 @@ function exploreSection(title,items,id){return items.length?`<section class="exp
 function nameSearchCards(rows){
  const ready=state.historyLoaded&&state.nameDataQuery===state.query;
  const chains=new Map();for(const c of rows)chains.set(c.chain,(chains.get(c.chain)||0)+1);
- return `<div class="explore-board"><section class="name-search-summary"><h2>Same-name tokens · ${esc(state.query||'Enter a token name')}</h2><p>${ready?`${rows.length} distinct contracts · ${[...chains].map(([chain,count])=>`${esc(chain)} ${count}`).join(' · ')}`:state.historyError?'History unavailable · retry Refresh':'Loading retained contracts…'}</p><p>All chains · five-day Snipe history, retained Swing records and saved tokens. Name matching ignores case and extra spaces. Each card is one contract.</p><a href="./">Back to Snipe feed</a></section><div class="explore-grid">${rows.map(card).join('')}</div>${!rows.length&&ready?'<div class="new-empty">No same-name tokens in retained history or saved tokens. Try Look up for other pools.</div>':''}</div>`;
+ return `<div class="explore-board"><section class="name-search-summary"><h2>Same-name tokens · ${esc(state.query||'Enter a token name')}</h2><p>${ready?`${rows.length} distinct contracts · ${[...chains].map(([chain,count])=>`${esc(chain)} ${count}`).join(' · ')}`:state.historyError?'History unavailable · retry Refresh':'Loading retained contracts…'}</p><p>All chains · five-day Snipe history, retained Swing records and saved tokens. Name matching ignores case and extra spaces. Each card is one contract.</p><a href="./new-coins.html">Back to Snipe feed</a></section><div class="explore-grid">${rows.map(card).join('')}</div>${!rows.length&&ready?'<div class="new-empty">No same-name tokens in retained history or saved tokens. Try Look up for other pools.</div>':''}</div>`;
 }
 function exploreCards(rows){
  if(!rows.length)return '<div class="new-empty"><strong>No coins in this window.</strong> Try a longer window or another search.</div>';
@@ -340,7 +340,7 @@ document.addEventListener('click',async event=>{
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
  if(event.target.closest('[data-fresh]')){setFresh(!state.freshEnabled);return}
  const view=event.target.closest('[data-view]');if(view){setView(view.dataset.view);return}
- const save=event.target.closest('[data-save-coin]');if(save){const coin=visibleRows.find(c=>c.id===save.dataset.saveCoin)||[...data.manualCoins,...data.coins].find(c=>c.id===save.dataset.saveCoin);if(coin){const saved=toggleSaved({type:'coin',id:coin.id,title:`$${coin.symbol} · ${coin.name}`,subtitle:`${coin.chain} · Snipe`,href:`./?contract=${encodeURIComponent(coin.contract_address)}`,image_url:coin.image_url,marketSnapshot:coin});document.querySelectorAll('[data-save-coin]').forEach(button=>{if(button.dataset.saveCoin===coin.id){button.setAttribute('aria-pressed',String(saved));button.textContent=saved?'Saved ✓':'Save +'}});rebuildCompetition();preserveScroll(render)}return}
+ const save=event.target.closest('[data-save-coin]');if(save){const coin=visibleRows.find(c=>c.id===save.dataset.saveCoin)||[...data.manualCoins,...data.coins].find(c=>c.id===save.dataset.saveCoin);if(coin){const saved=toggleSaved({type:'coin',id:coin.id,title:`$${coin.symbol} · ${coin.name}`,subtitle:`${coin.chain} · Snipe`,href:`./new-coins.html?contract=${encodeURIComponent(coin.contract_address)}`,image_url:coin.image_url,marketSnapshot:coin});document.querySelectorAll('[data-save-coin]').forEach(button=>{if(button.dataset.saveCoin===coin.id){button.setAttribute('aria-pressed',String(saved));button.textContent=saved?'Saved ✓':'Save +'}});rebuildCompetition();preserveScroll(render)}return}
  const open=event.target.closest('[data-open-coin],[data-compare-coin]');if(open){comparisonOpen=Boolean(open.dataset.compareCoin);state.selectedId=open.dataset.compareCoin||open.dataset.openCoin;const coin=visibleRows.find(c=>c.id===state.selectedId)||data.coins.find(c=>c.id===state.selectedId)||data.manualCoins.find(c=>c.id===state.selectedId);if(coin){$('#coin-detail-content').innerHTML=comparisonOpen?competitionHtml(coin):detailHtml(coin);if(!$('#coin-detail').open)$('#coin-detail').showModal();$('#coin-detail').scrollTop=0}return}
  if(event.target.closest('[data-close-detail]')){$('#coin-detail').close();return}
  const button=event.target.closest('[data-copy-ca]');if(!button)return;

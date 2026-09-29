@@ -6,7 +6,7 @@ const coin=(network,address,extra={})=>({id:`${network}:${address}`,network,cont
 test('Name listing links preserve Unicode and reserved URL characters as one name parameter',()=>{
  const name='부강이 / e&acc #1 + 100%';
  const url=new URL(nameSearchHref(name),'https://meme.example/');
- assert.equal(url.pathname,'/');assert.equal(url.searchParams.get('name'),name);
+ assert.equal(url.pathname,'/new-coins.html');assert.equal(url.searchParams.get('name'),name);
  assert.deepEqual([...url.searchParams.keys()],['name']);assert.equal(url.hash,'');
 });
 test('Same-name search keeps contracts separate across chains and excludes ticker-only and substring matches',()=>{

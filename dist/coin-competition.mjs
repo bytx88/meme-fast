@@ -6,7 +6,7 @@ const label=(value,ticker=false)=>{
 };
 const positive=value=>Number.isFinite(value)&&value>0?value:null;
 const marketTime=coin=>positive(coin.marketUpdatedAt)??positive(coin.fetchedAt)??0;
-export const nameSearchHref=name=>`./?name=${encodeURIComponent(String(name??'').trim())}`;
+export const nameSearchHref=name=>`./new-coins.html?name=${encodeURIComponent(String(name??'').trim())}`;
 export function competitionKey(coin){
  const [idNetwork,...idAddress]=String(coin?.id||'').split(':');
  const network=normalize(coin?.network||idNetwork),address=String(coin?.contract_address||idAddress.join(':')).trim();
