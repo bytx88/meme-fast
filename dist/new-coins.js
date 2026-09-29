@@ -23,6 +23,19 @@ const screenerPreferenceKey='meme-fast.coin-screener-v1';
 const skipRugPreferenceKey='meme-fast.skip-rug-v1';
 const entryPreferenceKey='meme-fast.entry-v1';
 const AUTO_UPDATE_MS=20000;
+const SNAPSHOT_CACHE='meme-fast-snipe-v1',SNAPSHOT_CACHE_KEY='/api/new-coins?view=coin',SNAPSHOT_CACHE_MAX_AGE=30*60000;
+async function cachedSnapshot(){
+ if(nameSearch||!('caches' in window))return null;
+ try{const response=await(await caches.open(SNAPSHOT_CACHE)).match(SNAPSHOT_CACHE_KEY);if(!response)return null;
+  const savedAt=Number(response.headers.get('x-snapshot-saved-at'));
+  if(!savedAt||Date.now()-savedAt>SNAPSHOT_CACHE_MAX_AGE)return null;
+  const snapshot=await response.json();return Array.isArray(snapshot.coins)?snapshot:null;
+ }catch{return null}
+}
+async function saveSnapshot(snapshot){
+ if(nameSearch||!('caches' in window))return;
+ try{const cache=await caches.open(SNAPSHOT_CACHE);await cache.put(SNAPSHOT_CACHE_KEY,new Response(JSON.stringify(snapshot),{headers:{'content-type':'application/json','x-snapshot-saved-at':String(Date.now())}}))}catch{}
+}
 function savedView(){try{const view=localStorage.getItem(viewPreferenceKey);return ['entry','discover','explore'].includes(view)?view:'entry'}catch{return 'entry'}}
 function savedScreener(){try{return normalizeScreener(JSON.parse(localStorage.getItem(screenerPreferenceKey)||'{}'))}catch{return {...DEFAULT_SCREENER}}}
 function savedSkipRug(){try{return localStorage.getItem(skipRugPreferenceKey)!=='false'}catch{return true}}
@@ -236,7 +249,7 @@ function render(){
  updateAvailable();
  renderDetail();
 }
-function applySnapshot(snapshot,requestedName=state.query){
+function applySnapshot(snapshot,requestedName=state.query,fromCache=false){
  const known=new Set(data.coins.map(coin=>coin.id)),newIds=state.historyLoaded?snapshot.coins.filter(coin=>!known.has(coin.id)).map(coin=>coin.id):[];
  if(highlightTimer)clearTimeout(highlightTimer);
  highlightIds=new Set(newIds);
@@ -244,7 +257,7 @@ function applySnapshot(snapshot,requestedName=state.query){
  data.coins=snapshot.coins;data.competitionCoins=snapshot.competitionCoins||[];state.historyLoaded=true;state.historyError=false;state.checkError=false;state.lastRun=snapshot.lastRun||0;state.revision=snapshot.revision||String(snapshot.lastRun||0);state.pendingSnapshot=null;if(nameSearch)state.nameDataQuery=requestedName;
  rebuildCompetition();
  state.coverageNote=sourceCoverageNote(snapshot);
- state.notice=snapshot.lastRun?`Server checked ${new Date(snapshot.lastRun).toLocaleString()}${sourceCoverageNote(snapshot)}.`:'The server is preparing its first collection.';
+ state.notice=fromCache?`Showing saved snapshot from ${new Date(snapshot.lastRun||0).toLocaleString()} while checking for updates.`:snapshot.lastRun?`Server checked ${new Date(snapshot.lastRun).toLocaleString()}${sourceCoverageNote(snapshot)}.`:'The server is preparing its first collection.';
  if(hadHistory)preserveScroll(render);else render();
  if(newIds.length)highlightTimer=setTimeout(()=>{highlightIds.clear();document.querySelectorAll('.snapshot-new').forEach(node=>node.classList.remove('snapshot-new'));highlightTimer=null},5000);
 }
@@ -258,7 +271,7 @@ async function refresh(){
  if(loading)return;loading=true;
  const requestedName=state.query;
  document.querySelectorAll('#refresh,.full-refresh').forEach(button=>{button.disabled=true;button.textContent='Checking…'});
- try{const snapshot=await getSnapshot(requestedName);loading=false;if(!nameSearch||requestedName===state.query)applySnapshot(snapshot,requestedName)}
+ try{const snapshot=await getSnapshot(requestedName);loading=false;if(!nameSearch||requestedName===state.query){applySnapshot(snapshot,requestedName);void saveSnapshot(snapshot)}}
  catch{state.historyError=true;state.checkError=true;state.notice='Server history unavailable. Displayed snapshots were retained.';$('#status').textContent=state.notice;updateFreshnessStatus();if(nameSearch)render()}
  finally{loading=false;document.querySelectorAll('#refresh,.full-refresh').forEach(button=>{button.disabled=false;button.textContent='Refresh ↻'});if(nameSearch&&requestedName!==state.query&&state.query.trim())void refresh()}
 }
@@ -356,6 +369,7 @@ setInterval(()=>{if(!state.freshEnabled)poll()},60000);setInterval(()=>{updateFr
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 render();
 if(state.view==='entry')setFresh(true);
+void cachedSnapshot().then(snapshot=>{if(snapshot&&!state.historyLoaded)applySnapshot(snapshot,state.query,true)});
 refresh().then(()=>{
  if(contractQuery&&!data.coins.some(c=>String(c.contract_address).toLowerCase()===contractQuery.toLowerCase()))investigate();
 });

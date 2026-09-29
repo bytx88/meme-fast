@@ -51,6 +51,7 @@ def collect_coins():
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.refresh_priority import PRIORITY_TTL
+    from worker.snapshot_view import snapshot_view
     history_volume.reload()
     now_ms = int(time.time() * 1000)
     priorities = []
@@ -72,9 +73,15 @@ def collect_coins():
             capture_output=True, text=True, timeout=280,
             env={**os.environ, "MEME_REFRESH_PRIORITY_IDS": json.dumps(priority_ids)},
         )
-        history_volume.commit()
         if result.returncode:
             raise RuntimeError(result.stderr)
+        main = Path("/history/coins.json")
+        projection = Path("/history/coins.snipe.json")
+        temporary = projection.with_suffix(".json.tmp")
+        payload = snapshot_view(json.loads(main.read_text()), "coin")
+        temporary.write_text(json.dumps(payload, separators=(",", ":")))
+        os.replace(temporary, projection)
+        history_volume.commit()
         print(result.stdout)
     finally:
         try:
@@ -256,6 +263,14 @@ def web():
 
     @web_app.get("/api/new-coins")
     async def new_coins(request: Request):
+        if request.query_params.get("view", "") == "coin":
+            async with history_lock:
+                await history_volume.reload.aio()
+                main = Path("/history/coins.json")
+                projection = Path("/history/coins.snipe.json")
+                if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
+                    return Response(projection.read_bytes(), media_type="application/json",
+                                    headers={"cache-control": "no-store"})
         snapshot = await load_snapshot()
         try:
             payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"), name=request.query_params.get("name", ""))
