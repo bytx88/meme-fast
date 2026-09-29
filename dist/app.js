@@ -3,7 +3,7 @@ import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=price-scale-v2';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=price-card-v2';
 import {easternDateTime,easternRange} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
@@ -119,7 +119,10 @@ function render(){
   const single=view.tokens.length===1,mc=single?view.listings[0]?.marketCap:null,reportedPrice=single?view.listings[0]?.price:null;
   const lastTrade=single?view.trades.reduce((latest,trade)=>Number.isFinite(trade.price)&&trade.price>0&&(!latest||trade.time>latest.time)?trade:latest,null):null;
   const unitPrice=reportedPrice?.value??mc?.price??lastTrade?.price;
-  $('quick-price').textContent=formatUnitPrice(unitPrice);
+  const priceDisplay=formatUnitPrice(unitPrice),scale=priceDisplay.match(/^(.*) \((e-\d+)\)$/);
+  $('quick-price').textContent=scale?scale[1]:priceDisplay;
+  $('quick-price-scale').textContent=scale?`(${scale[2]})`:'';
+  $('quick-price-scale').hidden=!scale;
   $('quick-price').title=!single?'Select one listing to see its unit price':reportedPrice?`Reported price for 1 token · $${reportedPrice.value} · retrieved ${easternDateTime(reportedPrice.fetchedAt)}`:mc?.price?`Reported price for 1 token · $${mc.price} · retrieved ${easternDateTime(mc.fetchedAt)}`:lastTrade?`Latest observed swap price for 1 token · $${lastTrade.price} · ${easternDateTime(lastTrade.time)}`:'Unit price unavailable for this listing';
   $('quick-mc').textContent=mc?compact(mc.value):'—';$('quick-mc').title=mc?`Latest reported MC · ${money(mc.value)} · retrieved ${easternDateTime(mc.fetchedAt)}`:'Market cap unavailable for this listing';
   $('empty-notice').hidden=!loaded||available;$('show-all').hidden=availability.status!=='outside-window';
@@ -147,7 +150,6 @@ function render(){
   if(loaded&&(state.cached||state.busy||state.loadError)){
     const stamp=easternDateTime(state.fetched);
     $('updated').textContent=`Snapshot ${stamp} · ${state.busy?'refreshing…':state.loadError?'refresh failed':'saved'}`;
-    $('coverage-badge').textContent=state.busy?'REFRESHING · SAVED SAMPLE':'SAVED SAMPLE';
   }
 
 }
