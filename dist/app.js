@@ -3,7 +3,7 @@ import {loadListings} from './data.mjs';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=tape-columns-v1';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=depth-v1';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';

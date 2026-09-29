@@ -34,6 +34,13 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
   const chartWidth=Math.max(320,host.clientWidth);
   const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 240`,role:'group','aria-label':'Observed buy and sell volume by interval, and cumulative net buy volume'});
+  const defs=svgEl('defs');
+  for(const [id,colors]of [['flow-buy',['#8cf9d9','#2bdfaa','#159e7b']],['flow-sell',['#ffbacb','#fb7185','#c64266']]]){
+    const gradient=svgEl('linearGradient',{id,x1:0,y1:0,x2:0,y2:1});
+    colors.forEach((color,i)=>gradient.append(svgEl('stop',{offset:`${i*50}%`,'stop-color':color})));
+    defs.append(gradient);
+  }
+  svg.append(defs);
   const label=(text,x,y,anchor='start')=>{const el=svgEl('text',{x,y,'text-anchor':anchor,fill:'#9da9b9','font-size':11});el.textContent=text;svg.append(el)};
   const left=chartWidth<500?54:70,right=chartWidth-(hasMC?(chartWidth<500?68:82):8),width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
   const max=Math.max(...visibleBins.flatMap(b=>[b.buy,b.sell]),1e-8);
@@ -54,10 +61,10 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   for(const value of [...new Set([low,0,high])]){const y=cy(value);svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140','stroke-dasharray':value===0?'4 4':'none'}));if(value!==0||((low===0||Math.abs(cy(0)-cy(low))>16)&&(high===0||Math.abs(cy(0)-cy(high))>16)))label(axisMoney(value),left-10,y+5,'end')}
   let points=`${left},${cy(0)}`;
   visibleBins.forEach((bin,i)=>{points+=` ${left+(i+1)*unit},${cy(bin.cumulative)}`});
-  svg.append(svgEl('polyline',{points,fill:'none',stroke:'#d7f778','stroke-width':2,'vector-effect':'non-scaling-stroke'}));
+  svg.append(svgEl('polyline',{points,fill:'none',stroke:'#d7f778','stroke-width':2,'vector-effect':'non-scaling-stroke',class:'flow-net-line'}));
   visibleBins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,Math.min(18,unit*.34));
-    for(const [side,offset,color]of [['buy',-.5,'#2bdfaa'],['sell',.5,'#fb7185']]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*.5+offset*barWidth,y:bottom-h,width:barWidth,height:h,fill:color}))}
+    for(const [side,offset]of [['buy',-.5],['sell',.5]]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*.5+offset*barWidth,y:bottom-h,width:barWidth,height:h,fill:`url(#flow-${side})`}))}
     const description=`${stamp(bin.start)}–${stamp(bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
     g.setAttribute('aria-label',description);
     const title=svgEl('title');title.textContent=description;g.append(title);
