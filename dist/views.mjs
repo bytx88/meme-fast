@@ -16,6 +16,12 @@ export function renderCoverage(view, state, rows) {
   $('coverage-badge').dataset.partial=String(partial||(!view.loaded&&!state.busy));
   const span=rows.length?` · ${easternRange(rows[rows.length-1].time,rows[0].time)} observed`:'';
   $('coverage-summary').textContent=`${ok}/${view.pools.length} discovered pools loaded · ${rows.length} swap steps${span}`;
+  const percent=view.pools.length?` (${Math.round(ok/view.pools.length*100)}% of discovered pools)`:'';
+  const meaning=`${ok}/${view.pools.length} means ${ok} of ${view.pools.length} discovered pools returned swap data${percent}. ${rows.length} swap steps are included in the selected window. Each pool can return at most 300 recent swaps.${capped?` ${capped} pool${capped===1?'':'s'} reached that limit, so the sample is partial even when every discovered pool loaded.`:''} This does not cover every market trade.${state.cached&&state.busy?' Refreshing: the saved snapshot stays visible until new data arrives.':state.busy?' New pool responses are still loading.':''}${span?' Times are shown in US Eastern time.':''}`;
+  $('coverage-tooltip').textContent=meaning;
+  document.querySelector('.coverage-help summary').title=meaning;
+  $('coverage-badge').title=meaning;
+  $('coverage-summary').title=meaning;
 }
 
 export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=null, combined=false) {

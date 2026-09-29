@@ -22,11 +22,13 @@ test('Unit price comes from the most liquid matching base pool even without MC',
   const price=tokenPriceSnapshot(token,[pool('ABC',null,0.00153,200),pool('ABC',2000,0.002,100)],123);
   assert.equal(price.value,0.00153);assert.equal(price.fetchedAt,123);
 });
-test('Unit price uses three decimals above 0.1 and four significant figures below',()=>{
+test('Unit price uses three decimals above 0.1 and compact four-significant-figure notation below one cent',()=>{
   assert.equal(formatUnitPrice(1.23456),'$1.235');
   assert.equal(formatUnitPrice(0.12345),'$0.123');
-  assert.equal(formatUnitPrice(0.015345),'$0.01535');
-  assert.equal(formatUnitPrice(0.00153),'$0.00153');
-  assert.equal(formatUnitPrice(0.00000012345),'$1.235e-7');
+  assert.equal(formatUnitPrice(0.015345),'$.01535');
+  assert.equal(formatUnitPrice(0.001458),'$.01458 (e-1)');
+  assert.equal(formatUnitPrice(0.00153),'$.0153 (e-1)');
+  assert.equal(formatUnitPrice(0.0001458),'$.01458 (e-2)');
+  assert.equal(formatUnitPrice(0.00000012345),'$.01235 (e-5)');
   assert.equal(formatUnitPrice(null),'—');
 });

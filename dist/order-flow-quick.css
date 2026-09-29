@@ -52,10 +52,12 @@
 .order-flow-page .timeline-legend{gap:12px;margin:6px 0 3px;font-size:11px}
 .order-flow-page #timeline svg{height:auto;min-width:0}
 .order-flow-page .timeline-detail{min-height:0;margin-top:2px;font-size:11px;line-height:1.3}
-.order-flow-page .coverage-card{margin:5px 0 0;padding:5px 9px;border-radius:6px}
+.order-flow-page .coverage-card{position:relative;overflow:visible;margin:5px 0 0;padding:5px 9px;border-radius:6px}
 .order-flow-page .coverage-card>div{gap:7px}
 .order-flow-page .coverage-card strong{font-size:11px}
 .order-flow-page .coverage-card .sample-tag{font-size:9px;padding:2px 5px}
+.order-flow-page .coverage-tooltip{position:absolute;z-index:10;right:4px;bottom:calc(100% + 8px);width:min(390px,calc(100vw - 32px));padding:10px 12px;border:1px solid #64889a;border-radius:9px;background:#132331;color:#ecf8ff;font-size:12px;line-height:1.5;box-shadow:0 12px 24px #000a;visibility:hidden;opacity:0;pointer-events:none}
+.order-flow-page .coverage-help:is(:hover,:focus-within,[open])+.coverage-tooltip{visibility:visible;opacity:1}
 .order-flow-page .empty-notice{margin:5px 0;padding:6px 10px}.order-flow-page .empty-notice p{font-size:11px;line-height:1.3}
 .order-flow-page .flow-context{margin:2px 0 14px;color:var(--muted);font-size:11px}
 .order-flow-page .flow-context summary{cursor:pointer;padding:3px 0}

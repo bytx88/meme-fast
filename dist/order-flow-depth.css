@@ -28,7 +28,7 @@ body.inspect-depth{
 .inspect-depth .order-flow-page .flow-metric:nth-child(2){background:linear-gradient(150deg,#204039,#15282b 70%);border-color:#37766070}
 .inspect-depth .order-flow-page .flow-metric:nth-child(3){background:linear-gradient(150deg,#402b3a,#251e2d 70%);border-color:#80506770}
 .inspect-depth .order-flow-page .flow-price{background:linear-gradient(150deg,#253a44,#172530 70%);border-color:#5d8b9970}
-.inspect-depth .order-flow-page .flow-price strong{color:#b7ebed}
+.inspect-depth .order-flow-page .flow-price strong{color:#b7ebed;font-size:17px;letter-spacing:-.025em}
 .inspect-depth .order-flow-page .flow-metric:last-child{background:linear-gradient(150deg,#263950,#172232 70%)}
 .inspect-depth .order-flow-page .flow-metric:last-child strong{color:#c4dfff}
 .inspect-depth .order-flow-page button,
@@ -45,6 +45,10 @@ body.inspect-depth{
 .inspect-depth .order-flow-page #save-token[aria-pressed=true]{background:linear-gradient(160deg,#334829,#1c2c21);border-color:#718e4c}
 .inspect-depth .order-flow-page .search-area .recent-heading button{background:transparent;box-shadow:none}
 .inspect-depth .order-flow-page .coverage-card{background:linear-gradient(120deg,#1a3027,#15211f);border-color:#476c496e;box-shadow:inset 0 1px #c4e8b10a;border-radius:8px;padding:7px 10px}
+.inspect-depth .order-flow-page .coverage-help{flex:none;margin-left:auto}
+.inspect-depth .order-flow-page .coverage-help summary{display:grid;place-items:center;min-height:20px;width:20px;border:1px solid #789f9a88;border-radius:50%;background:#203b3a;color:#c6eee4;font-size:13px;line-height:1;list-style:none;cursor:pointer}
+.inspect-depth .order-flow-page .coverage-help summary::-webkit-details-marker{display:none}
+.inspect-depth .order-flow-page .coverage-help summary:hover,.inspect-depth .order-flow-page .coverage-help summary:focus{border-color:#b8ddd2;background:#2d5550;outline:2px solid #8fdac3;outline-offset:2px}
 .inspect-depth .order-flow-page .flow-context{margin-top:5px;margin-bottom:16px}
 .inspect-depth .order-flow-page #overview-pane{border-top:1px solid #8ba7bb22;padding-top:8px}
 .inspect-depth .order-flow-page .detail-heading{margin:6px 0 10px;color:#c7d8e8;font-size:13px;letter-spacing:.06em}
