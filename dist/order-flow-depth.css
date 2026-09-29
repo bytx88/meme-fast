@@ -63,7 +63,6 @@ body.inspect-depth{
 .inspect-depth .order-flow-page .timeline-legend{margin-bottom:7px}
 .inspect-depth .dot{box-shadow:0 0 8px currentColor}
 .inspect-depth .dot.buy{color:#2bdfaa}.inspect-depth .dot.sell{color:#fb7185}
-.inspect-depth #timeline .flow-net-line{filter:drop-shadow(0 1px 3px #d7f77835);stroke-linejoin:round}
 .inspect-depth .timeline-detail{color:#b2c4d7}
 .inspect-depth .tape-section{margin-top:20px;padding:18px}
 .inspect-depth .table-wrap thead{background:#101b28}

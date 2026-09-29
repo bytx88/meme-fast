@@ -33,7 +33,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const ns='http://www.w3.org/2000/svg';
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
   const chartWidth=Math.max(320,host.clientWidth);
-  const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 240`,role:'group','aria-label':'Observed buy and sell volume by interval, and cumulative net buy volume'});
+  const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 135`,role:'group','aria-label':'Observed buy and sell volume by interval, with estimated market cap when available'});
   const defs=svgEl('defs');
   for(const [id,colors]of [['flow-buy',['#8cf9d9','#2bdfaa','#159e7b']],['flow-sell',['#ffbacb','#fb7185','#c64266']]]){
     const gradient=svgEl('linearGradient',{id,x1:0,y1:0,x2:0,y2:1});
@@ -55,25 +55,18 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
     let segment=[];const flush=()=>{if(segment.length>1)svg.append(svgEl('polyline',{points:segment.join(' '),fill:'none',stroke:'#7db9ff','stroke-width':2,'vector-effect':'non-scaling-stroke'}));segment=[]};
     caps.forEach((value,i)=>{if(value==null){flush();return}const x=left+(i+.5)*unit,y=capY(value);segment.push(`${x},${y}`);svg.append(svgEl('circle',{cx:x,cy:y,r:2.5,fill:'#7db9ff'}))});flush();
   }
-  const low=Math.min(0,...visibleBins.map(b=>b.cumulative)),high=Math.max(0,...visibleBins.map(b=>b.cumulative)),range=high-low||1;
-  const cy=v=>198-(v-low)/range*54;
-  label('Cumulative net · USD',left,132);
-  for(const value of [...new Set([low,0,high])]){const y=cy(value);svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140','stroke-dasharray':value===0?'4 4':'none'}));if(value!==0||((low===0||Math.abs(cy(0)-cy(low))>16)&&(high===0||Math.abs(cy(0)-cy(high))>16)))label(axisMoney(value),left-10,y+5,'end')}
-  let points=`${left},${cy(0)}`;
-  visibleBins.forEach((bin,i)=>{points+=` ${left+(i+1)*unit},${cy(bin.cumulative)}`});
-  svg.append(svgEl('polyline',{points,fill:'none',stroke:'#d7f778','stroke-width':2,'vector-effect':'non-scaling-stroke',class:'flow-net-line'}));
   visibleBins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,Math.min(18,unit*.34));
     for(const [side,offset]of [['buy',-.5],['sell',.5]]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*.5+offset*barWidth,y:bottom-h,width:barWidth,height:h,fill:`url(#flow-${side})`}))}
     const description=`${stamp(bin.start)}–${stamp(bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
     g.setAttribute('aria-label',description);
     const title=svgEl('title');title.textContent=description;g.append(title);
-    const target=svgEl('rect',{x,y:top,width:unit,height:198-top,fill:'transparent',class:'interval-hit'});g.append(target);
+    const target=svgEl('rect',{x,y:top,width:unit,height:bottom-top,fill:'transparent',class:'interval-hit'});g.append(target);
     g.addEventListener('mouseenter',()=>$('timeline-detail').textContent=description);g.addEventListener('focus',()=>$('timeline-detail').textContent=description);
     g.addEventListener('mouseleave',()=>$('timeline-detail').textContent=defaultDetail);g.addEventListener('blur',()=>$('timeline-detail').textContent=defaultDetail);
     svg.append(g);
   });
-  label(stamp(visibleStart),left,228);label(stamp(visibleStart+(end-visibleStart)/2),left+width/2,228,'middle');label(stamp(end),right,228,'end');
+  label(stamp(visibleStart),left,125);label(stamp(visibleStart+(end-visibleStart)/2),left+width/2,125,'middle');label(stamp(end),right,125,'end');
   host.append(svg);
 }
 
