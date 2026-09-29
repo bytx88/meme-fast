@@ -3,8 +3,8 @@ import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=price-card-v2';
-import {easternDateTime,easternRange} from './eastern-time.mjs';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=chart-info-v1';
+import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
@@ -137,12 +137,12 @@ function render(){
   if(loaded&&!available)$('donut').setAttribute('aria-label','No observed swaps in the selected time window; market flow is unavailable.');
   const max=Math.max(...s.bands.flatMap(b=>[b.buy,b.sell]),Number.EPSILON);$('size-bars').replaceChildren();
   for(const band of s.bands){const row=document.createElement('div');row.className='size-row';for(const side of ['buy','label','sell']){const el=document.createElement('div');if(side==='label'){el.className='size-label';el.textContent=band.name;const small=document.createElement('small');small.textContent=band.label;el.append(small)}else{el.className='size-side';el.textContent=available?money(band[side]):'—';const track=document.createElement('div'),fill=document.createElement('div');track.className='bar-track';fill.className=`bar-fill ${side}`;fill.style.width=`${100*band[side]/max}%`;track.append(fill);el.append(track)}row.append(el)}$('size-bars').append(row)}
-  if(loaded){const ok=view.pools.filter(p=>p.status==='loaded').length,capped=view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length;const span=s.rows.length?` Observed ${easternRange(s.rows[s.rows.length-1].time,s.rows[0].time)}.`:'';$('coverage-text').textContent=`${view.tokens.length} listing${view.tokens.length>1?'s':''} · ${ok} of ${view.pools.length} pools loaded · up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing, ${SAMPLE_LIMITS.tradesPerPool} recent swaps per pool.${span} ${view.missing?`Partial coverage: ${view.missing} listing(s) have missing data. `:''}${capped?`${capped} pool${capped>1?'s':''} reached the ${SAMPLE_LIMITS.tradesPerPool}-swap limit. `:''}Totals cover the returned sample, not the whole market.`;$('updated').textContent=`Updated ${easternDateTime(state.fetched)}`}
-  else{$('coverage-text').textContent='Loading indexed pools for selected listings.';$('updated').textContent='Loading swaps…'}
+  if(loaded){$('updated').textContent=`Updated ${easternDateTime(state.fetched)}`}
+  else{$('updated').textContent='Loading swaps…'}
   $('pool-list').replaceChildren();for(const pool of view.pools){const a=document.createElement('a');a.href=safeUrl(pool.network,pool.address,'pools');a.target='_blank';a.rel='noopener noreferrer';a.textContent=`${pool.name} · ${pool.network} · ${pool.dex}${pool.failed?' · unavailable':''} ↗`;$('pool-list').append(a)}
   $('listing-coverage').hidden=state.tokens.length<2;$('listing-coverage').replaceChildren();for(const token of state.tokens){const result=state.listings.find(l=>l.key===listingKey(token)),a=document.createElement('a');a.href=safeUrl(token.network,token.address);a.target='_blank';a.rel='noopener noreferrer';a.title=token.address;const status=result?.status||'loading';a.className=status==='loaded'?'':'incomplete';const label={loaded:`${result?.successCount} pools loaded`,partial:`${result?.successCount}/${result?.poolCount} pools loaded`,failed:'Data unavailable','no-pools':'No indexed pools',loading:'Loading…'}[status];a.textContent=`${token.symbol} · ${token.network} · ${short(token.address)} — ${label} ↗`;$('listing-coverage').append(a)}
-  if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('coverage-text').textContent='No usable pool data returned for this selection. Missing data is not zero trading.';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
-  if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('coverage-text').textContent='The latest request failed. No market-flow conclusion is available.';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
+  if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
+  if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
   renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);

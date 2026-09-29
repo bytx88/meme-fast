@@ -22,9 +22,10 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
   const {firstShown,bins:visibleBins}=visibleFlowRange(bins),visibleStart=visibleBins[0]?.start??start;
   const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=values.length>0;
-  $('market-cap-value').textContent=combined?'MC · select one listing':valuation?`Latest MC ${money(valuation.value)}`:busy?'Loading MC…':'MC unavailable';
-  $('market-cap-value').title=valuation?`Latest reported snapshot retrieved ${easternDateTime(valuation.fetchedAt)}`:'';
-  $('market-cap-note').textContent=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  const mcNote=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  const info=$('coverage-tooltip');
+  info.textContent+=` ${mcNote} Observed swaps only. Empty intervals do not establish zero market activity. Buy/sell bars and estimated MC use separate scales.`;
+  document.querySelector('.coverage-help summary').title=info.textContent;
   $('mc-legend').hidden=!hasMC;
   $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals · ET`;
   const defaultDetail=rows.length?`${minutes===1440?'24h':minutes===60?'1h':minutes+'m'} selected · ${firstShown>0?'Chart starts near first returned swap at '+easternDateTime(visibleStart)+'; earlier intervals have no returned swaps. ':''}Net ${money(bins.at(-1).cumulative)} · Hover or focus for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';

@@ -46,10 +46,9 @@ body.inspect-depth{
 .inspect-depth .order-flow-page #save-token[aria-pressed=true]{background:linear-gradient(160deg,#334829,#1c2c21);border-color:#718e4c}
 .inspect-depth .order-flow-page .search-area .recent-heading button{background:transparent;box-shadow:none}
 .inspect-depth .order-flow-page .coverage-help{flex:none;margin-left:auto}
-.inspect-depth .order-flow-page .coverage-help summary{display:grid;place-items:center;min-height:20px;width:20px;border:1px solid #789f9a88;border-radius:50%;background:#203b3a;color:#c6eee4;font-size:13px;line-height:1;list-style:none;cursor:pointer}
+.inspect-depth .order-flow-page .coverage-help summary{display:grid;place-items:center;min-height:20px;width:20px;border:1px solid #789f9a88;border-radius:50%;background:#203b3a;color:#c6eee4;font-size:13px;font-weight:700;font-style:normal;line-height:1;list-style:none;cursor:pointer}
 .inspect-depth .order-flow-page .coverage-help summary::-webkit-details-marker{display:none}
 .inspect-depth .order-flow-page .coverage-help summary:hover,.inspect-depth .order-flow-page .coverage-help summary:focus{border-color:#b8ddd2;background:#2d5550;outline:2px solid #8fdac3;outline-offset:2px}
-.inspect-depth .order-flow-page .flow-context{margin-top:5px;margin-bottom:16px}
 .inspect-depth .order-flow-page #overview-pane{border-top:1px solid #8ba7bb22;padding-top:8px}
 .inspect-depth .order-flow-page .detail-heading{margin:6px 0 10px;color:#c7d8e8;font-size:13px;letter-spacing:.06em}
 .inspect-depth .order-flow-page .chart-grid{gap:14px}
