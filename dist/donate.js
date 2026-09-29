@@ -20,7 +20,36 @@ if (header) {
   const disclaimer = document.createElement('span');
   disclaimer.className = 'site-disclaimer';
   disclaimer.textContent = 'Not financial advice, DYOR.';
-  header.querySelector('.site-nav')?.before(disclaimer);
+  const brand = header.querySelector('.brand');
+  const brandGroup = document.createElement('div');
+  brandGroup.className = 'header-brand-group';
+  if (brand) {
+    brand.before(brandGroup);
+    brandGroup.append(brand, disclaimer);
+  }
+  const market = document.createElement('button');
+  market.type = 'button';
+  market.className = 'market-overview';
+  market.setAttribute('aria-haspopup', 'dialog');
+  market.setAttribute('aria-label', 'Market Delta overview. Meme and Alt data unavailable. Open details');
+  market.innerHTML = '<span class="market-overview-title">MARKET DELTA <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span><small>Awaiting data</small></span>';
+  header.querySelector('.site-nav')?.before(market);
+  const marketDialog = document.createElement('dialog');
+  marketDialog.className = 'donate-dialog market-overview-dialog';
+  marketDialog.setAttribute('aria-labelledby', 'market-overview-title');
+  marketDialog.innerHTML = `<div class="donate-heading"><h2 id="market-overview-title">Meme Market Delta</h2><button type="button" aria-label="Close market overview">×</button></div>
+    <p>Market-wide context · shared across all tokens and pages.</p>
+    <div class="market-chart-empty"><strong>Market history is not connected yet</strong><span>Meme Delta and Alt Delta are unavailable.</span></div>
+    <div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme Delta · histogram</span><span><i class="market-alt-key"></i>Alt Delta · line</span></div>
+    <p>Compare the percentage change of a FOMO Most Held meme basket with the broader alt market over the same lookback, centered on zero.</p>
+    <details class="market-method"><summary>Basket and data status</summary><p>Planned basket: 10 eligible tokens, equally weighted and rebalanced every 3 days. The leaderboard source and historical collection still need to be connected. No index values or market direction are available yet.</p></details>`;
+  document.body.append(marketDialog);
+  market.addEventListener('click', () => marketDialog.showModal());
+  marketDialog.querySelector('button').addEventListener('click', () => marketDialog.close());
+  marketDialog.addEventListener('click', event => {
+    const rect = marketDialog.getBoundingClientRect();
+    if (event.target === marketDialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) marketDialog.close();
+  });
 
   const dialog = document.createElement('dialog');
   dialog.className = 'donate-dialog';
