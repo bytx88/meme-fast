@@ -264,13 +264,11 @@ def web():
     @web_app.get("/api/new-coins")
     async def new_coins(request: Request):
         if request.query_params.get("view", "") == "coin":
-            async with history_lock:
-                await history_volume.reload.aio()
-                main = Path("/history/coins.json")
-                projection = Path("/history/coins.snipe.json")
-                if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
-                    return Response(projection.read_bytes(), media_type="application/json",
-                                    headers={"cache-control": "no-store"})
+            main = Path("/history/coins.json")
+            projection = Path("/history/coins.snipe.json")
+            if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
+                return Response(projection.read_bytes(), media_type="application/json",
+                                headers={"cache-control": "no-store"})
         snapshot = await load_snapshot()
         try:
             payload = snapshot_view(snapshot, request.query_params.get("view", ""), request.query_params.getlist("id"), name=request.query_params.get("name", ""))
