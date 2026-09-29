@@ -6,7 +6,7 @@ if (header) {
   const trigger = header.querySelector('.donate-trigger') || document.createElement('button');
   trigger.type = 'button';
   trigger.className = 'donate-trigger';
-  trigger.textContent = '♡ Donate';
+  if (!trigger.isConnected) trigger.textContent = '♡ Donate';
   trigger.setAttribute('aria-label', 'Donate SOL');
   trigger.setAttribute('aria-haspopup', 'dialog');
   const actions = header.querySelector('.header-support') || document.createElement('div');
@@ -15,14 +15,14 @@ if (header) {
   support.className = 'contact-support';
   support.href = 'mailto:microtoken1688@gmail.com';
   support.setAttribute('aria-label', 'Contact support');
-  support.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+  if (!support.querySelector('svg')) support.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
   support.title = 'Email microtoken1688@gmail.com';
   if (!trigger.isConnected) actions.append(trigger);
   if (!support.isConnected) actions.append(support);
   if (!actions.isConnected) header.querySelector('.site-nav')?.append(actions);
   const disclaimer = header.querySelector('.site-disclaimer') || document.createElement('span');
   disclaimer.className = 'site-disclaimer';
-  disclaimer.textContent = 'Not financial advice, DYOR.';
+  if (!disclaimer.isConnected) disclaimer.textContent = 'Not financial advice, DYOR.';
   const brand = header.querySelector('.brand');
   const brandGroup = header.querySelector('.header-brand-group') || document.createElement('div');
   brandGroup.className = 'header-brand-group';
@@ -36,7 +36,7 @@ if (header) {
   market.className = 'market-overview';
   market.setAttribute('aria-haspopup', 'dialog');
   market.setAttribute('aria-label', 'Market Delta overview. Meme and Alt data unavailable. Open details');
-  market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span></span>';
+  if (!market.isConnected) market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span></span>';
   if (!market.isConnected) header.querySelector('.site-nav')?.before(market);
   const marketDialog = document.createElement('dialog');
   marketDialog.className = 'donate-dialog market-overview-dialog';
