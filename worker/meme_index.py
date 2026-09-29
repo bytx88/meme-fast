@@ -11,7 +11,9 @@ from pathlib import Path
 HOUR = 3_600_000
 REBALANCE = 72 * HOUR
 NETWORKS = {1399811149: 'solana', 4663: 'robinhood', 56: 'bsc', 1: 'eth', 8453: 'base'}
-PLATFORMS = {'solana': 'solana', 'bsc': 'binance-smart-chain', 'eth': 'ethereum', 'base': 'base'}
+ALT_EXCLUDE = {'BTC', 'ETH', 'USDT', 'USDC', 'DAI', 'USDE', 'PYUSD', 'FDUSD', 'TUSD',
+               'USDD', 'FRAX', 'USDS', 'USD1', 'RLUSD', 'WBTC', 'WETH', 'STETH',
+               'WSTETH', 'BETH', 'PAXG', 'XAUT'}
 
 
 def number(value):
@@ -24,6 +26,29 @@ def number(value):
 
 def identity(chain, address):
     return chain + ':' + (address if chain == 'solana' else address.lower())
+
+
+def alt_observation(rows, now):
+    """One-hour cap-weighted return of 25 large alts from a bounded 50-row feed."""
+    eligible = []
+    for row in rows:
+        cap = number(row.get('market_cap_usd'))
+        try:
+            change = float(row['percent_change_1h'])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if (row.get('symbol') in ALT_EXCLUDE or not cap or not math.isfinite(change)
+                or change <= -90):
+            continue
+        eligible.append((row, cap, change))
+    selected = sorted(eligible, key=lambda item: int(item[0].get('rank') or 1_000_000))[:25]
+    if len(selected) != 25:
+        raise ValueError('Broad-alt one-hour sample incomplete')
+    current = sum(cap for _, cap, _ in selected)
+    prior = sum(cap / (1 + change / 100) for _, cap, change in selected)
+    return {'value': current, 'hourChange': (current / prior - 1) * 100,
+            'providerAt': now, 'source': 'CoinLore top 25 alts'}
+
 
 
 def candidates(payload, now, max_age=HOUR):
@@ -52,7 +77,6 @@ class Sources:
     def __init__(self):
         import httpx
         self.client = httpx.Client(timeout=12)
-        self.last_gt = 0
 
     def get(self, url, **kwargs):
         response = self.client.get(url, **kwargs)
@@ -67,67 +91,50 @@ class Sources:
         return self.get('https://api.fomoapi.io/v2/leaderboard/tokens/most-held',
                         headers={'authorization': 'Bearer ' + key})
 
-    def quote(self, token, now):
-        chain, address = token['chain'], token['address']
-        quotes = []
-        try:
-            if token.get('priceSource') == 'DexScreener':
-                raise ValueError('Use the basket-selected DexScreener source')
-            time.sleep(max(0, 2.1 - (time.monotonic() - self.last_gt)))
-            self.last_gt = time.monotonic()
-            pools = self.get(f'https://api.geckoterminal.com/api/v2/networks/{chain}/tokens/{address}/pools')['data']
-            for pool in pools:
-                a, rel = pool['attributes'], pool['relationships']
-                for side in ('base', 'quote'):
-                    pool_token = rel[side + '_token']['data']['id'].split('_', 1)[1]
-                    if identity(chain, pool_token) != token['id']:
-                        continue
-                    price, liquidity = number(a.get(side + '_token_price_usd')), number(a.get('reserve_in_usd'))
-                    if price and liquidity and liquidity >= 10_000 and number(a.get('volume_usd', {}).get('h24')):
-                        quotes.append({'price': price, 'liquidity': liquidity, 'source': 'GeckoTerminal', 'at': now})
-        except (ValueError, KeyError, TypeError):
-            pass
-        except Exception:
-            pass
-        if not quotes:
-            try:
-                pairs = self.get(f'https://api.dexscreener.com/latest/dex/tokens/{address}').get('pairs') or []
-                for p in pairs:
-                    if p.get('chainId') != {'eth': 'ethereum'}.get(chain, chain) or identity(chain, p.get('baseToken', {}).get('address', '')) != token['id']:
-                        continue
-                    price, liquidity = number(p.get('priceUsd')), number(p.get('liquidity', {}).get('usd'))
-                    if price and liquidity and liquidity >= 10_000 and number(p.get('volume', {}).get('h24')):
-                        quotes.append({'price': price, 'liquidity': liquidity, 'source': 'DexScreener', 'at': now})
-            except Exception:
-                pass
-        if not quotes:
-            raise ValueError('Liquid exact-contract price unavailable')
-        quote = max(quotes, key=lambda q: q['liquidity'])
-        # Persist the selected provider for this basket period to avoid source switching.
-        platform = PLATFORMS.get(chain)
-        if platform and token.get('priceSource') in (None, 'CoinGecko'):
-            try:
-                data = self.get(f'https://api.coingecko.com/api/v3/simple/token_price/{platform}', params={
-                    'contract_addresses': address, 'vs_currencies': 'usd', 'include_last_updated_at': 'true'})
-                p = data.get(address) or data.get(address.lower()) or {}
-                stamp = (number(p.get('last_updated_at')) or 0) * 1000
-                if number(p.get('usd')) and 0 <= now - stamp <= 15 * 60_000:
-                    quote = {**quote, 'price': float(p['usd']), 'source': 'CoinGecko', 'providerAt': stamp}
-            except Exception:
-                pass
-        if token.get('priceSource') and quote['source'] != token['priceSource']:
-            raise ValueError('Basket price provider unavailable')
-        return quote
+    def quotes(self, tokens, now):
+        """Resolve up to 30 exact contracts with one bounded DexScreener request."""
+        if not tokens or len(tokens) > 30:
+            raise ValueError('Invalid basket quote batch')
+        addresses = ','.join(token['address'] for token in tokens)
+        pairs = self.get('https://api.dexscreener.com/latest/dex/tokens/' + addresses).get('pairs') or []
+        result = {}
+        for token in tokens:
+            chain = {'eth': 'ethereum'}.get(token['chain'], token['chain'])
+            candidates = []
+            for pair in pairs:
+                base = pair.get('baseToken') or {}
+                if pair.get('chainId') != chain or identity(token['chain'], base.get('address', '')) != token['id']:
+                    continue
+                price = number(pair.get('priceUsd'))
+                liquidity = number((pair.get('liquidity') or {}).get('usd'))
+                volume = number((pair.get('volume') or {}).get('h24'))
+                change = (pair.get('priceChange') or {}).get('h1')
+                try:
+                    change = float(change)
+                except (TypeError, ValueError):
+                    continue
+                if price and liquidity and liquidity >= 10_000 and volume and math.isfinite(change) and change > -90:
+                    candidates.append({'price': price, 'liquidity': liquidity, 'source': 'DexScreener',
+                                       'h1': change, 'at': now})
+            if candidates:
+                result[token['id']] = max(candidates, key=lambda q: q['liquidity'])
+        return result
 
     def alt(self, now):
-        data = self.get('https://api.coingecko.com/api/v3/global')['data']
-        stamp = float(data['updated_at']) * 1000
-        total = number(data['total_market_cap']['usd'])
-        shares = data['market_cap_percentage']
-        btc, eth = float(shares['btc']), float(shares['eth'])
-        if not total or not 0 <= now - stamp <= 15 * 60_000 or not (0 < btc + eth < 100):
-            raise ValueError('Fresh broad-alt market cap unavailable')
-        return {'value': total * (1 - (btc + eth) / 100), 'providerAt': stamp}
+        data = self.get('https://api.coinlore.net/api/tickers/', params={'start': 0, 'limit': 50})
+        return alt_observation(data['data'], now)
+
+
+def record_reading(report, now, quotes, alt):
+    changes = [quotes[token['id']].get('h1') for token in report['basket']]
+    if any(value is None or not math.isfinite(value) or value <= -90 for value in changes):
+        raise ValueError('One-hour meme price change unavailable')
+    report.setdefault('readings', []).append({'at': now,
+        'meme': sum(changes) / 10, 'altDelta': alt['hourChange']})
+    report['readings'] = [row for row in report['readings'] if now - row['at'] <= 30 * 24 * HOUR]
+    report['readingAt'] = now
+    report['altMethod'] = alt['source']
+
 
 
 def advance(report, now, quotes, alt):
@@ -168,14 +175,24 @@ def collect(path, sources=None, now=None, checkpoint_commit=None):
     cache = {}
     def quote(token):
         if token['id'] not in cache:
-            cache[token['id']] = sources.quote(token, now)
+            raise ValueError('Liquid exact-contract 1h quote unavailable')
         return cache[token['id']]
     try:
         alt = sources.alt(now)
         if report['basket']:
+            cache.update(sources.quotes(report['basket'], now))
             for token in report['basket']:
                 quote(token)
+            if report.get('altMethod') != 'CoinLore top 25 alts':
+                report['samples'] = []
+            if any(token.get('priceSource') != 'DexScreener' for token in report['basket']):
+                # Preserve the level while switching the hidden index to one batch price source.
+                if report.get('previous'):
+                    report['previous']['prices'] = {t['id']: cache[t['id']]['price'] for t in report['basket']}
+                for token in report['basket']:
+                    token['priceSource'] = 'DexScreener'
             advance(report, now, cache, alt)
+            record_reading(report, now, cache, alt)
         due = not report['basket'] or now - report.get('rebalancedAt', 0) >= REBALANCE
         if due:
             if now - report.get('boardAttemptAt', 0) >= REBALANCE:
@@ -192,6 +209,7 @@ def collect(path, sources=None, now=None, checkpoint_commit=None):
             if not report.get('boardCache'):
                 raise ValueError('Leaderboard unavailable; next FOMO attempt in 3 days')
             choices = candidates(report['boardCache'], now, REBALANCE)
+            cache.update(sources.quotes(choices[:25], now))
             chosen = []
             for token in choices:
                 try:
@@ -210,6 +228,7 @@ def collect(path, sources=None, now=None, checkpoint_commit=None):
                 report['previous']['prices'] = {t['id']: cache[t['id']]['price'] for t in chosen}
             else:
                 advance(report, now, cache, alt)
+                record_reading(report, now, cache, alt)
             report['quotes'] = {t['id']: cache[t['id']] for t in chosen}
         report['error'] = None
     except Exception as exc:
@@ -224,7 +243,7 @@ def collect(path, sources=None, now=None, checkpoint_commit=None):
 
 def public_report(report):
     return {k: report[k] for k in ('version', 'basket', 'samples', 'updatedAt', 'attemptedAt',
-            'rebalancedAt', 'error', 'quotes', 'altProviderAt') if k in report}
+            'rebalancedAt', 'error', 'quotes', 'altProviderAt', 'altMethod', 'readings', 'readingAt') if k in report}
 
 
 if __name__ == '__main__':

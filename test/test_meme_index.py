@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from datetime import datetime, timezone
-from worker.meme_index import HOUR, REBALANCE, advance, candidates, collect, public_report
+from worker.meme_index import HOUR, REBALANCE, advance, alt_observation, candidates, collect, public_report, record_reading
 
 
 def board(now, offset=0):
@@ -28,16 +28,39 @@ class FakeSources:
             raise ValueError('FOMO unavailable')
         return board(self.now, self.calls * 100)
 
-    def quote(self, token, now):
+    def quotes(self, tokens, now):
         if self.missing:
-            raise ValueError('Missing quote')
-        return {'price': self.price, 'liquidity': 20000, 'source': 'GeckoTerminal', 'at': now}
+            return {}
+        return {token['id']: {'price': self.price, 'liquidity': 20000,
+                'source': 'DexScreener', 'h1': 2.0, 'at': now} for token in tokens}
 
-    def alt(self, now):
-        return {'value': 1000, 'providerAt': now}
+    def alt(self, now, basket=None):
+        return {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts'}
 
 
 class IndexTests(unittest.TestCase):
+    def test_one_hour_reading_uses_current_provider_change(self):
+        now = 2_000_000_000_000
+        basket = candidates(board(now), now)
+        report = {'basket': basket}
+        quotes = {t['id']: {'price': 10, 'h1': 2.0} for t in basket}
+        alt = {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts'}
+        record_reading(report, now, quotes, alt)
+        self.assertEqual(report['readings'][0]['meme'], 2)
+        self.assertEqual(report['readings'][0]['altDelta'], 1)
+        self.assertEqual(report['readingAt'], now)
+
+    def test_broad_alt_sample_excludes_btc_eth_and_stables(self):
+        now = 2_000_000_000_000
+        rows = [{'id': str(i), 'rank': i, 'symbol': 'USDT' if i == 0 else str(i),
+                 'market_cap_usd': '100', 'percent_change_1h': '2'} for i in range(26)]
+        alt = alt_observation(rows, now)
+        self.assertEqual(alt['value'], 2500)
+        self.assertAlmostEqual(alt['hourChange'], 2)
+        rows.pop()
+        with self.assertRaises(ValueError):
+            alt_observation(rows, now)
+
     def test_initial_seed_reuses_authenticated_response_without_fomo_request(self):
         now = int(datetime(2026, 9, 29, 15, tzinfo=timezone.utc).timestamp() * 1000)
         source = FakeSources(now)

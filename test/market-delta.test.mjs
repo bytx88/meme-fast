@@ -1,15 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {deltaRows,chart,HOUR} from '../dist/market-delta.mjs';
-test('Market ROC uses matching historical periods and never invents startup history',()=>{
- const rows=deltaRows([{at:HOUR,index:100,alt:1000},{at:2*HOUR,index:110,alt:950}],1);
- assert.equal(rows[0].meme,null);
- assert.ok(Math.abs(rows[1].meme-10)<1e-9);
- assert.ok(Math.abs(rows[1].altDelta+5)<1e-9);
- assert.match(chart(rows),/centered on zero/);
+import {chart} from '../dist/market-delta.mjs';
+test('A single complete 1h reading renders immediately on a zero-centered chart',()=>{
+ assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Meme \+2\.50%/);
+ assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Alt -1\.25%/);
+ assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/y1="100" y2="100"/);
 });
-test('An old baseline outside tolerance cannot become a shorter horizon return',()=>{
- const rows=deltaRows([{at:HOUR,index:100,alt:1000},{at:3*HOUR,index:110,alt:950}],1);
- assert.equal(rows[1].meme,null);
- assert.match(chart(rows),/Building history/);
+test('Missing or invalid readings do not invent a direction',()=>{
+ assert.match(chart([]),/Awaiting a 1H reading/);
+ assert.match(chart([{at:2000000000000,meme:null,altDelta:2}]),/Awaiting a 1H reading/);
 });
