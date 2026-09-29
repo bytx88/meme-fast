@@ -1,10 +1,11 @@
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD,SAMPLE_LIMITS} from './core.mjs';
-import {loadListings} from './data.mjs';
+import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=eastern-time-v1';
 import {easternDateTime,easternRange} from './eastern-time.mjs';
+import {formatUnitPrice} from './unit-price.mjs';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
 import {createRecentContracts,isContractAddress} from './recent-contracts.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
@@ -115,7 +116,12 @@ function render(){
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
   $('quick-net').textContent=available?money(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
   $('quick-buy').textContent=available?money(s.buy):'—';$('quick-sell').textContent=available?money(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';
-  const mc=view.tokens.length===1?view.listings[0]?.marketCap:null;$('quick-mc').textContent=mc?compact(mc.value):'—';$('quick-mc').title=mc?`Latest reported MC · ${money(mc.value)} · retrieved ${easternDateTime(mc.fetchedAt)}`:'Market cap unavailable for this listing';
+  const single=view.tokens.length===1,mc=single?view.listings[0]?.marketCap:null,reportedPrice=single?view.listings[0]?.price:null;
+  const lastTrade=single?view.trades.reduce((latest,trade)=>Number.isFinite(trade.price)&&trade.price>0&&(!latest||trade.time>latest.time)?trade:latest,null):null;
+  const unitPrice=reportedPrice?.value??mc?.price??lastTrade?.price;
+  $('quick-price').textContent=formatUnitPrice(unitPrice);
+  $('quick-price').title=!single?'Select one listing to see its unit price':reportedPrice?`Reported price for 1 token · ${formatUnitPrice(reportedPrice.value)} · retrieved ${easternDateTime(reportedPrice.fetchedAt)}`:mc?.price?`Reported price for 1 token · ${formatUnitPrice(mc.price)} · retrieved ${easternDateTime(mc.fetchedAt)}`:lastTrade?`Latest observed swap price for 1 token · ${formatUnitPrice(lastTrade.price)} · ${easternDateTime(lastTrade.time)}`:'Unit price unavailable for this listing';
+  $('quick-mc').textContent=mc?compact(mc.value):'—';$('quick-mc').title=mc?`Latest reported MC · ${money(mc.value)} · retrieved ${easternDateTime(mc.fetchedAt)}`:'Market cap unavailable for this listing';
   $('empty-notice').hidden=!loaded||available;$('show-all').hidden=availability.status!=='outside-window';
   $('empty-title').textContent=availability.status==='outside-window'?'No swaps in this window':'No usable swaps returned';
   $('empty-detail').textContent=availability.lastTrade?`The feed returned ${availability.totalReturned} swaps in the past 24 hours. Latest: ${easternDateTime(availability.lastTrade.time)}. None is inside this window. This does not establish that the whole market was inactive.`:`The feed has no usable recent swaps for these pools. Market flow is unavailable; this is not evidence of zero trading.${state.skipped?` ${state.skipped} records could not be classified.`:''}`;

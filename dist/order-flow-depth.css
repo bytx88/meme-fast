@@ -27,6 +27,8 @@ body.inspect-depth{
 .inspect-depth .order-flow-page .flow-metric strong{font-size:21px;letter-spacing:-.045em;text-shadow:0 2px 3px #0005}
 .inspect-depth .order-flow-page .flow-metric:nth-child(2){background:linear-gradient(150deg,#204039,#15282b 70%);border-color:#37766070}
 .inspect-depth .order-flow-page .flow-metric:nth-child(3){background:linear-gradient(150deg,#402b3a,#251e2d 70%);border-color:#80506770}
+.inspect-depth .order-flow-page .flow-price{background:linear-gradient(150deg,#253a44,#172530 70%);border-color:#5d8b9970}
+.inspect-depth .order-flow-page .flow-price strong{color:#b7ebed}
 .inspect-depth .order-flow-page .flow-metric:last-child{background:linear-gradient(150deg,#263950,#172232 70%)}
 .inspect-depth .order-flow-page .flow-metric:last-child strong{color:#c4dfff}
 .inspect-depth .order-flow-page button,
@@ -76,7 +78,6 @@ body.inspect-depth{
 @media(max-width:1000px){.inspect-depth .order-flow-page .flow-metric strong{font-size:18px}}
 @media(max-width:720px){
   .inspect-depth .order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .inspect-depth .order-flow-page .flow-metric:last-child{grid-column:span 2}
 }
 @media(max-width:580px){
   .inspect-depth .order-flow-page .flow-summary{gap:6px}

@@ -37,7 +37,7 @@
 .order-flow-page .order-flow-toolbar{min-height:28px;margin:3px 0 5px}
 .order-flow-page .order-flow-toolbar .refresh-group button{min-height:28px;padding:4px 8px;font-size:11px}
 .order-flow-page .order-flow-toolbar .periods button{min-height:24px;padding:2px 9px}
-.order-flow-page .flow-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--line)}
+.order-flow-page .flow-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--line)}
 .order-flow-page .flow-metric{display:flex;flex-direction:column;justify-content:center;gap:1px;min-width:0;padding:7px 11px;background:var(--panel);font-variant-numeric:tabular-nums}
 .order-flow-page .flow-metric span{font-size:10px;color:var(--muted)}
 .order-flow-page .flow-metric strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Space Grotesk',sans-serif;font-size:19px;line-height:1.1;font-weight:600;letter-spacing:-.03em}
@@ -91,7 +91,8 @@
 }
 @media(max-width:1000px){.order-flow-page.token-loaded .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}.order-flow-page .token-row{min-height:46px;flex-wrap:wrap;align-items:center}.order-flow-page .identity{flex:1}.order-flow-page .token-row>.listing-actions{width:auto;margin-left:0}.order-flow-page .flow-metric strong{font-size:16px}}
 @media(max-width:720px){.order-flow-page .masthead{align-items:stretch}.order-flow-page .site-nav{min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}.order-flow-page .site-nav a{flex:none;padding:7px 8px;font-size:12px}.order-flow-page .token-row>.listing-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.order-flow-page .token-row>.listing-actions>*{justify-content:center;text-align:center}}
-@media(max-width:580px){.order-flow-page.token-loaded .search-area form{width:100%}.order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.order-flow-page .flow-metric:last-child{grid-column:span 2}.order-flow-page .flow-metric strong{font-size:14px}.order-flow-page .timeline-meta{gap:5px}.order-flow-page .timeline-legend{gap:5px 9px}.order-flow-page .flow-metric{padding:6px 8px}.order-flow-page .coverage-card strong{font-size:10px}}
+@media(max-width:580px){.order-flow-page.token-loaded .search-area form{width:100%}.order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.order-flow-page .flow-metric strong{font-size:14px}.order-flow-page .timeline-meta{gap:5px}.order-flow-page .timeline-legend{gap:5px 9px}.order-flow-page .flow-metric{padding:6px 8px}.order-flow-page .coverage-card strong{font-size:10px}}
+@media(max-width:420px){.order-flow-page .flow-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1000px){
  .order-flow-page .trade-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
  .order-flow-page .trade-filters label{min-width:0}

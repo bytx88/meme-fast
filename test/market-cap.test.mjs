@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {marketCapSnapshot,marketCapTimeline} from '../dist/market-cap.mjs';
+import {marketCapSnapshot,marketCapTimeline,tokenPriceSnapshot} from '../dist/market-cap.mjs';
+import {formatUnitPrice} from '../dist/unit-price.mjs';
 const token={network:'solana',address:'ABC'};
 const pool=(base,cap,price,liquidity=100)=>({attributes:{market_cap_usd:cap,base_token_price_usd:price,reserve_in_usd:liquidity,fdv_usd:999999},relationships:{base_token:{data:{id:'solana_'+base}},quote_token:{data:{id:'solana_ABC'}}}});
 test('MC uses the selected base token, skips unknown valuations and never substitutes FDV',()=>{
@@ -15,4 +16,17 @@ test('Estimated MC uses latest observed price per bin, preserves gaps and exclud
   const bins=[{start:0,end:10},{start:10,end:20},{start:20,end:30}];
   assert.deepEqual(marketCapTimeline(rows,bins,snapshot),[3000,null,4000]);
   assert.deepEqual(marketCapTimeline(rows,bins,{...snapshot,price:null}),[null,null,null]);
+});
+test('Unit price comes from the most liquid matching base pool even without MC',()=>{
+  assert.equal(tokenPriceSnapshot(token,[pool('OTHER',100,5)]),null);
+  const price=tokenPriceSnapshot(token,[pool('ABC',null,0.00153,200),pool('ABC',2000,0.002,100)],123);
+  assert.equal(price.value,0.00153);assert.equal(price.fetchedAt,123);
+});
+test('Unit price uses three decimals above 0.1 and four significant figures below',()=>{
+  assert.equal(formatUnitPrice(1.23456),'$1.235');
+  assert.equal(formatUnitPrice(0.12345),'$0.123');
+  assert.equal(formatUnitPrice(0.015345),'$0.01535');
+  assert.equal(formatUnitPrice(0.00153),'$0.00153');
+  assert.equal(formatUnitPrice(0.00000012345),'$1.235e-7');
+  assert.equal(formatUnitPrice(null),'—');
 });
