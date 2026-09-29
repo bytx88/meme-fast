@@ -7,7 +7,15 @@ if (header) {
   trigger.className = 'donate-trigger';
   trigger.textContent = '♡ Donate SOL';
   trigger.setAttribute('aria-haspopup', 'dialog');
-  header.querySelector('.brand')?.after(trigger);
+  const actions = document.createElement('div');
+  actions.className = 'header-support';
+  const support = document.createElement('a');
+  support.className = 'contact-support';
+  support.href = 'mailto:microtoken1688@gmail.com';
+  support.textContent = 'Contact support';
+  support.title = 'Email microtoken1688@gmail.com';
+  actions.append(trigger, support);
+  header.querySelector('.brand')?.after(actions);
 
   const dialog = document.createElement('dialog');
   dialog.className = 'donate-dialog';
