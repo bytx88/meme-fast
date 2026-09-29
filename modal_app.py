@@ -285,6 +285,7 @@ def web():
         return JSONResponse({"network": "robinhood", "query": query, "pools": pools, "total": len(pools)}, headers={"cache-control": "no-store"})
     dist = Path(REMOTE_DIST)
     allowed_types = {
+        ".svg": "image/svg+xml",
         ".html": "text/html; charset=utf-8",
         ".css": "text/css; charset=utf-8",
         ".js": "text/javascript; charset=utf-8",

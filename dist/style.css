@@ -64,3 +64,9 @@ body:has(dialog:modal) .page-scroll-rail{visibility:hidden}
 .market-health{font-size:12px;line-height:1.6;color:#b9c7d5;margin:12px 0;padding:10px 12px;border:1px solid #34404b;border-radius:8px;background:#131b24}.radar-score-label{font-size:10px}
 
 .watch-thumb-stack .watch-market-age{white-space:normal;max-width:64px;line-height:1.3;text-align:center}
+
+/* One sculpted ring mark for the header and browser icon. */
+.brand{gap:10px;letter-spacing:.035em;text-shadow:0 2px 2px #0006}
+.brand:hover{text-decoration:none}
+.brand-mark{display:inline-block;flex:none;width:30px;height:30px;border-radius:8px;background:url('./brand-mark.svg?v=1') center/contain no-repeat;box-shadow:0 3px 6px #0006}
+.brand-mark:after{display:none}

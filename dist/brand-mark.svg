@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="tile" x2=".8" y2="1"><stop stop-color="#263e46"/><stop offset="1" stop-color="#0b131d"/></linearGradient>
+    <linearGradient id="mint" x1=".15" y1="0" x2=".8" y2="1"><stop stop-color="#d0fff0"/><stop offset=".32" stop-color="#66efc8"/><stop offset=".7" stop-color="#20d7a1"/><stop offset="1" stop-color="#119274"/></linearGradient>
+    <linearGradient id="rose" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffd8e0"/><stop offset=".4" stop-color="#ff809b"/><stop offset="1" stop-color="#d93e68"/></linearGradient>
+    <linearGradient id="rim" x2=".5" y2="1"><stop stop-color="#b4e4d5" stop-opacity=".6"/><stop offset="1" stop-color="#4e7b81" stop-opacity=".15"/></linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="url(#tile)" stroke="url(#rim)" stroke-width="2"/>
+  <circle cx="32" cy="35" r="19" fill="none" stroke="#041411" stroke-width="11"/>
+  <path d="M32 15a19 19 0 1 1-15.37 30.17" fill="none" stroke="#08705a" stroke-width="10"/>
+  <path d="M16.63 45.17A19 19 0 0 1 32 15" fill="none" stroke="#8d2b49" stroke-width="10"/>
+  <path d="M32 11a19 19 0 1 1-15.37 30.17" fill="none" stroke="url(#mint)" stroke-width="10"/>
+  <path d="M16.63 41.17A19 19 0 0 1 32 11" fill="none" stroke="url(#rose)" stroke-width="10"/>
+  <path d="M10.5 24A22.5 22.5 0 0 1 39 8.6" fill="none" stroke="#fff" stroke-opacity=".46" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M18.5 33a14 14 0 0 0 24 7" fill="none" stroke="#061411" stroke-opacity=".5" stroke-width="1.5"/>
+</svg>

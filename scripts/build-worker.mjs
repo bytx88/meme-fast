@@ -3,7 +3,7 @@ import {readFile,writeFile,readdir,mkdir} from 'node:fs/promises';
 const assets={};
 for(const entry of await readdir('dist',{withFileTypes:true})){
   if(!entry.isFile())continue;
-  const ext=entry.name.split('.').at(-1),type={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',mjs:'text/javascript; charset=utf-8'}[ext];
+  const ext=entry.name.split('.').at(-1),type={svg:'image/svg+xml',html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',mjs:'text/javascript; charset=utf-8'}[ext];
   if(!type)throw new Error('Unsupported asset: '+entry.name);
   assets['/'+entry.name]={type,body:await readFile('dist/'+entry.name,'utf8')};
 }
