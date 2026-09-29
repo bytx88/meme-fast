@@ -22,7 +22,7 @@ function renderRecentContracts(){
   for(const [index,item]of entries.entries()){
     const button=document.createElement('button');button.type='button';button.className='recent-contract';button.title=item.address;
     button.setAttribute('aria-label',`Search ${item.symbol?item.symbol+' ':''}${item.address}${index===0?' · local default':''}`);
-    const name=document.createElement('span');name.textContent=item.name||item.symbol||'Unknown token';button.append(name);
+    const name=document.createElement('span');name.textContent=item.name||item.symbol||(canonical(item.address)===DEFAULT_ADDRESS?'Cashed Money':short(item.address));button.append(name);
     if(index===0){const badge=document.createElement('small');badge.textContent='Default';button.append(badge)}
     button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
   }
