@@ -223,13 +223,16 @@ def web():
 
     @web_app.get("/api/meme-index")
     async def meme_index():
-        from worker.meme_index import public_report
         async with history_lock:
             await history_volume.reload.aio()
             try:
-                report = public_report(json.loads(Path("/history/meme-index.json").read_text()))
+                saved = json.loads(Path("/history/meme-index.json").read_text())
+                fields = ("version", "basket", "samples", "readings", "readingAt", "updatedAt",
+                          "attemptedAt", "rebalancedAt", "error", "quotes", "altProviderAt", "altMethod")
+                report = {field: saved[field] for field in fields if field in saved}
             except (FileNotFoundError, ValueError):
-                report = {"version": 1, "basket": [], "samples": [], "error": "Awaiting first collection"}
+                report = {"version": 1, "basket": [], "samples": [], "readings": [],
+                          "error": "Awaiting first collection"}
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/jeanphil-monitor")
