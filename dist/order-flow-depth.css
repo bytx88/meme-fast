@@ -113,3 +113,20 @@ body.inspect-depth{
 .mc-table-wrap{overflow-x:auto}
 .mc-detail-panel .mc-table-wrap table{table-layout:auto}
 .mc-detail-panel .chart-note{margin-top:12px}
+
+/* Keep chart furniture in the header; details appear only on interaction. */
+.inspect-depth .order-flow-page .timeline-panel{position:relative}
+.inspect-depth .order-flow-page .timeline-panel .panel-heading{align-items:center;flex-wrap:nowrap;gap:8px}
+.inspect-depth .order-flow-page .timeline-panel .panel-heading h3{flex:none}
+.inspect-depth .order-flow-page .timeline-meta{margin-left:auto;gap:8px;min-width:0}
+.inspect-depth .order-flow-page .timeline-legend{justify-content:flex-end;gap:5px 10px;margin:0;font-size:10px;line-height:1.2}
+.inspect-depth .timeline-legend>span{white-space:nowrap}
+.inspect-depth .timeline-legend .dot{width:6px;height:6px;margin-right:4px;box-shadow:none}
+.inspect-depth .order-flow-page .timeline-detail{position:absolute;z-index:9;right:16px;top:43px;max-width:min(460px,calc(100% - 32px));margin:0;padding:7px 9px;border:1px solid #43576e;border-radius:6px;background:#132331f5;font-size:10px;line-height:1.4;pointer-events:none;box-shadow:0 4px 12px #0006}
+.inspect-depth .order-flow-page .timeline-detail:empty{display:none}
+.inspect-depth .order-flow-page .coverage-tooltip{top:42px;bottom:auto;font-size:11px}
+.inspect-depth .order-flow-page .coverage-help summary{width:16px;min-height:16px;font-size:10px}
+
+.inspect-depth .order-flow-page .breakdown-tabs{gap:4px;margin:0 0 8px}
+.inspect-depth .order-flow-page .breakdown-tabs button{min-height:24px;padding:3px 9px;border-radius:4px;font-size:11px;line-height:16px;box-shadow:none}
+.inspect-depth .order-flow-page #overview-pane>.detail-heading{margin-bottom:6px;font-size:11px}

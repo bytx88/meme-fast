@@ -27,8 +27,9 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   info.textContent+=` ${mcNote} Observed swaps only. Empty intervals do not establish zero market activity. Buy/sell bars and estimated MC use separate scales.`;
   document.querySelector('.coverage-help summary').title=info.textContent;
   $('mc-legend').hidden=!hasMC;
-  $('timeline-interval').textContent=`${stepMinutes===1?'1-minute':'1-hour'} intervals · ET`;
-  const defaultDetail=rows.length?`${minutes===1440?'24h':minutes===60?'1h':minutes+'m'} selected · ${firstShown>0?'Chart starts near first returned swap at '+easternDateTime(visibleStart)+'; earlier intervals have no returned swaps. ':''}Net ${money(bins.at(-1).cumulative)} · Hover or focus for details.`:loaded?'No observed swaps in this window.':busy?'Waiting for pool data.':'Swap data unavailable. Refresh to try again.';
+  info.textContent+=` Times are ET; bars use ${stepMinutes===1?'one-minute':'one-hour'} intervals.${firstShown>0?' Chart starts near the first returned swap; earlier intervals have no returned swaps.':''}`;
+  document.querySelector('.coverage-help summary').title=info.textContent;
+  const defaultDetail='';
   $('timeline-detail').textContent=defaultDetail;
   if(!rows.length){host.append(make('div',loaded?'No observed swaps to chart':busy?'Loading the flow timeline…':'Flow timeline unavailable','timeline-empty'));return}
   const ns='http://www.w3.org/2000/svg';
