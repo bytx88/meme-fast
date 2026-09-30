@@ -154,10 +154,9 @@ function render(){
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
   const historical=state.minutes===7200&&single;
-  $('timeline-pane').classList.toggle('historical-chart',historical);
   const legend=document.querySelector('.timeline-legend');
   if(historical){
-    legend.textContent='Estimated MC · Total volume';
+    legend.innerHTML='<span><i class="dot" style="background:#b6a1ff"></i>Total volume</span><span class="mc-value"><i class="mc-key" aria-hidden="true"></i>Est. market cap</span>';
     const history=state.busy&&!view.pools.length?null:candleHistory.read(view.tokens[0],view.pools[0]);
     renderCandleHistory(history,mc);
     renderMCDetail(s.rows,mc,false,loaded,state.busy,history);
