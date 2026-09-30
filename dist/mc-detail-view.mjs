@@ -28,7 +28,7 @@ export function setupMCDetail(){
       const max=Math.max(...data.tiers.map(t=>t.volume),1);
       for(const tier of data.tiers){
         const row=document.createElement('tr'),label=cell('th',`${cap(tier.low)}–<${cap(tier.high)}`);label.scope='row';row.append(label);
-        for(const key of ['net','buy','sell']){const td=cell('td','—');td.className='numeric mc-'+key;td.title='Buy/sell split unavailable from candles';row.append(td)}
+        for(const key of ['net','buy','sell']){const td=cell('td','—');td.className='numeric mc-'+key+' mc-unavailable';td.title='Buy/sell split unavailable from candles';row.append(td)}
         const read=cell('td',metric!=='value'?(metric==='count'?'Trade count unavailable':'Average per swap unavailable'):tier.count?`Total ${formatUSD(tier.volume)}`:'Range touched · total unknown');
         if(metric==='value'&&tier.count){read.style.backgroundColor=`rgba(125,185,255,${.05+.25*tier.volume/max})`;read.title='Estimated total USD volume assigned by candle close; buy/sell split unknown'}
         row.append(read);host.append(row);

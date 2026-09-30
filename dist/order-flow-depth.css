@@ -102,6 +102,7 @@ body.inspect-depth{
 .mc-detail-panel table{width:100%;min-width:620px}
 .mc-detail-panel tbody th{text-align:left;font-weight:600;white-space:nowrap;padding:12px}
 .mc-detail-panel .mc-net{font-weight:750;color:#f5f9ff}
+.mc-detail-panel .mc-net.mc-unavailable{background-color:rgba(148,163,184,.16);color:#cbd5e1}
 .mc-detail-panel td.numeric{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mc-detail-panel td:last-child{color:#b2c4d7;font-size:12px}
 .mc-method{margin-bottom:0;max-width:100ch}
