@@ -37,8 +37,11 @@ class MarketProxy:
                 return response.status_code, json.dumps({"error": f"The swap provider returned HTTP {response.status_code}."}).encode(), {}
             payload = response.json()
             is_info = path.split("?", 1)[0].endswith("/info")
-            if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict if is_info else list):
+            is_candles = "/ohlcv/" in path
+            if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict if is_info or is_candles else list):
                 raise ValueError("Invalid market response")
+            if is_candles and not isinstance(payload["data"].get("attributes", {}).get("ohlcv_list"), list):
+                raise ValueError("Invalid candle response")
             ttl = 900 if is_info else 30 if path.endswith("/trades") else 60 if path.startswith("/search/") else 300
             self.cache[path] = (self.clock() + ttl, response.content)
             self.cache.move_to_end(path)

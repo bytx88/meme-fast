@@ -14,11 +14,15 @@ import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
 import {createFlowCache} from './flow-cache.mjs';
 import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
+import {createCandleHistory} from './candle-history.mjs';
+import {renderCandleHistory} from './candle-view.mjs';
 const flowCache=createFlowCache();
 const flowHistory=createFlowHistory();
 const renderTape=setupTape();
 const renderMCDetail=setupMCDetail();
 const $=id=>document.getElementById(id),api=createRequestClient();
+const candleHistory=createCandleHistory(path=>api(path,{priority:-2}),()=>render());
+const originalLegend=document.querySelector('.timeline-legend').innerHTML;
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
 const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
@@ -133,6 +137,7 @@ function render(){
   $('empty-detail').textContent=availability.lastTrade?`The feed returned ${availability.totalReturned} swaps in the past 24 hours. Latest: ${easternDateTime(availability.lastTrade.time)}. None is inside this window. This does not establish that the whole market was inactive.`:`The feed has no usable recent swaps for these pools. Market flow is unavailable; this is not evidence of zero trading.${state.skipped?` ${state.skipped} records could not be classified.`:''}`;
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
   $('window-coverage').hidden=state.minutes!==7200;
+  $('window-coverage').textContent='5D candle history · buy/sell figures are observed swaps only';
   $('net-label').textContent=s.net<0?'Net sell volume':'Net buy volume';$('net-value').textContent=loaded?(Math.abs(s.net)>=100000?compact(Math.abs(s.net)):money(Math.abs(s.net))):'—';$('net-value').title=loaded?money(Math.abs(s.net)):'';$('swap-count').textContent=loaded?`${s.rows.length.toLocaleString()} observed swaps`:'Fetching actual swaps';
   $('net-value').dataset.empty=String(loaded&&!available);if(loaded&&!available){$('net-label').textContent='Selected window';$('net-value').textContent='No swaps';$('net-value').title='No observed trades from which to calculate flow';$('swap-count').textContent=availability.totalReturned?`${availability.totalReturned} returned across 24h`:'Feed has no usable data'}
   $('buy-value').textContent=available?money(s.buy):'—';$('sell-value').textContent=available?money(s.sell):'—';
@@ -149,7 +154,20 @@ function render(){
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderMCDetail(s.rows,mc,!single,loaded,state.busy);
   renderCoverage(view,state,s.rows);
-  renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
+  const historical=state.minutes===7200&&single;
+  $('timeline-pane').classList.toggle('historical-chart',historical);
+  $('historical-detail').hidden=!historical;
+  const legend=document.querySelector('.timeline-legend');
+  if(historical){
+    legend.textContent='Estimated MC · Total volume';
+    const history=state.busy&&!view.pools.length?null:candleHistory.read(view.tokens[0],view.pools[0]);
+    renderCandleHistory(history,mc);
+  }else{
+    if(!document.getElementById('mc-legend'))legend.innerHTML=originalLegend;
+    $('timeline-title').textContent='Flow trend';
+    renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
+    if(state.minutes===7200)$('window-coverage').textContent='Select one listing for candle history · combined flow is observed swaps only';
+  }
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
   if(loaded&&(state.cached||state.busy||state.loadError)){

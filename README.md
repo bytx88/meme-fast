@@ -25,6 +25,8 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 - **Sources** — current feed coverage and a planned X-account collector watchlist; X RSS mentions are shown on Tweet and Swing
 - **Coin vs Social** (`/jeanphil.html`) — a standalone Jean Phil experiment plotting sampled social Warmth against JEANPHIL price on one timeline
 
+Inspect's **5D** view fetches historical 15-minute OHLCV candles for one listing's most liquid discovered pool. The historical chart preserves candle high/low ranges, and MC Detail shows estimated total volume assigned by each candle's closing market-cap tier. A wick-only tier has unknown volume allocation, not zero trading. Market cap is estimated from the latest reported MC/price ratio, assuming unchanged supply. Only completed candles inside the rolling five-day window are used; provider gaps and other pools are not covered. Candles have no buy/sell split or trade count, so the existing buy/sell summaries and observed swap table remain a separate bounded sample. History uses one capped 1,000-candle request, cached for five minutes, and requires no new API key.
+
 ## Jean Phil monitor
 
 `/jeanphil.html` follows the exact Solana contract `GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump`. A dedicated Modal function samples the most liquid exact-contract DexScreener pool every five minutes and Google News RSS indexed X posts every 30 minutes. The 14-day monitor history is stored separately on the persistent Volume, so it continues collecting without page visits. Local preview stores the same report at `.data/jeanphil-monitor.json`. History begins when the collector first runs; it cannot reconstruct earlier social engagement.

@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createMarketProxy,marketPath} from '../worker/market.mjs';
 const url='https://site.test/api/market/networks/solana/pools/abc/trades';
+test('historical candles permit only the bounded public query and accept object responses',async()=>{
+  const candles=url.replace('/trades','/ohlcv/minute')+'?aggregate=15&limit=1000&currency=usd&token=abc';
+  assert.ok(marketPath(new URL(candles)));
+  for(const bad of [candles.replace('aggregate=15','aggregate=1'),candles.replace('limit=1000','limit=10000'),candles+'&url=secret',candles.replace('token=abc','token=a%2Fb')])assert.equal(marketPath(new URL(bad)),null);
+  let calls=0;const proxy=createMarketProxy({fetcher:async()=>{calls++;return Response.json({data:{attributes:{ohlcv_list:[[1,1,1,1,1,10]]}}})}});
+  assert.equal((await proxy(new Request(candles))).status,200);assert.equal((await proxy(new Request(candles))).status,200);assert.equal(calls,1);
+  const invalid=createMarketProxy({fetcher:async()=>Response.json({data:{}})});assert.equal((await invalid(new Request(candles))).status,502);
+});
 test('Market route rejects arbitrary destinations and unsupported endpoints',()=>{
   for(const path of ['/api/market/https://attacker.test','/api/market/networks/solana/pools/a/trades?url=https://attacker.test','/api/market/networks/solana/pools/a%2Fb/trades','/api/market/admin'])assert.equal(marketPath(new URL('https://site.test'+path)),null);
   assert.equal(marketPath(new URL(url)),'/networks/solana/pools/abc/trades');

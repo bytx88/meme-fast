@@ -349,13 +349,22 @@ def web():
         is_info = bool(re.fullmatch(r"/networks/(solana|base|robinhood)/tokens/[a-zA-Z0-9]{1,100}/info", path))
         is_new_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/new_pools", path))
         is_trades = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/trades", path))
-        if not (is_search or is_pools or is_info or is_new_pools or is_trades):
+        is_candles = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/ohlcv/minute", path))
+        if not (is_search or is_pools or is_info or is_new_pools or is_trades or is_candles):
             raise HTTPException(status_code=404, detail="Unknown market endpoint")
 
         supplied = set(request.query_params.keys())
-        if supplied - {"query", "include"}:
+        allowed = {"aggregate", "limit", "currency", "token"} if is_candles else {"query", "include"}
+        if supplied - allowed:
             raise HTTPException(status_code=404, detail="Unsupported query parameter")
         params = {}
+        if is_candles:
+            query = request.query_params
+            if (query.get("aggregate") != "15" or query.get("limit") != "1000"
+                    or query.get("currency") != "usd"
+                    or not re.fullmatch(r"[a-zA-Z0-9]{1,100}", query.get("token", ""))):
+                raise HTTPException(status_code=400, detail="Invalid candle query")
+            params = {"aggregate": "15", "limit": "1000", "currency": "usd", "token": query["token"]}
         if is_search:
             query = request.query_params.get("query", "").strip()
             if not query or len(query) > 160:
