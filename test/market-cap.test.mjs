@@ -12,10 +12,15 @@ test('MC uses the selected base token, skips unknown valuations and never substi
 });
 test('Estimated MC uses latest observed price per bin, preserves gaps and excludes other contracts',()=>{
   const snapshot={value:2000,price:2,tokenKey:'solana:ABC'};
-  const rows=[{tokenKey:'solana:ABC',time:2,price:1},{tokenKey:'solana:ABC',time:9,price:3},{tokenKey:'solana:OTHER',time:8,price:100},{tokenKey:'solana:ABC',time:30,price:4}];
+  const rows=[{tokenKey:'solana:ABC',time:2,price:1,usd:100},{tokenKey:'solana:ABC',time:9,price:3,usd:100},{tokenKey:'solana:OTHER',time:8,price:100,usd:100},{tokenKey:'solana:ABC',time:30,price:4,usd:100}];
   const bins=[{start:0,end:10},{start:10,end:20},{start:20,end:30}];
   assert.deepEqual(marketCapTimeline(rows,bins,snapshot),[3000,null,4000]);
   assert.deepEqual(marketCapTimeline(rows,bins,{...snapshot,price:null}),[null,null,null]);
+});
+test('Estimated MC line omits sparse thin-pool anomalies in the selected rows',()=>{
+  const snapshot={value:500000,price:.5,tokenKey:'solana:ABC'};
+  const rows=[{tokenKey:'solana:ABC',time:1,price:.5,usd:100},{tokenKey:'solana:ABC',time:2,price:.51,usd:100},{tokenKey:'solana:ABC',time:11,price:.025,usd:2}];
+  assert.deepEqual(marketCapTimeline(rows,[{start:0,end:10},{start:10,end:20}],snapshot),[510000,null]);
 });
 test('Unit price comes from the most liquid matching base pool even without MC',()=>{
   assert.equal(tokenPriceSnapshot(token,[pool('OTHER',100,5)]),null);

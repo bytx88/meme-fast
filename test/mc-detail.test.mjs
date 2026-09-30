@@ -29,11 +29,27 @@ test('selected time window and deduplication feed tier totals',()=>{
   assert.equal(aggregateMC(summarize(rows,5,600000).rows,snapshot).included,1);
   assert.equal(aggregateMC(summarize(rows,15,600000).rows,snapshot).included,2);
 });
-test('extreme ranges stay bounded while retaining all counts and dollars',()=>{
+test('extreme ranges stay bounded and account for filtered steps',()=>{
   const rows=Array.from({length:40},(_,i)=>trade(String(i),10**(i/4-5),'buy',i+1));
-  const result=aggregateMC(rows,snapshot);assert.ok(result.tiers.length<=12);assert.equal(result.included,40);
-  assert.equal(result.tiers.reduce((sum,t)=>sum+t.buy,0),820);
-  assert.equal(result.tiers.reduce((sum,t)=>sum+t.buyCount,0),40);
+  const result=aggregateMC(rows,snapshot);assert.ok(result.tiers.length<=12);
+  assert.equal(result.included+result.excluded,40);
+  assert.equal(result.tiers.reduce((sum,t)=>sum+t.buyCount,0),result.included);
+  assert.ok(result.tiers.reduce((sum,t)=>sum+t.buy,0)<=820);
+});
+test('sparse thin-pool price anomalies do not create misleading low MC tiers',()=>{
+  const main=Array.from({length:20},(_,i)=>trade('main'+i,.5,i%2?'sell':'buy',100));
+  const dust=[trade('dust1',.025,'buy',2.22),trade('dust2',.045,'sell',2.12),trade('dust3',.055,'buy',4.93)];
+  const result=aggregateMC([...main,...dust],snapshot);
+  assert.equal(result.outliers,3);assert.equal(result.excluded,3);assert.equal(result.included,20);
+  assert.ok(result.tiers.every(t=>t.low>=400000));
+});
+test('selected interval sets the price reference and substantial moves stay visible',()=>{
+  const earlier=Array.from({length:20},(_,i)=>trade('early'+i,.03,'buy',100,1));
+  const recent=Array.from({length:20},(_,i)=>trade('recent'+i,.5,'buy',100,600000));
+  const recentOnly=aggregateMC(summarize([...earlier,...recent],5,600000).rows,snapshot);
+  assert.equal(recentOnly.included,20);assert.ok(recentOnly.tiers.every(t=>t.low>=400000));
+  const full=aggregateMC(summarize([...earlier,...recent],15,600000).rows,snapshot);
+  assert.equal(full.included,40);assert.ok(full.tiers.some(t=>t.low<50000));
 });
 test('read describes the chosen metric and activity without investment claims',()=>{
   assert.equal(tierRead({buy:80,sell:100,net:-20},'value',180,180),'Mild sell dominance');

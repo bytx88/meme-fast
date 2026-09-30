@@ -22,7 +22,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
   const {firstShown,bins:visibleBins}=visibleFlowRange(bins),visibleStart=visibleBins[0]?.start??start;
   const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=values.length>0;
-  const mcNote=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Gaps mean no observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  const mcNote=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Sparse price outliers are omitted using the selected window. Gaps mean no representative observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
   const info=$('coverage-tooltip');
   info.textContent+=` ${mcNote} Observed swaps only. Empty intervals do not establish zero market activity. Buy/sell bars and estimated MC use separate scales.`;
   document.querySelector('.coverage-help summary').title=info.textContent;

@@ -1,18 +1,12 @@
+import {credibleMarketCapTrades,marketCapTier} from './market-cap.mjs';
 // These rows are the already deduplicated, scoped, time-filtered chart sample.
-const marks=[1,1.2,1.5,2,2.5,3,4,5,6,8,10];
-export function mcTier(value){
-  const scale=10**Math.floor(Math.log10(value));
-  const i=marks.findIndex((m,j)=>j<marks.length-1&&value<marks[j+1]*scale);
-  const index=i<0?marks.length-2:i;
-  return {low:marks[index]*scale,high:marks[index+1]*scale};
-}
+export const mcTier=marketCapTier;
 export function aggregateMC(rows,snapshot){
-  const supply=snapshot?.value/snapshot?.price;
-  if(!Number.isFinite(supply)||supply<=0)return {tiers:[],included:0,excluded:rows.length,available:false};
+  const {trades,outliers,available}=credibleMarketCapTrades(rows,snapshot);
+  if(!available)return {tiers:[],included:0,excluded:rows.length,outliers:0,available:false};
   const buckets=new Map();let included=0;
-  for(const row of rows){
-    const mc=row.price*supply;
-    if(row.tokenKey!==snapshot.tokenKey||!Number.isFinite(row.price)||row.price<=0||!Number.isFinite(mc)||mc<=0||!['buy','sell'].includes(row.side)||!Number.isFinite(row.usd)||row.usd<=0)continue;
+  for(const {row,mc} of trades){
+    if(!['buy','sell'].includes(row.side))continue;
     const {low,high}=mcTier(mc);
     if(!buckets.has(low))buckets.set(low,{low,high,buy:0,sell:0,buyCount:0,sellCount:0});
     const tier=buckets.get(low);tier[row.side]+=row.usd;tier[row.side+'Count']++;included++;
@@ -28,7 +22,7 @@ export function aggregateMC(rows,snapshot){
     const a=tiers[index],b=tiers[index+1];
     tiers.splice(index,2,{low:a.low,high:b.high,buy:a.buy+b.buy,sell:a.sell+b.sell,buyCount:a.buyCount+b.buyCount,sellCount:a.sellCount+b.sellCount});
   }
-  return {tiers:tiers.reverse(),included,excluded:rows.length-included,available:true};
+  return {tiers:tiers.reverse(),included,excluded:rows.length-included,outliers,available:true};
 }
 export function tierMetric(tier,metric='value'){
   const buy=metric==='count'?tier.buyCount:metric==='average'?(tier.buyCount?tier.buy/tier.buyCount:null):tier.buy;
