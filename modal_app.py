@@ -21,7 +21,7 @@ RUNNING_IN_MODAL = Path(REMOTE_DIST).is_dir() or bool(
 )
 DIST_SOURCE = Path(REMOTE_DIST) if RUNNING_IN_MODAL else LOCAL_DIST
 ASSET_REVISION = os.getenv("MEME_FAST_ASSET_REVISION", "") if RUNNING_IN_MODAL else hashlib.sha256(
-    b"versioned-html-assets-v1" + b"".join(path.name.encode() + path.read_bytes() for path in sorted(LOCAL_DIST.iterdir()) if path.is_file())
+    b"versioned-html-assets-v2" + b"".join(path.name.encode() + path.read_bytes() for path in sorted(LOCAL_DIST.iterdir()) if path.is_file())
 ).hexdigest()[:16]
 
 if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
@@ -436,6 +436,7 @@ def web():
             "sources": "sources.html",
             "jeanphil": "jeanphil.html",
         }
+        asset_path = re.sub(r"^_assets/[a-zA-Z0-9_-]+/", "", asset_path)
         relative = routes.get(asset_path, asset_path)
         candidate = (dist / relative).resolve()
         if dist.resolve() not in candidate.parents or not candidate.is_file() or candidate.suffix not in allowed_types:
