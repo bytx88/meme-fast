@@ -29,13 +29,48 @@ body.trader-ui .masthead .market-overview-title { font-size: 9px; line-height: 1
 body.trader-ui .masthead .market-overview-values { font-size: 11px; line-height: 1.25; }
 body.trader-ui .masthead .site-nav { margin-left: auto; gap: 2px; }
 body.trader-ui .masthead .site-nav a {
-  min-height: var(--trader-control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--trader-control-height);
   padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #b6c7d9;
   font-size: 12px;
   line-height: 18px;
 }
-body.trader-ui .masthead .donate-trigger { min-height: 28px; }
-body.trader-ui .masthead .contact-support { width: 30px; height: 30px; }
+body.trader-ui .masthead .site-nav a[aria-current=page] {
+  border-color: #bddf6b55;
+  background: #29351f;
+  color: #e0ff91;
+  box-shadow: none;
+}
+body.trader-ui .masthead .header-support { gap: 2px; }
+body.trader-ui .masthead .donate-trigger {
+  box-sizing: border-box;
+  height: var(--trader-control-height);
+  min-height: var(--trader-control-height);
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #b6c7d9;
+  font-size: 12px;
+  line-height: 18px;
+}
+body.trader-ui .masthead .donate-trigger:hover { border-color: #91b8ca55; background: #1c2a37; color: #e9f3ff; }
+body.trader-ui .masthead .site-nav .contact-support {
+  box-sizing: border-box;
+  width: var(--trader-control-height);
+  height: var(--trader-control-height);
+  min-height: var(--trader-control-height);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
 body.trader-ui .workspace-head,
 body.trader-ui .radar-heading,
 body.trader-ui .radar-intro {
@@ -111,6 +146,19 @@ body.trader-ui .new-coins .scan-card .card-actions button { min-height: 28px; }
 body.trader-ui .radar-page .radar-heading { padding: 8px 0 4px; }
 body.trader-ui .radar-page .radar-kicker { margin-bottom: 2px; font-size: 9px; }
 body.trader-ui .radar-page .radar-controls { justify-content: flex-start; flex-wrap: wrap; padding: 5px 0; gap: 8px 12px; }
+body.trader-ui .radar-page .radar-controls .radar-chain-filter {
+  flex: 0 0 28px;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 1;
+}
 body.trader-ui .radar-page .radar-modes { gap: 3px; padding: 0; border: 0; }
 body.trader-ui .radar-page .radar-modes button { gap: 5px; }
 body.trader-ui .radar-page .radar-status { margin-bottom: 6px; min-height: 0; }
@@ -183,6 +231,11 @@ body.trader-ui.inspect-depth .order-flow-page .tape-section > .chart-note { marg
   body.trader-ui .masthead .site-nav { width: 100%; order: 2; justify-content: flex-start; flex-wrap: wrap; }
   body.trader-ui .masthead .market-overview { margin-left: auto; }
   body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area { position: relative; top: auto; }
+}
+@media (min-width: 851px) and (max-width: 1100px) {
+  body.trader-ui main .masthead { height: 54px; min-height: 54px; flex-wrap: nowrap; padding: 4px 0; gap: 12px; }
+  body.trader-ui main .masthead .market-overview { flex: 0 1 240px; margin-left: 0; }
+  body.trader-ui main .masthead .site-nav { width: auto; flex-wrap: nowrap; order: initial; white-space: nowrap; gap: 2px; margin-left: auto; }
 }
 @media (max-width: 720px) {
   body.trader-ui main { width: calc(100% - 20px); }
