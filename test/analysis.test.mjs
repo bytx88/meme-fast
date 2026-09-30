@@ -30,8 +30,8 @@ test('Timeline includes window boundaries exactly once and reconciles to observe
 test('Trend chart omits leading empty bins without changing selected-window net',()=>{
   const result=flowTimeline([row('late','buy',120,now-2*60000)],5,now);
   const visible=visibleFlowRange(result.bins);
-  assert.equal(visible.firstShown,2);
-  assert.equal(visible.bins.length,3);
+  assert.equal(visible.firstShown,3);
+  assert.equal(visible.bins.length,2);
   assert.equal(visible.bins.at(-1).cumulative,120);
   assert.equal(visibleFlowRange(flowTimeline([],5,now).bins).bins.length,5);
 });

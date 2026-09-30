@@ -44,9 +44,12 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   }
   svg.append(defs);
   const label=(text,x,y,anchor='start')=>{const el=svgEl('text',{x,y,'text-anchor':anchor,fill:'#9da9b9','font-size':11});el.textContent=text;svg.append(el)};
-  const left=chartWidth<500?54:70,right=chartWidth-(hasMC?(chartWidth<500?68:82):8),width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
   const max=Math.max(...visibleBins.flatMap(b=>[b.buy,b.sell]),1e-8);
   const axisMoney=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
+  const mcMax=hasMC?Math.max(...values):0;
+  const left=Math.max(48,axisMoney(max).length*6+14);
+  const right=chartWidth-(hasMC?Math.max(54,axisMoney(mcMax).length*6+18):12);
+  const width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
   for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
   label('Swap volume · USD',left,14);
   if(hasMC){

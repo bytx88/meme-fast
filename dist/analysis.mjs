@@ -33,6 +33,6 @@ export function flowTimeline(rows, minutes, now) {
 // Preserve selected-window totals while omitting only the leading bins before returned swaps.
 export function visibleFlowRange(bins) {
   const firstObserved=bins.findIndex(bin=>bin.count>0);
-  const firstShown=firstObserved<0?0:Math.max(0,firstObserved-1);
+  const firstShown=firstObserved<0?0:firstObserved;
   return {firstShown,bins:bins.slice(firstShown)};
 }

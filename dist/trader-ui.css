@@ -1,0 +1,200 @@
+/* Shared trading-workspace density. Keep page-specific data visualizations in their own sheets. */
+body.trader-ui {
+  --trader-control-height: 32px;
+  --trader-section-gap: 10px;
+  --trader-panel-pad: 12px;
+}
+body.trader-ui main {
+  width: min(1200px, calc(100% - 32px));
+  max-width: 1200px;
+}
+body.trader-ui .masthead {
+  height: 54px;
+  min-height: 54px;
+  padding: 4px 0;
+  gap: 12px;
+  align-items: center;
+}
+body.trader-ui .masthead .header-brand-group { gap: 2px; }
+body.trader-ui .masthead .brand { font-size: 16px; }
+body.trader-ui .masthead .site-disclaimer { font-size: 9px; }
+body.trader-ui .masthead .market-overview {
+  flex: 0 1 240px;
+  min-height: 34px;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+body.trader-ui .masthead .market-overview-title { font-size: 9px; line-height: 1.2; }
+body.trader-ui .masthead .market-overview-values { font-size: 11px; line-height: 1.25; }
+body.trader-ui .masthead .site-nav { margin-left: auto; gap: 2px; }
+body.trader-ui .masthead .site-nav a {
+  min-height: var(--trader-control-height);
+  padding: 6px 9px;
+  font-size: 12px;
+  line-height: 18px;
+}
+body.trader-ui .masthead .donate-trigger { min-height: 28px; }
+body.trader-ui .masthead .contact-support { width: 30px; height: 30px; }
+body.trader-ui .workspace-head,
+body.trader-ui .radar-heading,
+body.trader-ui .radar-intro {
+  margin: 0;
+  padding: 8px 0;
+  gap: 10px;
+}
+body.trader-ui .workspace-head h1,
+body.trader-ui .radar-heading h1,
+body.trader-ui .radar-intro h1 { margin: 0; font-size: 21px; line-height: 1.25; }
+body.trader-ui .workspace-head p { margin: 2px 0 0; font-size: 12px; line-height: 1.4; }
+body.trader-ui .workspace-actions { gap: 6px; }
+body.trader-ui .workspace-actions > button,
+body.trader-ui .workspace-actions > a,
+body.trader-ui .radar-actions > button,
+body.trader-ui .radar-controls button,
+body.trader-ui .new-controls button,
+body.trader-ui .order-flow-toolbar button,
+body.trader-ui .listing-actions > a,
+body.trader-ui .listing-actions > button,
+body.trader-ui .breakdown-tabs button {
+  min-height: var(--trader-control-height);
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 5px;
+  box-shadow: none;
+}
+body.trader-ui .radar-controls input,
+body.trader-ui .radar-controls select,
+body.trader-ui .new-controls input,
+body.trader-ui .new-controls select,
+body.trader-ui .trade-filters input:not([type=checkbox]),
+body.trader-ui .trade-filters select,
+body.trader-ui .mc-metric-label select {
+  height: var(--trader-control-height);
+  min-height: var(--trader-control-height);
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 5px;
+}
+body.trader-ui .market-health { margin: 5px 0 8px; padding: 7px 10px; font-size: 11px; line-height: 1.35; }
+
+/* Tweet: put the feed above explanations and preserve room for evidence. */
+body.trader-ui .radar .demo-banner { padding: 7px 10px; gap: 8px; }
+body.trader-ui .radar .demo-banner p { font-size: 11px; line-height: 1.3; }
+body.trader-ui .radar .feed-status { margin: 5px 0; padding: 5px 9px; font-size: 11px; }
+body.trader-ui .radar .radar-controls { margin: 7px 0 4px; gap: 8px; }
+body.trader-ui .radar .periods { padding: 2px; }
+body.trader-ui .radar .periods button { min-height: 28px; padding: 4px 9px; }
+body.trader-ui .radar .search-filter input { height: 32px; min-height: 32px; padding: 5px 9px; font-size: 12px; }
+body.trader-ui .radar .radar-filters > summary { min-height: 28px; padding: 4px 0; font-size: 11px; }
+body.trader-ui .radar .filter-status { margin: 4px 0 6px; font-size: 11px; }
+body.trader-ui .radar .crossovers { padding-bottom: 10px; }
+body.trader-ui .radar .stream-grid { gap: 10px; }
+body.trader-ui .radar .stream-heading { padding: 10px 12px; }
+body.trader-ui .radar .stream-heading h2 { margin: 3px 0 0; font-size: 17px; }
+body.trader-ui .radar .signal-card { padding: 11px 12px; }
+body.trader-ui .radar .signal-summary { margin: 7px 0; font-size: 13px; line-height: 1.4; }
+body.trader-ui .radar .signal-metrics { margin: 7px 0; }
+body.trader-ui .radar .signal-metrics dd { font-size: 16px; }
+
+/* Snipe: one compact control rhythm across heading, status, and lanes. */
+body.trader-ui .new-coins .workspace-head { padding: 7px 0; }
+body.trader-ui .new-coins .new-controls { margin: 5px 0; gap: 7px; }
+body.trader-ui .new-coins .new-status { margin: 5px 0 8px; }
+body.trader-ui .new-coins .coin-scanner { margin: 6px 0 16px; }
+body.trader-ui .new-coins .scan-card .card-actions a,
+body.trader-ui .new-coins .scan-card .card-actions button { min-height: 28px; }
+
+/* Swing: horizon, chain, search, and results use the same toolbar sizing. */
+body.trader-ui .radar-page .radar-heading { padding: 8px 0 4px; }
+body.trader-ui .radar-page .radar-kicker { margin-bottom: 2px; font-size: 9px; }
+body.trader-ui .radar-page .radar-controls { padding: 5px 0; gap: 8px; }
+body.trader-ui .radar-page .radar-modes { gap: 3px; padding: 0; border: 0; }
+body.trader-ui .radar-page .radar-modes button { gap: 5px; }
+body.trader-ui .radar-page .radar-status { margin-bottom: 6px; min-height: 0; }
+body.trader-ui .radar-page .radar-results { gap: 6px; }
+body.trader-ui .radar-page .radar-card { gap: 9px; padding: 9px 11px; }
+body.trader-ui .radar-page .radar-reasons span { padding: 3px 5px; }
+
+/* Watchlist and secondary research pages share the same heading and card inset. */
+body.trader-ui .watchlist-page > .research-card { margin: 7px 0 14px; padding: 10px 12px; }
+body.trader-ui .watchlist-page .saved-item.watch-token { min-height: 72px; padding: 8px 10px; }
+body.trader-ui .watchlist-page .watch-section + .watch-section { margin-top: 10px; }
+body.trader-ui .workspace:not(.new-coins):not(.watchlist-page) > .research-card { padding: 12px; }
+
+/* Inspect: retain the chart-first hierarchy with one usable action scale. */
+body.trader-ui.inspect-depth .order-flow-page .token-row { min-height: 36px; margin: 4px 0; gap: 8px; }
+body.trader-ui.inspect-depth .order-flow-page .token-avatar { width: 30px; height: 30px; }
+body.trader-ui.inspect-depth .order-flow-page .identity h2 { font-size: 15px; }
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area { top: 57px; }
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area input,
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area button { height: 32px; min-height: 32px; padding: 5px 8px; font-size: 11px; border-radius: 5px; }
+body.trader-ui.inspect-depth .order-flow-page .order-flow-toolbar { min-height: 32px; margin: 3px 0; }
+body.trader-ui.inspect-depth .order-flow-page .order-flow-toolbar .periods { padding: 2px; }
+body.trader-ui.inspect-depth .order-flow-page .order-flow-toolbar .periods button { padding: 4px 8px; }
+body.trader-ui.inspect-depth .order-flow-page .refresh-group { font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary { gap: 0; margin: 4px 0 6px; border: 1px solid #4d637b44; border-radius: 5px; background: #14202c; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric { flex-direction: row; align-items: center; gap: 6px; min-height: 34px; padding: 5px 8px; border: 0; border-right: 1px solid #4d637b44; border-radius: 0; background: transparent; box-shadow: none; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric:last-child { border-right: 0; }
+body.trader-ui.inspect-depth .flow-summary .flow-metric::after { display: none; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric span { font-size: 10px; white-space: nowrap; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric strong { order: 1; font-size: 14px; line-height: 1.2; text-shadow: none; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-price .price-scale { position: static; order: 2; font-size: 9px; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-panel { position: relative; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-panel .panel-heading { align-items: center; flex-wrap: nowrap; gap: 8px; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-meta { margin-left: auto; gap: 8px; min-width: 0; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-legend { justify-content: flex-end; gap: 5px 10px; margin: 0; font-size: 10px; line-height: 1.2; }
+body.trader-ui.inspect-depth .timeline-legend > span { white-space: nowrap; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-detail { position: absolute; z-index: 9; right: 16px; top: 43px; max-width: min(460px,calc(100% - 32px)); margin: 0; padding: 7px 9px; border: 1px solid #43576e; border-radius: 6px; background: #132331f5; font-size: 10px; pointer-events: none; box-shadow: 0 4px 12px #0006; }
+body.trader-ui.inspect-depth .order-flow-page .timeline-detail:empty { display: none; }
+body.trader-ui.inspect-depth .order-flow-page .breakdown-tabs { gap: 4px; margin: 0 0 7px; }
+body.trader-ui.inspect-depth .order-flow-page #overview-pane > .detail-heading { margin: 7px 0 6px; font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel { padding: 12px 14px; }
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel .panel-heading { gap: 8px; }
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel .chart-note { margin: 5px 0; font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel table { margin: 6px 0; }
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel th,
+body.trader-ui.inspect-depth .order-flow-page .mc-detail-panel td { padding: 6px 8px; font-size: 11px; line-height: 1.3; }
+body.trader-ui.inspect-depth .order-flow-page .mc-method { margin-top: 7px; font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .mc-method summary { cursor: pointer; color: #a9c6e7; }
+body.trader-ui.inspect-depth .order-flow-page .tape-section { margin-top: 12px; padding: 12px; }
+body.trader-ui.inspect-depth .order-flow-page .trade-filters { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 8px; margin: 7px 0 4px; }
+body.trader-ui.inspect-depth .order-flow-page .trade-filters label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .trade-filters .wallet-filter { flex: 1 1 220px; }
+body.trader-ui.inspect-depth .order-flow-page .trade-filters .group-toggle { display: flex; flex-direction: row; align-items: center; align-self: center; gap: 5px; padding: 0; white-space: nowrap; }
+body.trader-ui.inspect-depth .order-flow-page .trade-filters button { min-height: 32px; padding: 5px 9px; font-size: 11px; }
+body.trader-ui.inspect-depth .order-flow-page .tape-section > .chart-note { margin: 4px 0; font-size: 10px; line-height: 1.35; }
+
+@media (max-width: 1100px) {
+  body.trader-ui .masthead { height: auto; min-height: 54px; flex-wrap: wrap; gap: 5px 10px; padding: 6px 0; }
+  body.trader-ui .masthead .site-nav { width: 100%; order: 2; justify-content: flex-start; flex-wrap: wrap; }
+  body.trader-ui .masthead .market-overview { margin-left: auto; }
+  body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area { position: relative; top: auto; }
+}
+@media (max-width: 720px) {
+  body.trader-ui main { width: calc(100% - 20px); }
+  body.trader-ui .masthead .site-nav a { padding: 5px 7px; }
+  body.trader-ui .radar .stream-grid { grid-template-columns: 1fr; }
+  body.trader-ui .radar-page .radar-controls { align-items: stretch; flex-direction: column; }
+  body.trader-ui .radar-page .radar-card { grid-template-columns: 24px minmax(0,1fr) 90px; }
+  body.trader-ui.inspect-depth .order-flow-page .flow-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+  body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric { flex-wrap: wrap; gap: 2px; }
+  body.trader-ui.inspect-depth .order-flow-page .trade-filters .wallet-filter { flex-basis: 100%; }
+}
+@media (max-width: 600px) {
+  body.trader-ui .new-coins .workspace-head { align-items: flex-start; }
+  body.trader-ui .new-coins .workspace-head > div:first-child { width: 100%; }
+  body.trader-ui .new-coins .workspace-actions { display: flex; width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 5px; }
+  body.trader-ui .new-coins .workspace-actions .collection-info { flex: 1 1 100%; }
+  body.trader-ui .new-coins .workspace-actions .view-switch { flex-wrap: wrap; }
+  body.trader-ui .radar .radar-controls .periods { display: flex; width: 100%; min-width: 0; flex: 1 1 100%; }
+  body.trader-ui .radar .radar-controls .periods button { flex: 1 1 0; min-width: 0; padding: 4px 2px; }
+  body.trader-ui .radar-page .radar-view-controls { flex-direction: row; align-items: center; justify-content: flex-start; gap: 5px; }
+  body.trader-ui .radar-page .radar-modes { flex: 1 1 auto; min-width: 0; }
+  body.trader-ui .radar-page .radar-modes button { min-height: 32px; flex: 1 1 0; justify-content: center; padding: 5px 4px; font-size: 11px; white-space: nowrap; }
+  body.trader-ui .radar-page .radar-modes button small { display: none; }
+  body.trader-ui .radar-page #refresh { flex: 0 0 auto; }
+  body.trader-ui.inspect-depth .order-flow-page .order-flow-toolbar { flex-wrap: wrap; gap: 3px; }
+  body.trader-ui.inspect-depth .order-flow-page .refresh-group { width: 100%; justify-content: flex-end; }
+}
