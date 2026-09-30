@@ -21,7 +21,7 @@ RUNNING_IN_MODAL = Path(REMOTE_DIST).is_dir() or bool(
 )
 DIST_SOURCE = Path(REMOTE_DIST) if RUNNING_IN_MODAL else LOCAL_DIST
 ASSET_REVISION = os.getenv("MEME_FAST_ASSET_REVISION", "") if RUNNING_IN_MODAL else hashlib.sha256(
-    b"".join(path.name.encode() + path.read_bytes() for path in sorted(LOCAL_DIST.iterdir()) if path.is_file())
+    b"versioned-html-assets-v1" + b"".join(path.name.encode() + path.read_bytes() for path in sorted(LOCAL_DIST.iterdir()) if path.is_file())
 ).hexdigest()[:16]
 
 if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
@@ -445,6 +445,12 @@ def web():
                    "x-content-type-options": "nosniff", "x-meme-fast-revision": ASSET_REVISION}
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers=headers)
+        if candidate.suffix == ".html":
+            from worker.asset_revision import version_html_assets
+            return Response(
+                version_html_assets(candidate.read_text(encoding="utf-8"), ASSET_REVISION),
+                media_type=allowed_types[candidate.suffix], headers=headers,
+            )
         return FileResponse(
             candidate,
             media_type=allowed_types[candidate.suffix],
