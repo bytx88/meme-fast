@@ -12,7 +12,7 @@ export function renderCoverage(view, state, rows) {
   const ok=view.pools.filter(p=>p.status==='loaded').length, capped=view.pools.filter(p=>p.count>=300).length;
   const span=rows.length?` · ${easternRange(rows[rows.length-1].time,rows[0].time)} observed`:'';
   const percent=view.pools.length?` (${Math.round(ok/view.pools.length*100)}% of discovered pools)`:'';
-  const meaning=`Sample coverage: ${ok}/${view.pools.length} discovered pools returned swap data${percent}. ${rows.length} swap steps are included in the selected window${span}. Each pool can return at most 300 recent swaps.${capped?` ${capped} pool${capped===1?'':'s'} reached that limit, so the sample is partial even when every discovered pool loaded.`:''} This does not cover every market trade.${state.cached&&state.busy?' Refreshing: the saved snapshot stays visible until new data arrives.':state.busy?' New pool responses are still loading.':''} Times are shown in US Eastern time.`;
+  const meaning=`Sample coverage: ${ok}/${view.pools.length} discovered pools returned swap data${percent}. ${rows.length} swap steps are included in the selected window${span}. Each pool can return at most 300 recent swaps. For 5D, earlier steps come only from this browser’s retained observations; missing hours are unknown, not zero.${capped?` ${capped} pool${capped===1?'':'s'} reached that limit, so the sample is partial even when every discovered pool loaded.`:''} This does not cover every market trade.${state.cached&&state.busy?' Refreshing: the saved snapshot stays visible until new data arrives.':state.busy?' New pool responses are still loading.':''} Times are shown in US Eastern time.`;
   $('coverage-tooltip').textContent=meaning;
   document.querySelector('.coverage-help summary').title=meaning;
 }
@@ -27,7 +27,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   info.textContent+=` ${mcNote} Observed swaps only. Empty intervals do not establish zero market activity. Buy/sell bars and estimated MC use separate scales.`;
   document.querySelector('.coverage-help summary').title=info.textContent;
   $('mc-legend').hidden=!hasMC;
-  info.textContent+=` Times are ET; bars use ${stepMinutes===1?'one-minute':'one-hour'} intervals.${firstShown>0?' Chart starts near the first returned swap; earlier intervals have no returned swaps.':''}`;
+  info.textContent+=` Times are ET; bars use ${stepMinutes===1?'one-minute':stepMinutes===240?'four-hour':'one-hour'} intervals.${firstShown>0?' Chart starts near the first returned swap; earlier intervals have no returned swaps.':''}`;
   document.querySelector('.coverage-help summary').title=info.textContent;
   const defaultDetail='';
   $('timeline-detail').textContent=defaultDetail;
@@ -48,15 +48,15 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const axisMoney=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
   const mcMax=hasMC?Math.max(...values):0;
   const left=Math.max(48,axisMoney(max).length*6+14);
-  const right=chartWidth-(hasMC?Math.max(54,axisMoney(mcMax).length*6+18):12);
+  const right=chartWidth-(hasMC?Math.max(86,axisMoney(mcMax).length*6+42):12);
   const width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
   for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
   label('Swap volume · USD',left,14);
   if(hasMC){
     let minCap=Math.min(...values),maxCap=Math.max(...values);const padding=Math.max((maxCap-minCap)*.1,maxCap*.01);minCap=Math.max(0,minCap-padding);maxCap+=padding;
     const capY=v=>bottom-(v-minCap)/(maxCap-minCap)*(bottom-top);
-    label('MC · est.',right+10,14);
-    for(const fraction of [0,.5,1]){const value=minCap+(maxCap-minCap)*fraction,y=capY(value);const tick=svgEl('line',{x1:right,x2:right+5,y1:y,y2:y,stroke:'#7db9ff'});svg.append(tick);label(axisMoney(value),right+10,y+5)}
+    label('MC · est.',right+20,14);
+    for(const fraction of [0,.5,1]){const value=minCap+(maxCap-minCap)*fraction,y=capY(value);const tick=svgEl('line',{x1:right,x2:right+5,y1:y,y2:y,stroke:'#7db9ff'});svg.append(tick);label(axisMoney(value),right+20,y+5)}
     let segment=[];const flush=()=>{if(segment.length>1)svg.append(svgEl('polyline',{points:segment.join(' '),fill:'none',stroke:'#7db9ff','stroke-width':2,'vector-effect':'non-scaling-stroke'}));segment=[]};
     caps.forEach((value,i)=>{if(value==null){flush();return}const x=left+(i+.5)*unit,y=capY(value);segment.push(`${x},${y}`);svg.append(svgEl('circle',{cx:x,cy:y,r:2.5,fill:'#7db9ff'}))});flush();
   }
@@ -71,7 +71,8 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
     g.addEventListener('mouseleave',()=>$('timeline-detail').textContent=defaultDetail);g.addEventListener('blur',()=>$('timeline-detail').textContent=defaultDetail);
     svg.append(g);
   });
-  label(stamp(visibleStart),left,125);label(stamp(visibleStart+(end-visibleStart)/2),left+width/2,125,'middle');label(stamp(end),right,125,'end');
+  const axisStamp=minutes>1440?time=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric'}).format(time):stamp;
+  label(axisStamp(visibleStart),left,125);label(axisStamp(visibleStart+(end-visibleStart)/2),left+width/2,125,'middle');label(axisStamp(end),right,125,'end');
   host.append(svg);
 }
 

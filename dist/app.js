@@ -4,7 +4,7 @@ import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=compact-chart-v1';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=trader-5d-v1';
 import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
@@ -13,7 +13,9 @@ import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
 import {createFlowCache} from './flow-cache.mjs';
+import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 const flowCache=createFlowCache();
+const flowHistory=createFlowHistory();
 const renderTape=setupTape();
 const renderMCDetail=setupMCDetail();
 const $=id=>document.getElementById(id),api=createRequestClient();
@@ -34,6 +36,7 @@ function renderRecentContracts(){
 }
 const DEFAULT_ADDRESS='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
 const state={token:{address:DEFAULT_ADDRESS,network:'robinhood',symbol:'CASHED',name:'Cashed Money'},minutes:1440,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
+state.historyTrades=[];
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
@@ -69,7 +72,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));return {tokens,pools,listings,trades:scopeTrades(state.trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades;return {tokens,pools,listings,trades:scopeTrades(trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -93,7 +96,7 @@ function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.toke
   $('scope-tabs').hidden=state.tokens.length<2;$('scope-tabs').replaceChildren();if(state.tokens.length>1)for(const entry of [{key:'all',label:`All combined (${state.tokens.length})`},...state.tokens.map(t=>({key:listingKey(t),label:`${t.symbol} · ${t.network} · ${short(t.address)}`}))]){const button=document.createElement('button');button.type='button';button.textContent=entry.label;button.setAttribute('aria-pressed',String(state.scope===entry.key));button.addEventListener('click',()=>{state.scope=entry.key;updateIdentity();render()});$('scope-tabs').append(button)}
 }
 async function selectToken(token){return selectListings([token])}
-async function selectListings(tokens,cached=null){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=cached?.trades||[];state.pools=cached?.pools||[];state.listings=cached?.listings||[];state.skipped=cached?.skipped||0;state.loadError=false;state.fetched=cached?.fetched||0;state.cached=Boolean(cached);state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} match${state.matches.length===1?'':'es'} found.`:'';updateIdentity();render();return load()}
+async function selectListings(tokens,cached=null){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=cached?.trades||[];state.historyTrades=flowHistory.read(selected.map(listingKey));state.pools=cached?.pools||[];state.listings=cached?.listings||[];state.skipped=cached?.skipped||0;state.loadError=false;state.fetched=cached?.fetched||0;state.cached=Boolean(cached);state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} match${state.matches.length===1?'':'es'} found.`:'';updateIdentity();render();return load()}
 async function load(){
   if(state.tokens.some(t=>t.unverified)){
     state.busy=false;state.fetched=Date.now();state.listings=state.tokens.map(t=>({...t,key:listingKey(t),status:'failed',error:t.lookupWarning}));
@@ -104,7 +107,7 @@ async function load(){
   try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;if(!hadData)$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&!hadData){Object.assign(state,snapshot);state.fetched=Date.now();render()}},async token=>{const result=await dexApi('/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints):null});
     if(!result||generation!==state.generation)return;
     if(hadData&&!result.pools.some(p=>p.status==='loaded')){state.loadError=true;error('Refresh failed. Showing the previous sample with its original update time.');return currentSummary()}
-    Object.assign(state,result);state.fetched=Date.now();state.cached=false;flowCache.write(state);render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
+    Object.assign(state,result);state.fetched=Date.now();state.cached=false;flowCache.write(state);flowHistory.record(result.trades);state.historyTrades=flowHistory.read(tokens.map(listingKey));render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
     return currentSummary();
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=false;$('charts').setAttribute('aria-busy','false')}}
@@ -129,6 +132,7 @@ function render(){
   $('empty-title').textContent=availability.status==='outside-window'?'No swaps in this window':'No usable swaps returned';
   $('empty-detail').textContent=availability.lastTrade?`The feed returned ${availability.totalReturned} swaps in the past 24 hours. Latest: ${easternDateTime(availability.lastTrade.time)}. None is inside this window. This does not establish that the whole market was inactive.`:`The feed has no usable recent swaps for these pools. Market flow is unavailable; this is not evidence of zero trading.${state.skipped?` ${state.skipped} records could not be classified.`:''}`;
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
+  $('window-coverage').hidden=state.minutes!==7200;
   $('net-label').textContent=s.net<0?'Net sell volume':'Net buy volume';$('net-value').textContent=loaded?(Math.abs(s.net)>=100000?compact(Math.abs(s.net)):money(Math.abs(s.net))):'—';$('net-value').title=loaded?money(Math.abs(s.net)):'';$('swap-count').textContent=loaded?`${s.rows.length.toLocaleString()} observed swaps`:'Fetching actual swaps';
   $('net-value').dataset.empty=String(loaded&&!available);if(loaded&&!available){$('net-label').textContent='Selected window';$('net-value').textContent='No swaps';$('net-value').title='No observed trades from which to calculate flow';$('swap-count').textContent=availability.totalReturned?`${availability.totalReturned} returned across 24h`:'Feed has no usable data'}
   $('buy-value').textContent=available?money(s.buy):'—';$('sell-value').textContent=available?money(s.sell):'—';
@@ -155,6 +159,7 @@ function render(){
 
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
+$('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const explicitQuery=tokenQueryFromSearch(location.search);
 let clipboardReadPending=false;
 async function readCopiedAddress(){

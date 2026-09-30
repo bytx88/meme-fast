@@ -49,7 +49,7 @@ body.inspect-depth{
 .inspect-depth .order-flow-page .coverage-help summary{display:grid;place-items:center;min-height:20px;width:20px;border:1px solid #789f9a88;border-radius:50%;background:#203b3a;color:#c6eee4;font-size:13px;font-weight:700;font-style:normal;line-height:1;list-style:none;cursor:pointer}
 .inspect-depth .order-flow-page .coverage-help summary::-webkit-details-marker{display:none}
 .inspect-depth .order-flow-page .coverage-help summary:hover,.inspect-depth .order-flow-page .coverage-help summary:focus{border-color:#b8ddd2;background:#2d5550;outline:2px solid #8fdac3;outline-offset:2px}
-.inspect-depth .order-flow-page #overview-pane{border-top:1px solid #8ba7bb22;padding-top:8px}
+.inspect-depth .order-flow-page #overview-pane{padding-top:8px}
 .inspect-depth .order-flow-page .detail-heading{margin:6px 0 10px;color:#c7d8e8;font-size:13px;letter-spacing:.06em}
 .inspect-depth .order-flow-page .chart-grid{gap:14px}
 .inspect-depth .order-flow-page .chart-grid .panel{padding:15px 17px}
@@ -81,10 +81,7 @@ body.inspect-depth{
 @media(max-width:1000px){.inspect-depth .order-flow-page .flow-metric strong{font-size:18px}}
 @media(min-width:1101px){
   .inspect-depth .order-flow-page{--identity-column:190px}
-  .inspect-depth .masthead{justify-content:flex-start}
-  .inspect-depth .masthead .header-brand-group,
   .inspect-depth .order-flow-page .token-row>.identity{flex:0 0 var(--identity-column);min-width:0}
-  .inspect-depth .masthead .site-nav{margin-left:auto}
 }
 @media(max-width:720px){
   .inspect-depth .order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}

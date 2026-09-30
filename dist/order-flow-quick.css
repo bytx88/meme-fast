@@ -66,7 +66,7 @@
 .order-flow-page .coverage-help:is(:hover,:focus-within,[open])+.coverage-tooltip{visibility:visible;opacity:1}
 .order-flow-page .empty-notice{margin:5px 0;padding:6px 10px}.order-flow-page .empty-notice p{font-size:11px;line-height:1.3}
 .order-flow-page .detail-heading{margin:8px 0;font-size:15px}
-.order-flow-page #overview-pane{margin-top:8px;padding-top:4px;border-top:1px solid var(--line)}
+.order-flow-page #overview-pane{margin-top:8px;padding-top:4px}
 .order-flow-page .chart-grid .panel{padding:16px}
 .order-flow-page .flow-panel .donut{width:170px;margin:10px auto}
 .order-flow-page .flow-panel .donut-center strong{font-size:22px}

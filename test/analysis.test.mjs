@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {groupTransactions,filterTrades,flowTimeline,visibleFlowRange} from '../dist/analysis.mjs';
+import {createFlowHistory,mergeFlowHistory} from '../dist/flow-history.mjs';
 import {normalizeTrade,summarize} from '../dist/core.mjs';
 import {loadListings} from '../dist/data.mjs';
 const now=Date.parse('2026-09-21T12:00:00Z');
@@ -34,6 +35,23 @@ test('Trend chart omits leading empty bins without changing selected-window net'
   assert.equal(visible.bins.length,2);
   assert.equal(visible.bins.at(-1).cumulative,120);
   assert.equal(visibleFlowRange(flowTimeline([],5,now).bins).bins.length,5);
+});
+test('Five-day chart groups observed steps into four-hour intervals',()=>{
+  const result=flowTimeline([row('older','buy',50,now-4*86400000),row('latest','sell',20,now-60000)],7200,now);
+  assert.equal(result.stepMinutes,240);
+  assert.equal(result.bins.length,30);
+  assert.equal(result.bins.reduce((sum,bin)=>sum+bin.buy-bin.sell,0),30);
+});
+test('Five-day browser history retains actual older steps and deduplicates refreshes',()=>{
+  const memory=new Map(),storage={getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value)};
+  const history=createFlowHistory(()=>storage,()=>now);
+  const older={...row('older','buy',50,now-4*86400000),tokenKey:'robinhood:token'};
+  const recent={...row('recent','sell',20,now-60000),tokenKey:'robinhood:token'};
+  const expired={...row('expired','buy',100,now-6*86400000),tokenKey:'robinhood:token'};
+  history.record([older,expired]);history.record([older,recent]);
+  assert.deepEqual(history.read(['robinhood:token']).map(trade=>trade.id),[recent.id,older.id]);
+  assert.equal(mergeFlowHistory([recent],history.read(['robinhood:token']),now).length,2);
+  assert.equal(history.read(['solana:other']).length,0);
 });
 test('Quantity and implied execution price follow the selected token on either side',()=>{
   const attributes={from_token_address:'USD',to_token_address:'TOKEN',from_token_amount:'50',to_token_amount:'200',volume_in_usd:'50',block_timestamp:new Date(now).toISOString()};

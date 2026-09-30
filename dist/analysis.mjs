@@ -17,7 +17,7 @@ export function filterTrades(rows, {side = 'all', min = 0, wallet = ''} = {}) {
 }
 
 export function flowTimeline(rows, minutes, now) {
-  const stepMinutes = minutes <= 60 ? 1 : 60;
+  const stepMinutes = minutes <= 60 ? 1 : minutes > 1440 ? 240 : 60;
   const start = now - minutes*60000, step = stepMinutes*60000;
   const bins = Array.from({length: Math.ceil(minutes/stepMinutes)}, (_, i) => ({start: start+i*step, end: Math.min(now,start+(i+1)*step), buy: 0, sell: 0, count: 0, cumulative: 0}));
   for (const row of rows) {
