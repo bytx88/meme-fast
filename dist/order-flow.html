@@ -7,8 +7,8 @@
   <link rel="icon" type="image/svg+xml" sizes="any" href="./brand-mark.svg?v=2">
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
   <link rel="stylesheet" href="./order-flow-quick.css?v=symbol-history-v1">
-  <link rel="stylesheet" href="./order-flow-depth.css?v=mc-tint-v2">
-  <script type="module" src="./app.js?v=clipboard-manual-v1"></script>
+  <link rel="stylesheet" href="./order-flow-depth.css?v=mc-detail-v1">
+  <script type="module" src="./app.js?v=mc-detail-v1"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 <link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><script type="module" src="./donate.js?v=static-header-v1"></script></head>
 <body class="inspect-depth">
@@ -33,13 +33,24 @@
     <section id="timeline-pane"><section class="panel timeline-panel" aria-labelledby="timeline-title"><div class="panel-heading"><h3 id="timeline-title">Flow trend</h3><div class="timeline-meta"><span id="timeline-interval" class="eyebrow"></span></div></div><div class="timeline-legend"><span><i class="dot buy"></i>Buy volume</span><span><i class="dot sell"></i>Sell volume</span><span id="mc-legend" class="mc-value" hidden><i class="mc-key" aria-hidden="true"></i>Est. market cap</span></div><div id="timeline"></div><div class="timeline-footer"><p id="timeline-detail" class="timeline-detail"></p><details class="coverage-help"><summary aria-label="About sample coverage and chart notes" aria-describedby="coverage-tooltip">i</summary></details><span id="coverage-tooltip" class="coverage-tooltip" role="tooltip">This chart uses a bounded recent swap sample.</span></div></section></section>
     </div>
     <div id="empty-notice" class="empty-notice" role="status" hidden><div><strong id="empty-title"></strong><p id="empty-detail"></p></div><button id="show-all" type="button" hidden>Show 24h</button></div>
-    <section id="overview-pane" aria-label="Detailed flow breakdown"><h3 class="detail-heading">Flow breakdown</h3><div class="chart-grid" id="charts" aria-busy="true">
+    <section id="overview-pane" aria-label="Detailed flow breakdown"><h3 class="detail-heading">Flow breakdown</h3>
+    <div class="breakdown-tabs" role="tablist" aria-label="Flow breakdown">
+      <button id="breakdown-overview-tab" type="button" role="tab" data-breakdown="overview" aria-selected="true" aria-controls="breakdown-overview">Overview</button>
+      <button id="breakdown-mc-tab" type="button" role="tab" data-breakdown="mc" aria-selected="false" aria-controls="mc-detail-pane" tabindex="-1">MC Detail</button>
+    </div>
+    <div id="breakdown-overview" role="tabpanel" aria-labelledby="breakdown-overview-tab"><div class="chart-grid" id="charts" aria-busy="true">
       <section class="panel flow-panel"><div class="panel-heading"><h3>Trade overview</h3><span class="eyebrow">USD VOLUME</span></div>
         <div class="donut" id="donut" role="img" aria-label="Waiting for swap data"><svg viewBox="0 0 240 240" aria-hidden="true"><defs><linearGradient id="inspect-ring-buy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a4ffe5"/><stop offset=".45" stop-color="#2bdfaa"/><stop offset="1" stop-color="#129c77"/></linearGradient><linearGradient id="inspect-ring-sell" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd0dc"/><stop offset=".45" stop-color="#fb7185"/><stop offset="1" stop-color="#ba365d"/></linearGradient></defs><circle class="ring-track" cx="120" cy="120" r="98"/><circle id="sell-ring" cx="120" cy="120" r="98"/><circle id="buy-ring" cx="120" cy="120" r="98" pathLength="100" stroke-dasharray="0 100"/></svg><div class="donut-center"><span id="net-label">Net flow</span><strong id="net-value">—</strong><span id="swap-count">Fetching actual swaps</span></div></div>
         <div class="totals"><div><span class="label"><i class="dot buy"></i>Buy volume</span><strong id="buy-value">—</strong><span id="buy-share">—</span></div><div><span class="label"><i class="dot sell"></i>Sell volume</span><strong id="sell-value">—</strong><span id="sell-share">—</span></div></div>
       </section>
       <section class="panel size-panel"><div class="panel-heading"><h3>Flow by swap size</h3><span class="eyebrow">USD</span></div><div class="bar-heading"><span>BUYS</span><span>SIZE</span><span>SELLS</span></div><div id="size-bars"></div><div class="size-foot"><span>Small to extra large, by swap value.</span><span>Both sides use the same scale.</span></div></section>
-    </div>
+    </div></div>
+    <section id="mc-detail-pane" class="panel mc-detail-panel" role="tabpanel" aria-labelledby="breakdown-mc-tab" hidden>
+      <div class="panel-heading"><h3>Flow by market-cap tier</h3><label class="mc-metric-label">Metric <select id="mc-metric"><option value="value">Total Value</option><option value="count">Count</option><option value="average">Average Value</option></select></label></div>
+      <p id="mc-detail-note" class="chart-note" role="status">Loading swap data…</p>
+      <div class="mc-table-wrap"><table aria-label="Observed flow by estimated market cap"><thead><tr><th scope="col">MC Tier (USD)</th><th scope="col" class="numeric" id="mc-net-heading">Net</th><th scope="col" class="numeric">Buy</th><th scope="col" class="numeric">Sell</th><th scope="col">Read</th></tr></thead><tbody id="mc-tiers"></tbody></table></div>
+      <p class="chart-note mc-method">Estimated execution MC = swap price × supply implied by the latest reported MC and price, assuming unchanged supply. Tiers adapt to the selected sample; empty tiers are omitted and sparse neighbors may be merged for wide ranges. Color intensity is relative to visible tiers in the selected metric. This is a bounded swap sample, not complete market history or net capital inflow.</p>
+    </section>
     </section>
     <section class="tape-section"><div class="panel-heading"><h3>Latest observed swaps</h3><span id="tape-count" class="eyebrow">—</span></div>
       <div class="trade-filters" aria-label="Trade table filters"><label for="trade-side">Side<select id="trade-side"><option value="all">All sides</option><option value="buy">Buys</option><option value="sell">Sells</option></select></label><label>Minimum USD<input id="trade-min" type="number" min="0" step="any" placeholder="0" inputmode="decimal"></label><label class="wallet-filter">Wallet<input id="trade-wallet" type="search" placeholder="Address or part of address" autocomplete="off"></label><label class="group-toggle"><input id="trade-group" type="checkbox" checked>Group by transaction</label><button id="trade-reset" type="button">Reset filters</button></div>

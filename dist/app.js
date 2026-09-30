@@ -1,3 +1,4 @@
+import {setupMCDetail} from './mc-detail-view.mjs';
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD,SAMPLE_LIMITS} from './core.mjs';
 import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
@@ -14,6 +15,7 @@ import {safeURL} from './public-radar.mjs';
 import {createFlowCache} from './flow-cache.mjs';
 const flowCache=createFlowCache();
 const renderTape=setupTape();
+const renderMCDetail=setupMCDetail();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
@@ -141,6 +143,7 @@ function render(){
   $('listing-coverage').hidden=state.tokens.length<2;$('listing-coverage').replaceChildren();for(const token of state.tokens){const result=state.listings.find(l=>l.key===listingKey(token)),a=document.createElement('a');a.href=safeUrl(token.network,token.address);a.target='_blank';a.rel='noopener noreferrer';a.title=token.address;const status=result?.status||'loading';a.className=status==='loaded'?'':'incomplete';const label={loaded:`${result?.successCount} pools loaded`,partial:`${result?.successCount}/${result?.poolCount} pools loaded`,failed:'Data unavailable','no-pools':'No indexed pools',loading:'Loading…'}[status];a.textContent=`${token.symbol} · ${token.network} · ${short(token.address)} — ${label} ↗`;$('listing-coverage').append(a)}
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
+  renderMCDetail(s.rows,mc,!single,loaded,state.busy);
   renderCoverage(view,state,s.rows);
   renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);

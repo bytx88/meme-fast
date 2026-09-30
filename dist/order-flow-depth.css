@@ -97,3 +97,19 @@ body.inspect-depth{
   .inspect-depth .order-flow-page .timeline-panel .panel-heading{flex-wrap:wrap;gap:7px}
   .inspect-depth .order-flow-page .tape-section{padding:12px}
 }
+.breakdown-tabs{display:flex;gap:6px;margin:0 0 14px}
+.inspect-depth .order-flow-page .breakdown-tabs [aria-selected=true]{color:#ecffbe;border-color:#8ca369;background:linear-gradient(150deg,#41583d,#273c30)}
+.mc-detail-panel[hidden],#breakdown-overview[hidden]{display:none}
+.mc-detail-panel .panel-heading{flex-wrap:wrap;gap:12px}
+.mc-metric-label{display:flex;align-items:center;gap:8px;font-size:12px;color:#b2c4d7}
+.mc-metric-label select{padding:7px 10px;color:#edf5ff;border-radius:7px}
+.mc-detail-panel table{width:100%;min-width:620px}
+.mc-detail-panel tbody th{text-align:left;font-weight:600;white-space:nowrap;padding:12px}
+.mc-detail-panel .mc-net{font-weight:750;color:#f5f9ff}
+.mc-detail-panel td.numeric{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc-detail-panel td:last-child{color:#b2c4d7;font-size:12px}
+.mc-method{margin-bottom:0;max-width:100ch}
+
+.mc-table-wrap{overflow-x:auto}
+.mc-detail-panel .mc-table-wrap table{table-layout:auto}
+.mc-detail-panel .chart-note{margin-top:12px}
