@@ -1,4 +1,5 @@
 import {setupMCDetail} from './mc-detail-view.mjs';
+import {setupClipboardAddress} from './clipboard-address.mjs';
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD,SAMPLE_LIMITS} from './core.mjs';
 import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
@@ -178,21 +179,10 @@ function render(){
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const explicitQuery=tokenQueryFromSearch(location.search);
-let clipboardReadPending=false;
-async function readCopiedAddress(){
-  if(clipboardReadPending||!navigator.clipboard?.readText){error('Clipboard access is unavailable here. Paste the address into the search field.');return}
-  clipboardReadPending=true;
-  try{
-    const address=(await navigator.clipboard.readText()).trim();
-    if(!isContractAddress(address)){error('Clipboard does not contain a supported contract address.');return}
-    if(canonical(address)===canonical(state.searchedQuery))return;
-    $('query').value=address;
-    search(address).catch(e=>error(e.message));
-    return true;
-  }catch{error('Clipboard access was blocked. Paste the address into the search field instead.')}
-  finally{clipboardReadPending=false}
-}
-$('paste-contract').addEventListener('click',()=>readCopiedAddress());
+setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,onPaste:address=>{
+  $('query').value=address;
+  if(canonical(address)!==canonical(state.searchedQuery))search(address).catch(e=>error(e.message));
+}});
 $('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
