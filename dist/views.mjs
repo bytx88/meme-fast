@@ -77,6 +77,10 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
 }
 
 export function setupTape() {
+  const groupPreference='meme-fast:trade-group:v1';
+  $('trade-group').checked=false;
+  try{$('trade-group').checked=window.localStorage.getItem(groupPreference)==='true'}catch{/* Keep the default when storage is blocked. */}
+  const saveGrouping=()=>{try{window.localStorage.setItem(groupPreference,String($('trade-group').checked))}catch{/* The current session still works without storage. */}};
   let current=[],loaded=false,busy=true,limit=20,expanded=new Set(),scope='';
   function stepRow(trade, child=false) {
     const tr=make('tr',null,child?'swap-step':''),time=make('td',`${easternDate(trade.time)}, ${easternTimeWithSeconds(trade.time)} ET`);
@@ -115,8 +119,8 @@ export function setupTape() {
     $('tape-count').textContent=`${Math.min(limit,items.length)} / ${items.length} ${grouped?'GROUPS':'STEPS'} · ${rows.length} / ${current.length} STEPS MATCH`;
     $('load-more').hidden=limit>=items.length;$('load-more').textContent=`Load more (${Math.min(20,items.length-limit)})`;
   }
-  for(const id of ['trade-side','trade-min','trade-wallet','trade-group'])$(id).addEventListener(id==='trade-side'||id==='trade-group'?'change':'input',()=>{limit=20;draw()});
-  $('trade-reset').addEventListener('click',()=>{$('trade-side').value='all';$('trade-min').value='';$('trade-wallet').value='';$('trade-group').checked=true;limit=20;draw()});
+  for(const id of ['trade-side','trade-min','trade-wallet','trade-group'])$(id).addEventListener(id==='trade-side'||id==='trade-group'?'change':'input',()=>{if(id==='trade-group')saveGrouping();limit=20;draw()});
+  $('trade-reset').addEventListener('click',()=>{$('trade-side').value='all';$('trade-min').value='';$('trade-wallet').value='';$('trade-group').checked=false;saveGrouping();limit=20;draw()});
   $('load-more').addEventListener('click',()=>{limit+=20;draw()});
   return (rows,isLoaded,scopeKey,isBusy=true)=>{if(scopeKey!==scope){scope=scopeKey;limit=20;expanded.clear()}current=rows;loaded=isLoaded;busy=isBusy;draw()};
 }
