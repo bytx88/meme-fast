@@ -100,6 +100,7 @@ function updateIdentity(){const tokens=viewData().tokens,t=tokens[0]||state.toke
   $('result-note').textContent=t.unverified?t.lookupWarning:combined?'USD flow is combined across the listings below. Matching names may represent different tokens.':state.matches.length===1?'One matching listing found. Use the copy icon beside the symbol for its contract address.':`One listing selected from ${state.matches.length} search matches.`;
 
   $('scope-tabs').hidden=state.tokens.length<2;$('scope-tabs').replaceChildren();if(state.tokens.length>1)for(const entry of [{key:'all',label:`All combined (${state.tokens.length})`},...state.tokens.map(t=>({key:listingKey(t),label:`${t.symbol} · ${t.network} · ${short(t.address)}`}))]){const button=document.createElement('button');button.type='button';button.textContent=entry.label;button.setAttribute('aria-pressed',String(state.scope===entry.key));button.addEventListener('click',()=>{state.scope=entry.key;updateIdentity();render()});$('scope-tabs').append(button)}
+  clipboardControl.updateLabel();
 }
 async function selectToken(token){return selectListings([token])}
 async function selectListings(tokens,cached=null){const selected=uniqueListings(tokens);if(!selected.length)throw new Error('Select at least one listing.');state.generation++;state.tokens=selected;state.draft=new Set(selected.map(listingKey));updateSelection();state.token=selected[0];state.scope='all';state.trades=cached?.trades||[];state.historyTrades=flowHistory.read(selected.map(listingKey));state.pools=cached?.pools||[];state.listings=cached?.listings||[];state.skipped=cached?.skipped||0;state.loadError=false;state.fetched=cached?.fetched||0;state.cached=Boolean(cached);state.searchResult='ready';$('dashboard').hidden=false;$('match-chooser').open=false;$('search-status').textContent=state.searchedQuery?`${state.matches.length} match${state.matches.length===1?'':'es'} found.`:'';updateIdentity();render();return load()}
@@ -180,7 +181,10 @@ function render(){
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const explicitQuery=tokenQueryFromSearch(location.search);
-setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,onPaste:address=>{
+const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,nameForAddress:address=>{
+  const names=[...new Set([...state.matches,...state.tokens,...(flowCache.read(address)?.tokens||[])].filter(token=>!token.unverified&&canonical(token.address)===canonical(address)&&token.name&&token.name!=='Token'&&token.name!==address).map(token=>token.name.trim()).filter(Boolean))];
+  return names.length===1?names[0]:'';
+},onPaste:address=>{
   $('query').value=address;
   if(canonical(address)!==canonical(state.searchedQuery))search(address).catch(e=>error(e.message));
 }});

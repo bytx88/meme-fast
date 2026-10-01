@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {setupClipboardAddress} from '../dist/clipboard-address.mjs';
 const ca='0x'+'a'.repeat(40);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function target(){const events={};return {hidden:false,addEventListener:(name,fn)=>events[name]=fn,emit:(name,event)=>events[name]?.(event)}}
-function fixture(readText,state='granted'){
+function target(){const events={},attributes={};return {hidden:false,attributes,addEventListener:(name,fn)=>events[name]=fn,setAttribute:(name,value)=>attributes[name]=value,emit:(name,event)=>events[name]?.(event)}}
+function fixture(readText,state='granted',nameForAddress){
   const button=target(),input=target(),win=target(),doc=target(),pasted=[];
-  setupClipboardAddress({button,input,win,doc,clipboard:{readText},permissions:{query:async()=>({state})},onPaste:value=>pasted.push(value)});
-  return {button,input,win,doc,pasted};
+  const control=setupClipboardAddress({button,input,win,doc,clipboard:{readText},permissions:{query:async()=>({state})},onPaste:value=>pasted.push(value),nameForAddress});
+  return {button,input,win,doc,pasted,control};
 }
 test('Only a successfully read contract is shown; pressing the button uses it',async()=>{
   const f=fixture(async()=>` ${ca} `);assert.equal(f.button.hidden,true);
@@ -34,4 +34,13 @@ test('Pasting updates the candidate, including hiding it for non-address text',a
   const f=fixture(async()=>'', 'denied');await tick();
   f.input.emit('paste',{clipboardData:{getData:()=>ca}});assert.equal(f.button.hidden,false);
   f.input.emit('paste',{clipboardData:{getData:()=>'no address'}});assert.equal(f.button.hidden,true);
+});
+test('Known contract name appears on Paste CA and updates after a lookup',async()=>{
+  let name='';const f=fixture(async()=>ca,'granted',()=>name);
+  await tick();assert.equal(f.button.textContent,'Paste CA');
+  name='Cashed Money';f.control.updateLabel();
+  assert.equal(f.button.textContent,'Paste CA · Cashed Money');
+  assert.equal(f.button.attributes['aria-label'],'Paste Cashed Money contract address');
+  f.button.emit('click');assert.deepEqual(f.pasted,[ca]);
+  f.win.emit('blur');assert.equal(f.button.hidden,true);assert.equal(f.button.textContent,'Paste CA');
 });

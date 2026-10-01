@@ -1,11 +1,18 @@
 import {isContractAddress} from './recent-contracts.mjs';
 
 // Keep clipboard contents in memory only, and never search until Paste CA is pressed.
-export function setupClipboardAddress({button,input,clipboard,permissions,win,doc,onPaste}){
+export function setupClipboardAddress({button,input,clipboard,permissions,win,doc,onPaste,nameForAddress=()=>''}){
   let address='',revision=0;
+  const updateLabel=()=>{
+    const name=address?nameForAddress(address):'';
+    button.textContent=name?`Paste CA · ${name}`:'Paste CA';
+    button.title=name?`Paste ${name} · ${address}`:address?`Paste contract address ${address}`:'';
+    button.setAttribute('aria-label',name?`Paste ${name} contract address`:'Paste contract address');
+  };
   const show=value=>{
     address=typeof value==='string'&&isContractAddress(value.trim())?value.trim():'';
     button.hidden=!address;
+    updateLabel();
   };
   async function refresh(interactive=false){
     const current=++revision;
@@ -27,4 +34,5 @@ export function setupClipboardAddress({button,input,clipboard,permissions,win,do
   win.addEventListener('focus',()=>refresh());
   doc.addEventListener('visibilitychange',()=>doc.hidden?clear():refresh());
   refresh();
+  return {updateLabel};
 }

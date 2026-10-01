@@ -6,7 +6,7 @@
 .order-flow-page.token-loaded .search-area form{width:min(385px,100%);margin:0;gap:5px}
 .order-flow-page.token-loaded .search-area input{height:31px;padding:5px 9px;font-size:11px}
 .order-flow-page.token-loaded .search-area button{min-width:32px;min-height:31px;height:31px;padding:3px 8px;font-size:14px}
-.order-flow-page .search-area #paste-contract{flex:none;font-size:12px}
+.order-flow-page .search-area #paste-contract{flex:none;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .order-flow-page.token-loaded .search-area .search-button-label{display:none}
 .order-flow-page .search-history-icon{display:inline-block;vertical-align:middle;flex:none}
 .order-flow-page.token-loaded .search-area .primary span:last-child{display:inline;margin:0}
