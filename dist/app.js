@@ -26,6 +26,7 @@ const candleHistory=createCandleHistory(path=>api(path,{priority:-2}),()=>render
 const originalLegend=document.querySelector('.timeline-legend').innerHTML;
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
+const wholeMoney=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
 const short=s=>s.length>18?s.slice(0,7)+'…'+s.slice(-6):s;
 const recentContracts=createRecentContracts();
@@ -122,8 +123,8 @@ function currentSummary(){if(state.searchResult!=='ready')return {query:state.se
 function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
-  $('quick-net').textContent=available?money(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
-  $('quick-buy').textContent=available?money(s.buy):'—';$('quick-sell').textContent=available?money(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';
+  $('quick-net').textContent=available?wholeMoney.format(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
+  $('quick-buy').textContent=available?wholeMoney.format(s.buy):'—';$('quick-sell').textContent=available?wholeMoney.format(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';
   const single=view.tokens.length===1,mc=single?view.listings[0]?.marketCap:null,reportedPrice=single?view.listings[0]?.price:null;
   const lastTrade=single?view.trades.reduce((latest,trade)=>Number.isFinite(trade.price)&&trade.price>0&&(!latest||trade.time>latest.time)?trade:latest,null):null;
   const unitPrice=reportedPrice?.value??mc?.price??lastTrade?.price;
@@ -139,14 +140,14 @@ function render(){
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
   $('window-coverage').hidden=state.minutes!==7200;
   $('window-coverage').textContent='5D candle history · buy/sell figures are observed swaps only';
-  $('net-label').textContent=s.net<0?'Net sell volume':'Net buy volume';$('net-value').textContent=loaded?(Math.abs(s.net)>=100000?compact(Math.abs(s.net)):money(Math.abs(s.net))):'—';$('net-value').title=loaded?money(Math.abs(s.net)):'';$('swap-count').textContent=loaded?`${s.rows.length.toLocaleString()} observed swaps`:'Fetching actual swaps';
+  $('net-label').textContent=s.net<0?'Net sell volume':'Net buy volume';$('net-value').textContent=loaded?(Math.abs(s.net)>=100000?compact(Math.abs(s.net)):wholeMoney.format(Math.abs(s.net))):'—';$('net-value').title=loaded?money(Math.abs(s.net)):'';$('swap-count').textContent=loaded?`${s.rows.length.toLocaleString()} observed swaps`:'Fetching actual swaps';
   $('net-value').dataset.empty=String(loaded&&!available);if(loaded&&!available){$('net-label').textContent='Selected window';$('net-value').textContent='No swaps';$('net-value').title='No observed trades from which to calculate flow';$('swap-count').textContent=availability.totalReturned?`${availability.totalReturned} returned across 24h`:'Feed has no usable data'}
   $('buy-value').textContent=available?money(s.buy):'—';$('sell-value').textContent=available?money(s.sell):'—';
   for(const side of ['buy','sell'])$(''+side+'-share').textContent=available?`${s[side+'Count'].toLocaleString()} swaps · ${s.total?(s[side]/s.total*100).toFixed(1):'0.0'}%`:loaded?'No observed swaps':'—';
   $('buy-ring').setAttribute('stroke-dasharray',`${s.total?s.buy/s.total*100:0} ${s.total?100-s.buy/s.total*100:100}`);$('sell-ring').style.opacity=s.total?'1':'0';$('donut').setAttribute('aria-label',loaded?`Observed buys ${money(s.buy)}, sells ${money(s.sell)}, net ${money(s.net)}.`:'Waiting for swap data');
   if(loaded&&!available)$('donut').setAttribute('aria-label','No observed swaps in the selected time window; market flow is unavailable.');
   const max=Math.max(...s.bands.flatMap(b=>[b.buy,b.sell]),Number.EPSILON);$('size-bars').replaceChildren();
-  for(const band of s.bands){const row=document.createElement('div');row.className='size-row';for(const side of ['buy','label','sell']){const el=document.createElement('div');if(side==='label'){el.className='size-label';el.textContent=band.name;const small=document.createElement('small');small.textContent=band.label;el.append(small)}else{el.className='size-side';el.textContent=available?money(band[side]):'—';const track=document.createElement('div'),fill=document.createElement('div');track.className='bar-track';fill.className=`bar-fill ${side}`;fill.style.width=`${100*band[side]/max}%`;track.append(fill);el.append(track)}row.append(el)}$('size-bars').append(row)}
+  for(const band of s.bands){const row=document.createElement('div');row.className='size-row';for(const side of ['buy','label','sell']){const el=document.createElement('div');if(side==='label'){el.className='size-label';el.textContent=band.name;const small=document.createElement('small');small.textContent=band.label;el.append(small)}else{el.className='size-side';el.textContent=available?wholeMoney.format(band[side]):'—';const track=document.createElement('div'),fill=document.createElement('div');track.className='bar-track';fill.className=`bar-fill ${side}`;fill.style.width=`${100*band[side]/max}%`;track.append(fill);el.append(track)}row.append(el)}$('size-bars').append(row)}
   if(loaded){$('updated').textContent=`Updated ${easternDateTime(state.fetched)}`}
   else{$('updated').textContent='Loading swaps…'}
   $('pool-list').replaceChildren();for(const pool of view.pools){const a=document.createElement('a');a.href=safeUrl(pool.network,pool.address,'pools');a.target='_blank';a.rel='noopener noreferrer';a.textContent=`${pool.name} · ${pool.network} · ${pool.dex}${pool.failed?' · unavailable':''} ↗`;$('pool-list').append(a)}

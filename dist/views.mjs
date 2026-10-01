@@ -35,7 +35,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const ns='http://www.w3.org/2000/svg';
   const svgEl=(tag,attributes={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));return el};
   const chartWidth=Math.max(320,host.clientWidth);
-  const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 135`,role:'group','aria-label':'Observed buy and sell volume by interval, with estimated market cap when available'});
+  const svg=svgEl('svg',{viewBox:`0 0 ${chartWidth} 162`,role:'group','aria-label':'Observed buy and sell volume by interval, with estimated market cap when available'});
   const defs=svgEl('defs');
   for(const [id,colors]of [['flow-buy',['#8cf9d9','#2bdfaa','#159e7b']],['flow-sell',['#ffbacb','#fb7185','#c64266']]]){
     const gradient=svgEl('linearGradient',{id,x1:0,y1:0,x2:0,y2:1});
@@ -49,8 +49,8 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const mcMax=hasMC?Math.max(...values):0;
   const left=Math.max(48,axisMoney(max).length*6+14);
   const right=chartWidth-(hasMC?Math.max(86,axisMoney(mcMax).length*6+42):12);
-  const width=right-left,unit=width/visibleBins.length,top=23,bottom=101;
-  for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:right,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
+  const plotRight=hasMC?right-24:right,width=plotRight-left,unit=width/visibleBins.length,top=23,bottom=117;
+  for(const fraction of [0,.5,1]){const y=bottom-(bottom-top)*fraction;svg.append(svgEl('line',{x1:left,x2:plotRight,y1:y,y2:y,stroke:'#283140'}));label(axisMoney(max*fraction),left-10,y+5,'end')}
   label('Swap volume · USD',left,14);
   if(hasMC){
     let minCap=Math.min(...values),maxCap=Math.max(...values);const padding=Math.max((maxCap-minCap)*.1,maxCap*.01);minCap=Math.max(0,minCap-padding);maxCap+=padding;
@@ -72,7 +72,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
     svg.append(g);
   });
   const axisStamp=minutes>1440?time=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric'}).format(time):stamp;
-  label(axisStamp(visibleStart),left,125);label(axisStamp(visibleStart+(end-visibleStart)/2),left+width/2,125,'middle');label(axisStamp(end),right,125,'end');
+  label(axisStamp(visibleStart),left,144);label(axisStamp(visibleStart+(end-visibleStart)/2),left+width/2,144,'middle');label(axisStamp(end),plotRight,144,'end');
   host.append(svg);
 }
 
