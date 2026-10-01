@@ -4,6 +4,7 @@ import {marketCapTimeline} from './market-cap.mjs';
 import {easternDate,easternDateTime,easternRange,easternTime,easternTimeWithSeconds} from './eastern-time.mjs';
 const $ = id => document.getElementById(id);
 const money = formatUSD;
+const wholeMoney = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const short = value => value?.length > 18 ? value.slice(0,7)+'…'+value.slice(-6) : value || '—';
 const stamp = easternTime;
 const make = (tag, text, className) => {const el=document.createElement(tag);if(text!=null)el.textContent=text;if(className)el.className=className;return el};
@@ -63,9 +64,8 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   visibleBins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,Math.min(18,unit*.34));
     for(const [side,offset]of [['buy',-.5],['sell',.5]]){const h=bin[side]/max*(bottom-top);g.append(svgEl('rect',{x:x+unit*.5+offset*barWidth,y:bottom-h,width:barWidth,height:h,fill:`url(#flow-${side})`}))}
-    const description=`${easternRange(bin.start,bin.end)} · Buys ${money(bin.buy)} · Sells ${money(bin.sell)} · ${bin.count} steps · Cumulative net ${money(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${money(caps[i])}`:' · MC not observed':''}`;
+    const description=`Buys ${wholeMoney.format(bin.buy)} · Sells ${wholeMoney.format(bin.sell)} · ${bin.count} steps · Cumulative net ${wholeMoney.format(bin.cumulative)}${hasMC?caps[i]!=null?` · Est. MC ${wholeMoney.format(caps[i])}`:' · MC not observed':''} · ${easternRange(bin.start,bin.end)}`;
     g.setAttribute('aria-label',description);
-    const title=svgEl('title');title.textContent=description;g.append(title);
     const target=svgEl('rect',{x,y:top,width:unit,height:bottom-top,fill:'transparent',class:'interval-hit'});g.append(target);
     g.addEventListener('mouseenter',()=>$('timeline-detail').textContent=description);g.addEventListener('focus',()=>$('timeline-detail').textContent=description);
     g.addEventListener('mouseleave',()=>$('timeline-detail').textContent=defaultDetail);g.addEventListener('blur',()=>$('timeline-detail').textContent=defaultDetail);
