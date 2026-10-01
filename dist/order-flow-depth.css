@@ -110,5 +110,9 @@ body.inspect-depth{
 .mc-method{margin-bottom:0;max-width:100ch}
 
 .mc-table-wrap{overflow-x:auto}
-.mc-detail-panel .mc-table-wrap table{table-layout:auto}
+.mc-detail-panel .mc-table-wrap table{table-layout:fixed}
+.mc-detail-panel .mc-table-wrap th:nth-child(1){width:24%}
+.mc-detail-panel .mc-table-wrap th:nth-child(2){width:16%}
+.mc-detail-panel .mc-table-wrap th:nth-child(3),.mc-detail-panel .mc-table-wrap th:nth-child(4){width:14%}
+.mc-detail-panel .mc-table-wrap th:nth-child(5){width:32%}
 .mc-detail-panel .chart-note{margin-top:12px}
