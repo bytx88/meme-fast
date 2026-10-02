@@ -166,7 +166,7 @@ def collect_coin_evidence(token_id):
 def web():
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.gzip import GZipMiddleware
-    from fastapi.responses import FileResponse, Response
+    from fastapi.responses import FileResponse, RedirectResponse, Response
     import httpx
 
     web_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -428,6 +428,8 @@ def web():
 
     @web_app.api_route("/{asset_path:path}", methods=["GET", "HEAD"])
     async def static_app(asset_path: str, request: Request):
+        if asset_path in {"guide", "guide.html"}:
+            return RedirectResponse(url="/model", status_code=308)
         routes = {
             "": "order-flow.html",
             "narratives": "narratives.html",
@@ -438,7 +440,7 @@ def web():
             "sources": "sources.html",
             "jeanphil": "jeanphil.html",
             "about": "about.html",
-            "guide": "guide.html",
+            "model": "model.html",
             "privacy": "privacy.html",
             "terms": "terms.html",
         }

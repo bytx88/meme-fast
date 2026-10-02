@@ -16,6 +16,7 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 
 ## Product areas
 
+- **Model** (`/model`) — visual research workflow, data coverage, order-flow reading guide, and signal limits
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
 - **Snipe** — Starter screening for pool timing, market age, flow, and order-size pressure; Discover and Explore views for stage and story context
 - **Swing** — Swing and Longer-term research rankings with input coverage and explanations

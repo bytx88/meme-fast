@@ -2,12 +2,12 @@ import {readFile,writeFile} from 'node:fs/promises';
 
 // The Inspect page owns the server-rendered masthead. Keep every page's
 // initial HTML in sync without waiting for JavaScript to paint navigation.
-const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','sources','about','guide','privacy','terms'];
+const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','sources','about','model','privacy','terms'];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;
 const canonical=(await readFile('dist/order-flow.html','utf8')).match(pattern)?.[0];
 if(!canonical)throw new Error('Inspect masthead missing');
 const base=canonical.replace('class="brand" href="./"','class="brand" href="./order-flow.html"');
-const active={narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html'};
+const active={model:'model.html',narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html'};
 const check=process.argv.includes('--check');
 let stale=false;
 for(const page of pages){
