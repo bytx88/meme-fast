@@ -7,9 +7,6 @@
 .order-flow-page.token-loaded .search-area input{height:31px;padding:5px 9px;font-size:11px}
 .order-flow-page.token-loaded .search-area button{min-width:32px;min-height:31px;height:31px;padding:3px 8px;font-size:14px}
 .order-flow-page .search-area #paste-contract{flex:none;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.order-flow-page.token-loaded .search-area .search-button-label{display:none}
-.order-flow-page .search-history-icon{display:inline-block;vertical-align:middle;flex:none}
-.order-flow-page.token-loaded .search-area .primary span:last-child{display:inline;margin:0}
 .order-flow-page.token-loaded .recent-contracts{display:none}
 .order-flow-page.token-loaded .search-area:focus-within .recent-contracts:not([hidden]){display:flex;align-items:center;gap:5px;position:absolute;z-index:5;right:0;top:35px;width:max-content;max-width:100%;margin:0;padding:4px 5px;border:1px solid var(--line);border-radius:7px;background:var(--panel);box-shadow:0 8px 18px #0008}
 .order-flow-page.token-loaded .recent-list{order:0;min-width:0;flex:0 1 auto;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;padding:0}

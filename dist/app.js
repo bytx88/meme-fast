@@ -51,14 +51,14 @@ async function search(query){
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
   const cached=isContractAddress(query)?flowCache.read(query):null;
   if(cached){
-    state.searchController?.abort();state.searchGeneration++;state.searchBusy=false;$('search-button').disabled=false;
+    state.searchController?.abort();state.searchGeneration++;state.searchBusy=false;
     state.searchedQuery=query;state.matches=cached.tokens;
     if(!cached.tokens[0]?.unverified&&recentContracts.label(query,cached.tokens[0]?.symbol))renderRecentContracts();
     $('results').replaceChildren();$('results').hidden=true;$('combine-controls').hidden=true;$('match-chooser').hidden=true;
     await selectListings(cached.tokens,cached);return cached.tokens;
   }
   if(recentContracts.remember(query))renderRecentContracts();
-  state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-button').disabled=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
+  state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
   try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];
     state.matches=uniqueListings(found);state.draft=new Set(state.matches.map(listingKey));
     const remembered=state.matches.find(t=>!t.unverified&&canonical(t.address)===canonical(query));if(remembered&&recentContracts.label(query,remembered.symbol))renderRecentContracts();
@@ -74,7 +74,7 @@ async function search(query){
       state.searchResult='empty';$('search-status').textContent=`No indexed result for “${query}”. Try the exact contract address or another ticker.`;
     }
     return state.matches.map(({symbol,name,network,address})=>({symbol,name,network,address}));
-  }catch(e){if(generation===state.searchGeneration){state.searchResult='failed';$('search-status').textContent=`Search unavailable for “${query}”. Please try again.`;error(e.message)}return []}finally{if(generation===state.searchGeneration){state.searchBusy=false;$('search-button').disabled=false}}
+  }catch(e){if(generation===state.searchGeneration){state.searchResult='failed';$('search-status').textContent=`Search unavailable for “${query}”. Please try again.`;error(e.message)}return []}finally{if(generation===state.searchGeneration)state.searchBusy=false}
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
