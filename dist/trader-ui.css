@@ -176,7 +176,7 @@ body.trader-ui .workspace:not(.new-coins):not(.watchlist-page) > .research-card 
 body.trader-ui.inspect-depth .order-flow-page .token-row { min-height: 36px; margin: 4px 0; gap: 8px; }
 body.trader-ui.inspect-depth .order-flow-page .token-avatar { width: 30px; height: 30px; }
 body.trader-ui.inspect-depth .order-flow-page .identity h2 { font-size: 15px; }
-body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area { top: 57px; }
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area { top: auto; }
 body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area input,
 body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area button { height: 32px; min-height: 32px; padding: 5px 8px; font-size: 11px; border-radius: 5px; }
 body.trader-ui.inspect-depth .order-flow-page.token-loaded #search-form { align-items: center; }
