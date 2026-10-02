@@ -1,6 +1,7 @@
 /* Keep the token, selected window, summary, and trend visible together. */
 .order-flow-page{position:relative;padding-bottom:80px}
-.order-flow-page.token-loaded .search-area{display:flex;justify-content:flex-end;align-items:flex-start;position:relative;top:auto;right:auto;width:100%;padding:0;min-height:32px;z-index:3}
+.order-flow-page.token-loaded .search-area{display:flex;justify-content:flex-end;align-items:flex-start;position:relative;top:auto;right:auto;width:100%;padding:0;min-height:32px;margin-bottom:-32px;z-index:3}
+.order-flow-page.token-loaded:has(#dashboard[hidden]) .search-area,.order-flow-page.token-loaded:has(#error:not([hidden])) .search-area,.order-flow-page.token-loaded:has(#search-result-summary:not([hidden])) .search-area{margin-bottom:0}
 .order-flow-page.token-loaded:has(#search-result-summary:not([hidden])) .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}
 .order-flow-page.token-loaded .search-heading{display:none}
 .order-flow-page.token-loaded .search-area form{width:min(385px,100%);margin:0;gap:5px}
@@ -91,6 +92,7 @@
  .order-flow-page .table-wrap td.pool-detail,.order-flow-page .table-wrap td.wallet-detail,.order-flow-page .table-wrap td.execution-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
  .order-flow-page .table-wrap .expand-trade{min-height:30px;padding:4px 5px;font-size:12px}
 }
+@media(max-width:1200px){.order-flow-page.token-loaded .search-area{margin-bottom:0}}
 @media(max-width:1000px){.order-flow-page.token-loaded .search-area{position:relative;top:auto;right:auto;width:100%;padding:5px 0 0}.order-flow-page .token-row{min-height:46px;flex-wrap:wrap;align-items:center}.order-flow-page .identity{flex:1}.order-flow-page .token-row>.listing-actions{width:auto;margin-left:0}.order-flow-page .flow-metric strong{font-size:16px}}
 @media(max-width:720px){.order-flow-page .masthead{align-items:stretch}.order-flow-page .site-nav{min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}.order-flow-page .site-nav a{flex:none;padding:7px 8px;font-size:12px}.order-flow-page .token-row>.listing-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.order-flow-page .token-row>.listing-actions>*{justify-content:center;text-align:center}}
 @media(max-width:580px){.order-flow-page.token-loaded .search-area form{width:100%}.order-flow-page .flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.order-flow-page .flow-metric strong{font-size:14px}.order-flow-page .timeline-meta{gap:5px}.order-flow-page .timeline-legend{gap:5px 9px}.order-flow-page .flow-metric{padding:6px 8px}}
