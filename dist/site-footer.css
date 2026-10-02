@@ -1,0 +1,5 @@
+.site-info-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;width:100%;margin-top:4px;padding-top:16px;border-top:1px solid #445061;font-size:12px;line-height:1.5;color:#aebdcd}
+.site-info-links a{color:inherit;text-decoration:none}
+.site-info-links a:hover{text-decoration:underline;color:#e9eff6}
+.site-info-links a:focus-visible{outline:2px solid #d7f778;outline-offset:3px}
+.site-footer{width:min(1080px,calc(100% - 48px));margin:0 auto 24px;padding:24px 0;border-top:1px solid #445061}

@@ -70,6 +70,9 @@ if (header) {
     status.textContent = '';
     dialog.showModal();
   });
+  if (location.hash === '#donate') {
+    dialog.showModal();
+  }
   dialog.querySelector('.donate-heading button').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => {
     const rect = dialog.getBoundingClientRect();
