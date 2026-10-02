@@ -438,6 +438,8 @@ def web():
             "sources": "sources.html",
             "jeanphil": "jeanphil.html",
             "about": "about.html",
+            "privacy": "privacy.html",
+            "terms": "terms.html",
         }
         asset_path = re.sub(r"^_assets/[a-zA-Z0-9_-]+/", "", asset_path)
         relative = routes.get(asset_path, asset_path)
