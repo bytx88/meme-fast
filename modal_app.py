@@ -438,6 +438,7 @@ def web():
             "sources": "sources.html",
             "jeanphil": "jeanphil.html",
             "about": "about.html",
+            "guide": "guide.html",
             "privacy": "privacy.html",
             "terms": "terms.html",
         }
