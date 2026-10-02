@@ -22,7 +22,7 @@ if (header) {
   if (!actions.isConnected) header.querySelector('.site-nav')?.append(actions);
   const disclaimer = header.querySelector('.site-disclaimer') || document.createElement('span');
   disclaimer.className = 'site-disclaimer';
-  if (!disclaimer.isConnected) disclaimer.textContent = 'Not financial advice, DYOR.';
+  if (!disclaimer.isConnected) disclaimer.textContent = '>> Not financial advice, DYOR.';
   const brand = header.querySelector('.brand');
   const brandGroup = header.querySelector('.header-brand-group') || document.createElement('div');
   brandGroup.className = 'header-brand-group';
