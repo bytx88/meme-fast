@@ -22,6 +22,8 @@ const viewPreferenceKey='meme-fast.coin-view-v3';
 const screenerPreferenceKey='meme-fast.coin-screener-v1';
 const skipRugPreferenceKey='meme-fast.skip-rug-v1';
 const entryPreferenceKey='meme-fast.entry-v1';
+const hoursPreferenceKey='meme-fast.coin-hours-v1';
+function savedHours(){try{const hours=Number(localStorage.getItem(hoursPreferenceKey));return [1,6,12,36,120].includes(hours)?hours:6}catch{return 6}}
 const AUTO_UPDATE_MS=20000;
 const SNAPSHOT_CACHE='meme-fast-snipe-v2',SNAPSHOT_CACHE_MAX_AGE=30*60000;
 const snapshotCacheKey=hours=>`/api/new-coins?view=coin&hours=${hours}`;
@@ -45,7 +47,7 @@ const params=new URLSearchParams(location.search);
 const nameQuery=(params.get('name')||'').trim();
 const nameSearch=Boolean(nameQuery);
 const contractQuery=nameSearch?'':(params.get('contract')||params.get('query')||'').trim();
-const state={historyLoaded:false,historyError:false,hours:nameSearch||contractQuery?120:1,sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:nameQuery||contractQuery,nameDataQuery:null,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:nameSearch?'explore':contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
+const state={historyLoaded:false,historyError:false,hours:nameSearch||contractQuery?120:savedHours(),sort:'newest',screener:savedScreener(),entry:savedEntry(),skipRug:savedSkipRug(),query:nameQuery||contractQuery,nameDataQuery:null,freshEnabled:false,checkError:false,notice:'',coverageNote:'',lastRun:0,revision:'0',pendingSnapshot:null,selectedId:null,view:nameSearch?'explore':contractQuery?'entry':savedView(),activeStage:'new',holdsOpen:false};
 const data={coins:[],competitionCoins:[],manualCoins:[],web:new Map(),checks:new Map()};let loading=false,visibleRows=[],freshTimer=null,pollInFlight=false,highlightIds=new Set(),highlightTimer=null,nameSearchTimer=null;
 let competition=createCompetitionIndex([],watchlist()),comparisonOpen=false;
 function rebuildCompetition(){competition=createCompetitionIndex([...data.coins,...data.competitionCoins,...data.manualCoins],watchlist())}
@@ -350,7 +352,7 @@ function applyScreener(settings){
 document.addEventListener('click',async event=>{
  if(event.target.closest('[data-open-screener]')){openScreener();return}
  if(event.target.closest('[data-close-screener]')){$('#screener-dialog').close();return}
- const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();await refresh();return}
+ const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);if(!nameSearch&&!contractQuery){try{localStorage.setItem(hoursPreferenceKey,String(state.hours))}catch{}}document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();await refresh();return}
  const stageTab=event.target.closest('[data-stage-tab]');if(stageTab){state.activeStage=stageTab.dataset.stageTab;render();return}
  if(event.target.closest('[data-apply-update]')&&state.pendingSnapshot){applySnapshot(state.pendingSnapshot);return}
  if(event.target.closest('[data-fresh]')){setFresh(!state.freshEnabled);return}
@@ -378,6 +380,7 @@ $('.full-refresh').addEventListener('click',refresh);
 $('.full-exit').addEventListener('click',()=>setFull(false));
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){setFull(false);$('.collection-info').open=false}});
 $('#query').value=state.query;
+document.querySelectorAll('[data-hours]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.hours)===state.hours)));
 if(nameSearch){$('#query').placeholder='Exact token name';$('#query').title='Show every retained contract with this name across chains';$('#query').setAttribute('aria-label','Search same-name tokens');document.title=`${nameQuery} · Snipe listings · Meme Fast`}
 
 setInterval(()=>{if(!state.freshEnabled)poll()},60000);setInterval(()=>{updateFreshnessStatus();document.querySelectorAll('[data-pool-created]').forEach(node=>{node.textContent=poolAgeLabel(node.dataset.poolCreated)});if(state.view==='entry'&&!document.activeElement?.matches('[data-entry]')&&!$('#coin-detail').open){preserveScroll(render);return}document.querySelectorAll('[data-market-time]').forEach(node=>{const c=visibleRows.find(coin=>coin.id===node.dataset.marketId),fresh=marketState(c||{fetchedAt:Number(node.dataset.marketTime)});node.textContent=fresh.label;node.className=`freshness ${fresh.className}`})},15000);
