@@ -7,7 +7,7 @@ import {groupCoins} from './coin-groups.mjs';
 import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=snipe-route-v1';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
-import {stageFor,recoveryFor,graduationSplit,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
+import {stageFor,recoveryFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
 import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from './coin-screener.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
 import {DEFAULT_ENTRY,normalizeEntry,assessEntry} from './snipe-decision.mjs';
@@ -150,16 +150,22 @@ function laneSplit(title,items,description='',phase=''){
 function lifecycleLane(key,title,count,description,body,id){
  return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${count}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${body}</div></section>`;
 }
-function cards(stages,known,total){
- const graduated=stages.migrated,split=key=>graduated.filter(c=>graduationSplit(c)===key);
+function cards(stages,known,total,all){
  const unknownVolume=stages.unknown.filter(c=>Number(c.volume)>=50000),unknownOther=stages.unknown.filter(c=>!(Number(c.volume)>=50000));
- const newLane=lifecycleLane('new','New Pairs',stages.new.length,'Before Final Stretch · unknown status listed separately',
-  laneSplit('Bonding curve below 80%',stages.new)+laneSplit('Graduation status unknown',unknownOther)+laneSplit('Volume only · status unknown',unknownVolume,'$50K+ 24h volume does not prove graduation'),'new-pairs-title');
- const nearBody=stages.stretch.length?stages.stretch.map(card).join(''):`<p class="lane-empty">${known<total?'No Final Stretch matches in the measured sample; graduation coverage is incomplete.':'No Final Stretch matches in this window and screener.'}</p>`;
- const stretchLane=lifecycleLane('stretch','Final Stretch',stages.stretch.length,`80%+ bonded · completion not confirmed · data for ${known}/${total}`,nearBody,'final-stretch-title');
- const migratedLane=lifecycleLane('migrated','Graduated',graduated.length,'Confirmed completion · detailed price-pattern splits',
-  laneSplit('Under observation',split('tracking'),'First 45m after graduation','tracking')+laneSplit('45m A · rebound',split('rebound'))+laneSplit('45m B · continuation',split('continuation'))+laneSplit('Later recovery',split('later'))+laneSplit('Other graduated',split('other'),'No current qualifying recovery pattern'),'migrated-title');
- return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',stages.new.length],['stretch','Final Stretch',stages.stretch.length],['migrated','Graduated',graduated.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newLane}${stretchLane}${migratedLane}</div>`;
+ const nearDescription=`80%+ bonded · not graduated · data for ${known}/${total}`;
+ const nearBody=stages.stretch.length?laneSplit('Final Stretch',stages.stretch,nearDescription):`<div class="lane-subheading"><strong>Final Stretch <span>0</span></strong><small>${nearDescription}</small></div><p class="lane-empty compact">${known<total?'No Final Stretch matches in the measured sample; graduation coverage is incomplete.':'No Final Stretch matches in this window and screener.'}</p>`;
+ const newCount=stages.stretch.length+stages.new.length+unknownOther.length;
+ const newLane=lifecycleLane('new','New Pairs',newCount,'Final Stretch first · check story evidence',
+  nearBody+laneSplit('Fresh Pairs',stages.new,'Measured bonding progress below 80%')+laneSplit('Graduation status unknown',unknownOther),'new-pairs-title');
+ // Recovery is an independent view: appearing here must never remove a coin from its launch stage.
+ const recovering=all.filter(c=>recoveryFor(c)==='sustained');
+ const early=groupCoins(recovering.filter(c=>!c.laterRecoveryAt),context),later=groupCoins(recovering.filter(c=>c.laterRecoveryAt),context);
+ const tracking=groupCoins(all.filter(c=>isUnderObservation(c)),context),recoveryCount=early.length+later.length;
+ const recoveryLane=lifecycleLane('sustained','Observed recovery',recoveryCount,'45m scenarios A/B for coins ≤6h · later recovery by 24h',
+  laneSplit('45m patterns',early,'A: rebound · B: continuation')+laneSplit('Later recovery',later)+laneSplit('Under observation',tracking,'Confirmed graduations in the first 45m','tracking'),'sustained-title');
+ const migratedLane=lifecycleLane('migrated','Pool activity',stages.migrated.length+unknownVolume.length,'Confirmed graduation and volume-only evidence',
+  laneSplit('Graduation confirmed',stages.migrated)+laneSplit('Volume only · graduation unknown',unknownVolume,'$50K+ 24h volume does not prove graduation'),'migrated-title');
+ return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',newCount],['sustained','Recovery',recoveryCount+tracking.length],['migrated','Pool activity',stages.migrated.length+unknownVolume.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newLane}${recoveryLane}${migratedLane}</div>`;
 }
 function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
 function nameSearchCards(rows){
@@ -238,7 +244,7 @@ function render(){
  const all=nameReady?candidates():[],rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],migrated:[],unknown:[]};
  for(const coin of all)stages[stageFor(coin)].push(coin);
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
- visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.migrated,...stages.unknown]:rows;
+ visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.migrated,...stages.unknown,...all]:rows;
  $('#coin-count').textContent=state.view==='entry'?all.length:rows.length;
  $('#coin-list').className=`coin-list ${state.view==='entry'?'entry-mode':state.view==='discover'?'discover-mode':'explore-mode'}`;
  $('.coin-scanner').classList.toggle('entry-mode',state.view==='entry');
@@ -247,7 +253,7 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
  document.querySelectorAll('[data-skip-rug]').forEach(input=>input.checked=state.skipRug);
  updateAutoButtons();
- $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length):exploreCards(rows);
+ $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length,all):exploreCards(rows);
  const health=$('#market-health');if(health)health.textContent=state.historyLoaded&&nameReady?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
  $('#status').textContent=loading&&!state.historyLoaded?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
