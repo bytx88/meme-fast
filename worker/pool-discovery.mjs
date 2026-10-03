@@ -24,7 +24,10 @@ export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{}
  };
  const split=plan.findIndex(item=>item.page>1);
  const results=await Promise.allSettled(plan.slice(0,split).map(request));
- await betweenPasses();
+ await betweenPasses({
+  incoming:results.flatMap((r,i)=>plan[i].kind==='new_pools'&&r.status==='fulfilled'?r.value:[]),
+  trending:results.flatMap((r,i)=>plan[i].kind==='trending_pools'&&r.status==='fulfilled'?r.value:[]),
+ });
  results.push(...await Promise.allSettled(plan.slice(split).map(request)));
  for(const key of new Set(plan.map(item=>item.key))){
   const group=results.filter((_,index)=>plan[index].key===key),failure=group.find(r=>r.status==='rejected');

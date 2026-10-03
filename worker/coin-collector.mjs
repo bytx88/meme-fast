@@ -192,6 +192,23 @@ async function story(coin,fetcher){
  const lead=bestSearchLead((await response.text()).slice(0,60000));
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
+export async function collectLaunchpad(coins,fetcher,now,feeds){
+ const launchCandidates=selectLaunchCandidates(coins);
+ const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
+ const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
+  const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
+  const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
+ }));
+ const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
+ const launchFailure=launchResults.find(r=>r.status==='rejected');
+ if(launchResults.length)feeds.launchpad=feedStatus(feeds.launchpad,now,launchFailure?{error:launchFailure.reason.message,returnedRecords:launchTokens.length}:{records:launchTokens.length});
+ else feeds.launchpad={...feeds.launchpad,status:'idle',error:null,returnedRecords:null};
+ const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
+ return {tokens:launchTokens,checked,attemptedRequests:launchResults.length};
+}
+
 async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],marketOnly=false,skipMarket=false}={}){
  const targets=skipMarket?[]:selectMarketTargets(coins,radarCoins,priorityIds,now);
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
@@ -212,23 +229,8 @@ async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],m
  coins=recordMarketHistory(refreshMarket(coins,pairs,now),now);
  radarCoins=recordMarketHistory(refreshMarket(radarCoins,pairs,now),now);
  if(marketOnly)return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length,selected:targets.length};
- const launchCandidates=selectLaunchCandidates(coins);
- const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
- const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
-  const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}`,{signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
-  const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
- }));
- const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
- const launchFailure=launchResults.find(r=>r.status==='rejected');
- if(launchResults.length)feeds.launchpad=feedStatus(feeds.launchpad,now,launchFailure?{error:launchFailure.reason.message,returnedRecords:launchTokens.length}:{records:launchTokens.length});
- else feeds.launchpad={...feeds.launchpad,status:'idle',error:null,returnedRecords:null};
- coins=refreshLaunchpad(coins,launchTokens,now);
- const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
- coins=coins.map(coin=>checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
  coins=updateMigrationStates(await backfillPriceHistory(coins,fetcher,now),now);
- return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length+launchResults.length};
+ return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length};
 }
 
 async function enrichContext(snapshot,fetcher,now){
@@ -276,8 +278,10 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
  // Cover essential discovery, then indexed pools, before deeper pagination.
- let tracked=[],indexedCoins=[];
- const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async()=>{
+ let tracked=[],indexedCoins=[],launch;
+ const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
+ // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
+ launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds);
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -318,9 +322,10 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
  let coins=mergeCoins(coinsFromDiscovery,[...trending,...indexedCoins],now);
+ coins=refreshLaunchpad(coins,launch.tokens,now).map(coin=>launch.checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
  const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
- market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests;
+ market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests+launch.attemptedRequests;
  coins=market.coins;radarCoins=market.radarCoins;
  const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
