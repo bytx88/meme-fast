@@ -202,6 +202,9 @@ export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[]}=
  active.filter(c=>c.liquidity>=3000||(c.volume5m>0&&c.volume>=15000)).sort((a,b)=>(b.liquidity??0)-(a.liquidity??0)).forEach(c=>{
   if(launchCandidates.length<200&&!selectedIds.has(c.id)){launchCandidates.push(c);selectedIds.add(c.id)}
  });
+ // Send active-curve batches first so a provider cooldown cannot consume their entire allocation.
+ const activeIds=new Set(active.map(c=>c.id));
+ launchCandidates.sort((a,b)=>Number(activeIds.has(b.id))-Number(activeIds.has(a.id)));
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
   const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
@@ -290,7 +293,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  if(paced)fetcher=paced;
  // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
  let tracked=[],indexedCoins=[],launch,launchPools=[];
- const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
+ const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length,betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
  launchPools=await discoverLaunchpads(fetcher,now,feeds);
  launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending,...launchPools],now),fetcher,now,feeds,{launchPools});

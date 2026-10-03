@@ -25,7 +25,7 @@ test('active older curves receive extra checks and exact pool liquidity after mi
  const launch=await collectLaunchpad([...newest,old],async url=>{
   calls.push(url);return Response.json({data:url.includes(address)?[token]:[],included:[poolRow]});
  },now,{}, {launchPools:[launchPool]});
- assert(launch.checked.has(old.id));assert(calls.every(u=>u.endsWith('?include=top_pools')));
+ assert(calls[0].includes(address));assert(launch.checked.has(old.id));assert(calls.every(u=>u.endsWith('?include=top_pools')));
  assert.equal(launch.pools.length,1);assert.equal(launch.pools[0].contract_address,address);
  let coins=refreshMarket([old], [{chainId:'solana',baseToken:{address},pairAddress:pool,volume:{h24:92000,m5:400}}],now);
  coins=mergeCoins(coins,launch.pools,now);

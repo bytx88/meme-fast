@@ -14,7 +14,7 @@ export function discoveryPlan(){
  return plan;
 }
 
-export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{}}={}){
+export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{},initialCount=null}={}){
  const plan=discoveryPlan();
  const request=async({network,kind,page})=>{
   const query=new URLSearchParams({include:'base_token,quote_token',...(kind==='trending_pools'?{duration:'1h'}:{page:String(page)})});
@@ -22,7 +22,7 @@ export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{}
   if(!response.ok)throw new Error(`HTTP ${response.status}`);
   return parsePools(await response.json(),network,now);
  };
- const split=plan.findIndex(item=>item.page>1);
+ const split=initialCount??plan.findIndex(item=>item.page>1);
  const results=await Promise.allSettled(plan.slice(0,split).map(request));
  await betweenPasses({
   incoming:results.flatMap((r,i)=>plan[i].kind==='new_pools'&&r.status==='fulfilled'?r.value:[]),
