@@ -1,35 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stageFor,isUnderObservation,normalizeLaunchpad} from '../dist/coin-stages.mjs';
+import {stageFor,recoveryFor,graduationSplit,isUnderObservation,normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {refreshLaunchpad,selectLaunchCandidates} from '../worker/coin-collector.mjs';
 
-test('discover stages require measured volume or launch progress',()=>{
- const live={marketUpdatedAt:Date.now(),liquidity:5000,recentVolume1h:100};
- assert.equal(stageFor({volume:49999}),'new');
- assert.equal(stageFor({volume:50000}),'active');
- assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:80,completed:false}}),'stretch');
- assert.equal(stageFor({volume:1000000,launchpad:{graduationPercentage:90,completed:false}}),'stretch');
- assert.equal(stageFor({volume:1000000,launchpad:{graduationPercentage:40,completed:false}}),'new');
- assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:79.99,completed:false}}),'new');
- assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:100,completed:true}}),'migrated');
- assert.equal(stageFor({...live,volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234}),'sustained');
- assert.equal(stageFor({...live,volume:1000,launchpad:{graduationPercentage:100,completed:true},sustainedAt:1234,ruggedAt:1500}),'migrated');
- assert.equal(stageFor({...live,volume:1000,launchpad:{graduationPercentage:10,completed:false},sustainedAt:1234,successScenario:'continuation'}),'sustained');
- assert.equal(stageFor({...live,volume:1000,launchpad:{graduationPercentage:100,completed:true},ruggedAt:1234,laterRecoveryAt:1500}),'sustained');
- assert.equal(stageFor({...live,marketUpdatedAt:1000+5*3600000,poolCreated:1000,sustainedAt:2000},1000+5*3600000),'sustained');
- assert.equal(stageFor({...live,marketUpdatedAt:1000+7*3600000,poolCreated:1000,sustainedAt:2000},1000+7*3600000),'new');
- assert.equal(stageFor({...live,marketUpdatedAt:1000+7*3600000,poolCreated:1000,sustainedAt:2000,laterRecoveryAt:3000},1000+7*3600000),'sustained');
- assert.equal(stageFor({volume:1000,launchpad:{graduationPercentage:95}}),'new');
+test('launch stage cannot be overridden by price recovery or high volume',()=>{
+ const now=Date.now(),live={marketUpdatedAt:now,poolCreated:now-3600000,liquidity:5000,recentVolume1h:100,sustainedAt:now-1000,successScenario:'continuation'};
+ for(const extra of [{},{...live},{...live,laterRecoveryAt:now-500}, {...live,ruggedAt:now}]){
+  assert.equal(stageFor({...extra,volume:1000000}),'unknown');
+  assert.equal(stageFor({...extra,launchpad:{graduationPercentage:79.99,completed:false}}),'new');
+  assert.equal(stageFor({...extra,launchpad:{graduationPercentage:80,completed:false}}),'stretch');
+  assert.equal(stageFor({...extra,launchpad:{graduationPercentage:99.99,completed:false}}),'stretch');
+  assert.equal(stageFor({...extra,launchpad:{graduationPercentage:100,completed:false}}),'stretch');
+  assert.equal(stageFor({...extra,launchpad:{graduationPercentage:100,completed:true}}),'migrated');
+ }
+ assert.equal(stageFor({launchpad:{graduationPercentage:95}}),'unknown');
+ assert.equal(stageFor({launchpad:{graduationPercentage:null,completed:false}}),'unknown');
+ assert.equal(recoveryFor(live,now),'sustained');
+ assert.equal(graduationSplit({...live,launchpad:{graduationPercentage:90,completed:false}},now),null);
+ const graduated={...live,launchpad:{completed:true},graduationObservedAt:now-3600000};
+ assert.equal(graduationSplit(graduated,now),'continuation');
+ assert.equal(graduationSplit({...graduated,successScenario:'rebound'},now),'rebound');
+ assert.equal(graduationSplit({...graduated,laterRecoveryAt:now},now),'later');
+ assert.equal(graduationSplit({...graduated,sustainedAt:null,graduationObservedAt:now-1000},now),'tracking');
+ assert.equal(graduationSplit({...graduated,marketUpdatedAt:1},now),'other');
 });
 
 test('Observed recovery requires fresh timestamp, liquidity and trading in the past hour',()=>{
  const coin={marketUpdatedAt:3000,sustainedAt:2000,poolCreated:1000,liquidity:5000,recentVolume1h:100};
- assert.equal(stageFor(coin,3000),'sustained');
- assert.equal(stageFor({...coin,liquidity:0},3000),'new');
- assert.equal(stageFor({...coin,recentVolume1h:0},3000),'new');
- assert.equal(stageFor({...coin,liquidity:2999},3000),'new');
- assert.equal(stageFor({...coin,recentVolume1h:undefined,volume5m:20},3000),'sustained');
- assert.equal(stageFor({...coin,marketUpdatedAt:3000},3000+16*60000),'new');
+ assert.equal(recoveryFor(coin,3000),'sustained');
+ assert.equal(recoveryFor({...coin,liquidity:0},3000),null);
+ assert.equal(recoveryFor({...coin,recentVolume1h:0},3000),null);
+ assert.equal(recoveryFor({...coin,liquidity:2999},3000),null);
+ assert.equal(recoveryFor({...coin,recentVolume1h:undefined,volume5m:20},3000),'sustained');
+ assert.equal(recoveryFor({...coin,marketUpdatedAt:3000},3000+16*60000),null);
 });
 
 test('recent completed coins remain under observation without being called Sustained',()=>{

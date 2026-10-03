@@ -7,7 +7,7 @@ import {groupCoins} from './coin-groups.mjs';
 import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=snipe-route-v1';
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
-import {stageFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
+import {stageFor,recoveryFor,graduationSplit,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
 import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from './coin-screener.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
 import {DEFAULT_ENTRY,normalizeEntry,assessEntry} from './snipe-decision.mjs';
@@ -55,13 +55,8 @@ function clean(value){return String(value??'').replace(/\[[^\]]+\]\([^)]*\)/g,''
 function context(c){return data.web.get(c.id)?{kind:'web',web:data.web.get(c.id)}:c.savedContext||null}
 function verified(found){return found?.kind==='verified'||found?.kind==='web'&&found.web?.exact}
 function stageOrder(c){
- if(c.ruggedAt)return {key:'rugged',label:'Deep drawdown',rank:0};
- if(c.earlyRampWarning)return {key:'rapid',label:'Rapid early rise',rank:0};
- if(stageFor(c)==='sustained'&&c.laterRecoveryAt)return {key:'sustained',label:'Later recovery',rank:5};
- if(stageFor(c)==='sustained'&&c.sustainedAt)return {key:'sustained',label:c.successScenario==='continuation'?'45m · B':'45m · A',rank:5};
  const stage=stageFor(c);
- if(stage==='migrated'&&isUnderObservation(c))return {key:'observing',label:'Observing',rank:4};
- return {key:stage,label:({new:'New',stretch:'Stretch',migrated:'Migration confirmed',active:'Volume only',sustained:'Observed recovery'}[stage]||'New'),rank:({new:1,stretch:2,migrated:3,active:2,sustained:5}[stage]??1)};
+ return {key:stage,label:({new:'New',stretch:'Final Stretch',migrated:'Graduated',unknown:'Status unknown'}[stage]),rank:({unknown:0,new:1,stretch:2,migrated:3}[stage])};
 }
 function contextOrder(c){const found=context(c);return verified(found)?'verified':found?'unverified':'pending'}
 function sortValue(c){
@@ -130,18 +125,18 @@ function competitionHtml(c){
 }
 function stageFact(c,phase=''){
  const stage=stageFor(c),minutes=Math.max(0,Math.floor((Date.now()-c.graduationObservedAt)/60000));
- return c.earlyRampWarning?`Rapid early rise · +${c.earlyRampWarning.risePercent}% in ${c.earlyRampWarning.minutes}m · caution`:phase==='tracking'?`Recovery check · ${minutes}m since migration`:stage==='sustained'&&c.laterRecoveryAt?`Later recovery · ${c.laterRecoveryPercent}% from low`:stage==='sustained'&&c.sustainedAt?c.successScenario==='continuation'?`45m scenario B · continued +${c.recoveryPercent}%`:`45m scenario A · recovered ${c.recoveryPercent}% from low`:c.ruggedAt?`Deep drawdown · ${c.rugDrawdownPercent}% from peak`:c.sustainedAt||c.laterRecoveryAt?'Historical price move · market inactive':stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:c.successCoverage==='insufficient'?'Outcome unconfirmed · price history incomplete':stage==='migrated'?'Graduation observed':stage==='active'?`${money(c.volume)} 24h volume · graduation unconfirmed`:'';
+ return c.earlyRampWarning?`Rapid early rise · +${c.earlyRampWarning.risePercent}% in ${c.earlyRampWarning.minutes}m · caution`:phase==='tracking'?`Recovery check · ${minutes}m since migration`:recoveryFor(c)==='sustained'&&c.laterRecoveryAt?`Later recovery · ${c.laterRecoveryPercent}% from low`:recoveryFor(c)==='sustained'&&c.sustainedAt?c.successScenario==='continuation'?`45m scenario B · continued +${c.recoveryPercent}%`:`45m scenario A · recovered ${c.recoveryPercent}% from low`:c.ruggedAt?`Deep drawdown · ${c.rugDrawdownPercent}% from peak`:c.sustainedAt||c.laterRecoveryAt?'Historical price move · market inactive':stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:c.successCoverage==='insufficient'?'Outcome unconfirmed · price history incomplete':stage==='migrated'?'Graduation observed':stage==='active'?`${money(c.volume)} 24h volume · graduation unconfirmed`:'';
 }
 function card(c,index,phase=''){
  const found=context(c),market=marketState(c),trade=axiomLink(c),address=contractForCopy(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
- const stage=stageFor(c),fact=stageFact(c,phase);
+ const stage=stageFor(c),detail=stageFact(c,phase),launchFact=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% bonded · not graduated`:stage==='migrated'?'Graduation confirmed':stage==='new'?'Bonding curve · not graduated':'Graduation status unknown',fact=[launchFact,detail].filter(Boolean).join(' · ');
  return `<article class="new-coin-card scan-card${isNewGroup(c)?' snapshot-new':''}">
  <div class="card-main">
   <div class="card-top">
    <div class="card-thumb-stack">${thumbnail(c)}<span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div>
    <div class="coin-head"><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}</div><small title="${esc(c.name)}">${identitySubtitle(c)}${c.manual?' · Manual':''}</small>${nameSearch?`<code class="card-contract" title="${esc(c.contract_address)}">${esc(c.contract_address.slice(0,6))}…${esc(c.contract_address.slice(-5))}</code>`:''}${repeatBadge(c)}${!found?'<span class="card-context-unknown">Context unknown</span>':''}</div></div>
   </div>
-  ${fact?`<div class="card-stage-fact ${c.earlyRampWarning?'ramp-risk':phase==='tracking'?'tracking':c.ruggedAt?'rugged':stage==='sustained'?'sustained':''}">${esc(fact)}</div>`:''}
+  ${fact?`<div class="card-stage-fact ${c.earlyRampWarning?'ramp-risk':phase==='tracking'?'tracking':c.ruggedAt?'rugged':recoveryFor(c)==='sustained'?'sustained':''}">${esc(fact)}</div>`:''}
   ${metrics(c)}
   ${found?`<div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div>`:''}
  </div>
@@ -149,10 +144,23 @@ function card(c,index,phase=''){
  </article>`;
 }
 function cardSection(key,title,description,items,id,empty='No coins in this stage for the selected window.'){return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):`<p class="lane-empty">${empty}</p>`}</div></section>`}
-function newPairsSection(stages,known,total){const near=stages.stretch,fresh=stages.new,nearEmpty=!known&&total?'Graduation data unavailable for this sample. Final Stretch cannot be determined.':known<total?'No near-graduation coins in the measured sample; other coins have no graduation data.':state.hours===120?'No near-graduation coins measured in the current public feed.':'No near-graduation coins match this window and screener.';return `<section class="discovery-lane ${state.activeStage==='new'?'stage-active':''}" aria-labelledby="new-pairs-title"><div class="discovery-lane-head"><h2 id="new-pairs-title">New Pairs <span class="count-badge">${near.length+fresh.length}</span></h2><p>Final Stretch first · check story evidence</p></div><div class="discovery-lane-list"><div class="lane-subheading"><strong>Final Stretch <span>${near.length}</span></strong><small>80–99% progress · data for ${known}/${total}</small></div>${near.length?near.map(card).join(''):`<p class="lane-empty compact">${nearEmpty}</p>`}<div class="lane-subheading"><strong>Fresh Pairs <span>${fresh.length}</span></strong></div>${fresh.length?fresh.map((coin,index)=>card(coin,index+near.length)).join(''):'<p class="lane-empty compact">No fresh pairs match this window and screener.</p>'}</div></section>`}
-function sustainedSection(stages){const early=stages.sustained.filter(c=>!c.laterRecoveryAt),later=stages.sustained.filter(c=>c.laterRecoveryAt);return `<section class="discovery-lane ${state.activeStage==='sustained'?'stage-active':''}" aria-labelledby="sustained-title"><div class="discovery-lane-head"><h2 id="sustained-title">Observed recovery <span class="count-badge">${stages.sustained.length}</span></h2><p>45m scenarios A/B for coins ≤6h · later recovery by 24h</p></div><div class="discovery-lane-list"><div class="lane-subheading"><strong>45m patterns <span>${early.length}</span></strong><small>A: rebound · B: continuation</small></div>${early.length?early.map(card).join(''):'<p class="lane-empty compact">No 45m recovery or continuation measured yet.</p>'}<div class="lane-subheading"><strong>Later recovery <span>${later.length}</span></strong></div>${later.length?later.map(card).join(''):'<p class="lane-empty compact">No later recovery confirmed yet.</p>'}<div class="lane-subheading"><strong>Under observation <span>${stages.tracking.length}</span></strong><small>Confirmed migrations in the first 45m</small></div>${stages.tracking.length?stages.tracking.map((coin,index)=>card(coin,index,'tracking')).join(''):'<p class="lane-empty compact">No migrations currently being measured.</p>'}</div></section>`}
-function activitySection(stages){return `<section class="discovery-lane ${state.activeStage==='migrated'?'stage-active':''}" aria-labelledby="migrated-title"><div class="discovery-lane-head"><h2 id="migrated-title">Pool activity <span class="count-badge">${stages.migrated.length+stages.active.length}</span></h2><p>Confirmed migration and volume-only evidence</p></div><div class="discovery-lane-list"><div class="lane-subheading"><strong>Migration confirmed <span>${stages.migrated.length}</span></strong></div>${stages.migrated.length?stages.migrated.map(card).join(''):'<p class="lane-empty compact">No confirmed migrations in this window.</p>'}<div class="lane-subheading"><strong>Volume only · migration unknown <span>${stages.active.length}</span></strong><small>$50K+ observed 24h pool volume</small></div>${stages.active.length?stages.active.map(card).join(''):'<p class="lane-empty compact">No volume-only candidates in this window.</p>'}</div></section>`}
-function cards(stages,known,total){return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',stages.new.length+stages.stretch.length],['sustained','Recovery',stages.sustained.length+stages.tracking.length],['migrated','Pool activity',stages.migrated.length+stages.active.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newPairsSection(stages,known,total)}${sustainedSection(stages)}${activitySection(stages)}</div>`}
+function laneSplit(title,items,description='',phase=''){
+ return `<div class="lane-subheading"><strong>${title} <span>${items.length}</span></strong><small>${description}</small></div>${items.length?items.map(c=>card(c,0,phase)).join(''):'<p class="lane-empty compact">No matches in this window and screener.</p>'}`;
+}
+function lifecycleLane(key,title,count,description,body,id){
+ return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${count}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${body}</div></section>`;
+}
+function cards(stages,known,total){
+ const graduated=stages.migrated,split=key=>graduated.filter(c=>graduationSplit(c)===key);
+ const unknownVolume=stages.unknown.filter(c=>Number(c.volume)>=50000),unknownOther=stages.unknown.filter(c=>!(Number(c.volume)>=50000));
+ const newLane=lifecycleLane('new','New Pairs',stages.new.length,'Before Final Stretch · unknown status listed separately',
+  laneSplit('Bonding curve below 80%',stages.new)+laneSplit('Graduation status unknown',unknownOther)+laneSplit('Volume only · status unknown',unknownVolume,'$50K+ 24h volume does not prove graduation'),'new-pairs-title');
+ const nearBody=stages.stretch.length?stages.stretch.map(card).join(''):`<p class="lane-empty">${known<total?'No Final Stretch matches in the measured sample; graduation coverage is incomplete.':'No Final Stretch matches in this window and screener.'}</p>`;
+ const stretchLane=lifecycleLane('stretch','Final Stretch',stages.stretch.length,`80%+ bonded · completion not confirmed · data for ${known}/${total}`,nearBody,'final-stretch-title');
+ const migratedLane=lifecycleLane('migrated','Graduated',graduated.length,'Confirmed completion · detailed price-pattern splits',
+  laneSplit('Under observation',split('tracking'),'First 45m after graduation','tracking')+laneSplit('45m A · rebound',split('rebound'))+laneSplit('45m B · continuation',split('continuation'))+laneSplit('Later recovery',split('later'))+laneSplit('Other graduated',split('other'),'No current qualifying recovery pattern'),'migrated-title');
+ return `<div class="discovery-board"><div class="stage-tabs" role="group" aria-label="Discovery stage">${[['new','New Pairs',stages.new.length],['stretch','Final Stretch',stages.stretch.length],['migrated','Graduated',graduated.length]].map(([key,label,count])=>`<button type="button" data-stage-tab="${key}" aria-pressed="${state.activeStage===key}">${label} <span>${count}</span></button>`).join('')}</div>${newLane}${stretchLane}${migratedLane}</div>`;
+}
 function exploreSection(title,items,id){return items.length?`<section class="explore-section" aria-labelledby="${id}"><div class="section-heading"><h2 id="${id}">${title}</h2><span class="count-badge">${items.length}</span></div><div class="explore-grid">${items.map(card).join('')}</div></section>`:''}
 function nameSearchCards(rows){
  const ready=state.historyLoaded&&state.nameDataQuery===state.query;
@@ -185,11 +193,11 @@ function entryBoard(rows){
  const passing=ranked.filter(row=>row.check.passesScreen),held=ranked.filter(row=>!row.check.passesScreen);
  return `<div class="entry-board"><div class="entry-summary"><strong>${passing.length} threshold pass · ${held.length} hold</strong><span>5-minute collector snapshots show fetch time, not exchange event time. A pass is not trade approval; live quote, sell simulation, and contract checks remain unverified.</span></div>${passing.length?`<section class="entry-priority" aria-label="Review first"><h3>Review first <span>${passing.length}</span></h3>${passing.map(row=>entryCard(row.coin)).join('')}</section>`:rows.length?'<div class="entry-no-pass">No pools pass the current thresholds. Review holds or change the screen settings.</div>':'<div class="new-empty">No pools match this window. Try a longer time window.</div>'}${held.length?`<details class="entry-holds" ${state.holdsOpen?'open':''}><summary>Review holds <span>${held.length}</span></summary>${held.map(row=>entryCard(row.coin)).join('')}</details>`:''}</div>`;
 }
-function lifecycleTag(c){return c.ruggedAt?'<span class="lifecycle-tag rugged" title="Observed price fell at least 78% from an early peak.">Deep drawdown</span>':c.earlyRampWarning?'<span class="lifecycle-tag rugged" title="Sharp early price rise with concentrated buying and thin liquidity; not proof of a rug.">Rapid rise</span>':stageFor(c)==='sustained'&&c.laterRecoveryAt?'<span class="lifecycle-tag sustained">Later recovery</span>':stageFor(c)==='sustained'&&c.sustainedAt?`<span class="lifecycle-tag sustained">45m ${c.successScenario==='continuation'?'B':'A'}</span>`:''}
+function lifecycleTag(c){return c.ruggedAt?'<span class="lifecycle-tag rugged" title="Observed price fell at least 78% from an early peak.">Deep drawdown</span>':c.earlyRampWarning?'<span class="lifecycle-tag rugged" title="Sharp early price rise with concentrated buying and thin liquidity; not proof of a rug.">Rapid rise</span>':recoveryFor(c)==='sustained'&&c.laterRecoveryAt?'<span class="lifecycle-tag sustained">Later recovery</span>':recoveryFor(c)==='sustained'&&c.sustainedAt?`<span class="lifecycle-tag sustained">45m ${c.successScenario==='continuation'?'B':'A'}</span>`:''}
 function detailHtml(c){
  const found=context(c),market=marketState(c),check=entryCheck(c),address=contractForCopy(c);
  const fact=stageFact(c,isUnderObservation(c)?'tracking':'');
- const factClass=c.earlyRampWarning?'ramp-risk':isUnderObservation(c)?'tracking':c.ruggedAt?'rugged':stageFor(c)==='sustained'?'sustained':'';
+ const factClass=c.earlyRampWarning?'ramp-risk':isUnderObservation(c)?'tracking':c.ruggedAt?'rugged':recoveryFor(c)==='sustained'?'sustained':'';
  return `<div class="detail-head"><div class="detail-identity">${thumbnail(c)}<div><div class="detail-title-line"><h2>$${esc(c.symbol)}</h2>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}${lifecycleTag(c)}</div><p>${identitySubtitle(c)}${c.manual?' · Manual':''} · <span data-pool-created="${esc(c.poolCreated||'')}">${poolAgeLabel(c.poolCreated)}</span></p></div></div><button class="detail-close" type="button" data-close-detail aria-label="Close coin details">×</button></div><p class="detail-freshness"><span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}">${esc(market.label)}</span> · ${c.firstSeen?`Seen ${esc(age(c.firstSeen))} ago`:'First seen unknown'}</p>${address?`<p class="detail-contract">CA <code>${esc(address)}</code></p>`:''}${repeatBadge(c)}${!found?'<p class="detail-context-unknown">Context unknown</p>':''}${fact?`<p class="detail-stage-fact ${factClass}">${esc(fact)}</p>`:''}${state.view==='entry'?`<section class="detail-screen"><h3>Starter screen · ${check.passesScreen?'thresholds met':'hold'}</h3><p>${check.reasons.length?`Checks to review: ${esc(check.reasons.join(', '))}.`:'Pool age, market freshness, liquidity, buy activity, sell pressure, and order size meet the selected thresholds.'} Live quote, sellability, and contract risk are unverified.</p></section>`:''}${metrics(c)}${explanation(found,c)}<div class="detail-actions">${watchButton(c)}${tokenActions(c,{copy:false})}</div>${variants(c)}`;
 }
 function renderDetail(){
@@ -227,10 +235,10 @@ function render(){
  $('#collection-summary').textContent=nameSearch?(state.historyLoaded?`${competition.nameCount(state.query)} same-name contracts`:'Loading matches…'):state.historyLoaded?`5D: ${total} total · ${supported} address linked · ${total-supported} pending`:state.historyError?'Totals unavailable':'Loading…';
  $('#investigate').disabled=loading;$('#refresh').disabled=loading;
  const nameReady=!nameSearch||state.nameDataQuery===state.query;
- const all=nameReady?candidates():[],rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],sustained:[],tracking:[],migrated:[],active:[]};
- for(const coin of all){const stage=stageFor(coin);stages[stage==='migrated'&&isUnderObservation(coin)?'tracking':stage].push(coin)}
+ const all=nameReady?candidates():[],rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],migrated:[],unknown:[]};
+ for(const coin of all)stages[stageFor(coin)].push(coin);
  for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
- visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.sustained,...stages.tracking,...stages.migrated,...stages.active]:rows;
+ visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.migrated,...stages.unknown]:rows;
  $('#coin-count').textContent=state.view==='entry'?all.length:rows.length;
  $('#coin-list').className=`coin-list ${state.view==='entry'?'entry-mode':state.view==='discover'?'discover-mode':'explore-mode'}`;
  $('.coin-scanner').classList.toggle('entry-mode',state.view==='entry');

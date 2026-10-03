@@ -12,17 +12,28 @@ export function isUnderObservation(coin,now=Date.now()){
  return coin?.launchpad?.completed===true&&!coin.ruggedAt&&!coin.sustainedAt&&Number.isFinite(start)&&start>0&&now>=start&&now-start<=45*60000;
 }
 
-export function stageFor(coin,now=Date.now()){
- const progress=Number(coin?.launchpad?.graduationPercentage);
+// Launch lifecycle is independent of price patterns and volume.
+export function stageFor(coin){
+ if(coin?.launchpad?.completed===true)return 'migrated';
+ const progress=coin?.launchpad?.graduationPercentage;
+ if(coin?.launchpad?.completed===false&&progress!=null&&Number.isFinite(Number(progress))){
+  if(Number(progress)>=FINAL_STRETCH_PERCENT&&Number(progress)<=100)return 'stretch';
+  if(Number(progress)>=0&&Number(progress)<FINAL_STRETCH_PERCENT)return 'new';
+ }
+ return 'unknown';
+}
+
+export function recoveryFor(coin,now=Date.now()){
  const start=coin?.launchpad?.completed===true?coin.graduationObservedAt:coin?.poolCreated;
  if(hasLiveSuccessMarket(coin,now)&&(coin?.laterRecoveryAt||coin?.sustainedAt&&!coin.ruggedAt&&(!Number.isFinite(Number(start))||now-Number(start)<=6*3600000)))return 'sustained';
- if(coin?.launchpad?.completed===true)return 'migrated';
- if(coin?.launchpad?.completed===false){
-  if(Number.isFinite(progress)&&progress>=FINAL_STRETCH_PERCENT&&progress<100)return 'stretch';
-  return 'new';
- }
- if(Number(coin?.volume)>=MIGRATED_VOLUME_24H)return 'active';
- return 'new';
+ return null;
+}
+
+export function graduationSplit(coin,now=Date.now()){
+ if(stageFor(coin)!=='migrated')return null;
+ if(recoveryFor(coin,now))return coin.laterRecoveryAt?'later':coin.successScenario==='continuation'?'continuation':'rebound';
+ if(isUnderObservation(coin,now))return 'tracking';
+ return 'other';
 }
 
 export function normalizeLaunchpad(details){
