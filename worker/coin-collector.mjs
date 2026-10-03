@@ -128,8 +128,9 @@ export function selectLaunchCandidates(coins,limit=120){
  const selected=[],seen=new Set();
  const add=coin=>{if(selected.length<limit&&!seen.has(coin.id)){selected.push(coin);seen.add(coin.id)}};
  const newest=[...coins].sort((a,b)=>b.firstSeen-a.firstSeen);
- newest.filter(c=>c.launchpad?.completed===false&&c.launchpad.graduationPercentage>=80).slice(0,20).forEach(add);
- newest.slice(0,Math.min(50,Math.max(1,Math.floor(limit*0.4)))).forEach(add);
+ // New pairs get first claim on the bounded launchpad budget.
+ newest.slice(0,Math.max(1,Math.floor(limit*2/3))).forEach(add);
+ newest.filter(c=>c.launchpad?.completed===false&&c.launchpad.graduationPercentage>=80).slice(0,Math.max(1,Math.floor(limit/6))).forEach(add);
  [...coins].sort((a,b)=>(a.launchpadCheckedAt??0)-(b.launchpadCheckedAt??0)||b.firstSeen-a.firstSeen).forEach(add);
  return selected;
 }
@@ -277,7 +278,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const previous=await readSnapshot(filename),feeds={...previous.feeds};
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
- // Cover essential discovery, then indexed pools, before deeper pagination.
+ // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
  let tracked=[],indexedCoins=[],launch;
  const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.

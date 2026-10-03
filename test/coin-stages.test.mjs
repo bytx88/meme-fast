@@ -44,7 +44,17 @@ test('recent completed coins remain under observation without being called Susta
 test('launchpad checks rotate older contracts while retaining new and near-graduation coins',()=>{
  const coins=Array.from({length:8},(_,i)=>({id:String(i),firstSeen:100-i,launchpadCheckedAt:i<6?100:0}));
  coins[5].launchpad={graduationPercentage:90,completed:false};
- assert.deepEqual(selectLaunchCandidates(coins,4).map(c=>c.id),['5','0','6','7']);
+ assert.deepEqual(selectLaunchCandidates(coins,4).map(c=>c.id),['0','1','5','6']);
+});
+
+test('new pairs take the first 80 launchpad slots ahead of the retained backlog',()=>{
+ const coins=Array.from({length:200},(_,i)=>({id:String(i),firstSeen:1000-i,launchpadCheckedAt:i<100?100:0}));
+ for(let i=80;i<100;i++)coins[i].launchpad={graduationPercentage:90,completed:false};
+ const selected=selectLaunchCandidates(coins);
+ assert.equal(selected.length,120);
+ assert.deepEqual(selected.slice(0,80).map(c=>c.id),coins.slice(0,80).map(c=>c.id));
+ assert.deepEqual(selected.slice(80,100).map(c=>c.id),coins.slice(80,100).map(c=>c.id));
+ assert.deepEqual(selected.slice(100).map(c=>c.id),coins.slice(100,120).map(c=>c.id));
 });
 
 test('collector attaches launch progress to the exact token and retains prior data on missing response',()=>{
