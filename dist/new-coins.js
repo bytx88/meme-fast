@@ -22,6 +22,11 @@ const viewPreferenceKey='meme-fast.coin-view-v3';
 const screenerPreferenceKey='meme-fast.coin-screener-v1';
 const skipRugPreferenceKey='meme-fast.skip-rug-v1';
 const entryPreferenceKey='meme-fast.entry-v1';
+const hiddenPreferenceKey='meme-fast.hidden-coins-v1';
+function savedHidden(){try{const rows=JSON.parse(localStorage.getItem(hiddenPreferenceKey)||'[]');return new Map((Array.isArray(rows)?rows:[]).filter(c=>c&&typeof c.id==='string').map(c=>[c.id,c]))}catch{return new Map()}}
+let hiddenCoins=savedHidden(),showHidden=false;
+function hideButton(c){const hidden=hiddenCoins.has(c.id);return `<button type="button" data-hide-coin="${esc(c.id)}" aria-label="${hidden?'Restore':'Hide'} ${esc(c.symbol)}">${hidden?'Restore':'Hide'}</button>`}
+function saveHidden(){try{localStorage.setItem(hiddenPreferenceKey,JSON.stringify([...hiddenCoins.values()]))}catch{}}
 const hoursPreferenceKey='meme-fast.coin-hours-v1';
 function savedHours(){try{const hours=Number(localStorage.getItem(hoursPreferenceKey));return [1,6,12,36,120].includes(hours)?hours:6}catch{return 6}}
 const AUTO_UPDATE_MS=20000;
@@ -78,10 +83,10 @@ function compareCoins(a,b){
  return second-first||(b.firstSeen??0)-(a.firstSeen??0);
 }
 function candidates(){
- if(nameSearch)return competition.sameName(state.query).sort(compareCoins);
+ if(nameSearch)return competition.sameName(state.query).filter(c=>showHidden||!hiddenCoins.has(c.id)).sort(compareCoins);
  const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
  const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&(stageFor(c)==='stretch'||c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff)),manual=data.manualCoins;
- return [...new Map([...manual,...regular].filter(c=>(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
+ return [...new Map([...manual,...regular].filter(c=>(showHidden||!hiddenCoins.has(c.id))&&(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
   .sort((a,b)=>Number(Boolean(b.manual))-Number(Boolean(a.manual))||compareCoins(a,b));
 }
 function marketState(c){
@@ -142,7 +147,7 @@ function card(c,index,phase=''){
   <dl class="compact-metrics"><div><dt title="Pool liquidity">Liq</dt><dd>${money(c.liquidity)}</dd></div><div><dt title="Volume in the last five minutes">5m vol</dt><dd>${money(c.volume5m)}</dd></div><div><dt title="Buys / sells in the last five minutes">5m B/S</dt><dd>${num(c.buys5m)} / ${num(c.sells5m)}</dd></div></dl>
   <div class="compact-signal ${c.earlyRampWarning?'ramp-risk':c.ruggedAt?'rugged':recoveryFor(c)==='sustained'?'sustained':''}" title="${esc(fact)}">${esc(fact)}</div>
   <p class="compact-narrative ${verified(found)?'verified':found?'unverified':'pending'}" title="${esc(quickRead(found,c))}">${found?`<span>${contextLabel(found)}</span> `:''}${esc(quickRead(found,c))}</p>
-  <div class="compact-footer"><div class="compact-evidence">${repeatBadge(c)}</div><div class="card-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button>${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}${watchButton(c)}</div></div>
+  <div class="compact-footer"><div class="compact-evidence">${repeatBadge(c)}</div><div class="card-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button>${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}${watchButton(c)}${hideButton(c)}</div></div>
   ${nameSearch?`<code class="card-contract">${esc(c.contract_address)}</code>`:''}
  </div></article>`;
 }
@@ -195,7 +200,7 @@ function entryCheck(c){
 }
 function entryCard(c){
  const check=entryCheck(c),flow=check.volumeChange;
- return `<article class="entry-row ${check.passesScreen?'entry-pass':'entry-hold'}${isNewGroup(c)?' snapshot-new':''}"><div class="entry-identity">${thumbnail(c)}<div><div class="entry-name"><strong>$${esc(c.symbol)}</strong>${chainMarker(c)}<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button></div><small>${identitySubtitle(c)}</small>${repeatBadge(c)}</div><span class="entry-status ${check.passesScreen?'pass':'hold'}">${check.passesScreen?'Threshold pass':'Hold'}</span></div><div class="entry-metrics"><div class="entry-stat"><span>Pool</span><strong title="Created ${c.poolCreated?esc(new Date(c.poolCreated).toLocaleString()):'Unknown'}">${duration(check.poolAgeMinutes)}</strong></div><div class="entry-stat"><span>Detected after</span><strong>${duration(check.detectionLagMinutes)}</strong></div><div class="entry-stat"><span>Market fetch</span><strong class="${check.marketAgeMinutes==null||check.marketAgeMinutes>state.entry.maxMarketAgeMinutes?'risk':''}" title="Updated ${c.marketUpdatedAt??c.fetchedAt?esc(new Date(c.marketUpdatedAt??c.fetchedAt).toLocaleString()):'Unknown'}">${duration(check.marketAgeMinutes)} ago</strong></div><div class="entry-stat"><span>5m buys / sells</span><strong>${num(c.buys5m)} / ${num(c.sells5m)}</strong><small title="Change in overlapping five minute windows">Δ ${signedNum(check.buysChange)} / ${signedNum(check.sellsChange)}</small></div><div class="entry-stat"><span>5m volume Δ</span><strong title="Change in overlapping five minute windows; not incremental volume">${signedMoney(flow)}</strong></div><div class="entry-stat"><span>Liquidity</span><strong>${money(c.liquidity)}</strong><small title="Change since the prior collector sample">Δ ${signedMoney(check.liquidityChange)}</small></div><div class="entry-stat"><span>Size / liq</span><strong>${check.sizeLiquidityPercent==null?'—':check.sizeLiquidityPercent.toFixed(1)+'%'}</strong></div></div><div class="entry-verification"><span>Quote / sell simulation / contract checks: unverified</span>${check.reasons.length?`<small>Screen flags: ${esc(check.reasons.join(', '))}</small>`:'<small>Thresholds met. Check live quote and sellability before entry.</small>'}</div><div class="entry-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Inspect ${esc(c.symbol)}">Inspect</button>${watchButton(c)}</div></article>`;
+ return `<article class="entry-row ${check.passesScreen?'entry-pass':'entry-hold'}${isNewGroup(c)?' snapshot-new':''}"><div class="entry-identity">${thumbnail(c)}<div><div class="entry-name"><strong>$${esc(c.symbol)}</strong>${chainMarker(c)}<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button></div><small>${identitySubtitle(c)}</small>${repeatBadge(c)}</div><span class="entry-status ${check.passesScreen?'pass':'hold'}">${check.passesScreen?'Threshold pass':'Hold'}</span></div><div class="entry-metrics"><div class="entry-stat"><span>Pool</span><strong title="Created ${c.poolCreated?esc(new Date(c.poolCreated).toLocaleString()):'Unknown'}">${duration(check.poolAgeMinutes)}</strong></div><div class="entry-stat"><span>Detected after</span><strong>${duration(check.detectionLagMinutes)}</strong></div><div class="entry-stat"><span>Market fetch</span><strong class="${check.marketAgeMinutes==null||check.marketAgeMinutes>state.entry.maxMarketAgeMinutes?'risk':''}" title="Updated ${c.marketUpdatedAt??c.fetchedAt?esc(new Date(c.marketUpdatedAt??c.fetchedAt).toLocaleString()):'Unknown'}">${duration(check.marketAgeMinutes)} ago</strong></div><div class="entry-stat"><span>5m buys / sells</span><strong>${num(c.buys5m)} / ${num(c.sells5m)}</strong><small title="Change in overlapping five minute windows">Δ ${signedNum(check.buysChange)} / ${signedNum(check.sellsChange)}</small></div><div class="entry-stat"><span>5m volume Δ</span><strong title="Change in overlapping five minute windows; not incremental volume">${signedMoney(flow)}</strong></div><div class="entry-stat"><span>Liquidity</span><strong>${money(c.liquidity)}</strong><small title="Change since the prior collector sample">Δ ${signedMoney(check.liquidityChange)}</small></div><div class="entry-stat"><span>Size / liq</span><strong>${check.sizeLiquidityPercent==null?'—':check.sizeLiquidityPercent.toFixed(1)+'%'}</strong></div></div><div class="entry-verification"><span>Quote / sell simulation / contract checks: unverified</span>${check.reasons.length?`<small>Screen flags: ${esc(check.reasons.join(', '))}</small>`:'<small>Thresholds met. Check live quote and sellability before entry.</small>'}</div><div class="entry-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Inspect ${esc(c.symbol)}">Inspect</button>${watchButton(c)}${hideButton(c)}</div></article>`;
 }
 function entryBoard(rows){
  const ranked=rows.map(c=>({coin:c,check:entryCheck(c)})).sort((a,b)=>(b.coin.firstSeen??0)-(a.coin.firstSeen??0));
@@ -238,6 +243,11 @@ function updateAvailable(){
  buttons.forEach(b=>{b.hidden=false;b.textContent=added?`+${added} new`:'Update available'});
 }
 function render(){
+ $('#show-hidden').checked=showHidden;
+ $('#hidden-count').textContent=hiddenCoins.size?` (${hiddenCoins.size})`:'';
+ const hiddenPanel=$('#hidden-coins-panel');hiddenPanel.hidden=!showHidden;
+ hiddenPanel.innerHTML=`<strong>Hidden coins</strong><p>Restore any item below, even when it is outside the current time window or filters.</p>${hiddenCoins.size?[...hiddenCoins.values()].map(c=>`<div class="hidden-coin-item"><span title="${esc(c.id)}">${esc(c.symbol||c.id)}${c.chain?` · ${esc(c.chain)}`:''}</span><button type="button" data-restore-hidden="${esc(c.id)}" aria-label="Restore ${esc(c.symbol||c.id)}">Restore</button></div>`).join(''):'<p>No hidden coins.</p>'}`;
+
  document.body.classList.toggle('name-search',nameSearch);
  document.body.classList.toggle('entry-view',state.view==='entry');
  const retained=data.coins.filter(c=>c.firstSeen>Date.now()-5*86400000),total=state.retainedTotal??retained.length,supported=state.retainedAddressLinked??retained.filter(c=>verified(context(c))).length;
@@ -351,6 +361,15 @@ function applyScreener(settings){
  render();
 }
 document.addEventListener('click',async event=>{
+ const restore=event.target.closest('[data-restore-hidden]');if(restore){hiddenCoins.delete(restore.dataset.restoreHidden);saveHidden();preserveScroll(render);return}
+ const hide=event.target.closest('[data-hide-coin]');if(hide){
+  const coin=visibleRows.find(c=>c.id===hide.dataset.hideCoin);if(coin){
+   const variants=coin.variants||[coin],restore=hiddenCoins.has(coin.id);
+   for(const c of variants){if(restore)hiddenCoins.delete(c.id);else hiddenCoins.set(c.id,{id:c.id,symbol:c.symbol,chain:c.chain})}
+   saveHidden();preserveScroll(render);
+  }return;
+ }
+
  if(event.target.closest('[data-open-screener]')){openScreener();return}
  if(event.target.closest('[data-close-screener]')){$('#screener-dialog').close();return}
  const period=event.target.closest('[data-hours]');if(period){state.hours=Number(period.dataset.hours);if(!nameSearch&&!contractQuery){try{localStorage.setItem(hoursPreferenceKey,String(state.hours))}catch{}}document.querySelectorAll('[data-hours]').forEach(x=>x.setAttribute('aria-pressed',String(x===period)));render();await refresh();return}
@@ -367,7 +386,8 @@ document.addEventListener('click',async event=>{
  else if(result.status==='manual'){const input=$('#manual-ca');input.value=result.address;$('#ca-dialog').showModal();input.focus();input.select()}
 });
 document.addEventListener('error',event=>{if(event.target.matches?.('.coin-thumb img'))event.target.remove()},true);
-window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1'){rebuildCompetition();preserveScroll(render)}});
+$('#show-hidden').addEventListener('change',event=>{showHidden=event.target.checked;preserveScroll(render)});
+window.addEventListener('storage',event=>{if(event.key===hiddenPreferenceKey){hiddenCoins=savedHidden();preserveScroll(render)}if(event.key==='meme-fast-watchlist-v1'){rebuildCompetition();preserveScroll(render)}});
 document.addEventListener('toggle',event=>{if(event.target.matches?.('.entry-holds'))state.holdsOpen=event.target.open},true);
 $('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
