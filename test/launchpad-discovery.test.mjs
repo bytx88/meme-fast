@@ -39,3 +39,11 @@ test('unavailable dedicated feeds report failure rather than claiming zero curve
  const feeds={};assert.deepEqual(await discoverLaunchpads(async()=>{throw Error('offline')},now,feeds),[]);
  assert.equal(feeds.launchpad_pools.error,'offline');
 });
+
+test('saved refresh interests also check graduation for older unmeasured contracts',async()=>{
+ const coins=Array.from({length:120},(_,i)=>({id:`solana:new${i}`,network:'solana',contract_address:`new${i}`,firstSeen:now-i}));
+ coins.push({id:`solana:${address}`,network:'solana',contract_address:address,firstSeen:now-86400000});
+ const calls=[];
+ const result=await collectLaunchpad(coins,async url=>{calls.push(url);return Response.json({data:[],included:[]})},now,{}, {priorityIds:[`solana:${address}`]});
+ assert(calls[0].includes(address));assert(result.checked.has(`solana:${address}`));
+});

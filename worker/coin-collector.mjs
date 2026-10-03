@@ -193,9 +193,13 @@ async function story(coin,fetcher){
  const lead=bestSearchLead((await response.text()).slice(0,60000));
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
-export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[]}={}){
+export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[],priorityIds=[]}={}){
  const launchCandidates=selectLaunchCandidates(coins);
  const selectedIds=new Set(launchCandidates.map(c=>c.id));
+ const priority=new Set(priorityIds.map(tokenKey));
+ for(const coin of coins.filter(c=>priority.has(tokenKey(c.id))).slice(0,30)){
+  if(!selectedIds.has(coin.id)){launchCandidates.push(coin);selectedIds.add(coin.id)}
+ }
  // Additional budget for active curves, independent of newest-pair admission.
  // Pool liquidity selects checks; only authoritative launchpad data assigns a stage.
  const active=[...launchPools,...coins.filter(c=>['pumpfun','meteoradbc'].includes(c.dex)&&c.launchpad?.completed!==true)];
@@ -204,7 +208,7 @@ export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[]}=
  });
  // Send active-curve batches first so a provider cooldown cannot consume their entire allocation.
  const activeIds=new Set(active.map(c=>c.id));
- launchCandidates.sort((a,b)=>Number(activeIds.has(b.id))-Number(activeIds.has(a.id)));
+ launchCandidates.sort((a,b)=>Number(priority.has(tokenKey(b.id)))-Number(priority.has(tokenKey(a.id)))||Number(activeIds.has(b.id))-Number(activeIds.has(a.id)));
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
   const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
@@ -296,7 +300,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length,betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
  launchPools=await discoverLaunchpads(fetcher,now,feeds);
- launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending,...launchPools],now),fetcher,now,feeds,{launchPools});
+ launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending,...launchPools],now),fetcher,now,feeds,{launchPools,priorityIds});
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
