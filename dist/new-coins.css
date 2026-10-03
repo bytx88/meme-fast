@@ -432,3 +432,9 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .compact-story:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .discovery-lane-list{gap:4px}
 @media(max-width:420px){.compact-metrics{gap:3px}.compact-metrics>div{gap:3px}.compact-metrics dd{font-size:11px}.compact-identity small{display:none}.compact-evidence{max-width:calc(100% - 140px)}}
+
+/* Keep the narrative readable during scanning, with provenance on the same line. */
+.compact-narrative{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:1px 0;padding-left:6px;border-left:2px solid #8a6c30;color:#cbd5e1;font-size:11px;line-height:1.4}
+.compact-narrative span{margin-right:4px;color:#ffc46b;font-size:9px;font-weight:600;text-transform:uppercase}
+.compact-narrative.verified{border-color:#617c32}.compact-narrative.verified span{color:var(--accent)}
+.compact-narrative.pending{border-color:#475467;color:var(--muted);font-size:10px;-webkit-line-clamp:1}
