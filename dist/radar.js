@@ -60,7 +60,9 @@ function queueHolder(id){if(holderInfo.has(id)||queuedHolders.has(id))return;que
 const initial=new URLSearchParams(location.search);
 const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
-const state={mode:initialMode==='swing'?'swing':'research',chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false,xFactorReport:{version:1,status:'disconnected',coins:{}}};
+const modePreferenceKey='meme-fast-radar-mode-v1';
+function savedMode(){try{return localStorage.getItem(modePreferenceKey)==='research'?'research':'swing'}catch{return 'swing'}}
+const state={mode:['swing','research'].includes(initialMode)?initialMode:savedMode(),chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false,xFactorReport:{version:1,status:'disconnected',coins:{}}};
 const dialog=$('#radar-inspector');
 const holderObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){holderObserver.unobserve(entry.target);queueHolder(entry.target.dataset.holderId)}},{rootMargin:'120px'});
 
@@ -203,7 +205,7 @@ async function loadCatalogMatch(){
  }catch{}
  render();
 }
-document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{state.mode=button.dataset.mode;render()}));
+document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{state.mode=button.dataset.mode;try{localStorage.setItem(modePreferenceKey,state.mode)}catch{}render()}));
 document.querySelectorAll('[data-chain-filter]').forEach(button=>button.addEventListener('click',()=>{state.chain=button.dataset.chainFilter;render()}));
 let catalogTimer;
 $('#query').addEventListener('input',event=>{state.query=event.target.value.trim();state.catalogCoin=null;render();clearTimeout(catalogTimer);catalogTimer=setTimeout(loadCatalogMatch,300)});
@@ -225,7 +227,7 @@ document.addEventListener('click',async event=>{
 document.addEventListener('error',event=>{if(event.target.matches?.('.radar-thumb img'))event.target.remove()},true);
 dialog.addEventListener('close',()=>{state.selectedId=null});
 setInterval(()=>{if(!document.hidden&&!state.loading)render()},60000);
-window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1')render()});
+window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1')render();if(event.key===modePreferenceKey&&!['swing','research'].includes(initialMode)){state.mode=savedMode();render()}});
 $('#query').value=state.query;
 load().then(async()=>{if(initialContract){await loadCatalogMatch();const coin=universe().find(item=>String(item.contract_address).toLowerCase()===initialContract.toLowerCase());openInspector(coin?coinId(coin):`${state.chain}:${initialContract}`)}});
 
