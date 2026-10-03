@@ -78,7 +78,7 @@ function compareCoins(a,b){
 function candidates(){
  if(nameSearch)return competition.sameName(state.query).sort(compareCoins);
  const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
- const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff),manual=data.manualCoins;
+ const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&(stageFor(c)==='stretch'||c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff)),manual=data.manualCoins;
  return [...new Map([...manual,...regular].filter(c=>(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
   .sort((a,b)=>Number(Boolean(b.manual))-Number(Boolean(a.manual))||compareCoins(a,b));
 }
@@ -152,7 +152,7 @@ function lifecycleLane(key,title,count,description,body,id){
 }
 function cards(stages,known,total,all){
  const unknownVolume=stages.unknown.filter(c=>Number(c.volume)>=50000),unknownOther=stages.unknown.filter(c=>!(Number(c.volume)>=50000));
- const nearDescription=`80%+ bonded · not graduated · data for ${known}/${total}`;
+ const nearDescription=`80%+ bonded · retained 5D · data for ${known}/${total}`;
  const nearBody=stages.stretch.length?laneSplit('Final Stretch',stages.stretch,nearDescription):`<div class="lane-subheading"><strong>Final Stretch <span>0</span></strong><small>${nearDescription}</small></div><p class="lane-empty compact">${known<total?'No Final Stretch matches in the measured sample; graduation coverage is incomplete.':'No Final Stretch matches in this window and screener.'}</p>`;
  const newCount=stages.stretch.length+stages.new.length+unknownOther.length;
  const newLane=lifecycleLane('new','New Pairs',newCount,'Final Stretch first · check story evidence',

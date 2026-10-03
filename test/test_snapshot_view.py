@@ -19,6 +19,18 @@ class FakeResponse:
 
 
 class SnapshotViewTests(unittest.TestCase):
+    def test_final_stretch_ignores_discovery_window_but_respects_retention(self):
+        now = 1800000000000
+        older = {"id": "near", "firstSeen": now - 3 * 86400000,
+                 "launchpad": {"graduationPercentage": 93, "completed": False}}
+        coins = [older, {**older, "id": "done", "launchpad": {"graduationPercentage": 100, "completed": True}},
+                 {**older, "id": "early", "launchpad": {"graduationPercentage": 40, "completed": False}},
+                 {**older, "id": "unknown", "launchpad": None},
+                 {**older, "id": "expired", "firstSeen": now - 6 * 86400000}]
+        result = snapshot_view({"coins": coins}, "coin", now_ms=now, hours=1)
+        self.assertEqual([coin["id"] for coin in result["coins"]], ["near"])
+        self.assertEqual(result["retainedTotal"], 4)
+
     def test_views_and_revision(self):
         now = 1800000000000
         coin = {"id": "solana:ABC", "firstSeen": now, "lastSeenRadarAt": now,

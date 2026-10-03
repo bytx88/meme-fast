@@ -78,7 +78,7 @@ def collect_coins():
         main = Path("/history/coins.json")
         snapshot = json.loads(main.read_text())
         for hours in (1, 6, 12, 36, 120):
-            projection = Path(f"/history/coins.snipe.{hours}.json")
+            projection = Path(f"/history/coins.snipe.v2.{hours}.json")
             temporary = projection.with_suffix(".json.tmp")
             payload = snapshot_view(snapshot, "coin", hours=hours)
             temporary.write_text(json.dumps(payload, separators=(",", ":")))
@@ -301,7 +301,7 @@ def web():
             raise HTTPException(status_code=400, detail="Choose a supported Snipe time window")
         if view in ("coin", "health"):
             main = Path("/history/coins.json")
-            projection = Path(f"/history/coins.snipe.{hours_text}.json") if view == "coin" else Path("/history/coins.health.json")
+            projection = Path(f"/history/coins.snipe.v2.{hours_text}.json") if view == "coin" else Path("/history/coins.health.json")
             if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
                 return Response(projection.read_bytes(), media_type="application/json",
                                 headers={"cache-control": "no-store"})

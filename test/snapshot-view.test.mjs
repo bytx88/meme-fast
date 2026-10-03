@@ -46,6 +46,16 @@ test('Snipe returns only the selected window while preserving five-day totals',(
  assert.deepEqual(snapshotView(snapshot,'health',[],now),{revision:snapshot.revision,lastRun:now,feeds:{}});
 });
 
+test('Final Stretch survives short discovery windows but not retention expiry or completion',()=>{
+ const older={...coin,firstSeen:now-3*86400000,launchpad:{graduationPercentage:93,completed:false}};
+ const rows=[older,{...older,id:'completed',launchpad:{graduationPercentage:100,completed:true}},
+  {...older,id:'early',launchpad:{graduationPercentage:40,completed:false}},
+  {...older,id:'unknown',launchpad:null},{...older,id:'expired',firstSeen:now-6*86400000}];
+ const projected=snapshotView({...snapshot,coins:rows},'coin',[],now,'',1);
+ assert.deepEqual(projected.coins.map(c=>c.id),[older.id]);
+ assert.equal(projected.retainedTotal,4);
+});
+
 test('Swing projection preserves the history used by Hours and Days ranking',()=>{
  const sample=at=>({at,volume5m:1000,buys5m:10,sells5m:5,liquidity:100000,priceUsd:0.01});
  const marketHistory=Array.from({length:12},(_,i)=>sample(now-(11-i)*5*60000));

@@ -1,3 +1,4 @@
+import {stageFor} from '../dist/coin-stages.mjs';
 import {watchlistView} from './watchlist-view.mjs';
 import {compactFlow} from '../dist/snipe-decision.mjs';
 import {earlyRampWarning} from '../dist/rug-screen.mjs';
@@ -38,7 +39,7 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now(),name='',hour
  if(view==='coin'){
   if(![1,6,12,36,120].includes(hours))throw new Error('Choose a supported Snipe time window');
   const retained=(snapshot.coins||[]).filter(c=>(c.firstSeen||0)>cutoff),windowCutoff=now-hours*3600000;
-  const visible=retained.filter(c=>(c.firstSeen||0)>=windowCutoff||(c.graduationObservedAt||0)>=windowCutoff),visibleIds=new Set(visible.map(c=>c.id));
+  const visible=retained.filter(c=>(c.firstSeen||0)>=windowCutoff||(c.graduationObservedAt||0)>=windowCutoff||stageFor(c)==='stretch'),visibleIds=new Set(visible.map(c=>c.id));
   const result=Object.fromEntries(['version','revision','lastRun','coverage','feeds'].filter(field=>field in snapshot).map(field=>[field,snapshot[field]]));
   result.retainedTotal=retained.length;
   result.retainedAddressLinked=retained.filter(c=>c.savedContext?.kind==='verified'||c.savedContext?.kind==='web'&&c.savedContext.web?.exact).length;

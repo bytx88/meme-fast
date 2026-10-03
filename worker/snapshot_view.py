@@ -87,6 +87,17 @@ def _key(value):
     return value if value.startswith("solana:") else value.lower()
 
 
+def _is_final_stretch(coin):
+    launchpad = coin.get("launchpad") or {}
+    progress = launchpad.get("graduationPercentage")
+    if launchpad.get("completed") is not False or progress is None:
+        return False
+    try:
+        return 80 <= float(progress) <= 100
+    except (ValueError, TypeError):
+        return False
+
+
 def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
     if now_ms is None:
         import time
@@ -135,7 +146,7 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
         retained = [coin for coin in snapshot.get("coins", []) if (coin.get("firstSeen") or 0) > cutoff]
         window_cutoff = now_ms - hours * 3600000
         visible = [coin for coin in retained if (coin.get("firstSeen") or 0) >= window_cutoff
-                   or (coin.get("graduationObservedAt") or 0) >= window_cutoff]
+                   or (coin.get("graduationObservedAt") or 0) >= window_cutoff or _is_final_stretch(coin)]
         visible_ids = {coin["id"] for coin in visible}
         result = {field: snapshot[field] for field in ("version", "revision", "lastRun", "coverage", "feeds") if field in snapshot}
         result["retainedTotal"] = len(retained)
