@@ -405,3 +405,30 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .name-search-summary a{display:inline-block;margin-top:8px;font-size:12px;color:var(--accent)}
 .card-contract{display:block;margin-top:4px;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
 .name-search .collection-info{display:none}
+
+/* Dense scan rows; full narrative and evidence remain in the detail drawer. */
+.discovery-board .compact-scan,.explore-grid .compact-scan,.tiles-only .compact-scan{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:8px;border-radius:5px;align-items:start}
+.compact-scan .compact-portrait{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.compact-scan .compact-portrait .coin-thumb{width:44px;height:44px;border-radius:5px}
+.compact-scan .compact-portrait .freshness{font-size:9px;line-height:1.2;text-align:center;white-space:normal}
+.compact-body{display:grid;gap:4px;min-width:0}
+.compact-identity{display:flex;align-items:center;gap:4px;min-width:0;height:18px}
+.compact-identity h3{flex:0 1 auto;min-width:0;max-width:40%;margin:0;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-identity small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}
+.compact-identity .chain-marker,.compact-identity .contract-copy-icon{flex:none}
+.compact-scan .card-pool-age{flex:none;margin-left:auto;font-size:9px;white-space:nowrap;color:var(--muted)}
+.compact-metrics{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin:0;min-width:0}
+.compact-metrics>div{display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+.compact-metrics dt{color:var(--muted);font-size:9px}
+.compact-metrics dd{margin:0;font-size:12px;font-weight:600}
+.compact-signal{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:15px;color:var(--muted)}
+.compact-signal.sustained{color:var(--accent);font-weight:600}.compact-signal.rugged{color:#ff8585}.compact-signal.ramp-risk{color:#ffb178}
+.compact-footer{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}
+.compact-evidence{display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden}
+.compact-scan .repeat-badge,.compact-story{min-height:18px;margin:0;padding:1px 4px;line-height:14px;font-size:9px;white-space:nowrap}
+.compact-story{border:0;border-radius:3px;background:transparent;color:#ffc46b;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.compact-story.verified{color:var(--accent)}
+.discovery-board .compact-scan .card-actions,.explore-grid .compact-scan .card-actions{display:flex;flex-direction:row;flex:none;gap:3px;margin:0}
+.discovery-board .compact-scan .card-actions a,.discovery-board .compact-scan .card-actions button,.explore-grid .compact-scan .card-actions a,.explore-grid .compact-scan .card-actions button{height:21px;min-height:21px;padding:1px 5px;font-size:10px;line-height:17px;margin:0}
+.compact-story:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.discovery-lane-list{gap:4px}
+@media(max-width:420px){.compact-metrics{gap:3px}.compact-metrics>div{gap:3px}.compact-metrics dd{font-size:11px}.compact-identity small{display:none}.compact-evidence{max-width:calc(100% - 140px)}}

@@ -128,20 +128,20 @@ function stageFact(c,phase=''){
  return c.earlyRampWarning?`Rapid early rise · +${c.earlyRampWarning.risePercent}% in ${c.earlyRampWarning.minutes}m · caution`:phase==='tracking'?`Recovery check · ${minutes}m since migration`:recoveryFor(c)==='sustained'&&c.laterRecoveryAt?`Later recovery · ${c.laterRecoveryPercent}% from low`:recoveryFor(c)==='sustained'&&c.sustainedAt?c.successScenario==='continuation'?`45m scenario B · continued +${c.recoveryPercent}%`:`45m scenario A · recovered ${c.recoveryPercent}% from low`:c.ruggedAt?`Deep drawdown · ${c.rugDrawdownPercent}% from peak`:c.sustainedAt||c.laterRecoveryAt?'Historical price move · market inactive':stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% to graduation`:c.successCoverage==='insufficient'?'Outcome unconfirmed · price history incomplete':stage==='migrated'?'Graduation observed':stage==='active'?`${money(c.volume)} 24h volume · graduation unconfirmed`:'';
 }
 function card(c,index,phase=''){
- const found=context(c),market=marketState(c),trade=axiomLink(c),address=contractForCopy(c),read=quickRead(found,c),badge=verified(found)?'verified':found?'unverified':'pending';
- const stage=stageFor(c),detail=stageFact(c,phase),launchFact=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% bonded · not graduated`:stage==='migrated'?'Graduation confirmed':stage==='new'?'Bonding curve · not graduated':'Graduation status unknown',fact=[launchFact,detail].filter(Boolean).join(' · ');
- return `<article class="new-coin-card scan-card${isNewGroup(c)?' snapshot-new':''}">
- <div class="card-main">
-  <div class="card-top">
-   <div class="card-thumb-stack">${thumbnail(c)}<span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div>
-   <div class="coin-head"><div class="card-identity"><div class="card-title-line"><h3>$${esc(c.symbol)}</h3>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}</div><small title="${esc(c.name)}">${identitySubtitle(c)}${c.manual?' · Manual':''}</small>${nameSearch?`<code class="card-contract" title="${esc(c.contract_address)}">${esc(c.contract_address.slice(0,6))}…${esc(c.contract_address.slice(-5))}</code>`:''}${repeatBadge(c)}${!found?'<span class="card-context-unknown">Context unknown</span>':''}</div></div>
-  </div>
-  ${fact?`<div class="card-stage-fact ${c.earlyRampWarning?'ramp-risk':phase==='tracking'?'tracking':c.ruggedAt?'rugged':recoveryFor(c)==='sustained'?'sustained':''}">${esc(fact)}</div>`:''}
-  ${metrics(c)}
-  ${found?`<div class="card-read ${badge}"><span class="card-context">${contextLabel(found)}</span><p title="${esc(read)}">${esc(read)}</p></div>`:''}
- </div>
- <div class="card-side"><span class="card-pool-age" data-pool-created="${esc(c.poolCreated||'')}" title="Pool age">${poolAgeLabel(c.poolCreated)}</span><div class="card-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button>${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}${watchButton(c)}</div></div>
- </article>`;
+ const found=context(c),market=marketState(c),trade=axiomLink(c),address=contractForCopy(c);
+ const stage=stageFor(c),detail=stageFact(c,phase);
+ const launch=stage==='stretch'?`${Math.round(c.launchpad.graduationPercentage)}% bonded`:stage==='migrated'?'Graduated':stage==='new'?'Bonding curve':'Status unknown';
+ const signal=detail&&!['Graduation observed',`${Math.round(c.launchpad?.graduationPercentage)}% to graduation`].includes(detail)?detail.replace('45m scenario B · continued','45m B').replace('45m scenario A · recovered','45m A').replace('Later recovery ·','Later recovery').replace('Graduation status unknown','Status unknown'):'';
+ const fact=[launch,signal].filter(Boolean).join(' · ');
+ return `<article class="new-coin-card scan-card compact-scan${isNewGroup(c)?' snapshot-new':''}">
+ <div class="compact-portrait">${thumbnail(c)}<span class="freshness ${market.className}" data-market-id="${esc(c.id)}" data-market-time="${market.timestamp||''}" title="${market.timestamp?esc(new Date(market.timestamp).toLocaleString()):'Market timestamp unavailable'}">${esc(market.label)}</span></div>
+ <div class="compact-body">
+  <div class="compact-identity"><h3 title="${esc(c.symbol)}">$${esc(c.symbol)}</h3>${chainMarker(c)}${address?`<button class="contract-copy-icon" type="button" data-copy-ca="${esc(c.id)}" title="Copy contract address" aria-label="Copy ${esc(c.symbol)} contract address"></button>`:''}<small title="${esc(c.name)}">${identitySubtitle(c)}</small><span class="card-pool-age" data-pool-created="${esc(c.poolCreated||'')}" title="Pool age">${poolAgeLabel(c.poolCreated)}</span></div>
+  <dl class="compact-metrics"><div><dt title="Pool liquidity">Liq</dt><dd>${money(c.liquidity)}</dd></div><div><dt title="Volume in the last five minutes">5m vol</dt><dd>${money(c.volume5m)}</dd></div><div><dt title="Buys / sells in the last five minutes">5m B/S</dt><dd>${num(c.buys5m)} / ${num(c.sells5m)}</dd></div></dl>
+  <div class="compact-signal ${c.earlyRampWarning?'ramp-risk':c.ruggedAt?'rugged':recoveryFor(c)==='sustained'?'sustained':''}" title="${esc(fact)}">${esc(fact)}</div>
+  <div class="compact-footer"><div class="compact-evidence">${repeatBadge(c)}${found?`<button type="button" class="compact-story ${verified(found)?'verified':'unverified'}" data-open-coin="${esc(c.id)}" title="${esc(quickRead(found,c))}" aria-label="Read story evidence for ${esc(c.symbol)}">${contextLabel(found)}</button>`:''}</div><div class="card-actions"><button type="button" data-open-coin="${esc(c.id)}" aria-label="Details for ${esc(c.symbol)}">Details</button>${trade?`<a href="${esc(trade)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Axiom">Axiom ↗</a>`:''}${watchButton(c)}</div></div>
+  ${nameSearch?`<code class="card-contract">${esc(c.contract_address)}</code>`:''}
+ </div></article>`;
 }
 function cardSection(key,title,description,items,id,empty='No coins in this stage for the selected window.'){return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${items.length}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${items.length?items.map(card).join(''):`<p class="lane-empty">${empty}</p>`}</div></section>`}
 function laneSplit(title,items,description='',phase=''){
