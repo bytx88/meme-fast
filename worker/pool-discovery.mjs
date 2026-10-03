@@ -37,3 +37,19 @@ export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{}
  const rows=kind=>results.flatMap((r,i)=>plan[i].kind===kind&&r.status==='fulfilled'?r.value:[]);
  return {incoming:rows('new_pools'),trending:rows('trending_pools'),topPools:rows('pools')};
 }
+
+// Launchpad pools remain relevant long after they leave the network new-pools feed.
+// Keep page one hot and sweep pages 2–9 over two scheduled collections.
+export async function discoverLaunchpads(fetcher,now,feeds){
+ const offset=(Math.floor(now/300000)%2)*4;
+ const plan=[{dex:'pump-fun',page:1},...Array.from({length:4},(_,i)=>({dex:'pump-fun',page:2+offset+i})),{dex:'meteora-dbc',page:1}];
+ const network=NETWORKS.find(n=>n.id==='solana');
+ const results=await Promise.allSettled(plan.map(async({dex,page})=>{
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/solana/dexes/${dex}/pools?include=base_token,quote_token&sort=h24_volume_usd_desc&page=${page}`,{signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Launchpad pools HTTP ${response.status}`);
+  return parsePools(await response.json(),network,now).map(c=>({...c,launchpadSource:dex}));
+ }));
+ const rows=results.flatMap(r=>r.status==='fulfilled'?r.value:[]),failure=results.find(r=>r.status==='rejected');
+ feeds.launchpad_pools=feedStatus(feeds.launchpad_pools,now,failure?{error:failure.reason.message,returnedRecords:rows.length}:{records:rows.length});
+ return rows;
+}

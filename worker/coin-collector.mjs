@@ -9,7 +9,7 @@ import {feedStatus,coverageFor,validateSnapshot,PIPELINE_LIMITS} from './snapsho
 import {snapshotVersion,versionFile} from './snapshot-view.mjs';
 import {createProviderFetch} from './provider-fetch.mjs';
 import {selectMarketTargets,tokenKey} from './refresh-priority.mjs';
-import {discoverPools} from './pool-discovery.mjs';
+import {discoverPools,discoverLaunchpads} from './pool-discovery.mjs';
 
 export const RETENTION_MS=PIPELINE_LIMITS.retentionMs;
 export const RECENT_MARKET_MS=4*3600000;
@@ -28,7 +28,7 @@ export function refreshMarket(coins,pairs,now=Date.now()){
  return coins.map(coin=>{
   const pair=byAddress.get(tokenKey(`${coin.network}:${coin.contract_address}`));
   if(!pair)return coin;
-  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:now,fetchedAt:now};
+  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:now,fetchedAt:now};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
@@ -130,7 +130,7 @@ export function selectLaunchCandidates(coins,limit=120){
  const newest=[...coins].sort((a,b)=>b.firstSeen-a.firstSeen);
  // New pairs get first claim on the bounded launchpad budget.
  newest.slice(0,Math.max(1,Math.floor(limit*2/3))).forEach(add);
- newest.filter(c=>c.launchpad?.completed===false&&c.launchpad.graduationPercentage>=80).slice(0,Math.max(1,Math.floor(limit/6))).forEach(add);
+ newest.filter(c=>c.launchpad?.completed===false&&c.launchpad.graduationPercentage>=80).sort((a,b)=>(a.launchpadCheckedAt??0)-(b.launchpadCheckedAt??0)).slice(0,Math.max(1,Math.floor(limit/6))).forEach(add);
  [...coins].sort((a,b)=>(a.launchpadCheckedAt??0)-(b.launchpadCheckedAt??0)||b.firstSeen-a.firstSeen).forEach(add);
  return selected;
 }
@@ -138,7 +138,7 @@ export function mergeCoins(previous,incoming,now=Date.now()){
  const rows=new Map(previous.filter(c=>c.firstSeen>now-RETENTION_MS).map(c=>[c.id,c]));
  for(const coin of incoming){
   const old=rows.get(coin.id);
-  if(!old&&!(coin.poolCreated>=now-36*3600000&&coin.liquidity>=3000&&(coin.buys??0)+(coin.sells??0)>=5))continue;
+  if(!old&&!((coin.poolCreated>=now-36*3600000||coin.launchpadSource)&&coin.liquidity>=3000&&(coin.buys??0)+(coin.sells??0)>=5))continue;
   const created=[old?.poolCreated,coin.poolCreated].filter(value=>Number.isFinite(Number(value))&&Number(value)>0).map(Number);
   rows.set(coin.id,{...old,...coin,poolCreated:created.length?Math.min(...created):coin.poolCreated,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
  }
@@ -193,21 +193,31 @@ async function story(coin,fetcher){
  const lead=bestSearchLead((await response.text()).slice(0,60000));
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
-export async function collectLaunchpad(coins,fetcher,now,feeds){
+export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[]}={}){
  const launchCandidates=selectLaunchCandidates(coins);
+ const selectedIds=new Set(launchCandidates.map(c=>c.id));
+ // Additional budget for active curves, independent of newest-pair admission.
+ // Pool liquidity selects checks; only authoritative launchpad data assigns a stage.
+ const active=[...launchPools,...coins.filter(c=>['pumpfun','meteoradbc'].includes(c.dex)&&c.launchpad?.completed!==true)];
+ active.filter(c=>c.liquidity>=3000||(c.volume5m>0&&c.volume>=15000)).sort((a,b)=>(b.liquidity??0)-(a.liquidity??0)).forEach(c=>{
+  if(launchCandidates.length<200&&!selectedIds.has(c.id)){launchCandidates.push(c);selectedIds.add(c.id)}
+ });
  const launchBatches=[...new Set(launchCandidates.map(c=>c.network))].flatMap(network=>chunks(launchCandidates.filter(c=>c.network===network),20));
  const launchResults=await Promise.allSettled(launchBatches.map(async batch=>{
   const network=batch[0].network,addresses=batch.map(c=>encodeURIComponent(c.contract_address)).join(',');
-  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}`,{signal:AbortSignal.timeout(15000)});
+  const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}?include=top_pools`,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
-  const payload=await response.json();return Array.isArray(payload.data)?payload.data:[];
+  const payload=await response.json();
+  const tokens=Array.isArray(payload.data)?payload.data:[];
+  const pools=parsePools({data:(payload.included||[]).filter(p=>p.type==='pool'),included:tokens},NETWORKS.find(n=>n.id===network),now);
+  return {tokens,pools};
  }));
- const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value:[]);
+ const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value.tokens:[]);
  const launchFailure=launchResults.find(r=>r.status==='rejected');
  if(launchResults.length)feeds.launchpad=feedStatus(feeds.launchpad,now,launchFailure?{error:launchFailure.reason.message,returnedRecords:launchTokens.length}:{records:launchTokens.length});
  else feeds.launchpad={...feeds.launchpad,status:'idle',error:null,returnedRecords:null};
  const checked=new Set(launchResults.flatMap((r,i)=>r.status==='fulfilled'?launchBatches[i].map(c=>c.id):[]));
- return {tokens:launchTokens,checked,attemptedRequests:launchResults.length};
+ return {tokens:launchTokens,pools:launchResults.flatMap(r=>r.status==='fulfilled'?r.value.pools:[]),checked,attemptedRequests:launchResults.length};
 }
 
 async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],marketOnly=false,skipMarket=false}={}){
@@ -279,10 +289,11 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
  // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
- let tracked=[],indexedCoins=[],launch;
+ let tracked=[],indexedCoins=[],launch,launchPools=[];
  const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
- launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds);
+ launchPools=await discoverLaunchpads(fetcher,now,feeds);
+ launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending,...launchPools],now),fetcher,now,feeds,{launchPools});
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -322,13 +333,16 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const [{incoming,trending,topPools},retained]=await Promise.all([discovery,retainedRefresh]);
  previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
- let coins=mergeCoins(coinsFromDiscovery,[...trending,...indexedCoins],now);
+ let coins=mergeCoins(coinsFromDiscovery,[...trending,...indexedCoins,...launchPools],now);
+ // Use the exact token's included pool, after Dex refresh, so omitted Dex liquidity cannot erase curve reserves.
+ const curveIds=new Set(launch.tokens.filter(t=>normalizeLaunchpad(t.attributes?.launchpad_details)?.completed===false).map(t=>`${String(t.id).split('_')[0]}:${t.attributes.address}`));
+ coins=mergeCoins(coins,launch.pools.filter(c=>curveIds.has(c.id)).map(c=>({...c,launchpadSource:'verified-curve'})),now);
  coins=refreshLaunchpad(coins,launch.tokens,now).map(coin=>launch.checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
  const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
  market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests+launch.attemptedRequests;
  coins=market.coins;radarCoins=market.radarCoins;
- const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools'];
+ const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools','launchpad_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
  const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
  const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
