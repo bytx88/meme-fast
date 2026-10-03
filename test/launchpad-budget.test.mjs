@@ -27,5 +27,6 @@ test('new discoveries receive graduation data before deeper discovery exhausts t
   assert.equal(snapshot.feeds.solana.status,'partial');
   assert(calls.findIndex(url=>url.includes('/tokens/multi/'))<calls.findIndex(url=>url.includes('/new_pools?')&&url.includes('page=2')));
   assert.equal(calls.filter(url=>url.includes('/tokens/multi/')).length,1);
+  assert(calls.findIndex(url=>url.includes('/tokens/multi/'))<calls.findIndex(url=>url.includes('/dexes/')));
  }finally{await rm(directory,{recursive:true,force:true})}
 });

@@ -299,8 +299,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  let tracked=[],indexedCoins=[],launch,launchPools=[];
  const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length,betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
+ const retainedLaunchPools=(previous.coins||[]).filter(c=>c.launchpadSource&&c.firstSeen>now-RETENTION_MS);
+ launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds,{launchPools:retainedLaunchPools,priorityIds});
  launchPools=await discoverLaunchpads(fetcher,now,feeds);
- launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending,...launchPools],now),fetcher,now,feeds,{launchPools,priorityIds});
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
