@@ -1,3 +1,4 @@
+import {walletBadges} from './followed-wallets.mjs';
 import {requestRefreshPriority} from './refresh-priority.mjs';
 import {marketFreshness,freshnessCounts} from './market-freshness.mjs';
 import {RADAR_MODES,rankRadar,radarReading} from './radar-model.mjs?v=scalp-age-v1';
@@ -10,6 +11,11 @@ import {chainMarker} from './chain-marker.mjs';
 import {loadXFactor,xFactorBadge,xFactorDetail} from './x-factor.mjs';
 
 const $=selector=>document.querySelector(selector);
+let walletReport=null;
+async function loadWallets(){
+ try{const response=await fetch('/api/followed-wallets',{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error();const report=await response.json();if(!Array.isArray(report.wallets))throw new Error();walletReport=report}
+ catch{if(walletReport)walletReport={...walletReport,wallets:walletReport.wallets.map(row=>({...row,status:'unavailable'}))}}
+}
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const money=value=>value===null||value===undefined?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(value);
 const count=value=>value===null||value===undefined?'—':Number(value).toLocaleString('en-US');
@@ -126,7 +132,7 @@ function card(reading,index){
    <div class="radar-token-title"><span class="radar-rank">${index===null?'—':String(index+1).padStart(2,'0')}</span><strong>${esc(ticker(coin))}</strong>${marker}${address?`<button type="button" class="contract-copy-icon" data-copy-ca="${esc(id)}" title="Copy contract address" aria-label="Copy ${esc(ticker(coin))} contract address"></button>`:''}</div>
    <small class="radar-token-meta"><span class="radar-token-name" title="${esc(coin.name||'Unknown')}">${esc(coin.name||'Unknown')}${marker?'':` · ${esc(coin.chain||coin.network||'Unknown')}`}</span><span class="radar-pool-age">pool ${age(coin.poolCreated==null?NaN:Number(coin.poolCreated))} old</span></small>
   </div>
-  <div class="radar-holders"><span>Holders</span><strong data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</strong><small>Top 10 <span data-holder-top10-id="${esc(id)}">${percent(holderInfo.get(id)?.top10)}</span></small></div>
+  <div class="radar-holders"><span>Holders</span><strong data-holder-id="${esc(id)}" title="${esc(holderTitle(id))}">${esc(holderLabel(id))}</strong><small>Top 10 <span data-holder-top10-id="${esc(id)}">${percent(holderInfo.get(id)?.top10)}</span></small><div class="radar-wallet-tags" aria-label="Followed wallets holding this token">${walletBadges(coin,walletReport)}</div></div>
   <div class="radar-signal"><span class="radar-score-label">Research priority</span><strong>${signal}</strong></div>
   <div class="radar-activity">${activity.map(([label,value])=>`<span>${label} <b>${value}</b></span>`).join('')}</div>
   <div class="radar-reasons">${xFactorBadge(state.xFactorReport,id)}${cardReasons(parts,id)}</div>
@@ -226,9 +232,11 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('error',event=>{if(event.target.matches?.('.radar-thumb img'))event.target.remove()},true);
 dialog.addEventListener('close',()=>{state.selectedId=null});
-setInterval(()=>{if(!document.hidden&&!state.loading)render()},60000);
+setInterval(async()=>{if(!document.hidden&&!state.loading&&!document.querySelector('.wallet-badge[open]')){await loadWallets();render()}},60000);
 window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1')render();if(event.key===modePreferenceKey&&!['swing','research'].includes(initialMode)){state.mode=savedMode();render()}});
 $('#query').value=state.query;
 load().then(async()=>{if(initialContract){await loadCatalogMatch();const coin=universe().find(item=>String(item.contract_address).toLowerCase()===initialContract.toLowerCase());openInspector(coin?coinId(coin):`${state.chain}:${initialContract}`)}});
 
 void requestRefreshPriority(watchlist());
+
+void loadWallets().then(render);

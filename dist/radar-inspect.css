@@ -228,3 +228,14 @@
 .radar-chain-filter[aria-pressed=true]{opacity:1}
 .radar-chain-filter[aria-pressed=true]::before{box-shadow:0 0 0 2px #e7f1ff}
 @media(max-width:430px){.radar-controls>.radar-filter-controls{flex-direction:row;align-items:center;justify-content:flex-start}.radar-filter-controls label{width:100%}}
+
+/* Keep holder figures at the top, with followed-wallet classes below. */
+.radar-card .radar-holders{align-self:start}
+.radar-holders .radar-wallet-tags:empty{display:none}
+.radar-holders .radar-wallet-tags{margin-top:4px;min-width:0}
+.radar-holders .wallet-badges{display:flex;flex-wrap:wrap;margin-left:0;gap:3px}
+.radar-holders .wallet-badge{grid-column:auto;border-top:0;padding-top:0;font-size:10px}
+.radar-holders .wallet-badge summary{color:inherit}
+.radar-holders .wallet-popup strong{overflow:visible;font-size:12px;font-weight:600;color:#dde8f2;white-space:normal}
+.radar-holders .wallet-popup small{white-space:normal;font-size:10px}
+.radar-holders .wallet-popup{left:0;right:auto}
