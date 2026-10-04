@@ -1,0 +1,21 @@
+{
+  "concepts": {
+    "Volume": {
+      "What is it?": "Volume is traded value over a period. Transaction count measures how many trades occurred; it does not measure their size.",
+      "Why does it matter?": "Twenty $100 buys total $2,000. One $5,000 sell outweighs them in value. Gross volume, trade count, and net observed flow answer different questions.",
+      "Takeaway": "**Count trades, measure their value, and keep the sample coverage clear.**"
+    },
+    "Holders": {
+      "What is it?": "Holder count measures addresses with a token balance, not independent owners. One operator can control many addresses.",
+      "Healthy structure": "Holder growth and lower concentration are leads to investigate; independent ownership still needs transfer and funding evidence.",
+      "Takeaway": "**Holder count ≠ independent ownership.**"
+    },
+    "Token Supply": {
+      "What is it?": "Total supply counts existing units. Circulating supply counts units considered in circulation. Available sellable supply is inventory that can currently reach the market under its transfer and lock conditions.",
+      "Why does it matter?": "Two tokens with the same total supply can have different unlocked inventory and near-term sell pressure. Being able to sell does not prove an owner intends to sell.",
+      "What should I check?": "- Total and circulating supply\n- Unlocked inventory, vesting, and transfer restrictions\n- Creator and related-wallet balances\n- Whether more units can be minted",
+      "Takeaway": "**Total supply is not the same as inventory available to sell.**"
+    }
+  },
+  "market_maturity": "## 9. Market Maturity\n\n### What is it?\nA possible venue path is launchpad → migrated DEX → established DEX → CEX, a centralized exchange. Not every token follows it.\n\n### Why does it matter?\nTrading venues, available history, and exit conditions can change along the way.\n\n### What should I check?\n- Current venue and actual migration status\n- Available price history\n- Current pool depth or order-book depth\n\n### Beginner mistake\nTreating migration or a listing as proof of safety.\n\n### Takeaway\n**Know the trading environment before interpreting the numbers.**\n\n---"
+}

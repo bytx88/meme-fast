@@ -3,7 +3,9 @@ import {readFile,writeFile} from 'node:fs/promises';
 // The Inspect page owns the server-rendered masthead. Keep every page's
 // initial HTML in sync without waiting for JavaScript to paint navigation.
 const lessons=Array.from({length:8},(_,i)=>`meme-101-level-${i+1}`);
-const applied=['meme-101b','meme-202a','meme-202b','meme-303',...['meme-101b','meme-202a','meme-202b','meme-303'].flatMap(track=>Array.from({length:track==='meme-303'?12:8},(_,i)=>`${track}-lesson-${i+1}`))];
+const courseSources=['content/meme-101b/course.json','content/meme-202/202a.json','content/meme-202/202b.json','content/meme-303/course.json'];
+const courses=await Promise.all(courseSources.map(async path=>JSON.parse(await readFile(path,'utf8'))));
+const applied=courses.flatMap(course=>[course.slug,...course.lessons.map((_,i)=>`${course.slug}-lesson-${i+1}`)]);
 const learning=['learn','meme-101',...lessons,'meme-101-bundles',...applied];
 const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','sources','about','model','privacy','terms',...learning];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;

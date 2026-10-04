@@ -2,24 +2,46 @@
   "code": "202A",
   "name": "Snipe",
   "slug": "meme-202a",
-  "question": "What is creating the early move?",
-  "intro": "Read the engine behind the first move: liquidity, buyers, sellers, and the supply changing hands.",
-  "lens": ["Demand arrives", "Supply reacts", "Price responds"],
-  "tool": ["Snipe", "new-coins.html"],
+  "question": "Why is it accelerating?",
+  "intro": "Read changes in demand before the move becomes obvious: buyers, size, selling, absorption, and attention.",
+  "lens": [
+    "Demand accelerates",
+    "Supply reacts",
+    "Price responds"
+  ],
+  "tool": [
+    "Snipe",
+    "new-coins.html"
+  ],
   "lessons": [
     {
       "title": "Price moves at the margin",
       "question": "Did capital grow, or did the last price change?",
       "definition": "The next trade changes the price available to the trade after it. In an AMM pool, reserves and liquidity shape that price.",
       "why": "A small trade can change the displayed valuation of the whole supply.",
-      "checks": ["Exact pool and current liquidity", "Trade size relative to pool depth", "Market cap change versus observed trade value"],
+      "checks": [
+        "Exact pool and current liquidity",
+        "Trade size relative to pool depth",
+        "Market cap change versus observed trade value"
+      ],
       "healthy": "Price changes are read alongside pool depth and surrounding trades.",
       "dangerous": "A market-cap jump is treated as the same amount of new capital.",
       "mistake": "“Market cap rose $100k, so $100k entered.”",
       "takeaway": "A new price can revalue the whole supply.",
-      "example": ["A token has 1 million circulating units at $0.10.", "The displayed price rises to $0.12: market cap rises from $100k to $120k.", "That $20k change does not tell you how much was traded."],
-      "evidence": ["Inspect", "order-flow.html", "Choose an exact contract. Compare estimated MC tiers with observed swap value; these are different measures."],
-      "foundation": [1, "1-market-cap"],
+      "example": [
+        "A token has 1 million circulating units at $0.10.",
+        "The displayed price rises to $0.12: market cap rises from $100k to $120k.",
+        "That $20k change does not tell you how much was traded."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Choose an exact contract. Compare estimated MC tiers with observed swap value; these are different measures."
+      ],
+      "foundation": [
+        1,
+        "1-market-cap"
+      ],
       "deeper": "The original outline uses an auction analogy. Many meme pools use automated pricing instead of an order book. The useful shared idea is marginal pricing, not a literal match between named buyers and sellers."
     },
     {
@@ -27,14 +49,29 @@
       "question": "How much does this order disturb the pool?",
       "definition": "Price impact is the change in execution price caused by your order relative to available liquidity.",
       "why": "The same dollar order can produce very different fills in different pools.",
-      "checks": ["Current executable quote for the intended size", "Pool depth and route", "Impact, fees, and slippage tolerance separately"],
+      "checks": [
+        "Current executable quote for the intended size",
+        "Pool depth and route",
+        "Impact, fees, and slippage tolerance separately"
+      ],
       "healthy": "The order fits the quote and the expected cost is understood.",
       "dangerous": "Thin depth or broad tolerance turns a modest order into a poor fill.",
       "mistake": "Expecting equal buy sizes to create equal moves.",
       "takeaway": "Thin liquidity magnifies each trade.",
-      "example": ["Compare a $1k order in a deep pool and a thin pool.", "The thin pool may offer a much worse average execution price.", "Compare the actual quotes, not just the chart prices."],
-      "evidence": ["Swing", "radar.html", "Check reported liquidity as context. Obtain current impact and execution quotes externally."],
-      "foundation": [1, "7-price-impact"],
+      "example": [
+        "Compare a $1k order in a deep pool and a thin pool.",
+        "The thin pool may offer a much worse average execution price.",
+        "Compare the actual quotes, not just the chart prices."
+      ],
+      "evidence": [
+        "Swing",
+        "radar.html",
+        "Check reported liquidity as context. Obtain current impact and execution quotes externally."
+      ],
+      "foundation": [
+        1,
+        "7-price-impact"
+      ],
       "deeper": "Price sensitivity is not automatically strength: it can amplify selling too. A ratio of price change to sampled net buying is descriptive, not a stable capital-efficiency score. Liquidity, routes, and missing trades can all change the comparison."
     },
     {
@@ -42,14 +79,29 @@
       "question": "Are the buys actually outweighing the sells?",
       "definition": "Pressure combines trade value, frequency, and how long the activity persists.",
       "why": "Many small buys can be outweighed by one large sell.",
-      "checks": ["Buy and sell value in the same window", "Typical sizes and the largest trades", "Whether the pattern persists in the next window"],
+      "checks": [
+        "Buy and sell value in the same window",
+        "Typical sizes and the largest trades",
+        "Whether the pattern persists in the next window"
+      ],
       "healthy": "Buying persists and repeated selling meets new demand.",
       "dangerous": "Green transaction counts hide large sell value.",
       "mistake": "Counting colors instead of measuring value.",
       "takeaway": "Read size, frequency, and persistence together.",
-      "example": ["20 buys × $100 = $2,000 bought.", "1 sell × $5,000 = $5,000 sold.", "This sample has 19 more buys, but $3,000 more sell value."],
-      "evidence": ["Inspect", "order-flow.html", "Compare buy/sell value and swap sizes for one listing and time window. Net value describes the returned sample."],
-      "foundation": [1, "4-volume"],
+      "example": [
+        "20 buys × $100 = $2,000 bought.",
+        "1 sell × $5,000 = $5,000 sold.",
+        "This sample has 19 more buys, but $3,000 more sell value."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare buy/sell value and swap sizes for one listing and time window. Net value describes the returned sample."
+      ],
+      "foundation": [
+        1,
+        "4-volume"
+      ],
       "deeper": "Size × frequency × persistence is a thinking aid, not a defined trading score. Observed buy value minus sell value is not a measurement of total capital entering the token, and it does not by itself determine the price outcome."
     },
     {
@@ -57,14 +109,25 @@
       "question": "Whose inventory is changing hands?",
       "definition": "Supply transfer moves inventory from early holders to later buyers.",
       "why": "Remaining low-cost inventory can become future sell pressure.",
-      "checks": ["Early-wallet balances before and after sales", "Transfers versus executed sells", "Remaining inventory relative to liquidity"],
+      "checks": [
+        "Early-wallet balances before and after sales",
+        "Transfers versus executed sells",
+        "Remaining inventory relative to liquidity"
+      ],
       "healthy": "Actual sales and new ownership can be traced.",
       "dangerous": "Transfers to related wallets disguise continuing control.",
       "mistake": "Assuming lower concentration proves independent ownership.",
       "takeaway": "Track what remains, not just what moved.",
-      "example": ["An early wallet holds 8% of supply.", "It transfers 5% to fresh addresses and still holds 3%.", "The visible balance fell; common control may not have changed."],
+      "example": [
+        "An early wallet holds 8% of supply.",
+        "It transfers 5% to fresh addresses and still holds 3%.",
+        "The visible balance fell; common control may not have changed."
+      ],
       "external": "Use an explorer and wallet history to trace transfers, trades, and related balances. Meme Fast does not establish common ownership.",
-      "foundation": [3, "6-wallet-clusters"],
+      "foundation": [
+        3,
+        "6-wallet-clusters"
+      ],
       "deeper": "Sellable supply is a hypothesis about inventory that may be offered, not an observable list of everyone willing to sell. Holder turnover needs transaction history; a snapshot alone cannot establish it."
     },
     {
@@ -72,60 +135,217 @@
       "question": "Who is behind the buying?",
       "definition": "Wallet flow asks whether a participant is buying, holding, transferring, or selling over time.",
       "why": "The same trade value can come from independent buyers or one coordinated operator.",
-      "checks": ["Wallet history and remaining exposure", "Funding links and transfers", "Observed entry cost and prior sales"],
+      "checks": [
+        "Wallet history and remaining exposure",
+        "Funding links and transfers",
+        "Observed entry cost and prior sales"
+      ],
       "healthy": "Attribution and behavior are supported by traceable history.",
       "dangerous": "A reputation label or many addresses substitutes for evidence.",
       "mistake": "Treating every buy as equally informative.",
       "takeaway": "Investigate the source of the flow.",
-      "example": ["Ten addresses each buy $500.", "All ten were funded through the same small wallet moments earlier.", "That is a coordination lead, not ten proven independent buyers."],
-      "evidence": ["Inspect", "order-flow.html", "Use transaction senders as leads, then trace them externally. Routers can appear as senders; wallet identity and cost basis are not verified here."],
-      "foundation": [4, "1-cost-basis"],
+      "example": [
+        "Ten addresses each buy $500.",
+        "All ten were funded through the same small wallet moments earlier.",
+        "That is a coordination lead, not ten proven independent buyers."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Use transaction senders as leads, then trace them externally. Routers can appear as senders; wallet identity and cost basis are not verified here."
+      ],
+      "foundation": [
+        4,
+        "1-cost-basis"
+      ],
       "deeper": "A transaction bundle groups transactions; a wallet cluster is an inference about related addresses. Neither automatically proves malicious intent. Shared exchange funding, routers, and incomplete trade history can mislead attribution."
     },
     {
-      "title": "Momentum & acceleration",
+      "title": "Demand acceleration",
       "question": "Is the activity strengthening or just staying busy?",
-      "definition": "Momentum is sustained directional activity. Acceleration is a change in its pace or strength.",
+      "definition": "Acceleration is a change in the rate of activity. It asks whether demand is strengthening across comparable observations.",
       "why": "A busy token can be slowing down while its chart still looks strong.",
-      "checks": ["Comparable, separate time windows", "Trade value, size, and frequency together", "Liquidity changes and missing observations"],
-      "healthy": "Several comparable observations show demand strengthening.",
-      "dangerous": "One spike or overlapping totals is called acceleration.",
+      "checks": [
+        "Equal, separate bars: price response, buy value, sizes, and frequency",
+        "New buyers and holder growth, with identity and coverage checked",
+        "Sell-size contraction, absorption, and credible attention growth"
+      ],
+      "healthy": "Several comparable observations support stronger demand and responsive price.",
+      "dangerous": "Bots, larger window totals, or one candle create apparent acceleration.",
       "mistake": "Waiting for a giant candle, then assuming the engine is still strengthening.",
-      "takeaway": "Compare the pace, not just the total.",
-      "example": ["Two separate five-minute windows show 10 buys, then 20.", "Buy value rises too, while liquidity stays similar.", "That supports rising activity; it does not predict the next candle."],
-      "evidence": ["Snipe", "new-coins.html", "Review sampled 5m activity and freshness, then compare actual windows in Inspect. Nested 5m/1h/24h totals are not separate periods."],
-      "foundation": [2, "1-bonding-curve"],
-      "deeper": "More trades can mean automated churn. Higher buy share can coexist with falling total value. Demand, liquidity, and price response need to be compared together before describing acceleration."
+      "takeaway": "Compare changes in pace, size, participation, and response.",
+      "example": [
+        "Equal five-minute windows contain 10, 15, then 25 buys.",
+        "Count gains increase from +5 to +10; value and typical size also rise.",
+        "That supports accelerating sampled activity, not a predicted next candle."
+      ],
+      "evidence": [
+        "Snipe",
+        "new-coins.html",
+        "Review sampled 5m activity and freshness, then compare actual windows in Inspect. Nested 5m/1h/24h totals are not separate periods."
+      ],
+      "foundation": [
+        2,
+        "1-bonding-curve"
+      ],
+      "deeper": "Use equal, non-overlapping bars. Faster transactions are frequency growth; rising typical buy size is size growth. To call the pace itself accelerating, compare its change across successive periods. Unique-buyer and holder-growth acceleration require comparable identity and balance data; transaction senders and holder addresses may not be independent people. Smaller sells or faster recovery can support an absorption hypothesis, but liquidity changes can explain them too. Missing inputs stay unknown."
     },
     {
-      "title": "Attention → capital",
+      "title": "Attention conversion",
       "question": "Did the story bring buyers, or only posts?",
-      "definition": "Attention becomes market evidence when discussion is accompanied by observable trading activity.",
-      "why": "A mention count alone does not establish demand or explain its source.",
-      "checks": ["Source and exact token association", "Attention and flow in comparable periods", "Whether activity continues after the initial mention"],
-      "healthy": "Source evidence and market activity support the same research question.",
-      "dangerous": "Repeated posts are treated as proof of independent buying.",
-      "mistake": "Equating social activity with capital inflow.",
-      "takeaway": "Compare attention with activity; keep causation open.",
-      "example": ["Indexed mentions rise after a headline.", "Observed buy value stays flat in the comparable period.", "Attention increased; buying conversion is not demonstrated."],
-      "evidence": ["Tweet", "narratives.html", "Open source evidence, confirm the contract, then compare flow in Inspect. RSS counts do not measure total engagement or unique buyers."],
-      "foundation": [6, "3-social-momentum"],
-      "deeper": "Even when posts and buying rise together, that does not prove the posts caused the buys. Indexed RSS can lag, and the original exposure → interest → visit → buy loop is a conceptual path, not measured conversion analytics."
+      "definition": "The working chain is attention → unique buyers → capital traded → available supply consumed → price response.",
+      "why": "More mentions can coexist with weaker buying conversion.",
+      "checks": [
+        "Comparable attention and buyer observations",
+        "Trade value, seller inventory, and liquidity",
+        "Price response and missing links in the chain"
+      ],
+      "healthy": "Credible attention is accompanied by fresh participation and responsive demand.",
+      "dangerous": "Posts accelerate while buyer arrivals and price response weaken.",
+      "mistake": "Treating mention count as capital or measured conversion.",
+      "takeaway": "Follow the conversion chain, not raw attention.",
+      "example": [
+        "Early: 100 mentions accompany many new buyers and a strong response.",
+        "Later: 1,000 mentions accompany few new buyers and little price progress.",
+        "Investigate weaker conversion, saturation, and supply pressure."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Open source evidence, confirm the contract, then compare flow in Inspect. RSS counts do not measure total engagement or unique buyers."
+      ],
+      "foundation": [
+        6,
+        "3-social-momentum"
+      ],
+      "deeper": "Conversion efficiency is a comparison to investigate, not a Meme Fast metric. Ratios need compatible time windows, source coverage, and buyer attribution. Trading value is not total new capital, and available supply is not fully observable. Price also depends on liquidity and selling. The example supports a weakening-cycle hypothesis; it does not prove the posts caused the trades.",
+      "framework": [
+        "Attention → unique buyers → capital → available supply consumed → price response."
+      ]
     },
     {
       "title": "Push, Hold or Fail",
       "question": "What happened after the first push?",
       "definition": "Push describes expansion; Hold describes a pause that retains the range; Fail describes loss of that range.",
       "why": "The pause helps test whether buyers are still meeting supply.",
-      "checks": ["Price range before and after the pause", "Repeated selling and subsequent recovery", "Liquidity, coverage, and alternative explanations"],
+      "checks": [
+        "Price range before and after the pause",
+        "Repeated selling and subsequent recovery",
+        "Liquidity, coverage, and alternative explanations"
+      ],
       "healthy": "The range holds through repeated selling and buying resumes.",
       "dangerous": "Rebounds weaken while the range and liquidity deteriorate.",
       "mistake": "Calling every pause healthy consolidation.",
       "takeaway": "Read the pause. Leave missing evidence unknown.",
-      "example": ["Price pushes higher, then pauses in a new range.", "Several sells occur and price repeatedly recovers within it.", "Hold is a working description; another Push still needs new evidence."],
-      "evidence": ["Inspect", "order-flow.html", "Compare candle ranges and observed swaps. Push/Hold/Fail are lesson interpretations, not automated Meme Fast classifications."],
-      "foundation": [5, "6-pullback"],
+      "example": [
+        "Price pushes higher, then pauses in a new range.",
+        "Several sells occur and price repeatedly recovers within it.",
+        "Hold is a working description; another Push still needs new evidence."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare candle ranges and observed swaps. Push/Hold/Fail are lesson interpretations, not automated Meme Fast classifications."
+      ],
+      "foundation": [
+        5,
+        "6-pullback"
+      ],
       "deeper": "Push → Hold → Push and Push → distribution → Fail are possible paths, not rules. When history, liquidity, or wallet evidence is insufficient, use Unknown rather than forcing a state."
+    },
+    {
+      "title": "Meta saturation",
+      "question": "Is the token new while its theme is already tired?",
+      "definition": "Meta saturation means many similar candidates compete for attention that is no longer expanding as quickly.",
+      "why": "A fresh launch can inherit an exhausted demand pool.",
+      "checks": [
+        "Independent attention across the theme",
+        "Competing tokens and actual buyer arrivals",
+        "Evidence of a new catalyst rather than recycled claims"
+      ],
+      "healthy": "Fresh participation expands beyond existing competitors.",
+      "dangerous": "New launches split the same weakening pool of attention.",
+      "mistake": "Resetting expectations just because the token is new.",
+      "takeaway": "Token age does not reset the meta.",
+      "example": [
+        "A theme has already produced many competing tokens.",
+        "Another launches, but fresh buyer activity across the theme is fading.",
+        "Treat renewal as evidence to establish, not an automatic fresh start."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Compare exact-token source evidence across the theme, then inspect flow. Meme Fast does not certify saturation or a complete competitor universe."
+      ],
+      "foundation": [
+        6,
+        "5-attention-rotation"
+      ],
+      "deeper": "Token Start and Meta Saturation can coexist. Reconsider the upside expectation and attention duration when the wider theme weakens; position limits belong in 303. Many competitors alone do not prove saturation if independent attention and demand are still expanding."
+    },
+    {
+      "title": "Migration as event risk",
+      "question": "What happens when anticipation becomes a completed event?",
+      "definition": "Migration can move trading from a launch curve to a DEX pool. It is a venue event, not a promise of renewed demand.",
+      "why": "Anticipation can attract buyers who sell after the event completes.",
+      "checks": [
+        "Actual migration and destination pool",
+        "Buyer activity before and after comparable event windows",
+        "New liquidity, restrictions, and reason for renewal"
+      ],
+      "healthy": "The new venue works and fresh participation persists.",
+      "dangerous": "Anticipation ends while demand and usable liquidity deteriorate.",
+      "mistake": "Assuming successful migration guarantees continuation.",
+      "takeaway": "Event success and demand persistence are separate.",
+      "example": [
+        "Pre-migration attention attracts buying.",
+        "Migration completes, but new buyers slow and selling increases.",
+        "Investigate sell-the-news behavior without assuming every migration follows it."
+      ],
+      "evidence": [
+        "Snipe",
+        "new-coins.html",
+        "Use reported launch and pool context as leads; verify the actual migration externally and compare returned swaps in Inspect."
+      ],
+      "foundation": [
+        2,
+        "2-graduation"
+      ],
+      "deeper": "Pre-migration → migration → post-migration can contain an entire attention cycle. Verify the actual transaction, pool, routes, and current quotes. Launch mechanisms differ, and not every token migrates. Changes in venue and liquidity complicate before/after comparisons; renewal requires evidence."
+    },
+    {
+      "title": "PVP Dominance & Rotation",
+      "question": "Which candidate is earning the attention and capital now?",
+      "definition": "PVP is competition between tokens claiming the same narrative. Early dominance is provisional; popularity does not establish official identity.",
+      "why": "The current leader can change before any lasting winner emerges.",
+      "checks": [
+        "Credible attention and capital participation across exact contracts",
+        "Known-wallet inventory, holder composition, and selling",
+        "Whether a rival has stronger independent backing"
+      ],
+      "healthy": "Leadership persists across attention, buyers, and usable liquidity.",
+      "dangerous": "KOL agreement or a first burst is mistaken for a permanent winner.",
+      "mistake": "Believing the final winner must be identified perfectly at launch.",
+      "takeaway": "Reassess current dominance as the evidence changes.",
+      "example": [
+        "Candidate A attracts the first credible attention and buying burst.",
+        "Candidate B later gains stronger participation while A loses momentum.",
+        "Review staying or rotating against fresh evidence, hygiene, costs, and limits."
+      ],
+      "framework": [
+        "Current candidate → monitor rivals → stay if leadership persists → reassess rotation if a rival strengthens."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Compare source evidence by exact contract, then compare sampled flow in Inspect. Wallet identity, complete inventories, and official status need independent verification."
+      ],
+      "foundation": [
+        6,
+        "4-ct-kol-shilling"
+      ],
+      "deeper": "KOL means key opinion leader. Recognition identifies a currently stronger candidate; coordination can help one become dominant; rotation responds when leadership shifts. KOLs may watch respected peers, proven-wallet activity, holder composition, and rival backing. That convergence can create reflexive validation or synergy, but reputation and common funding do not prove independent support. A trader may profit from an initial burst without owning the eventual leader; visible entries alone cannot prove those profits or the rotation timing. No market move confers official identity. Fresh evidence, current hygiene, executable costs, and the 303 plan still govern exposure."
     }
-  ]
+  ],
+  "principle": "Snipe reads flow, not levels. Early chart history is often too short for mature technical analysis; begin with acceleration, then check the other evidence."
 }

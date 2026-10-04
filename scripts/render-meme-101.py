@@ -9,6 +9,7 @@ DIST = ROOT / 'dist'
 CONTENT = ROOT / 'content/meme-101'
 GUIDANCE = json.loads((CONTENT / 'concept-guidance.json').read_text(encoding='utf-8'))
 EVIDENCE = json.loads((CONTENT / 'tool-evidence.json').read_text(encoding='utf-8'))
+REFINEMENTS = json.loads((CONTENT / 'refinements.json').read_text(encoding='utf-8'))
 
 # Complete the few fields missing from the original lesson drafts.
 SUPPLEMENTS = {
@@ -81,6 +82,7 @@ def render_concept(heading, source):
     fields = {parts[i]: parts[i+1].replace('\n---', '').strip() for i in range(1, len(parts), 2)}
     for key, value in SUPPLEMENTS.get(title, {}).items():
         fields.setdefault(key, value)
+    fields.update(REFINEMENTS['concepts'].get(title, {}))
     if title == 'The Core Meme-Trading Question':
         fields['What is it?'] += '\n\n' + parts[0].replace('\n---', '').strip()
     required = ['What is it?', 'Why does it matter?', 'What should I check?', 'Beginner mistake', 'Takeaway']
@@ -135,6 +137,8 @@ for index, path in enumerate(sorted(CONTENT.glob('*.md')), 1):
     source = path.read_text(encoding='utf-8-sig')
     title = source.splitlines()[0].split(': ', 1)[1]
     goal = re.search(r'## Goal\s+([^\n]+)', source)[1]
+    if index == 2:
+        source = source.replace('## Level 2 Checklist', REFINEMENTS['market_maturity'] + '\n\n## Level 2 Checklist')
     lessons.append((f'meme-101-level-{index}', title, goal, source.split('\n', 1)[1]))
 
 bundle = '''## Goal
@@ -205,7 +209,7 @@ def page(slug, title, description, body):
 
 
 cards = ''.join(f'<a class="lesson-card" href="./{slug}.html"><span>{"LEVEL " + str(i) if i < 9 else "BONUS / 09"}</span><h2>{title}</h2><p>{goal}</p><strong>Open lesson ↗</strong></a>' for i, (slug, title, goal, _) in enumerate(lessons, 1))
-page('meme-101', 'Meme 101A', 'Eight beginner lessons plus a bundle deep dive: token numbers, launch, ownership, wallets, price, attention, danger, and risk.', f'''<article class="learn-content" id="lesson-content"><header class="learn-intro"><span class="kicker">THE BEGINNER LEARNING PATH</span><h1>Meme 101A · Foundations</h1><p>Read the token. Understand the people behind it.</p><p class="learn-muted">Eight levels, from the first numbers on a token page to planning an exit. Start at Level 1, or choose the question you want to understand.</p><a class="learn-start" href="./meme-101-level-1.html">Start Level 1 →</a><span class="course-count">8 levels + 1 bundle deep dive</span></header><aside class="learn-question"><span class="kicker">KEEP ONE QUESTION IN VIEW</span><p>Who owns the supply, what did they pay for it, what are they doing now, and who will buy it from them?</p></aside><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Next: Survival &amp; Hygiene</h2><p><a href="./meme-101b.html">Continue to 101B →</a> before moving into the applied tracks.</p><h2>Put the questions to work</h2><p>Use <a href="./new-coins.html">Snipe</a> for launch context, <a href="./radar.html">Swing</a> to compare observed tokens, <a href="./order-flow.html">Inspect</a> for sampled swaps, and <a href="./narratives.html">Tweet</a> for attention evidence. Wallet clusters, cost basis, and contract permissions may need external research; these lessons do not imply that Meme Fast measures every concept.</p></section></article>''')
+page('meme-101', 'Meme 101A', 'Eight beginner lessons plus a bundle deep dive: token numbers, launch, ownership, wallets, price, attention, danger, and risk.', f'''<article class="learn-content" id="lesson-content"><header class="learn-intro"><span class="kicker">THE BEGINNER LEARNING PATH</span><h1>Meme 101A · Foundations</h1><p>Read the token. Understand the people behind it.</p><p class="learn-muted">Like <a href="https://www.investor.gov/additional-resources/spotlight/microcap-fraud" target="_blank" rel="noopener noreferrer">penny-stock speculation</a>, micro-tokens mix thin markets, promotion, and concentrated ownership. Global, round-the-clock on-chain trading can compress the cycle.</p><p class="learn-muted">Eight levels, from the first numbers on a token page to planning an exit. Start at Level 1, or choose the question you want to understand.</p><a class="learn-start" href="./meme-101-level-1.html">Start Level 1 →</a><span class="course-count">8 levels + 1 bundle deep dive</span></header><aside class="learn-question"><span class="kicker">KEEP ONE QUESTION IN VIEW</span><p>Who owns the supply, what did they pay for it, what are they doing now, and who will buy it from them?</p></aside><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Next: Survival &amp; Hygiene</h2><p><a href="./meme-101b.html">Continue to 101B →</a> before moving into the applied tracks.</p><h2>Put the questions to work</h2><p>Use <a href="./new-coins.html">Snipe</a> for launch context, <a href="./radar.html">Swing</a> to compare observed tokens, <a href="./order-flow.html">Inspect</a> for sampled swaps, and <a href="./narratives.html">Tweet</a> for attention evidence. Wallet clusters, cost basis, and contract permissions may need external research; these lessons do not imply that Meme Fast measures every concept.</p></section></article>''')
 for i, (slug, title, goal, source) in enumerate(lessons):
     headings = [heading for heading in re.findall(r'^## (.+)$', source, re.M) if heading != 'Goal' and (i >= 8 or re.match(r'^\d+\. ', heading) or 'Checklist' in heading)]
     toc = ''.join(f'<a href="#{re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")}">{html.escape(text)}</a>' for text in headings)

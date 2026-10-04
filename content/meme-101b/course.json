@@ -2,7 +2,7 @@
   "code": "101B",
   "name": "Survival & Hygiene",
   "slug": "meme-101b",
-  "question": "Does this token deserve a position at all?",
+  "question": "Should I touch it?",
   "intro": "Separate the upside story from what could destroy the trade. Check the token, the demand, and your own decisions.",
   "lens": [
     "Build a thesis",
@@ -17,17 +17,17 @@
     {
       "title": "Thesis vs hygiene",
       "question": "A good story — but is there a reason to refuse?",
-      "definition": "Thesis explains why demand could grow. Hygiene checks for failures that can disqualify the token.",
+      "definition": "Thesis asks why demand could grow. Hygiene asks what can disqualify the token. Keep the two decisions separate.",
       "why": "More upside evidence cannot cancel a severe structural failure.",
       "checks": [
-        "Timely narrative, credible attention, and actual buyers",
-        "Supply control, liquidity control, and trading permissions",
-        "What is verified, missing, or changing"
+        "Magnitude + velocity: reach and pace of credible attention",
+        "Retention + renewal: persistence and the next catalyst",
+        "Meta fit and independently verified hygiene"
       ],
       "healthy": "The thesis and the hygiene checks have separate evidence.",
       "dangerous": "Excitement excuses a failed check or fills an evidence gap.",
       "mistake": "Calling a polished website proof of safety.",
-      "takeaway": "Strong thesis + failed hygiene = skip.",
+      "takeaway": "A strong thesis cannot cancel failed hygiene.",
       "example": [
         "A meme attracts credible discussion and new buyers.",
         "A privileged controller can prevent ordinary exits.",
@@ -38,7 +38,11 @@
         7,
         "level-7-checklist"
       ],
-      "deeper": "The source calls thesis additive and hygiene gating. Narrative, meta fit, X history, website claims, community independence, buyer growth, wallet behavior, and acceleration can support a thesis. None proves safety. Keep critical unknowns unresolved until evidence answers them; a pass is provisional, never a guarantee."
+      "deeper": "Magnitude asks how far a narrative could spread, not how many posts already exist. Velocity asks how fast credible participation changes. Retention asks what survives the burst; renewal asks what creates another reason to participate. Meta fit asks whether the wider theme still attracts demand. These are research questions, not a score or a Container sizing formula. Assess X history, website claims, community independence, and actual buyers alongside them.",
+      "framework": [
+        "Thesis: magnitude → velocity → retention → renewal → meta fit.",
+        "Hygiene remains a separate gate. Critical unknowns stay unresolved."
+      ]
     },
     {
       "title": "Immediate rug risk",
@@ -169,23 +173,23 @@
       ]
     },
     {
-      "title": "Attention & catalyst expiry",
-      "question": "What gives the next buyer a reason to arrive?",
-      "definition": "Attention can burst, persist, plateau, renew, or fade. Completing a catalyst can remove the next reason to buy.",
-      "why": "A successful event can still be followed by weaker demand.",
+      "title": "Token cycle, meta cycle & attention",
+      "question": "Is a fresh token entering an exhausted theme?",
+      "definition": "A token has its own attention cycle. Its meta—the wider theme—can be at a different stage.",
+      "why": "A new token can enter a crowded theme just as its buyers rotate elsewhere.",
       "checks": [
-        "Attention trend alongside buyer activity",
-        "What actually changed after the catalyst",
-        "Evidence of renewal beyond recycled promotion"
+        "Token stage versus broader meta stage",
+        "Organic, maintained/promoted, or fabricated attention",
+        "Buyer persistence and a verified reason for renewal"
       ],
-      "healthy": "A new reason to participate attracts observable fresh demand.",
-      "dangerous": "The event completes and only the old excitement remains.",
-      "mistake": "Automatically turning a short-lived narrative into a long hold.",
-      "takeaway": "Reassess the thesis when the reason to buy changes.",
+      "healthy": "Independent participation persists or renews across both layers.",
+      "dangerous": "Recycled promotion masks theme fatigue or fabricated activity.",
+      "mistake": "Calling a new launch a fresh meta.",
+      "takeaway": "Read the token and its theme separately.",
       "example": [
-        "Attention builds around a migration.",
-        "Migration succeeds, but buyer activity then fades.",
-        "Event success and demand persistence are separate questions."
+        "A fresh token launches into a heavily copied theme.",
+        "Migration succeeds, but discussion and fresh buyers fade.",
+        "A new token or completed event does not reset the meta."
       ],
       "evidence": [
         "Tweet",
@@ -196,7 +200,11 @@
         6,
         "2-catalyst"
       ],
-      "deeper": "The source's lens is Start → Burst → Sustained → Plateau → Renewal or Downtrend → Drained. Tokens can skip or revisit stages. A catalyst may expand access or participation, but its completion does not guarantee continuation or a top. Expected attention duration informs reassessment; it is not a precise holding-period formula."
+      "deeper": "Organic attention spreads through independent participation. Maintained or promoted attention depends on recurring promotion, which can include paid activity. Fabricated attention uses deceptive activity or false claims. Those categories can overlap and require evidence; loudness alone cannot distinguish them. Lifecycle stages are hypotheses, not official labels or a compulsory sequence. A completed catalyst can remove the next reason to buy. Deeper small-buy and promotional behavior belongs in 303.",
+      "framework": [
+        "Token: Start → Burst → Sustained → Plateau → Renewal/Downtrend → Drained.",
+        "Meta: Emergence → Expansion → Saturation → Rotation."
+      ]
     },
     {
       "title": "Due diligence keeps moving",
@@ -204,14 +212,14 @@
       "definition": "Live due diligence updates both the demand thesis and the hygiene checks as new evidence arrives.",
       "why": "An earlier check can become stale when controls, inventory, liquidity, or demand change.",
       "checks": [
-        "Early move: current controls, concentration, and buyer activity",
-        "Later structure: selling history, absorption, and liquidity changes",
-        "Which new evidence confirms or rejects the original case"
+        "Snipe: can current controls or concentrated supply cause immediate failure?",
+        "Swing: what do permissions, selling, transfers, and liquidity show since launch?",
+        "Which new evidence confirms or rejects the case?"
       ],
       "healthy": "Checks are repeated when relevant evidence changes.",
       "dangerous": "Token age or one clean snapshot becomes permanent clearance.",
       "mistake": "Using speed as a reason to ignore a critical unknown.",
-      "takeaway": "More history helps investigation; it does not remove risk.",
+      "takeaway": "Swing hygiene needs history as well as current checks.",
       "example": [
         "An early snapshot shows demand and no resolved failure.",
         "Later transfers and shrinking liquidity change the evidence.",
@@ -226,7 +234,7 @@
         4,
         "level-4-checklist"
       ],
-      "deeper": "Snipe asks about early potential; Swing can investigate persistence after the first hype cycle. Both need current hygiene checks. Historical sales, lower concentration, returning buyers, and repeated absorption add context, but do not certify future exits. Keep critical unknowns explicit rather than treating them as acceptable because the opportunity is moving quickly."
+      "deeper": "Snipe emphasizes immediate failure risk. Swing asks whether behavior since launch supports a clean working history: creator selling, related-wallet distribution, remaining bundled supply, liquidity changes, transfer rules, and repeated extraction into rebounds. Historical evidence adds context; age and previous successful sales cannot guarantee future exits. Keep thesis persistence separate from hygiene."
     },
     {
       "title": "Clear decision states",
