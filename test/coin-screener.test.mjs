@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from '../dist/coin-screener.mjs';
+import {DEFAULT_SCREENER,normalizeScreener,passesScreener,passesLaneScreener} from '../dist/coin-screener.mjs';
 
 test('24h volume starts at $15,000 and unavailable volume does not pass',()=>{
  const settings=normalizeScreener();
@@ -27,4 +27,17 @@ test('Robinhood Chain is available in Coin filters',()=>{
  assert.equal(settings.chain,'robinhood');
  assert.equal(passesScreener({network:'robinhood'},settings),true);
  assert.equal(passesScreener({network:'solana'},settings),false);
+});
+
+test('column minimums stay independent and combine with common filters',()=>{
+ const settings=normalizeScreener({lanes:{newPairs:{liquidity:10000},recovery:{volume5m:500},graduation:{transactions5m:20}}});
+ const coin={volume:20000,liquidity:5000,volume5m:600,buys5m:5,sells5m:5};
+ assert.equal(passesLaneScreener(coin,settings,'newPairs'),false);
+ assert.equal(passesLaneScreener(coin,settings,'recovery'),true);
+ assert.equal(passesLaneScreener(coin,settings,'graduation'),false);
+ assert.equal(passesLaneScreener({...coin,volume:1000},settings,'recovery'),false);
+ assert.equal(passesLaneScreener({...coin,volume5m:null},settings,'recovery'),false);
+ assert.equal(passesLaneScreener(coin,normalizeScreener({...settings,lanes:{}}),'newPairs'),true);
+ assert.deepEqual(normalizeScreener({lanes:{recovery:{volume5m:-1,liquidity:'bad'}}}),DEFAULT_SCREENER);
+ assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(settings))),settings);
 });

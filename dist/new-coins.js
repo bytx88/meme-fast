@@ -8,7 +8,7 @@ import {createCompetitionIndex,nameSearchHref} from './coin-competition.mjs?v=sn
 import {sourcesFor, storyParagraph, bestSearchLead} from './coin-context.mjs';
 import {NETWORKS, parsePools} from './public-radar.mjs';
 import {stageFor,recoveryFor,isUnderObservation} from './coin-stages.mjs?v=observation-v1';
-import {DEFAULT_SCREENER,normalizeScreener,passesScreener} from './coin-screener.mjs';
+import {DEFAULT_SCREENER,normalizeScreener,passesScreener,passesLaneScreener} from './coin-screener.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
 import {DEFAULT_ENTRY,normalizeEntry,assessEntry} from './snipe-decision.mjs';
 import {isSaved,toggleSaved,watchlist} from './research-store.mjs?v=watchlist-fomo-v2';
@@ -159,16 +159,18 @@ function lifecycleLane(key,title,count,description,body,id){
  return `<section class="discovery-lane ${state.activeStage===key?'stage-active':''}" aria-labelledby="${id}"><div class="discovery-lane-head"><h2 id="${id}">${title} <span class="count-badge">${count}</span></h2><p>${description}</p></div><div class="discovery-lane-list">${body}</div></section>`;
 }
 function cards(stages,known,total,all){
- const unknownVolume=stages.unknown.filter(c=>Number(c.volume)>=50000),unknownOther=stages.unknown.filter(c=>!(Number(c.volume)>=50000));
+ const lanePass=(c,lane)=>passesLaneScreener(c,state.screener,lane);
+ stages={...stages,new:stages.new.filter(c=>lanePass(c,'newPairs')),stretch:stages.stretch.filter(c=>lanePass(c,'newPairs')),migrated:stages.migrated.filter(c=>lanePass(c,'graduation'))};
+ const unknownVolume=stages.unknown.filter(c=>Number(c.volume)>=50000&&lanePass(c,'graduation')),unknownOther=stages.unknown.filter(c=>!(Number(c.volume)>=50000)&&lanePass(c,'newPairs'));
  const nearDescription=`80%+ bonded · retained 5D · data for ${known}/${total}`;
  const nearBody=stages.stretch.length?laneSplit('Final Stretch',stages.stretch,nearDescription):`<div class="lane-subheading"><strong>Final Stretch <span>0</span></strong><small>${nearDescription}</small></div><p class="lane-empty compact">${known<total?'No Final Stretch matches in the measured sample; graduation coverage is incomplete.':'No Final Stretch matches in this window and screener.'}</p>`;
  const newCount=stages.stretch.length+stages.new.length+unknownOther.length;
  const newLane=lifecycleLane('new','New Pairs',newCount,'Final Stretch first · check story evidence',
   nearBody+laneSplit('Fresh Pairs',stages.new,'Measured bonding progress below 80%')+laneSplit('Graduation status unknown',unknownOther),'new-pairs-title');
  // Recovery is an independent view: appearing here must never remove a coin from its launch stage.
- const recovering=all.filter(c=>recoveryFor(c)==='sustained');
+ const recovering=all.filter(c=>recoveryFor(c)==='sustained'&&lanePass(c,'recovery'));
  const early=groupCoins(recovering.filter(c=>!c.laterRecoveryAt),context),later=groupCoins(recovering.filter(c=>c.laterRecoveryAt),context);
- const tracking=groupCoins(all.filter(c=>isUnderObservation(c)),context),recoveryCount=early.length+later.length;
+ const tracking=groupCoins(all.filter(c=>isUnderObservation(c)&&lanePass(c,'recovery')),context),recoveryCount=early.length+later.length;
  const recoveryLane=lifecycleLane('sustained','Observed recovery',recoveryCount,'45m scenarios A/B for coins ≤6h · later recovery by 24h',
   laneSplit('45m patterns',early,'A: rebound · B: continuation')+laneSplit('Later recovery',later)+laneSplit('Under observation',tracking,'Confirmed graduations in the first 45m','tracking'),'sustained-title');
  const migratedLane=lifecycleLane('migrated','Pool activity',stages.migrated.length+unknownVolume.length,'Confirmed graduation and volume-only evidence',
@@ -256,7 +258,7 @@ function render(){
  const nameReady=!nameSearch||state.nameDataQuery===state.query;
  const all=nameReady?candidates():[],rows=nameSearch?all:groupCoins(all,context),stages={new:[],stretch:[],migrated:[],unknown:[]};
  for(const coin of all)stages[stageFor(coin)].push(coin);
- for(const key of Object.keys(stages))stages[key]=groupCoins(stages[key],context);
+ for(const key of Object.keys(stages)){const lane=key==='migrated'?'graduation':'newPairs';stages[key]=groupCoins(stages[key].filter(c=>state.view!=='discover'||passesLaneScreener(c,state.screener,key==='unknown'&&Number(c.volume)>=50000?'graduation':lane)),context);}
  visibleRows=state.view==='entry'?all:state.view==='discover'?[...stages.stretch,...stages.new,...stages.migrated,...stages.unknown,...all]:rows;
  $('#coin-count').textContent=state.view==='entry'?all.length:rows.length;
  $('#coin-list').className=`coin-list ${state.view==='entry'?'entry-mode':state.view==='discover'?'discover-mode':'explore-mode'}`;
@@ -351,7 +353,9 @@ function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$
 function setView(view){if(!['entry','discover','explore'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}if(view==='entry'&&!state.freshEnabled)setFresh(true);render()}
 function setSort(value){state.sort=value;render()}
 function openScreener(){
- for(const [key,value] of Object.entries(state.screener))$('#screener-settings').elements.namedItem(key).value=value;
+ const form=$('#screener-settings');
+ for(const key of ['volume24h','liquidity','volume5m','transactions5m','chain'])form.elements.namedItem(key).value=state.screener[key];
+ for(const lane of ['newPairs','recovery','graduation'])for(const key of ['volume24h','liquidity','volume5m','transactions5m'])form.elements.namedItem(`${lane}.${key}`).value=state.screener.lanes?.[lane]?.[key]||0;
  $('#screener-dialog').showModal();
 }
 function applyScreener(settings){
@@ -361,6 +365,10 @@ function applyScreener(settings){
  render();
 }
 document.addEventListener('click',async event=>{
+ const tab=event.target.closest('[data-screener-tab]');if(tab){
+  document.querySelectorAll('[data-screener-tab]').forEach(button=>button.setAttribute('aria-selected',String(button===tab)));
+  document.querySelectorAll('[data-screener-panel]').forEach(panel=>panel.hidden=panel.dataset.screenerPanel!==tab.dataset.screenerTab);return;
+ }
  const restore=event.target.closest('[data-restore-hidden]');if(restore){hiddenCoins.delete(restore.dataset.restoreHidden);saveHidden();preserveScroll(render);return}
  const hide=event.target.closest('[data-hide-coin]');if(hide){
   const coin=visibleRows.find(c=>c.id===hide.dataset.hideCoin);if(coin){
@@ -392,7 +400,7 @@ document.addEventListener('toggle',event=>{if(event.target.matches?.('.entry-hol
 $('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListener('change',event=>{state.skipRug=event.target.checked;try{localStorage.setItem(skipRugPreferenceKey,String(state.skipRug))}catch{}render()}));
-$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();applyScreener(Object.fromEntries(new FormData(event.currentTarget)))});
+$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;if(nameSearch){document.title=`${state.query} · Snipe listings · Meme Fast`;state.pendingSnapshot=null}render();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim())nameSearchTimer=setTimeout(()=>{history.replaceState(null,'',nameSearchHref(state.query));void refresh()},300)}});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim()){history.replaceState(null,'',nameSearchHref(state.query));void refresh()}}else investigate()}});
