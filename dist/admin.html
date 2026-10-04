@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tracked wallets · Meme Fast</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" type="image/svg+xml" href="./brand-mark.svg?v=2">
+  <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
+  <link rel="stylesheet" href="./admin.css">
+  <script type="module" src="./admin.js"></script>
+</head>
+<body>
+<main class="admin-page">
+  <header class="admin-header"><div><span class="admin-brand">MEME FAST / ADMIN</span><h1>Tracked wallets</h1><p>Wallet names and classes used by the Snipe and Swing tags.</p></div><button id="refresh" type="button">Refresh status ↻</button></header>
+  <p id="status" role="status" aria-live="polite">Loading tracked wallets…</p>
+  <section class="admin-controls" aria-label="Wallet filters"><label>Find wallet<input id="query" type="search" placeholder="Name or address" autocomplete="off"></label><label>Class<select id="class-filter"><option value="">All classes</option></select></label><span id="count"></span></section>
+  <section class="admin-table-wrap" aria-label="Tracked wallets"><table><thead><tr><th scope="col">Wallet</th><th scope="col">Class</th><th scope="col">Solana address</th><th scope="col">Status</th><th scope="col">Last checked</th><th scope="col">Last attempt</th><th scope="col">Token balances</th></tr></thead><tbody id="wallets"></tbody></table></section>
+  <section class="admin-legend"><h2>Classes</h2><div id="legend"></div></section>
+  <p class="admin-note">Holdings are sampled every 5 minutes. Status becomes stale after 10 minutes or a failed check; previous complete balances are retained until a successful check. Token counts include dust and unsolicited tokens. Names and classes are assigned labels; Dev does not verify token creation.</p>
+</main>
+</body>
+</html>
