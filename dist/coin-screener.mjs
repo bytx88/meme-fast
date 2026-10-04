@@ -1,4 +1,4 @@
-export const DEFAULT_SCREENER = Object.freeze({volume24h:15000,liquidity:0,volume5m:0,transactions5m:0,transactionsLifetime:0,poolAgeMinSeconds:0,poolAgeMaxSeconds:0,chain:'all',lanes:Object.freeze({newPairs:Object.freeze({}),recovery:Object.freeze({}),graduation:Object.freeze({})})});
+export const DEFAULT_SCREENER = Object.freeze({volume24h:15000,liquidity:0,volume5m:0,transactions5m:0,transactionsLifetime:0,poolAgeMinSeconds:0,poolAgeMaxSeconds:0,chain:'all',lanes:Object.freeze({newPairs:Object.freeze({poolAgeMaxSeconds:108000}),recovery:Object.freeze({}),graduation:Object.freeze({})})});
 
 export function normalizeScreener(value={}){
  const result={...DEFAULT_SCREENER};
@@ -9,10 +9,12 @@ export function normalizeScreener(value={}){
  if(['all','solana','base','robinhood'].includes(value.chain))result.chain=value.chain;
  result.lanes={};
  for(const lane of ['newPairs','recovery','graduation']){
-  result.lanes[lane]={};
+  result.lanes[lane]={...DEFAULT_SCREENER.lanes[lane]};
   for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds']){
    const raw=value.lanes?.[lane]?.[key],number=Number(raw);
-   if(raw!==''&&raw!=null&&Number.isFinite(number)&&number>0)result.lanes[lane][key]=Math.floor(number);
+   if(raw!==''&&raw!=null&&Number.isFinite(number)&&number>=0){
+    if(number>0||key in DEFAULT_SCREENER.lanes[lane])result.lanes[lane][key]=Math.floor(number);
+   }
   }
  }
  return result;

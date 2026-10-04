@@ -352,10 +352,20 @@ async function investigate(){
 function setFull(enabled){document.body.classList.toggle('tiles-only',enabled);$('#full-mode').setAttribute('aria-pressed',String(enabled));$('#full-mode').textContent=enabled?'Exit Full':'Full';if(state.view==='entry')render()}
 function setView(view){if(!['entry','discover','explore'].includes(view))return;state.view=view;try{localStorage.setItem(viewPreferenceKey,view)}catch{}if(view==='entry'&&!state.freshEnabled)setFresh(true);render()}
 function setSort(value){state.sort=value;render()}
+function updateScreenerTabs(){
+ const form=$('#screener-settings');
+ for(const [scope,label] of [['common','Common'],['newPairs','New Pairs'],['recovery','Recovery'],['graduation','Graduation']]){
+  const prefix=scope==='common'?'':`${scope}.`;
+  let count=['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'].filter(key=>Number(form.elements.namedItem(prefix+key).value)>0).length;
+  if(scope==='common'&&form.elements.namedItem('chain').value!=='all')count++;
+  document.querySelector(`[data-screener-tab="${scope}"]`).textContent=count?`${label} (${count})`:label;
+ }
+}
 function openScreener(){
  const form=$('#screener-settings');
  for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds','chain'])form.elements.namedItem(key).value=state.screener[key];
  for(const lane of ['newPairs','recovery','graduation'])for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])form.elements.namedItem(`${lane}.${key}`).value=state.screener.lanes?.[lane]?.[key]||0;
+ updateScreenerTabs();
  $('#screener-dialog').showModal();
 }
 function applyScreener(settings){
@@ -400,6 +410,8 @@ document.addEventListener('toggle',event=>{if(event.target.matches?.('.entry-hol
 $('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListener('change',event=>{state.skipRug=event.target.checked;try{localStorage.setItem(skipRugPreferenceKey,String(state.skipRug))}catch{}render()}));
+$('#screener-settings').addEventListener('input',updateScreenerTabs);
+$('#screener-settings').addEventListener('change',updateScreenerTabs);
 $('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));

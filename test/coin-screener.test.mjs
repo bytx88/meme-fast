@@ -31,7 +31,7 @@ test('Robinhood Chain is available in Coin filters',()=>{
 
 test('column minimums stay independent and combine with common filters',()=>{
  const settings=normalizeScreener({lanes:{newPairs:{liquidity:10000},recovery:{volume5m:500},graduation:{transactions5m:20}}});
- const coin={volume:20000,liquidity:5000,volume5m:600,buys5m:5,sells5m:5};
+ const coin={poolCreated:Date.now()-3600000,volume:20000,liquidity:5000,volume5m:600,buys5m:5,sells5m:5};
  assert.equal(passesLaneScreener(coin,settings,'newPairs'),false);
  assert.equal(passesLaneScreener(coin,settings,'recovery'),true);
  assert.equal(passesLaneScreener(coin,settings,'graduation'),false);
@@ -70,4 +70,16 @@ test('lifetime minimum uses full-lifetime counts for young pools and withholds r
  assert.equal(passesLaneScreener(coin,lanes,'recovery',now),false);
  assert.equal(passesLaneScreener(coin,lanes,'newPairs',now),true);
  assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(lanes))),lanes);
+});
+
+test('New Pairs defaults to a 30-hour age cap, migrates missing values, and preserves explicit off',()=>{
+ const now=1800000000000,settings=normalizeScreener({volume24h:0});
+ assert.equal(settings.lanes.newPairs.poolAgeMaxSeconds,108000);
+ assert.equal(normalizeScreener({lanes:{newPairs:{}}}).lanes.newPairs.poolAgeMaxSeconds,108000);
+ assert.equal(passesLaneScreener({poolCreated:now-108000000},settings,'newPairs',now),true);
+ assert.equal(passesLaneScreener({poolCreated:now-108001000},settings,'newPairs',now),false);
+ assert.equal(passesLaneScreener({poolCreated:now-108001000},settings,'recovery',now),true);
+ const off=normalizeScreener({volume24h:0,lanes:{newPairs:{poolAgeMaxSeconds:0}}});
+ assert.equal(passesLaneScreener({},off,'newPairs',now),true);
+ assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(off))),off);
 });
