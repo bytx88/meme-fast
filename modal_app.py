@@ -39,6 +39,7 @@ image = (
 
 app = modal.App(APP_NAME, image=image)
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
+tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 
 
@@ -151,9 +152,10 @@ def collect_followed_wallets():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.followed_wallets import collect
+    from worker.followed_wallets import collect, registry_wallets
+    registry = registry_wallets(value for _, value in tracked_wallet_registry.items())
     history_volume.reload()
-    report = collect("/history/followed-wallets.json")
+    report = collect("/history/followed-wallets.json", registry=registry)
     history_volume.commit()
     return {"wallets": len(report["wallets"]),
             "available": sum(row["status"] == "ok" for row in report["wallets"])}
@@ -239,14 +241,33 @@ def web():
 
     @web_app.get("/api/followed-wallets")
     async def followed_wallets():
-        from worker.followed_wallets import awaiting
+        from worker.followed_wallets import awaiting, registry_wallets, merge_report
+        registry = registry_wallets([value async for _, value in tracked_wallet_registry.items.aio()])
         async with history_lock:
             await history_volume.reload.aio()
             try:
                 report = json.loads(Path("/history/followed-wallets.json").read_text())
             except (FileNotFoundError, ValueError):
-                report = awaiting()
-        return JSONResponse(report, headers={"cache-control": "no-store"})
+                report = awaiting(registry)
+        return JSONResponse(merge_report(report, registry), headers={"cache-control": "no-store"})
+
+    @web_app.post("/api/followed-wallets")
+    async def add_followed_wallet(request: Request):
+        from worker.followed_wallets import validate_wallet, registry_wallets, awaiting
+        body = await request.body()
+        if len(body) > 2000:
+            raise HTTPException(status_code=400, detail="Wallet request too large")
+        try:
+            row = validate_wallet(json.loads(body))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Enter a name (1 to 80 characters), valid Solana address and supported class")
+        if any(entry['address'] == row['address'] for entry in registry_wallets()):
+            raise HTTPException(status_code=409, detail="This wallet is already tracked")
+        added = await tracked_wallet_registry.put.aio(row['address'], row, skip_if_exists=True)
+        if not added:
+            raise HTTPException(status_code=409, detail="This wallet is already tracked")
+        return JSONResponse({"wallet": awaiting([row])["wallets"][0]}, status_code=201,
+                            headers={"cache-control": "no-store"})
 
     @web_app.get("/api/meme-index")
     async def meme_index():

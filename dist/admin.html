@@ -13,10 +13,20 @@
 <main class="admin-page">
   <header class="admin-header"><div><span class="admin-brand">MEME FAST / ADMIN</span><h1>Tracked wallets</h1><p>Wallet names and classes used by the Snipe and Swing tags.</p></div><button id="refresh" type="button">Refresh status ↻</button></header>
   <p id="status" role="status" aria-live="polite">Loading tracked wallets…</p>
-  <section class="admin-controls" aria-label="Wallet filters"><label>Find wallet<input id="query" type="search" placeholder="Name or address" autocomplete="off"></label><label>Class<select id="class-filter"><option value="">All classes</option></select></label><span id="count"></span></section>
+  <section class="admin-controls" aria-label="Wallet filters"><label>Find wallet<input id="query" type="search" placeholder="Name or address" autocomplete="off"></label><label>Class<select id="class-filter"><option value="">All classes</option></select></label><span id="count"></span><button id="add-wallet" type="button">Add wallet +</button></section>
   <section class="admin-table-wrap" aria-label="Tracked wallets"><table><thead><tr><th scope="col">Wallet</th><th scope="col">Class</th><th scope="col">Solana address</th><th scope="col">Status</th><th scope="col">Last checked</th><th scope="col">Last attempt</th><th scope="col">Token balances</th></tr></thead><tbody id="wallets"></tbody></table></section>
   <section class="admin-legend"><h2>Classes</h2><div id="legend"></div></section>
   <p class="admin-note">Holdings are sampled every 5 minutes. Status becomes stale after 10 minutes or a failed check; previous complete balances are retained until a successful check. Token counts include dust and unsolicited tokens. Names and classes are assigned labels; Dev does not verify token creation.</p>
 </main>
+<dialog id="add-wallet-dialog" aria-labelledby="add-wallet-title">
+  <div class="admin-dialog-head"><h2 id="add-wallet-title">Add tracked wallet</h2><button id="close-wallet" type="button" aria-label="Close add wallet">×</button></div>
+  <form id="add-wallet-form">
+    <label>Name<input id="wallet-name" name="name" maxlength="80" required autocomplete="off" placeholder="Wallet name"></label>
+    <label>Solana address<input id="wallet-address" name="address" minlength="32" maxlength="44" required autocomplete="off" spellcheck="false" placeholder="Wallet address"></label>
+    <label>Class<select id="wallet-code" name="code" required></select></label>
+    <p id="add-wallet-status" role="status" aria-live="polite">New wallets are checked during the next scheduled collection.</p>
+    <div class="admin-dialog-actions"><button id="cancel-wallet" type="button">Cancel</button><button id="save-wallet" type="submit" class="primary">Add wallet</button></div>
+  </form>
+</dialog>
 </body>
 </html>
