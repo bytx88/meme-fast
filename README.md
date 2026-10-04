@@ -16,9 +16,7 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 
 ## Product areas
 
-- **Meme 101** (`/meme-101.html`) — eight beginner learning levels plus a bundle deep dive, with a course overview, topic links, checklists, and previous/next navigation. Source lessons live in `content/meme-101/`; regenerate with `py scripts/render-meme-101.py` followed by `node scripts/render-shared-pages.mjs`.
-
-Meme 101 concepts follow Definition → Why it matters → What to check → Healthy / Dangerous → Beginner mistake → Takeaway. `concept-guidance.json` supplies the comparative reading examples; `tool-evidence.json` lists relevant tool destinations and the evidence each can show. Tool links do not imply verification of wallet identity, cost basis, contract permissions, or execution capacity. Concepts without relevant in-app evidence have no tool link.
+- **Learn** (`/learn.html`) — Meme 101 foundations, 202A Snipe, and 202B Swing. Each applied track has eight short chapters with three checks, an illustrative example, an evidence handoff, and optional deeper context. The Snipe and Swing tools link back to their courses.
 - **Model** (`/model`) — visual research workflow, data coverage, order-flow reading guide, and signal limits
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
 - **Snipe** — Starter screening for pool timing, market age, flow, and order-size pressure; Discover and Explore views for stage and story context
@@ -28,6 +26,8 @@ Meme 101 concepts follow Definition → Why it matters → What to check → Hea
 - **Watchlist** — browser-local saved narratives and tokens
 - **Sources** — current feed coverage and a planned X-account collector watchlist; X RSS mentions are shown on Tweet and Swing
 - **Coin vs Social** (`/jeanphil.html`) — a standalone Jean Phil experiment plotting sampled social Warmth against JEANPHIL price on one timeline
+
+Learning pages follow Definition → Why it matters → What to check → Healthy / Dangerous → Beginner mistake → Takeaway. Meme 101 source lessons and guidance live in `content/meme-101/`. The original 202 outlines and condensed course content live in `content/meme-202/`. Regenerate all courses and the hub with `py scripts/render-meme-202.py`, then `node scripts/render-shared-pages.mjs` (also run by the Worker build). Tool links explain the evidence available and do not imply verification of wallet identity, cost basis, contract permissions, or execution capacity. The original `/meme-101.html` and lesson URLs remain available.
 
 Inspect's **5D** view fetches historical 15-minute OHLCV candles for one listing's most liquid discovered pool. The historical chart preserves candle high/low ranges, and MC Detail keeps the standard MC Tier / Net / Buy / Sell / Read layout and metric selector. In Total Value mode, the Net column becomes Total and shows estimated total volume assigned by each candle's closing market-cap tier; unavailable directional values, trade counts and per-swap averages stay unknown. A wick-only tier has unknown volume allocation, not zero trading. Market cap is estimated from the latest reported MC/price ratio, assuming unchanged supply. Only completed candles inside the rolling five-day window are used; provider gaps and other pools are not covered. Candles have no buy/sell split or trade count, so the existing buy/sell summaries and observed swap table remain a separate bounded sample. History uses one capped 1,000-candle request, cached for five minutes, and requires no new API key.
 

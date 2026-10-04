@@ -181,20 +181,25 @@ lessons.append(('meme-101-bundles', 'Bundle deep dive', 'Follow coordinated supp
 template = (DIST / 'model.html').read_text(encoding='utf-8')
 header = re.search(r'<header class="masthead">[\s\S]*?</header>', template)[0]
 header = header.replace(' aria-current="page"', '')
-header = re.sub(r'<a href="\./meme-101\.html"[^>]*>Meme 101</a>', '', header)
-header = header.replace('<a href="./model.html">Model</a>', '<a href="./meme-101.html">Meme 101</a><a href="./model.html">Model</a>')
-header = header.replace('<a href="./meme-101.html">', '<a href="./meme-101.html" aria-current="page">')
+header = re.sub(r'<a href="\./(?:meme-101|learn)\.html"[^>]*>(?:Meme 101|Learn)</a>', '', header)
+header = header.replace('<a href="./model.html">Model</a>', '<a href="./learn.html" aria-current="page">Learn</a><a href="./model.html">Model</a>')
 footer = re.search(r'<footer>[\s\S]*?</footer>', template)[0]
 
 
 def page(slug, title, description, body):
+    track = 'meme-101' if slug.startswith('meme-101') else 'meme-202a' if slug.startswith('meme-202a') else 'meme-202b' if slug.startswith('meme-202b') else 'learn'
+    tabs = '<nav class="learning-tracks" aria-label="Learning courses">'
+    for target, label in [('learn', 'All courses'), ('meme-101', '101 · Foundations'), ('meme-202a', '202A · Snipe'), ('meme-202b', '202B · Swing')]:
+        current = ' aria-current="page"' if track == target else ''
+        tabs += f'<a href="./{target}.html"{current}>{label}</a>'
+    tabs += '</nav>'
     document = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · Meme Fast</title><meta name="description" content="{html.escape(description, quote=True)}">
 <link rel="canonical" href="https://meme.oneerp.org/{slug}.html"><link rel="icon" type="image/svg+xml" href="./brand-mark.svg?v=2">
-<link rel="stylesheet" href="./style.css?v=brand-depth-v2"><link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><link rel="stylesheet" href="./site-footer.css?v=1"><link rel="stylesheet" href="./meme-101.css?v=1"><link rel="stylesheet" href="./meme-101-concepts.css?v=1">
+<link rel="stylesheet" href="./style.css?v=brand-depth-v2"><link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><link rel="stylesheet" href="./site-footer.css?v=1"><link rel="stylesheet" href="./meme-101.css?v=1"><link rel="stylesheet" href="./meme-101-concepts.css?v=1"><link rel="stylesheet" href="./learning.css?v=1">
 <script type="module" src="./donate.js?v=static-header-v1"></script><script type="module" src="./page-scroll.js?v=1"></script></head>
-<body class="trader-ui"><main class="workspace learn-page"><a class="learn-skip" href="#lesson-content">Skip to learning content</a>{header}
+<body class="trader-ui"><main class="workspace learn-page"><a class="learn-skip" href="#lesson-content">Skip to learning content</a>{header}{tabs}
 {body}{footer}</main></body></html>'''
     (DIST / f'{slug}.html').write_text(document, encoding='utf-8')
 

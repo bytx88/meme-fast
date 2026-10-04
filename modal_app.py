@@ -488,6 +488,9 @@ def web():
             "about": "about.html",
             "model": "model.html",
             "meme-101": "meme-101.html",
+            "learn": "learn.html",
+            "meme-202a": "meme-202a.html",
+            "meme-202b": "meme-202b.html",
             "privacy": "privacy.html",
             "terms": "terms.html",
         }
