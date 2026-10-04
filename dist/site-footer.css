@@ -3,3 +3,6 @@
 .site-info-links a:hover{text-decoration:underline;color:#e9eff6}
 .site-info-links a:focus-visible{outline:2px solid #d7f778;outline-offset:3px}
 .site-footer{width:min(1080px,calc(100% - 48px));margin:0 auto 24px;padding:24px 0;border-top:1px solid #445061}
+
+.site-info-links .admin-entry{display:inline-block;width:44px;height:20px;flex:none;cursor:default;background:transparent;border:0;box-shadow:none}
+.site-info-links .admin-entry:hover{background:transparent;text-decoration:none;box-shadow:none}

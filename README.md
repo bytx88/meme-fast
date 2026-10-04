@@ -74,7 +74,7 @@ Run `update-github-and-modal.bat --check` for local validation without committin
 
 ## Followed wallets
 
-`/admin.html` shows the tracked-wallet registry, class legend, check status, check/attempt times, and last observed positive token-balance count, with name/address search and class filtering. It has no navigation link or sitemap entry and requests no indexing. It is an unlisted, read-only page, without login protection. Refresh status reads the shared report; scheduled holdings collection still runs every five minutes.
+`/admin.html` shows the tracked-wallet registry, class legend, check status, check/attempt times, and last observed positive token-balance count, with name/address search and class filtering. An invisible footer link after Terms opens it; the link has no visible text or hover effect. It has no sitemap entry and requests no indexing. It is an unlisted, read-only page, without login protection. Refresh status reads the shared report; scheduled holdings collection still runs every five minutes.
 
 Snipe cards and Swing’s holder column show compact class icons for positive Solana token balances held by the addresses in `worker/followed-wallets.json`. F1/F2 mean Finder class 1/2, C1/C2 Clipper fast/slow, N1/N2 Nurture slow/fast, L1 Long holder, and Dev Developer. Names and classes are user-assigned; they do not establish identity or prove token creation. Hover or tap a badge to see matching wallets and check times. The expandable Followed wallets line lists coverage and the class legend.
 
