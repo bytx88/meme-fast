@@ -187,9 +187,9 @@ footer = re.search(r'<footer>[\s\S]*?</footer>', template)[0]
 
 
 def page(slug, title, description, body):
-    track = 'meme-101b' if slug.startswith('meme-101b') else 'meme-101' if slug.startswith('meme-101') else 'meme-202a' if slug.startswith('meme-202a') else 'meme-202b' if slug.startswith('meme-202b') else 'learn'
+    track = next((target for target in ['meme-101b', 'meme-101', 'meme-202a', 'meme-202b', 'meme-303'] if slug.startswith(target)), 'learn')
     tabs = '<nav class="learning-tracks" aria-label="Learning courses">'
-    for target, label in [('learn', 'All courses'), ('meme-101', '101A · Foundations'), ('meme-101b', '101B · Survival & Hygiene'), ('meme-202a', '202A · Snipe'), ('meme-202b', '202B · Swing')]:
+    for target, label in [('learn', 'All courses'), ('meme-101', '101A · Foundations'), ('meme-101b', '101B · Survival & Hygiene'), ('meme-202a', '202A · Snipe'), ('meme-202b', '202B · Swing'), ('meme-303', '303 · Position Management')]:
         current = ' aria-current="page"' if track == target else ''
         tabs += f'<a href="./{target}.html"{current}>{label}</a>'
     tabs += '</nav>'

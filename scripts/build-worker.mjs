@@ -17,7 +17,7 @@ export default {async fetch(request){
   if(url.pathname.startsWith('/api/market/'))return market(request);
   if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
   if(url.pathname==='/guide'||url.pathname==='/guide.html')return Response.redirect(new URL('/model',url),308);
-  const aliases={'/':'/order-flow.html','/narratives':'/narratives.html','/model':'/model.html','/meme-101':'/meme-101.html','/meme-101a':'/meme-101.html','/meme-101b':'/meme-101b.html','/learn':'/learn.html','/meme-202a':'/meme-202a.html','/meme-202b':'/meme-202b.html'};
+  const aliases={'/':'/order-flow.html','/narratives':'/narratives.html','/model':'/model.html','/meme-101':'/meme-101.html','/meme-101a':'/meme-101.html','/meme-101b':'/meme-101b.html','/meme-303':'/meme-303.html','/learn':'/learn.html','/meme-202a':'/meme-202a.html','/meme-202b':'/meme-202b.html'};
   const path=aliases[url.pathname]||url.pathname;
   const asset=assets[path];
   if(!asset)return new Response('Not found',{status:404});

@@ -160,7 +160,13 @@
         8,
         "1-position-size"
       ],
-      "deeper": "Chasing, unplanned averaging, excessive leverage, ignored distribution, and deteriorating liquidity can compound exposure. A stop trigger is not a guaranteed fill or maximum loss. The source reserves detailed position management for a future 303 course; this chapter introduces the distinction without prescribing sizing or profit targets."
+      "deeper": "Chasing, unplanned averaging, excessive leverage, ignored distribution, and deteriorating liquidity can compound exposure. A stop trigger is not a guaranteed fill or maximum loss. The source reserves detailed position management for the 303 course; this chapter introduces the distinction without prescribing sizing or profit targets.",
+      "related": [
+        [
+          "Continue to 303: Position Management",
+          "meme-303.html"
+        ]
+      ]
     },
     {
       "title": "Attention & catalyst expiry",
