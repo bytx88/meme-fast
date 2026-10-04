@@ -105,8 +105,8 @@ lessons.append(('meme-101-bundles', 'Bundle deep dive', 'Follow coordinated supp
 template = (DIST / 'model.html').read_text(encoding='utf-8')
 header = re.search(r'<header class="masthead">[\s\S]*?</header>', template)[0]
 header = header.replace(' aria-current="page"', '')
-if 'meme-101.html' not in header:
-    header = header.replace('<a href="./model.html">Model</a>', '<a href="./model.html">Model</a><a href="./meme-101.html">Meme 101</a>')
+header = re.sub(r'<a href="\./meme-101\.html"[^>]*>Meme 101</a>', '', header)
+header = header.replace('<a href="./model.html">Model</a>', '<a href="./meme-101.html">Meme 101</a><a href="./model.html">Model</a>')
 header = header.replace('<a href="./meme-101.html">', '<a href="./meme-101.html" aria-current="page">')
 footer = re.search(r'<footer>[\s\S]*?</footer>', template)[0]
 
