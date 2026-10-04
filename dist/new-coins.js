@@ -354,8 +354,8 @@ function setView(view){if(!['entry','discover','explore'].includes(view))return;
 function setSort(value){state.sort=value;render()}
 function openScreener(){
  const form=$('#screener-settings');
- for(const key of ['volume24h','liquidity','volume5m','transactions5m','chain'])form.elements.namedItem(key).value=state.screener[key];
- for(const lane of ['newPairs','recovery','graduation'])for(const key of ['volume24h','liquidity','volume5m','transactions5m'])form.elements.namedItem(`${lane}.${key}`).value=state.screener.lanes?.[lane]?.[key]||0;
+ for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds','chain'])form.elements.namedItem(key).value=state.screener[key];
+ for(const lane of ['newPairs','recovery','graduation'])for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])form.elements.namedItem(`${lane}.${key}`).value=state.screener.lanes?.[lane]?.[key]||0;
  $('#screener-dialog').showModal();
 }
 function applyScreener(settings){
@@ -400,7 +400,7 @@ document.addEventListener('toggle',event=>{if(event.target.matches?.('.entry-hol
 $('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListener('change',event=>{state.skipRug=event.target.checked;try{localStorage.setItem(skipRugPreferenceKey,String(state.skipRug))}catch{}render()}));
-$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
+$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;if(nameSearch){document.title=`${state.query} · Snipe listings · Meme Fast`;state.pendingSnapshot=null}render();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim())nameSearchTimer=setTimeout(()=>{history.replaceState(null,'',nameSearchHref(state.query));void refresh()},300)}});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim()){history.replaceState(null,'',nameSearchHref(state.query));void refresh()}}else investigate()}});

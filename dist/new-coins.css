@@ -458,3 +458,5 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 .screener-dialog .screener-note{font-size:10px;margin-top:4px}
 .screener-actions{margin-top:12px}
 @media(max-width:400px){.screener-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.screener-fields label{grid-column:auto}}
+
+.screener-fields .screener-lifetime{grid-column:1/-1}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_SCREENER,normalizeScreener,passesScreener,passesLaneScreener} from '../dist/coin-screener.mjs';
+import {DEFAULT_SCREENER,normalizeScreener,passesScreener,passesLaneScreener,lifetimeTransactions} from '../dist/coin-screener.mjs';
 
 test('24h volume starts at $15,000 and unavailable volume does not pass',()=>{
  const settings=normalizeScreener();
@@ -40,4 +40,34 @@ test('column minimums stay independent and combine with common filters',()=>{
  assert.equal(passesLaneScreener(coin,normalizeScreener({...settings,lanes:{}}),'newPairs'),true);
  assert.deepEqual(normalizeScreener({lanes:{recovery:{volume5m:-1,liquidity:'bad'}}}),DEFAULT_SCREENER);
  assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(settings))),settings);
+});
+
+test('pool age uses inclusive seconds, rejecting missing and future timestamps',()=>{
+ const now=1800000000000,settings=normalizeScreener({volume24h:0,poolAgeMinSeconds:30,poolAgeMaxSeconds:90});
+ for(const seconds of [30,60,90])assert.equal(passesScreener({poolCreated:now-seconds*1000},settings,now),true);
+ for(const seconds of [29.9,90.1])assert.equal(passesScreener({poolCreated:now-seconds*1000},settings,now),false);
+ for(const poolCreated of [null,0,NaN,now+1000])assert.equal(passesScreener({poolCreated},settings,now),false);
+ assert.equal(passesScreener({},normalizeScreener({volume24h:0}),now),true);
+ const lanes=normalizeScreener({volume24h:0,lanes:{newPairs:{poolAgeMaxSeconds:60},recovery:{poolAgeMinSeconds:120}}});
+ assert.equal(passesLaneScreener({poolCreated:now-60000},lanes,'newPairs',now),true);
+ assert.equal(passesLaneScreener({poolCreated:now-60000},lanes,'recovery',now),false);
+ assert.equal(passesLaneScreener({poolCreated:now-60000},lanes,'graduation',now),true);
+ assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(lanes))),lanes);
+});
+
+test('lifetime minimum uses full-lifetime counts for young pools and withholds rolling counts for older pools',()=>{
+ const now=1800000000000,coin={poolCreated:now-3600000,buys:60,sells:40};
+ const settings=normalizeScreener({volume24h:0,transactionsLifetime:100});
+ assert.equal(lifetimeTransactions(coin,now),100);
+ assert.equal(passesScreener(coin,settings,now),true);
+ assert.equal(passesScreener({...coin,sells:39},settings,now),false);
+ for(const change of [{sells:null},{buys:NaN},{buys:-1},{poolCreated:null},{poolCreated:now-86400000},{poolCreated:now+1}]){
+  assert.equal(lifetimeTransactions({...coin,...change},now),null);
+  assert.equal(passesScreener({...coin,...change},settings,now),false);
+ }
+ assert.equal(passesScreener({},normalizeScreener({volume24h:0}),now),true);
+ const lanes=normalizeScreener({volume24h:0,lanes:{recovery:{transactionsLifetime:101}}});
+ assert.equal(passesLaneScreener(coin,lanes,'recovery',now),false);
+ assert.equal(passesLaneScreener(coin,lanes,'newPairs',now),true);
+ assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(lanes))),lanes);
 });
