@@ -164,11 +164,11 @@
         8,
         "1-position-size"
       ],
-      "deeper": "Chasing, unplanned averaging, excessive leverage, ignored distribution, and deteriorating liquidity can compound exposure. A stop trigger is not a guaranteed fill or maximum loss. The source reserves detailed position management for the 303 course; this chapter introduces the distinction without prescribing sizing or profit targets.",
+      "deeper": "Chasing, unplanned averaging, excessive leverage, ignored distribution, and deteriorating liquidity can compound exposure. A stop trigger is not a guaranteed fill or maximum loss. The source reserves detailed position management for 303A; this chapter introduces the distinction without prescribing sizing or profit targets.",
       "related": [
         [
-          "Continue to 303: Position Management",
-          "meme-303.html"
+          "Continue to 303A: Managing Your Position",
+          "meme-303a.html"
         ]
       ]
     },
@@ -200,7 +200,7 @@
         6,
         "2-catalyst"
       ],
-      "deeper": "Organic attention comes from independent discovery and propagation. Maintained attention can depend on boosts, recurring promotion, raids, KOL posts, or small support activity. Fabricated attention uses bots, deceptive trading, or false engagement and holder counts. Categories can overlap and require evidence. A token can be in Emergence while its meta is already in Saturation. Stages are hypotheses, not official labels or a compulsory sequence. Detailed inventory mechanics belong in 303.",
+      "deeper": "Organic attention comes from independent discovery and propagation. Maintained attention can depend on boosts, recurring promotion, raids, KOL posts, or small support activity. Fabricated attention uses bots, deceptive trading, or false engagement and holder counts. Categories can overlap and require evidence. A token can be in Emergence while its meta is already in Saturation. Stages are hypotheses, not official labels or a compulsory sequence. Detailed inventory mechanics belong in 303B.",
       "framework": [
         "Token: Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion.",
         "Extension: Maturity → Renewal → Expansion.",
@@ -287,11 +287,11 @@
         3,
         "2-dev-creator-wallet"
       ],
-      "deeper": "A dev may build, distribute, extract, or combine behaviors. Fee income, product claims, and continued promotion do not prove buyer alignment. Common funding is only a lead; exchanges and routers can connect unrelated users. Repeated suspicious deployment patterns need context and evidence before attributing misconduct. Detailed Dev Cycle economics belongs in 303.",
+      "deeper": "A dev may build, distribute, extract, or combine behaviors. Fee income, product claims, and continued promotion do not prove buyer alignment. Common funding is only a lead; exchanges and routers can connect unrelated users. Repeated suspicious deployment patterns need context and evidence before attributing misconduct. Detailed Dev Cycle economics belongs in 303B.",
       "related": [
         [
-          "Dev and buyer cycles in 303",
-          "meme-303-lesson-13.html"
+          "Dev and buyer cycles in 303B",
+          "meme-303b-lesson-2.html"
         ]
       ]
     }

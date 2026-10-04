@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 test('rendered pages have one active navigation link and a stable Inspect brand destination',async()=>{
- const counts={'meme-101b':9,'meme-202a':11,'meme-202b':11,'meme-303':17};
- const learning=['learn','meme-101','meme-101-level-1','meme-101-level-2','meme-101-bundles',...Object.entries(counts).flatMap(([track,count])=>[track,...Array.from({length:count},(_,i)=>`${track}-lesson-${i+1}`)])];
+ const counts={'meme-101b':9,'meme-202a':11,'meme-202b':11,'meme-303a':11,'meme-303b':6};
+ const learning=['learn','meme-101','meme-101-level-1','meme-101-level-2','meme-101-bundles','meme-303',...Object.entries(counts).flatMap(([track,count])=>[track,...Array.from({length:count},(_,i)=>`${track}-lesson-${i+1}`)])];
  const pages=['model','order-flow','narratives','narrative','new-coins','radar','watchlist','sources',...learning];
  const active={model:'model.html',narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html',...Object.fromEntries(learning.map(page=>[page,'learn.html']))};
  for(const page of pages){
@@ -27,10 +27,10 @@ test('applied learning links complete both course paths and hand back to the too
  const hub=await load('learn');
  assert.ok(hub.includes('START HERE / 101A'));
  assert.ok((await load('meme-101')).includes('Meme 101A · Foundations'));
- for(const course of ['meme-101b','meme-202a','meme-202b','meme-303']){
+ for(const course of ['meme-101b','meme-202a','meme-202b','meme-303a','meme-303b']){
   const overview=await load(course);
   assert.ok(hub.includes(`href="./${course}.html"`));
-  const count=course==='meme-303'?17:course.startsWith('meme-202')?11:9;
+  const count=course==='meme-303b'?6:course==='meme-101b'?9:11;
   for(let i=1;i<=count;i++){
    const page=`${course}-lesson-${i}`,html=await load(page);
    const tabs=html.match(/<nav class="learning-tracks"[\s\S]*?<\/nav>/)?.[0];
@@ -49,4 +49,30 @@ test('applied learning links complete both course paths and hand back to the too
  }
  assert.ok((await load('new-coins')).includes('href="./meme-202a.html"'));
  assert.ok((await load('radar')).includes('href="./meme-202b.html"'));
+});
+
+
+test('303 split preserves every chapter and redirects existing bookmarks',async()=>{
+ const load=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
+ const original=JSON.parse(await load('content/meme-303/course.json'));
+ const seen=[];
+ const sitemap=await load('dist/sitemap.xml');
+ for(const track of ['a','b']){
+  const course=JSON.parse(await load(`content/meme-303/303${track}.json`));
+  for(const [index,chapter] of course.lessons.entries()){
+   const {legacy_lesson,...content}=chapter;
+   assert.deepEqual(content,original.lessons[legacy_lesson-1]);
+   seen.push(legacy_lesson);
+   const target=`${course.slug}-lesson-${index+1}.html`;
+   const redirect=await load(`dist/meme-303-lesson-${legacy_lesson}.html`);
+   assert.ok(redirect.includes(`content="0;url=./${target}"`));
+   assert.ok(redirect.includes(`rel="canonical" href="https://meme.oneerp.org/${target}"`));
+   assert.ok(redirect.includes(`href="./${target}"`));
+   assert.ok(sitemap.includes(`/${target}</loc>`));
+  }
+ }
+ assert.deepEqual(seen.sort((a,b)=>a-b),Array.from({length:17},(_,i)=>i+1));
+ assert.doesNotMatch(sitemap,/meme-303-lesson-\d+\.html/);
+ const chooser=await load('dist/meme-303.html');
+ for(const track of ['a','b'])assert.ok(chooser.includes(`href="./meme-303${track}.html"`));
 });

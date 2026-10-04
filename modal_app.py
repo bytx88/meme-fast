@@ -491,6 +491,8 @@ def web():
             "meme-101a": "meme-101.html",
             "meme-101b": "meme-101b.html",
             "meme-303": "meme-303.html",
+            "meme-303a": "meme-303a.html",
+            "meme-303b": "meme-303b.html",
             "learn": "learn.html",
             "meme-202a": "meme-202a.html",
             "meme-202b": "meme-202b.html",

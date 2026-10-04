@@ -1,0 +1,212 @@
+{
+  "code": "303B",
+  "name": "Actor Inventory & Incentives",
+  "slug": "meme-303b",
+  "question": "What are the other actors holding, earning, and doing?",
+  "intro": "Read KOL inventory, dev incentives, buyer cycles, and fee economics without assuming intent from one transaction.",
+  "lens": [
+    "Trace exposure",
+    "Read incentives",
+    "Recheck alignment"
+  ],
+  "tool": [
+    "Inspect",
+    "order-flow.html"
+  ],
+  "lessons": [
+    {
+      "title": "Read inventory, not green buys",
+      "question": "Is the wallet increasing or reducing meaningful exposure?",
+      "source_sections": [
+        9
+      ],
+      "definition": "A capital action materially changes exposure. Tiny buys can coexist with larger sales and declining inventory.",
+      "why": "Transaction count and color can obscure the net position change.",
+      "checks": [
+        "Buy and sell quantities across the same window",
+        "Transfers and balances across relevant addresses",
+        "Whether wallet links and coverage are actually established"
+      ],
+      "healthy": "The interpretation accounts for size, transfers, and missing history.",
+      "dangerous": "Many small buys are treated as proof of accumulation.",
+      "mistake": "Inferring support intent from one transaction.",
+      "takeaway": "Follow meaningful exposure changes over time.",
+      "example": [
+        "A wallet buys ten lots of 1,000 units.",
+        "It also sells 50,000 units in that window.",
+        "Observed swaps imply a 40,000-unit reduction, before transfers."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare sizes and directions of sampled swaps. Reconcile balances and transfers externally; observed swap net is not complete inventory or proof of intent."
+      ],
+      "foundation": [
+        4,
+        "level-4-checklist"
+      ],
+      "deeper": "The source calls tiny promotional or trading activity moderation. Relative size matters more than a fixed SOL threshold. Attention support during distribution is a possible interpretation requiring a sequence of evidence, not an intent label inferred from small buys. Dollar net flow and token inventory change are different measures.",
+      "legacy_lesson": 9
+    },
+    {
+      "title": "Dev Cycle / Buyer Cycle",
+      "question": "What is each side trying to do now?",
+      "definition": "The dev cycle describes creation, building, promotion, and monetization. The buyer cycle describes discovery, assessment, exposure, and reassessment.",
+      "why": "A buyer’s reason to stay can change while the team pursues different incentives.",
+      "checks": [
+        "Dev actions: building, marketing, monetizing, or leaving",
+        "Buyer actions: discovering, adding, holding, rotating, or exiting",
+        "Shared evidence: narrative, attention, liquidity, price, volume, fees, and holders"
+      ],
+      "healthy": "Both views are checked against current evidence.",
+      "dangerous": "The team’s story is assumed to explain every buyer decision.",
+      "mistake": "Treating the cycles as compulsory steps or verified intent.",
+      "takeaway": "Read both sides before reassessing your own exposure.",
+      "example": [
+        "A team improves the product and promotes a new release.",
+        "Buyers respond briefly, then participation weakens.",
+        "Building activity and continued buyer demand are separate observations."
+      ],
+      "framework": [
+        "Dev: Create → Launch → Market → Improve → Monetize → Reinvest / Exit.",
+        "Buyer: Discover → Assess → Enter → Monitor → Add / Hold / Exit → Reassess."
+      ],
+      "external": "Use verified project activity, permissions, treasury records, and wallet history. These analytical cycles are not automated Meme Fast labels.",
+      "foundation": [
+        3,
+        "2-dev-creator-wallet"
+      ],
+      "deeper": "The shared interaction layer connects narrative, attention, liquidity, price, volume, fees, and holder growth. Dev actions and buyer behavior can influence orders and liquidity; actual price formation also depends on pool reserves or order books and broader participants. This is a lens for incentives, not a complete pricing model or proof of anyone’s motives. Use new evidence to revisit the Container and invalidation conditions.",
+      "legacy_lesson": 13
+    },
+    {
+      "title": "Alignment, divergence & extraction",
+      "question": "Do team incentives and buyer participation still fit together?",
+      "definition": "Alignment means the two sides reinforce participation. Divergence means one weakens. Extraction describes demand increasingly funding monetization without supported renewal.",
+      "why": "A token can remain busy while the relationship behind the thesis changes.",
+      "checks": [
+        "Verified work, promotion, and reinvestment",
+        "Buyer persistence versus insider sales and fee capture",
+        "Evidence connecting supply control and repeated monetization"
+      ],
+      "healthy": "Observable delivery and returning participation support a provisional alignment case.",
+      "dangerous": "Recurring buyer demand meets extraction with little verified renewal.",
+      "mistake": "Calling every sale extraction or every update alignment.",
+      "takeaway": "Reassess the relationship, not just the chart.",
+      "example": [
+        "Buyers remain enthusiastic while suspected team inventory declines.",
+        "Delivery and reinvestment evidence are unclear.",
+        "Investigate divergence or extraction rather than asserting intent."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare sampled selling and price response. Verify team-linked ownership, reinvestment, and delivery externally; flow alone cannot establish extraction."
+      ],
+      "foundation": [
+        4,
+        "4-distribution"
+      ],
+      "deeper": "Divergence can also mean the team keeps building after market attention leaves. Alignment can break later. Monetization is not automatically abuse; assess disclosure, permissions, amounts, reinvestment, and repeated behavior. Extraction is a working interpretation requiring evidence. If that interpretation strengthens, revisit the thesis, hygiene gate, remaining exposure, and executable exit conditions.",
+      "legacy_lesson": 14
+    },
+    {
+      "title": "Dev economics & incentives",
+      "question": "How does the team benefit—and where does that value go?",
+      "definition": "Team economics can combine creator fees, token inventory, treasury funds, LP income, and product or service revenue.",
+      "why": "A revenue stream can reward trading activity without proving long-term buyer alignment.",
+      "checks": [
+        "Who earns fees, inventory proceeds, and treasury income",
+        "Marketing spend, delivery, and verifiable reinvestment",
+        "Liquidity rights, permissions, and repeated launch history"
+      ],
+      "healthy": "Revenue sources and use of funds are disclosed and traceable.",
+      "dangerous": "Fee income or a treasury label substitutes for evidence of alignment.",
+      "mistake": "Assuming creator revenue means the team wants what holders want.",
+      "takeaway": "Revenue explains incentives; it does not certify alignment.",
+      "example": [
+        "A creator earns fees while trading remains active.",
+        "Inventory also sells into repeated attention bursts.",
+        "Review both income streams and their use, not fees alone."
+      ],
+      "external": "Verify protocol rules, fee recipients, treasury records, LP rights, and project claims. Meme Fast does not audit team revenue or spending.",
+      "foundation": [
+        3,
+        "2-dev-creator-wallet"
+      ],
+      "deeper": "Keep creator fee shares, token-specific transfer charges, LP income, network fees, and product revenue separate. Marketing budgets and repeated launches change incentives but do not prove misconduct. LP rights can combine fee income with control over liquidity. A treasury transfer may be spending, custody, or distribution; establish the destination and purpose before interpreting it.",
+      "references": [
+        [
+          "Raydium: protocol fee mechanics",
+          "https://docs.raydium.io/raydium/protocol/protocol-fees"
+        ]
+      ],
+      "legacy_lesson": 15
+    },
+    {
+      "title": "Token fees vs trading fees",
+      "question": "What charges apply to your actual route and exit?",
+      "definition": "A token-specific transfer or buy/sell fee is separate from venue trading fees, creator fee shares, and network costs.",
+      "why": "A quoted 3% token charge can affect delivered units or proceeds even before other execution costs.",
+      "checks": [
+        "Recipient and whether the charge applies to buys, sells, or transfers",
+        "Change authority, fee caps, and exemptions",
+        "Current route quote and actual net amounts after all charges"
+      ],
+      "healthy": "The mechanism, current rate, and executable result are understood.",
+      "dangerous": "A headline fee or stated destination replaces verification.",
+      "mistake": "Treating every creator fee as an extra 3% token tax.",
+      "takeaway": "Read the mechanism and count each cost once.",
+      "example": [
+        "An illustrative transfer charges 3% on 1,000 units.",
+        "Ignoring caps and rounding, 30 units are charged and 970 delivered.",
+        "A swap may have additional charges; verify the executable quote."
+      ],
+      "external": "Inspect the exact token program or contract and current route. Meme Fast does not verify transfer taxes, recipient authority, or all-in exit costs.",
+      "foundation": [
+        2,
+        "6-slippage"
+      ],
+      "deeper": "Token fees can route value to a team, treasury, marketing, liquidity, burns, rewards, or another recipient; verify what actually happens. Implementation differs by chain and token program. A fee may change, be capped, or exempt certain paths. Creator shares may come from the venue fee rather than adding another charge. Actual fill records already include execution effects; do not deduct those effects twice in P&L.",
+      "references": [
+        [
+          "Uniswap: token fees",
+          "https://support.uniswap.org/hc/en-us/articles/18673568523789-What-is-a-token-fee"
+        ],
+        [
+          "Solana: transfer fees and authorities",
+          "https://solana.com/docs/tokens/extensions/transfer-fees"
+        ]
+      ],
+      "legacy_lesson": 16
+    },
+    {
+      "title": "Visible wallet vs economic position",
+      "question": "Does one address represent the whole team exposure?",
+      "definition": "The visible dev wallet is an address. The economic dev position may include related inventory, treasury assets, and liquidity rights.",
+      "why": "A small visible balance can coexist with substantial control elsewhere.",
+      "checks": [
+        "Deployer funding, direct transfers, and repeated destinations",
+        "Current balances and synchronized activity across suspected links",
+        "Alternative explanations, incomplete history, and unverified ownership"
+      ],
+      "healthy": "Attribution uses multiple traceable observations and explicit uncertainty.",
+      "dangerous": "One wallet balance or common funder becomes the complete ownership claim.",
+      "mistake": "Assigning a permanent dev type from a single sale.",
+      "takeaway": "Trace the position before labeling the behavior.",
+      "example": [
+        "A dev address transfers tokens and its balance falls.",
+        "Several recipients later sell in similar windows.",
+        "Investigate the links; transfers alone do not prove common control."
+      ],
+      "external": "Use explorer records and complete wallet histories where available. Meme Fast does not establish a dev cluster or its cost basis.",
+      "foundation": [
+        3,
+        "6-wallet-clusters"
+      ],
+      "deeper": "Treat dev types as a behavioral spectrum: builder; builder plus distributor; extractor; repeated extractor. Serial-scam allegations need evidence of actual misconduct, not merely repeated launches. A team can change behavior as incentives change. Common exchange funding and router activity can link unrelated participants; combine funding, transfers, timing, destinations, balances, and history. Current attribution informs your hygiene and exposure review rather than moral classification from one transaction.",
+      "legacy_lesson": 17
+    }
+  ],
+  "principle": "Read inventory and incentives alongside behavior. A reputation label, fee stream, or visible wallet is not the whole economic position."
+}
