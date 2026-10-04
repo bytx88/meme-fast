@@ -16,6 +16,7 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 
 ## Product areas
 
+- **Meme 101** (`/meme-101.html`) — eight beginner learning levels plus a bundle deep dive, with a course overview, topic links, checklists, and previous/next navigation. Source lessons live in `content/meme-101/`; regenerate with `py scripts/render-meme-101.py` followed by `node scripts/render-shared-pages.mjs`.
 - **Model** (`/model`) — visual research workflow, data coverage, order-flow reading guide, and signal limits
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
 - **Snipe** — Starter screening for pool timing, market age, flow, and order-size pressure; Discover and Explore views for stage and story context

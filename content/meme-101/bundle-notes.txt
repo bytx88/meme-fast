@@ -1,0 +1,49 @@
+For meme trading, bundles matter because they change how you interpret price, holder count, volume, and apparent demand. The useful knowledge is less about the word “bundle” itself and more about understanding what the bundled wallets are doing.
+You mainly need to know:
+1. What a bundle is
+   A bundle usually means multiple wallets acting in a coordinated way, often funded from the same source or buying within the same launch/block window. One operator can therefore appear as many separate holders.
+2. Bundle size
+   Check what percentage of supply the bundled wallets collectively control. A token can look well distributed while one cluster effectively controls 10%, 20%, or more.
+3. Entry timing
+   Early bundles are especially important. If many wallets bought almost simultaneously near launch, they may have obtained very low-cost inventory before ordinary traders entered.
+4. Cost basis
+   This is critical. A wallet holding $20k of tokens may have only paid $500 for them. That holder can dump heavily and still remain extremely profitable.
+5. Funding relationship
+   Look for wallets funded by the same wallet, CEX withdrawal, bridge, or intermediary. Shared funding is stronger evidence of coordination than simply buying at similar times.
+6. Wallet behavior
+   Separate bundles into different types:
+   - holding bundle
+   - distribution bundle
+   - market-making/support bundle
+   - sniper bundle
+   - creator/dev bundle
+   Their risk is very different.
+7. Distribution pattern
+   Watch whether bundled wallets:
+   - sell together;
+   - stagger sells;
+   - transfer tokens to fresh wallets;
+   - keep replenishing buys;
+   - sell into every large green move.
+   Staggered distribution is often harder to detect because the chart can remain healthy while supply is slowly being unloaded.
+8. Bundle push
+   This is what your screenshot refers to. Coordinated wallets can buy aggressively and create a rapid repricing. The important question afterward is:
+   Did new independent demand take over, or is the same bundle still supporting the price?
+9. Organic holder growth
+   After the push, you want to see unrelated wallets entering, holder concentration falling, and volume continuing even when the original bundle stops buying.
+10. Bundle exit risk
+       Concentration alone does not tell you when a dump will happen. More useful is whether the bundle still holds most of its initial position and how much liquidity exists relative to that position.
+For trading, I would reduce all of this into five numbers:
+Metric	What you want to know
+Bundle %	How much supply coordinated wallets control
+Bundle cost basis	How cheap their inventory is
+Bundle remaining %	How much they still have available to sell
+Liquidity / bundle value	Whether liquidity could absorb their exit
+Organic ownership growth	Whether independent buyers are replacing them
+
+
+The most important distinction is probably:
+bundle accumulation → bundle push → organic takeover → healthy
+versus
+bundle accumulation → bundle push → retail enters → bundle distribution → collapse
+That distinction is extremely useful for the kind of low-cap meme charts you have been studying.

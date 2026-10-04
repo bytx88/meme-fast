@@ -487,6 +487,7 @@ def web():
             "jeanphil": "jeanphil.html",
             "about": "about.html",
             "model": "model.html",
+            "meme-101": "meme-101.html",
             "privacy": "privacy.html",
             "terms": "terms.html",
         }
