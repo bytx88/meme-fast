@@ -2,143 +2,61 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Understand the Launch · Meme Fast</title><meta name="description" content="Understand how a meme token moves from creation into active trading and why launch mechanics affect early risk.">
 <link rel="canonical" href="https://meme.oneerp.org/meme-101-level-2.html"><link rel="icon" type="image/svg+xml" href="./brand-mark.svg?v=2">
-<link rel="stylesheet" href="./style.css?v=brand-depth-v2"><link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><link rel="stylesheet" href="./site-footer.css?v=1"><link rel="stylesheet" href="./meme-101.css?v=1">
+<link rel="stylesheet" href="./style.css?v=brand-depth-v2"><link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><link rel="stylesheet" href="./site-footer.css?v=1"><link rel="stylesheet" href="./meme-101.css?v=1"><link rel="stylesheet" href="./meme-101-concepts.css?v=1">
 <script type="module" src="./donate.js?v=static-header-v1"></script><script type="module" src="./page-scroll.js?v=1"></script></head>
 <body class="trader-ui"><main class="workspace learn-page"><a class="learn-skip" href="#lesson-content">Skip to learning content</a><header class="masthead"><div class="header-brand-group"><a class="brand" href="./order-flow.html"><span class="brand-mark" aria-hidden="true"></span>MEME FAST</a><span class="site-disclaimer">>> Not financial advice, DYOR.</span></div><button class="market-overview" type="button" aria-haspopup="dialog" aria-label="Market Delta overview. Meme and Alt data unavailable. Open details"><span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span></span></button><nav class="site-nav" aria-label="Main navigation"><a href="./meme-101.html" aria-current="page">Meme 101</a><a href="./model.html">Model</a><a href="./narratives.html">Tweet</a><a href="./new-coins.html">Snipe</a><a href="./radar.html">Swing</a><a href="./order-flow.html">Inspect</a><a href="./watchlist.html">Watchlist</a><div class="header-support"><button class="donate-trigger" type="button" aria-haspopup="dialog" aria-label="Donate SOL">♡ Donate</button><a class="contact-support" href="mailto:microtoken1688@gmail.com" aria-label="Contact support" title="Email microtoken1688@gmail.com"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></a></div></nav></header>
-<div class="learn-content" id="lesson-content"><p class="learn-breadcrumb"><a href="./meme-101.html">Meme 101</a> / Level 2</p><header class="learn-intro"><span class="kicker">LEVEL 2 OF 8</span><h1>Understand the Launch</h1><p>Understand how a meme token moves from creation into active trading and why launch mechanics affect early risk.</p></header><div class="learn-layout"><aside class="learn-sidebar"><nav aria-label="Course lessons"><h2>The learning path</h2><a href="./meme-101-level-1.html" ><span>01</span> Read the Token</a><a href="./meme-101-level-2.html" aria-current="page"><span>02</span> Understand the Launch</a><a href="./meme-101-level-3.html" ><span>03</span> Understand Ownership</a><a href="./meme-101-level-4.html" ><span>04</span> Read Wallets</a><a href="./meme-101-level-5.html" ><span>05</span> Read Price Behavior</a><a href="./meme-101-level-6.html" ><span>06</span> Understand Attention</a><a href="./meme-101-level-7.html" ><span>07</span> Detect Danger</a><a href="./meme-101-level-8.html" ><span>08</span> Trade and Survive</a><a href="./meme-101-bundles.html" ><span>09</span> Bundle deep dive</a></nav></aside><article class="lesson-body"><nav class="lesson-toc" aria-label="In this lesson"><h2>In this lesson</h2><a href="#goal">Goal</a><a href="#1-bonding-curve">1. Bonding Curve</a><a href="#2-graduation">2. Graduation</a><a href="#3-dex">3. DEX</a><a href="#4-snipers">4. Snipers</a><a href="#5-fresh-wallets">5. Fresh Wallets</a><a href="#6-slippage">6. Slippage</a><a href="#7-spread">7. Spread</a><a href="#8-mev-sandwiching">8. MEV / Sandwiching</a><a href="#level-2-checklist">Level 2 Checklist</a></nav><h2 id="goal">Goal</h2>
-<p>Understand how a meme token moves from creation into active trading and why launch mechanics affect early risk.</p>
-<h2 id="1-bonding-curve">1. Bonding Curve</h2>
-<h3>What is it?</h3>
-<p>A bonding curve is a launch mechanism where token price changes according to buying and selling activity before the token reaches a normal liquidity pool.</p>
-<h3>Why does it matter?</h3>
-<p>Early buyers may enter much cheaper than later traders.</p>
-<h3>What should I check?</h3>
-<ul>
+<div class="learn-content" id="lesson-content"><p class="learn-breadcrumb"><a href="./meme-101.html">Meme 101</a> / Level 2</p><header class="learn-intro"><span class="kicker">LEVEL 2 OF 8</span><h1>Understand the Launch</h1><p>Understand how a meme token moves from creation into active trading and why launch mechanics affect early risk.</p></header><div class="learn-layout"><aside class="learn-sidebar"><nav aria-label="Course lessons"><h2>The learning path</h2><a href="./meme-101-level-1.html" ><span>01</span> Read the Token</a><a href="./meme-101-level-2.html" aria-current="page"><span>02</span> Understand the Launch</a><a href="./meme-101-level-3.html" ><span>03</span> Understand Ownership</a><a href="./meme-101-level-4.html" ><span>04</span> Read Wallets</a><a href="./meme-101-level-5.html" ><span>05</span> Read Price Behavior</a><a href="./meme-101-level-6.html" ><span>06</span> Understand Attention</a><a href="./meme-101-level-7.html" ><span>07</span> Detect Danger</a><a href="./meme-101-level-8.html" ><span>08</span> Trade and Survive</a><a href="./meme-101-bundles.html" ><span>09</span> Bundle deep dive</a></nav></aside><article class="lesson-body"><nav class="lesson-toc" aria-label="In this lesson"><h2>In this lesson</h2><a href="#1-bonding-curve">1. Bonding Curve</a><a href="#2-graduation">2. Graduation</a><a href="#3-dex">3. DEX</a><a href="#4-snipers">4. Snipers</a><a href="#5-fresh-wallets">5. Fresh Wallets</a><a href="#6-slippage">6. Slippage</a><a href="#7-spread">7. Spread</a><a href="#8-mev-sandwiching">8. MEV / Sandwiching</a><a href="#level-2-checklist">Level 2 Checklist</a></nav><section class="lesson-concept" aria-labelledby="1-bonding-curve"><h2 id="1-bonding-curve">1. Bonding Curve</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>A bonding curve is a launch mechanism where token price changes according to buying and selling activity before the token reaches a normal liquidity pool.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Early buyers may enter much cheaper than later traders.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>How far along the curve the token is</li>
 <li>How much buying is needed before graduation</li>
 <li>Whether early buyers already control large supply</li>
 <li>Whether momentum is accelerating or fading</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Assuming every bonding-curve token will graduate.</p>
-<h3>Takeaway</h3>
-<p><strong>Early launch price is shaped by the curve, not by a mature market.</strong></p>
-<h2 id="2-graduation">2. Graduation</h2>
-<h3>What is it?</h3>
-<p>Graduation is the transition from the launch mechanism into a DEX liquidity pool.</p>
-<h3>Why does it matter?</h3>
-<p>Graduation changes how the token trades and often brings a new wave of attention, bots, and liquidity.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Curve progress and early ownership are checked together.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>Progress accelerates while cheap inventory stays concentrated.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Assuming every bonding-curve token will graduate.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Early launch price is shaped by the curve, not by a mature market.</strong></p></div><div class="concept-evidence"><a href="./new-coins.html">See it in Meme Fast → <span>Snipe</span></a><p>Compare measured launch progress and stage coverage. Missing progress remains unknown.</p></div></section>
+<section class="lesson-concept" aria-labelledby="2-graduation"><h2 id="2-graduation">2. Graduation</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>Graduation is the transition from the launch mechanism into a DEX liquidity pool.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Graduation changes how the token trades and often brings a new wave of attention, bots, and liquidity.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Where liquidity is created</li>
 <li>How much liquidity is seeded</li>
 <li>Who controls the LP tokens</li>
 <li>Whether early holders sell into graduation</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Treating graduation as guaranteed continuation.</p>
-<h3>Takeaway</h3>
-<p><strong>Graduation is a transition point, not a promise of higher price.</strong></p>
-<h2 id="3-dex">3. DEX</h2>
-<h3>What is it?</h3>
-<p>A decentralized exchange is where traders swap tokens directly through liquidity pools.</p>
-<h3>Why does it matter?</h3>
-<p>Different chains and DEXs have different liquidity, bots, routing, fees, and trading behavior.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>The destination pool and seeded liquidity are verified.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>A migration label is mistaken for proof of liquidity or continuation.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Treating graduation as guaranteed continuation.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Graduation is a transition point, not a promise of higher price.</strong></p></div><div class="concept-evidence"><a href="./new-coins.html">See it in Meme Fast → <span>Snipe</span></a><p>Compare confirmed graduation with unknown status and volume-only candidates. Activity alone does not confirm graduation.</p></div></section>
+<section class="lesson-concept" aria-labelledby="3-dex"><h2 id="3-dex">3. DEX</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>A decentralized exchange is where traders swap tokens directly through liquidity pools.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Different chains and DEXs have different liquidity, bots, routing, fees, and trading behavior.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Which DEX hosts the main pool</li>
 <li>Whether there are multiple pools</li>
 <li>Pool liquidity</li>
 <li>Trading fees</li>
 <li>Routing quality</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Buying from a small secondary pool instead of the main pool.</p>
-<h3>Takeaway</h3>
-<p><strong>Know where the real liquidity is.</strong></p>
-<h2 id="4-snipers">4. Snipers</h2>
-<h3>What is it?</h3>
-<p>Snipers are wallets or bots that enter extremely early around launch.</p>
-<h3>Why does it matter?</h3>
-<p>They can acquire very cheap inventory and later sell into retail demand.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>The exact contract, pool, route, and fees match the intended trade.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>A matching ticker leads to the wrong contract or a thin secondary pool.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Buying from a small secondary pool instead of the main pool.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Know where the real liquidity is.</strong></p></div><div class="concept-evidence"><a href="./order-flow.html">See it in Meme Fast → <span>Inspect</span></a><p>Search the exact contract and compare returned pool listings, chain, and coverage before choosing a listing.</p></div></section>
+<section class="lesson-concept" aria-labelledby="4-snipers"><h2 id="4-snipers">4. Snipers</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>Snipers are wallets or bots that enter extremely early around launch.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>They can acquire very cheap inventory and later sell into retail demand.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Entry time</li>
 <li>Entry price</li>
 <li>Current holdings</li>
 <li>Amount already sold</li>
 <li>Whether sniper wallets are related</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Looking only at what a sniper still holds.</p>
-<h3>Takeaway</h3>
-<p><strong>Early cost basis matters as much as current holdings.</strong></p>
-<h2 id="5-fresh-wallets">5. Fresh Wallets</h2>
-<h3>What is it?</h3>
-<p>Fresh wallets are newly created or newly funded wallets with little prior transaction history.</p>
-<h3>Why does it matter?</h3>
-<p>Clusters of fresh wallets can indicate coordinated launch participation or attempts to hide ownership.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Early inventory, prior sales, and remaining balances are traced.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>Cheap early inventory is large relative to the pool&#x27;s exit capacity.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Looking only at what a sniper still holds.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Early cost basis matters as much as current holdings.</strong></p></div></section>
+<section class="lesson-concept" aria-labelledby="5-fresh-wallets"><h2 id="5-fresh-wallets">5. Fresh Wallets</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>Fresh wallets are newly created or newly funded wallets with little prior transaction history.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Clusters of fresh wallets can indicate coordinated launch participation or attempts to hide ownership.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Funding source</li>
 <li>Timing of funding</li>
 <li>Similar trade size</li>
 <li>Similar entry time</li>
 <li>Transfers between wallets</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Assuming every fresh wallet is a new independent trader.</p>
-<h3>Takeaway</h3>
-<p><strong>Fresh wallets are clues, not proof. Follow their funding.</strong></p>
-<h2 id="6-slippage">6. Slippage</h2>
-<h3>What is it?</h3>
-<p>Slippage is the difference between the expected trade price and the actual execution price.</p>
-<h3>Why does it matter?</h3>
-<p>Thin meme markets can move quickly while your transaction is executing.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Funding and trade history are checked before inferring independence.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>Many newly funded addresses repeat the same entry and transfer pattern.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Assuming every fresh wallet is a new independent trader.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Fresh wallets are clues, not proof. Follow their funding.</strong></p></div></section>
+<section class="lesson-concept" aria-labelledby="6-slippage"><h2 id="6-slippage">6. Slippage</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>Slippage is the difference between the expected trade price and the actual execution price.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Thin meme markets can move quickly while your transaction is executing.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Slippage setting</li>
 <li>Current volatility</li>
 <li>Liquidity</li>
 <li>Trade size</li>
 <li>Whether the token has unusual transfer taxes or restrictions</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Setting extremely high slippage without understanding the cost.</p>
-<h3>Takeaway</h3>
-<p><strong>More slippage can improve execution but can also produce a much worse fill.</strong></p>
-<h2 id="7-spread">7. Spread</h2>
-<h3>What is it?</h3>
-<p>Spread is the practical difference between what buyers pay and what sellers receive.</p>
-<h3>Why does it matter?</h3>
-<p>In thin markets, you may lose money immediately simply by entering and exiting.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Tolerance and quoted impact are reviewed separately before submission.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>Tolerance is increased repeatedly just to make an unexplained failure execute.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Setting extremely high slippage without understanding the cost.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>More slippage can improve execution but can also produce a much worse fill.</strong></p></div></section>
+<section class="lesson-concept" aria-labelledby="7-spread"><h2 id="7-spread">7. Spread</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>Spread is the practical difference between what buyers pay and what sellers receive.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>In thin markets, you may lose money immediately simply by entering and exiting.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Pool depth</li>
 <li>Price impact</li>
 <li>Fees</li>
 <li>Difference between quoted buy and sell value</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Treating the chart price as the price you can actually trade.</p>
-<h3>Takeaway</h3>
-<p><strong>Displayed price and executable price can be very different.</strong></p>
-<h2 id="8-mev-sandwiching">8. MEV / Sandwiching</h2>
-<h3>What is it?</h3>
-<p>MEV refers to transaction-ordering strategies used by bots. A sandwich attack places transactions around yours to profit from your price impact.</p>
-<h3>Why does it matter?</h3>
-<p>Large or high-slippage trades can become attractive targets.</p>
-<h3>What should I check?</h3>
-<ul>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Compare executable buy and sell quotes including fees.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>The chart price hides a costly immediate round trip.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Treating the chart price as the price you can actually trade.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Displayed price and executable price can be very different.</strong></p></div></section>
+<section class="lesson-concept" aria-labelledby="8-mev-sandwiching"><h2 id="8-mev-sandwiching">8. MEV / Sandwiching</h2><div class="concept-step "><h3><span class="step-number">01</span>Definition</h3><p>MEV refers to transaction-ordering strategies used by bots. A sandwich attack places transactions around yours to profit from your price impact.</p></div><div class="concept-step "><h3><span class="step-number">02</span>Why it matters</h3><p>Large or high-slippage trades can become attractive targets.</p></div><div class="concept-step "><h3><span class="step-number">03</span>What to check</h3><ul>
 <li>Slippage</li>
 <li>Transaction protection offered by the platform</li>
 <li>Trade size</li>
 <li>Chain conditions</li>
-</ul>
-<h3>Beginner mistake</h3>
-<p>Assuming every bad execution is random slippage.</p>
-<h3>Takeaway</h3>
-<p><strong>Your transaction can be part of someone else&#x27;s trading strategy.</strong></p>
+</ul></div><div class="concept-step"><h3><span class="step-number">04</span>Healthy / Dangerous</h3><div class="concept-comparison"><div class="concept-healthy"><h4>Healthy</h4><p>Review execution protection, quotes, and the actual transaction result.</p></div><div class="concept-dangerous"><h4>Dangerous</h4><p>A large order with broad tolerance gives adverse execution more room.</p></div></div></div><div class="concept-step concept-mistake"><h3><span class="step-number">05</span>Beginner mistake</h3><p>Assuming every bad execution is random slippage.</p></div><div class="concept-step concept-takeaway"><h3><span class="step-number">06</span>Takeaway</h3><p><strong>Your transaction can be part of someone else&#x27;s trading strategy.</strong></p></div></section>
 <h2 id="level-2-checklist">Level 2 Checklist</h2>
 <p>Before trading a newly launched token, know:</p>
 <ol>
