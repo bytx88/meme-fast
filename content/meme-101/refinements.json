@@ -13,9 +13,13 @@
     "Token Supply": {
       "What is it?": "Total supply counts existing units. Circulating supply counts units considered in circulation. Available sellable supply is inventory that can currently reach the market under its transfer and lock conditions.",
       "Why does it matter?": "Two tokens with the same total supply can have different unlocked inventory and near-term sell pressure. Being able to sell does not prove an owner intends to sell.",
-      "What should I check?": "- Total and circulating supply\n- Unlocked inventory, vesting, and transfer restrictions\n- Creator and related-wallet balances\n- Whether more units can be minted",
-      "Takeaway": "**Total supply is not the same as inventory available to sell.**"
+      "What should I check?": "- Total and circulating supply\n- Unlocked inventory, vesting, and transfer restrictions\n- Inactive balances and dev / bundle / insider control\n- Whether more units can be minted",
+      "Takeaway": "**Price responds to supply offered into demand, not simply total supply.**"
+    },
+    "Meme Lifecycle": {
+      "What is it?": "An attention lifecycle is a working description of how participation changes, not a guaranteed sequence.",
+      "Common path": "Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion. Extension: Maturity → Renewal → Expansion."
     }
   },
-  "market_maturity": "## 9. Market Maturity\n\n### What is it?\nA possible venue path is launchpad → migrated DEX → established DEX → CEX, a centralized exchange. Not every token follows it.\n\n### Why does it matter?\nTrading venues, available history, and exit conditions can change along the way.\n\n### What should I check?\n- Current venue and actual migration status\n- Available price history\n- Current pool depth or order-book depth\n\n### Beginner mistake\nTreating migration or a listing as proof of safety.\n\n### Takeaway\n**Know the trading environment before interpreting the numbers.**\n\n---"
+  "market_maturity": "## 9. Market Maturity\n\n### What is it?\nA possible venue path is launchpad → migrated DEX → established DEX → CEX, a centralized exchange. Not every token follows it.\n\n### Why does it matter?\nAt launch, attention, wallets, and controls dominate the questions. Later, more history and broader market conditions become relevant. The venue path is not a safety ranking.\n\n### What should I check?\n- Current venue and actual migration status\n- Available price history\n- Current pool depth or order-book depth\n\n### Beginner mistake\nTreating migration or a listing as proof of safety.\n\n### Takeaway\n**Know the trading environment before interpreting the numbers.**\n\n---"
 }

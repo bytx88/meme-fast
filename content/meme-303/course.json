@@ -2,205 +2,569 @@
   "code": "303",
   "name": "Position Management",
   "slug": "meme-303",
-  "question": "How much risk should remain?",
+  "question": "How much capital and time does it deserve, and how do I leave?",
   "intro": "Plan the exposure. Require evidence before adding. Realize gains, reassess, and preserve capital for the next decision.",
-  "lens": ["Plan", "Reassess", "Manage"],
-  "tool": ["Watchlist", "watchlist.html"],
+  "lens": [
+    "Plan",
+    "Reassess",
+    "Manage"
+  ],
+  "tool": [
+    "Watchlist",
+    "watchlist.html"
+  ],
   "lessons": [
     {
       "title": "Choose the container",
       "question": "What exposure and holding time fit this opportunity?",
-      "source_sections": [1,18,19],
+      "source_sections": [
+        1,
+        18,
+        19
+      ],
       "definition": "The container is your planned capital, time, tolerance for volatility, adds, and remaining exposure.",
       "why": "An interesting narrative does not determine how much you can afford to lose or realistically exit.",
-      "checks": ["Loss budget and total exposure", "Expected attention duration and reassessment conditions", "Current executable quotes for the intended size"],
+      "checks": [
+        "Loss budget and total exposure",
+        "Expected attention duration and reassessment conditions",
+        "Current executable quotes for the intended size"
+      ],
       "healthy": "Exposure fits both the plan and current exit conditions.",
       "dangerous": "A brief attention burst becomes an unplanned long hold.",
       "mistake": "Treating reported liquidity as a safe position-size formula.",
       "takeaway": "Plan the exposure before becoming attached to it.",
-      "example": ["A trader expects a short catalyst-driven burst.", "Attention fades, but the trader extends the hold indefinitely.", "The longer duration needs a new case, not a new label."],
+      "example": [
+        "A trader expects a short catalyst-driven burst.",
+        "Attention fades, but the trader extends the hold indefinitely.",
+        "The longer duration needs a new case, not a new label."
+      ],
       "external": "Record your budget and execution plan separately. Reported liquidity is context; obtain current buy and sell quotes for your actual size.",
-      "foundation": [8,"1-position-size"],
+      "foundation": [
+        8,
+        "1-position-size"
+      ],
       "deeper": "The source's attention magnitude × durability expression is a planning analogy, not a sizing equation. Attention, personal loss tolerance, portfolio exposure, and executable liquidity all matter. Plan → initial exposure → evidence review → harvest or reduction → fresh reassessment is a workflow, not an instruction to take every stage."
     },
     {
       "title": "Opportunity vs portfolio risk",
       "question": "What happens to the whole portfolio if this fails?",
-      "source_sections": [2],
+      "source_sections": [
+        2
+      ],
       "definition": "Position risk is the loss on one trade. Portfolio risk includes its size and the exposure that can fail alongside it.",
       "why": "Possible large upside does not compensate for exposure that threatens the entire portfolio.",
-      "checks": ["Loss if the position becomes worthless", "Leverage and obligations beyond the initial capital", "Other positions exposed to the same failure"],
+      "checks": [
+        "Loss if the position becomes worthless",
+        "Leverage and obligations beyond the initial capital",
+        "Other positions exposed to the same failure"
+      ],
       "healthy": "Failure remains tolerable at portfolio level.",
       "dangerous": "An imagined multiple becomes permission for unlimited exposure.",
       "mistake": "Treating potential upside as its probability.",
       "takeaway": "A possible 10x does not justify full exposure.",
-      "example": ["A $1,000 portfolio holds a $100 unlevered position.", "If it becomes worthless, $900 remains, ignoring costs and other changes.", "This illustrates loss exposure; 10% is not a sizing recommendation."],
+      "example": [
+        "A $1,000 portfolio holds a $100 unlevered position.",
+        "If it becomes worthless, $900 remains, ignoring costs and other changes.",
+        "This illustrates loss exposure; 10% is not a sizing recommendation."
+      ],
       "external": "Use a complete portfolio record, including leverage and linked obligations. Meme Fast does not calculate your maximum portfolio loss.",
-      "foundation": [8,"6-risk-reward"],
+      "foundation": [
+        8,
+        "6-risk-reward"
+      ],
       "deeper": "In the same simplified example, a $100 position appreciating to $1,000 leaves a $1,900 portfolio when the other $900 is unchanged. The position gained $900; the portfolio gained 90%, before costs. Such arithmetic says nothing about the chance of that outcome or whether the displayed valuation can be sold.",
-      "references": [["FINRA: concentration risk","https://www.finra.org/investors/insights/concentration-risk"]]
+      "references": [
+        [
+          "FINRA: concentration risk",
+          "https://www.finra.org/investors/insights/concentration-risk"
+        ]
+      ]
     },
     {
       "title": "Scout, then earn promotion",
       "question": "What new evidence would justify more exposure?",
-      "source_sections": [3],
+      "source_sections": [
+        3
+      ],
       "definition": "A scout is limited initial exposure within a plan. Promotion means considering more exposure after independent evidence improves.",
       "why": "Price movement alone does not answer whether the case or execution conditions improved.",
-      "checks": ["Current hygiene and unresolved critical evidence", "Independent demand and thesis confirmation", "Total exposure and executable cost after an add"],
+      "checks": [
+        "Current hygiene and unresolved critical evidence",
+        "Independent demand and thesis confirmation",
+        "Total exposure and executable cost after an add"
+      ],
       "healthy": "A proposed add has fresh evidence and fits the original limits.",
       "dangerous": "Excitement or fear of missing out drives promotion.",
       "mistake": "Buying a position to replace the necessary due diligence.",
       "takeaway": "Promotion needs evidence, not just a moving price.",
-      "example": ["Price rises after a limited initial entry.", "Independent buyers and liquidity improve, while hygiene is rechecked.", "Consider the new evidence alongside the remaining budget."],
-      "evidence": ["Inspect","order-flow.html","Compare sampled buyer activity and selling. Verify current hygiene, broader thesis evidence, and execution quotes separately."],
-      "foundation": [8,"3-scaling-in"],
+      "example": [
+        "Price rises after a limited initial entry.",
+        "Independent buyers and liquidity improve, while hygiene is rechecked.",
+        "Consider the new evidence alongside the remaining budget."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare sampled buyer activity and selling. Verify current hygiene, broader thesis evidence, and execution quotes separately."
+      ],
+      "foundation": [
+        8,
+        "3-scaling-in"
+      ],
       "deeper": "Market confirmation can include persistent buyers, absorption, and liquidity changes. Thesis confirmation can include credible attention, a verified catalyst, or product evidence. Correlated copies of the same claim are not independent confirmation. Small size cannot fix a failed hygiene gate or guarantee an easy exit."
     },
     {
       "title": "Adding up or down",
       "question": "Is the reason to add stronger than the price change?",
-      "source_sections": [4],
+      "source_sections": [
+        4
+      ],
       "definition": "Averaging changes your entry cost and total exposure. Its rationale depends on evidence and limits, not direction alone.",
       "why": "A cheaper price can accompany a weaker thesis; a higher price can accompany better information.",
-      "checks": ["What improved independently of price", "Whether the original invalidation still holds", "New total exposure, exit depth, and risk budget"],
+      "checks": [
+        "What improved independently of price",
+        "Whether the original invalidation still holds",
+        "New total exposure, exit depth, and risk budget"
+      ],
       "healthy": "The add survives a fresh review of evidence and cost.",
       "dangerous": "A falling price becomes the entire reason to buy more.",
       "mistake": "Improving the average while worsening portfolio risk.",
       "takeaway": "Cheaper is not evidence.",
-      "example": ["Price falls below the first entry.", "The trader wants to add, but buyers and liquidity are weakening.", "A lower average does not repair the deteriorating case."],
-      "evidence": ["Swing","radar.html","Review observed structure and reported liquidity, then check sampled flow in Inspect. These do not determine your add size or execution price."],
-      "foundation": [8,"3-scaling-in"],
+      "example": [
+        "Price falls below the first entry.",
+        "The trader wants to add, but buyers and liquidity are weakening.",
+        "A lower average does not repair the deteriorating case."
+      ],
+      "evidence": [
+        "Swing",
+        "radar.html",
+        "Review observed structure and reported liquidity, then check sampled flow in Inspect. These do not determine your add size or execution price."
+      ],
+      "foundation": [
+        8,
+        "3-scaling-in"
+      ],
       "deeper": "Neither averaging up nor averaging down is automatically justified. Review location, thesis, current hygiene, invalidation, and fresh risk together. A technically attractive area can still fail; a stronger thesis can still be too expensive or too illiquid for the intended order."
     },
     {
       "title": "Harvest & residual exposure",
       "question": "After the move, how much risk should remain?",
-      "source_sections": [5],
+      "source_sections": [
+        5
+      ],
       "definition": "Harvesting realizes part or all of a position. A runner is deliberately retained exposure with its own limits.",
       "why": "A chart gain is not realized capital until a sale executes.",
-      "checks": ["Actual proceeds after execution costs", "Remaining position value and exit capacity", "Why any retained exposure still belongs in the plan"],
+      "checks": [
+        "Actual proceeds after execution costs",
+        "Remaining position value and exit capacity",
+        "Why any retained exposure still belongs in the plan"
+      ],
       "healthy": "A partial sale reduces exposure and the remainder has clear conditions.",
       "dangerous": "Leftover inventory becomes an indefinite hold without reassessment.",
       "mistake": "Calling the remainder risk-free after recovering the initial spend.",
       "takeaway": "A runner is still capital at risk.",
-      "example": ["A trader buys 100 units for $100, ignoring costs.", "Selling 50 units for $150 realizes $100 profit on their $50 cost basis.", "The remaining 50 units still have value that can be lost."],
+      "example": [
+        "A trader buys 100 units for $100, ignoring costs.",
+        "Selling 50 units for $150 realizes $100 profit on their $50 cost basis.",
+        "The remaining 50 units still have value that can be lost."
+      ],
       "external": "Use actual fills, costs, remaining inventory, and current sell quotes. Meme Fast does not execute harvesting or reconcile your realized profit.",
-      "foundation": [8,"4-scaling-out"],
+      "foundation": [
+        8,
+        "4-scaling-out"
+      ],
       "deeper": "Choose full exit, partial reduction, or residual exposure using current evidence and the plan. Recovering original capital is a cash-flow milestone, not the realized-profit calculation. Cost basis methods and taxes depend on applicable accounting rules; this example uses one purchase lot and excludes costs."
     },
     {
       "title": "Reset the mission",
       "question": "Would you buy this now if you had never owned it?",
-      "source_sections": [6],
+      "source_sections": [
+        6
+      ],
       "definition": "A mission reset treats re-entry or fresh capital as a new decision after a meaningful exit or harvest.",
       "why": "A previous win cannot justify the next trade's risk.",
-      "checks": ["Current thesis and hygiene", "Remaining exposure and fresh-capital budget", "New entry conditions and invalidation"],
+      "checks": [
+        "Current thesis and hygiene",
+        "Remaining exposure and fresh-capital budget",
+        "New entry conditions and invalidation"
+      ],
       "healthy": "The new decision stands on current evidence.",
       "dangerous": "Earlier profit is used as permission to ignore new risk.",
       "mistake": "Rebuying because the previous exit feels wrong.",
       "takeaway": "Fresh capital is fresh risk.",
-      "example": ["A trader exits after the planned expansion.", "Price rises again, creating an urge to return.", "The old win does not answer the new entry checklist."],
+      "example": [
+        "A trader exits after the planned expansion.",
+        "Price rises again, creating an urge to return.",
+        "The old win does not answer the new entry checklist."
+      ],
       "external": "Keep a decision journal with the previous exit, current evidence, remaining exposure, and new invalidation. A saved token is not a re-entry signal.",
-      "foundation": [8,"8-exit-strategy"],
+      "foundation": [
+        8,
+        "8-exit-strategy"
+      ],
       "deeper": "A partial harvest does not erase the remaining position: include it in the new budget. The source calls the first cycle complete after a meaningful harvest to create a decision boundary. That boundary is a planning convention, not a requirement to close or rebuy."
     },
     {
       "title": "Break the attachment",
       "question": "Are you managing evidence or protecting an old story?",
-      "source_sections": [7,15],
+      "source_sections": [
+        7,
+        15
+      ],
       "definition": "Entanglement happens when prior profit, loss, entry price, or missed upside controls the next decision.",
       "why": "Renaming a failed trade as an investment can hide unchanged risks.",
-      "checks": ["Current evidence versus the original story", "Why the holding period has changed", "Whether the same decision makes sense without trade history"],
+      "checks": [
+        "Current evidence versus the original story",
+        "Why the holding period has changed",
+        "Whether the same decision makes sense without trade history"
+      ],
       "healthy": "Longer exposure has a renewed case and explicit limits.",
       "dangerous": "Avoiding a loss becomes the reason to stay.",
       "mistake": "Using conviction to describe refusal to reassess.",
       "takeaway": "An old entry does not decide today's exposure.",
-      "example": ["A short trade loses its original catalyst.", "The trader relabels it a long investment to avoid reassessing.", "The label changes; the evidence has not improved."],
+      "example": [
+        "A short trade loses its original catalyst.",
+        "The trader relabels it a long investment to avoid reassessing.",
+        "The label changes; the evidence has not improved."
+      ],
       "external": "Compare your current decision with a written thesis and time horizon. Your trade history and emotional reasons need a separate journal.",
-      "foundation": [8,"8-exit-strategy"],
+      "foundation": [
+        8,
+        "8-exit-strategy"
+      ],
       "deeper": "Selling and immediately rebuying, chasing missed upside, and trying to recover a loss can all reflect attachment. A longer horizon needs an independently supported thesis, liquidity assessment, and exposure plan. A profitable outcome alone does not validate an emotionally driven process."
     },
     {
       "title": "Attention & holding time",
       "question": "Has the reason to stay survived the first burst?",
-      "source_sections": [8],
+      "source_sections": [
+        8
+      ],
       "definition": "Attention can appear, burst, persist, plateau, renew, or fade. Holding time should be reassessed as that evidence changes.",
       "why": "Loud discussion can persist while fresh participation weakens.",
-      "checks": ["Credible attention across comparable periods", "Whether attention converts into observed buyers", "A verified reason for renewal after the catalyst"],
+      "checks": [
+        "Credible attention across comparable periods",
+        "Whether attention converts into observed buyers",
+        "A verified reason for renewal after the catalyst"
+      ],
       "healthy": "Continued exposure has current evidence and review conditions.",
       "dangerous": "Old excitement replaces a new reason to stay.",
       "mistake": "Treating lifecycle stages as a countdown or automatic signal.",
       "takeaway": "Time in the trade needs reassessment.",
-      "example": ["A token's first attention burst attracts buyers.", "Mentions remain high, but fresh buyer activity slows.", "Review the remaining exposure instead of assuming persistence."],
-      "evidence": ["Tweet","narratives.html","Compare observed attention and verify sampled participation in Inspect. Mentions do not measure capital or certify an attention stage."],
-      "foundation": [6,"7-meme-lifecycle"],
-      "deeper": "Start → Burst → Sustained → Plateau → Renewal or Downtrend → Drained is a research lens. Stages can repeat or be skipped. A completed migration or listing can alter the reason to buy without ensuring continuation or failure. Attention duration informs review; it does not calculate an optimal holding period."
+      "example": [
+        "A token's first attention burst attracts buyers.",
+        "Mentions remain high, but fresh buyer activity slows.",
+        "Review the remaining exposure instead of assuming persistence."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Compare observed attention and verify sampled participation in Inspect. Mentions do not measure capital or certify an attention stage."
+      ],
+      "foundation": [
+        6,
+        "7-meme-lifecycle"
+      ],
+      "deeper": "The Token Attention Life Cycle is a research lens. Stages can repeat or be skipped; renewal is a possible extension, not a promised recovery. A completed migration or listing can alter the reason to buy without ensuring continuation or failure. Read the wider meta separately: Emergence → Expansion → Saturation → Rotation. Attention duration informs review; it does not calculate an optimal holding period.",
+      "framework": [
+        "Token: Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion.",
+        "Extension: Maturity → Renewal → Expansion."
+      ]
     },
     {
       "title": "Read inventory, not green buys",
       "question": "Is the wallet increasing or reducing meaningful exposure?",
-      "source_sections": [9],
+      "source_sections": [
+        9
+      ],
       "definition": "A capital action materially changes exposure. Tiny buys can coexist with larger sales and declining inventory.",
       "why": "Transaction count and color can obscure the net position change.",
-      "checks": ["Buy and sell quantities across the same window", "Transfers and balances across relevant addresses", "Whether wallet links and coverage are actually established"],
+      "checks": [
+        "Buy and sell quantities across the same window",
+        "Transfers and balances across relevant addresses",
+        "Whether wallet links and coverage are actually established"
+      ],
       "healthy": "The interpretation accounts for size, transfers, and missing history.",
       "dangerous": "Many small buys are treated as proof of accumulation.",
       "mistake": "Inferring support intent from one transaction.",
       "takeaway": "Follow meaningful exposure changes over time.",
-      "example": ["A wallet buys ten lots of 1,000 units.", "It also sells 50,000 units in that window.", "Observed swaps imply a 40,000-unit reduction, before transfers."],
-      "evidence": ["Inspect","order-flow.html","Compare sizes and directions of sampled swaps. Reconcile balances and transfers externally; observed swap net is not complete inventory or proof of intent."],
-      "foundation": [4,"level-4-checklist"],
+      "example": [
+        "A wallet buys ten lots of 1,000 units.",
+        "It also sells 50,000 units in that window.",
+        "Observed swaps imply a 40,000-unit reduction, before transfers."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare sizes and directions of sampled swaps. Reconcile balances and transfers externally; observed swap net is not complete inventory or proof of intent."
+      ],
+      "foundation": [
+        4,
+        "level-4-checklist"
+      ],
       "deeper": "The source calls tiny promotional or trading activity moderation. Relative size matters more than a fixed SOL threshold. Attention support during distribution is a possible interpretation requiring a sequence of evidence, not an intent label inferred from small buys. Dollar net flow and token inventory change are different measures."
     },
     {
       "title": "Match the evidence to the market",
       "question": "Is there enough history to read structure?",
-      "source_sections": [10,11,12],
+      "source_sections": [
+        10,
+        11,
+        12
+      ],
       "definition": "Early markets often provide limited history. Later markets may offer more structure, venues, and broader market connections.",
       "why": "The evidence needed to manage exposure changes as the trading environment develops.",
-      "checks": ["Early move: buyer activity, absorption, and current hygiene", "Later move: base, supply zones, and confirming flow", "Venue liquidity, broader market context, and execution quality"],
+      "checks": [
+        "Early move: buyer activity, absorption, and current hygiene",
+        "Later move: base, supply zones, and confirming flow",
+        "Venue liquidity, broader market context, and execution quality"
+      ],
       "healthy": "Available history and market conditions guide the investigation.",
       "dangerous": "A listing or chart level is treated as safety or prediction.",
       "mistake": "Buying a Fibonacci level without demand evidence.",
       "takeaway": "Structure provides context; current behavior still matters.",
-      "example": ["A token retraces into a previously marked area.", "Selling continues and renewed buyers are not evident.", "The reference area alone does not confirm a new expansion."],
-      "evidence": ["Swing","radar.html","Review observed price structure and reported liquidity, then use Inspect for flow. Meme Fast does not certify venue safety or a Fibonacci entry."],
-      "foundation": [5,"1-support-base"],
+      "example": [
+        "A token retraces into a previously marked area.",
+        "Selling continues and renewed buyers are not evident.",
+        "The reference area alone does not confirm a new expansion."
+      ],
+      "evidence": [
+        "Swing",
+        "radar.html",
+        "Review observed price structure and reported liquidity, then use Inspect for flow. Meme Fast does not certify venue safety or a Fibonacci entry."
+      ],
+      "foundation": [
+        5,
+        "1-support-base"
+      ],
       "deeper": "202A emphasizes early demand and launch mechanics; 202B adds historical structure and holder rotation. These lenses overlap. The source's 0.5 and 0.618 retracements are optional reference areas, not validated predictions. More venues can add arbitrage, order books, funding, and market beta; maturity does not guarantee liquidity, transparency, or lower risk."
     },
     {
       "title": "Portfolio limits & concentration",
       "question": "Are several tickers really the same exposure?",
-      "source_sections": [13,14],
+      "source_sections": [
+        13,
+        14
+      ],
       "definition": "Portfolio limits bound total exposure, new capital, correlated positions, active decisions, and losses.",
       "why": "Several tokens can fail together if they depend on the same chain, narrative, or liquidity source.",
-      "checks": ["Total exposure by token, theme, chain, and venue", "Fresh-capital limits and concentration after appreciation", "Loss limits and how many positions you can monitor"],
+      "checks": [
+        "Total exposure by token, theme, chain, and venue",
+        "Fresh-capital limits and concentration after appreciation",
+        "Loss limits and how many positions you can monitor"
+      ],
       "healthy": "Limits are written and reviewed as positions change.",
       "dangerous": "Repeated small entries or winning adds bypass the total budget.",
       "mistake": "Calling appreciated exposure free money.",
       "takeaway": "Different tickers do not guarantee different risks.",
-      "example": ["Five positions all depend on one chain narrative.", "That narrative weakens and liquidity deteriorates together.", "Five names did not provide five independent exposures."],
+      "example": [
+        "Five positions all depend on one chain narrative.",
+        "That narrative weakens and liquidity deteriorates together.",
+        "Five names did not provide five independent exposures."
+      ],
       "external": "Keep a full portfolio ledger and group shared risks. Watchlist organizes tokens; it does not measure your holdings, enforce loss limits, or identify all correlations.",
-      "foundation": [8,"1-position-size"],
+      "foundation": [
+        8,
+        "1-position-size"
+      ],
       "deeper": "Fresh-capital concentration comes from new purchases; appreciation concentration comes from rising value. The origins differ, but both leave present capital exposed. Review concentration without assuming appreciation requires selling or licenses more buying. Include cumulative discovery losses, current exit capacity, and monitoring limits in the plan. A personal loss-limit rule needs an explicit action when reached.",
-      "references": [["FINRA: concentration risk","https://www.finra.org/investors/insights/concentration-risk"]]
+      "references": [
+        [
+          "FINRA: concentration risk",
+          "https://www.finra.org/investors/insights/concentration-risk"
+        ]
+      ]
     },
     {
       "title": "Measure the net result",
       "question": "Did the portfolio improve after costs and failed trades?",
-      "source_sections": [16,17],
+      "source_sections": [
+        16,
+        17
+      ],
       "definition": "The result combines realized net profit and unrealized profit or loss on remaining exposure, with costs counted once.",
       "why": "Peak chart values and famous winners omit what was actually captured and what other trades lost.",
-      "checks": ["Actual fills, cost basis, and complete trade history", "Remaining inventory valued consistently and realistically", "Fees, external cash flows, and all losing trades"],
+      "checks": [
+        "Actual fills, cost basis, and complete trade history",
+        "Remaining inventory valued consistently and realistically",
+        "Fees, external cash flows, and all losing trades"
+      ],
       "healthy": "The ledger reconciles to portfolio value and cash movements.",
       "dangerous": "Full remaining value is counted as profit, or costs are deducted twice.",
       "mistake": "Judging the process only by a visible winning token.",
       "takeaway": "Score the portfolio, not the chart's highest print.",
-      "example": ["Buy 100 units for $100; sell 50 for $150, ignoring costs.", "Realized profit is $100. At $3, the remainder has $100 unrealized profit.", "Total profit is $200; its $150 remaining value is not all profit."],
+      "example": [
+        "Buy 100 units for $100; sell 50 for $150, ignoring costs.",
+        "Realized profit is $100. At $3, the remainder has $100 unrealized profit.",
+        "Total profit is $200; its $150 remaining value is not all profit."
+      ],
       "external": "Reconcile a complete position ledger. Meme Fast's market displays are not your realized P&L, tax record, or executable liquidation value.",
-      "foundation": [8,"7-survivorship-bias"],
+      "foundation": [
+        8,
+        "7-survivorship-bias"
+      ],
       "deeper": "For a period with a consistent valuation method: ending portfolio value + withdrawals − deposits − starting portfolio value gives monetary profit. A percentage return with timed cash flows needs an appropriate return method. Actual fill prices already reflect execution effects; do not subtract slippage again from fill-based P&L. Include fees once, realized losses, failed tokens, and uncertainty in remaining valuations. Accounting profit is separate from after-tax results.",
-      "references": [["Investor.gov: fees and investment returns","https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/updated"]]
+      "references": [
+        [
+          "Investor.gov: fees and investment returns",
+          "https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/updated"
+        ]
+      ]
+    },
+    {
+      "title": "Dev Cycle / Buyer Cycle",
+      "question": "What is each side trying to do now?",
+      "definition": "The dev cycle describes creation, building, promotion, and monetization. The buyer cycle describes discovery, assessment, exposure, and reassessment.",
+      "why": "A buyer’s reason to stay can change while the team pursues different incentives.",
+      "checks": [
+        "Dev actions: building, marketing, monetizing, or leaving",
+        "Buyer actions: discovering, adding, holding, rotating, or exiting",
+        "Shared evidence: narrative, attention, liquidity, price, volume, fees, and holders"
+      ],
+      "healthy": "Both views are checked against current evidence.",
+      "dangerous": "The team’s story is assumed to explain every buyer decision.",
+      "mistake": "Treating the cycles as compulsory steps or verified intent.",
+      "takeaway": "Read both sides before reassessing your own exposure.",
+      "example": [
+        "A team improves the product and promotes a new release.",
+        "Buyers respond briefly, then participation weakens.",
+        "Building activity and continued buyer demand are separate observations."
+      ],
+      "framework": [
+        "Dev: Create → Launch → Market → Improve → Monetize → Reinvest / Exit.",
+        "Buyer: Discover → Assess → Enter → Monitor → Add / Hold / Exit → Reassess."
+      ],
+      "external": "Use verified project activity, permissions, treasury records, and wallet history. These analytical cycles are not automated Meme Fast labels.",
+      "foundation": [
+        3,
+        "2-dev-creator-wallet"
+      ],
+      "deeper": "The shared interaction layer connects narrative, attention, liquidity, price, volume, fees, and holder growth. Dev actions and buyer behavior can influence orders and liquidity; actual price formation also depends on pool reserves or order books and broader participants. This is a lens for incentives, not a complete pricing model or proof of anyone’s motives. Use new evidence to revisit the Container and invalidation conditions."
+    },
+    {
+      "title": "Alignment, divergence & extraction",
+      "question": "Do team incentives and buyer participation still fit together?",
+      "definition": "Alignment means the two sides reinforce participation. Divergence means one weakens. Extraction describes demand increasingly funding monetization without supported renewal.",
+      "why": "A token can remain busy while the relationship behind the thesis changes.",
+      "checks": [
+        "Verified work, promotion, and reinvestment",
+        "Buyer persistence versus insider sales and fee capture",
+        "Evidence connecting supply control and repeated monetization"
+      ],
+      "healthy": "Observable delivery and returning participation support a provisional alignment case.",
+      "dangerous": "Recurring buyer demand meets extraction with little verified renewal.",
+      "mistake": "Calling every sale extraction or every update alignment.",
+      "takeaway": "Reassess the relationship, not just the chart.",
+      "example": [
+        "Buyers remain enthusiastic while suspected team inventory declines.",
+        "Delivery and reinvestment evidence are unclear.",
+        "Investigate divergence or extraction rather than asserting intent."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Compare sampled selling and price response. Verify team-linked ownership, reinvestment, and delivery externally; flow alone cannot establish extraction."
+      ],
+      "foundation": [
+        4,
+        "4-distribution"
+      ],
+      "deeper": "Divergence can also mean the team keeps building after market attention leaves. Alignment can break later. Monetization is not automatically abuse; assess disclosure, permissions, amounts, reinvestment, and repeated behavior. Extraction is a working interpretation requiring evidence. If that interpretation strengthens, revisit the thesis, hygiene gate, remaining exposure, and executable exit conditions."
+    },
+    {
+      "title": "Dev economics & incentives",
+      "question": "How does the team benefit—and where does that value go?",
+      "definition": "Team economics can combine creator fees, token inventory, treasury funds, LP income, and product or service revenue.",
+      "why": "A revenue stream can reward trading activity without proving long-term buyer alignment.",
+      "checks": [
+        "Who earns fees, inventory proceeds, and treasury income",
+        "Marketing spend, delivery, and verifiable reinvestment",
+        "Liquidity rights, permissions, and repeated launch history"
+      ],
+      "healthy": "Revenue sources and use of funds are disclosed and traceable.",
+      "dangerous": "Fee income or a treasury label substitutes for evidence of alignment.",
+      "mistake": "Assuming creator revenue means the team wants what holders want.",
+      "takeaway": "Revenue explains incentives; it does not certify alignment.",
+      "example": [
+        "A creator earns fees while trading remains active.",
+        "Inventory also sells into repeated attention bursts.",
+        "Review both income streams and their use, not fees alone."
+      ],
+      "external": "Verify protocol rules, fee recipients, treasury records, LP rights, and project claims. Meme Fast does not audit team revenue or spending.",
+      "foundation": [
+        3,
+        "2-dev-creator-wallet"
+      ],
+      "deeper": "Keep creator fee shares, token-specific transfer charges, LP income, network fees, and product revenue separate. Marketing budgets and repeated launches change incentives but do not prove misconduct. LP rights can combine fee income with control over liquidity. A treasury transfer may be spending, custody, or distribution; establish the destination and purpose before interpreting it.",
+      "references": [
+        [
+          "Raydium: protocol fee mechanics",
+          "https://docs.raydium.io/raydium/protocol/protocol-fees"
+        ]
+      ]
+    },
+    {
+      "title": "Token fees vs trading fees",
+      "question": "What charges apply to your actual route and exit?",
+      "definition": "A token-specific transfer or buy/sell fee is separate from venue trading fees, creator fee shares, and network costs.",
+      "why": "A quoted 3% token charge can affect delivered units or proceeds even before other execution costs.",
+      "checks": [
+        "Recipient and whether the charge applies to buys, sells, or transfers",
+        "Change authority, fee caps, and exemptions",
+        "Current route quote and actual net amounts after all charges"
+      ],
+      "healthy": "The mechanism, current rate, and executable result are understood.",
+      "dangerous": "A headline fee or stated destination replaces verification.",
+      "mistake": "Treating every creator fee as an extra 3% token tax.",
+      "takeaway": "Read the mechanism and count each cost once.",
+      "example": [
+        "An illustrative transfer charges 3% on 1,000 units.",
+        "Ignoring caps and rounding, 30 units are charged and 970 delivered.",
+        "A swap may have additional charges; verify the executable quote."
+      ],
+      "external": "Inspect the exact token program or contract and current route. Meme Fast does not verify transfer taxes, recipient authority, or all-in exit costs.",
+      "foundation": [
+        2,
+        "6-slippage"
+      ],
+      "deeper": "Token fees can route value to a team, treasury, marketing, liquidity, burns, rewards, or another recipient; verify what actually happens. Implementation differs by chain and token program. A fee may change, be capped, or exempt certain paths. Creator shares may come from the venue fee rather than adding another charge. Actual fill records already include execution effects; do not deduct those effects twice in P&L.",
+      "references": [
+        [
+          "Uniswap: token fees",
+          "https://support.uniswap.org/hc/en-us/articles/18673568523789-What-is-a-token-fee"
+        ],
+        [
+          "Solana: transfer fees and authorities",
+          "https://solana.com/docs/tokens/extensions/transfer-fees"
+        ]
+      ]
+    },
+    {
+      "title": "Visible wallet vs economic position",
+      "question": "Does one address represent the whole team exposure?",
+      "definition": "The visible dev wallet is an address. The economic dev position may include related inventory, treasury assets, and liquidity rights.",
+      "why": "A small visible balance can coexist with substantial control elsewhere.",
+      "checks": [
+        "Deployer funding, direct transfers, and repeated destinations",
+        "Current balances and synchronized activity across suspected links",
+        "Alternative explanations, incomplete history, and unverified ownership"
+      ],
+      "healthy": "Attribution uses multiple traceable observations and explicit uncertainty.",
+      "dangerous": "One wallet balance or common funder becomes the complete ownership claim.",
+      "mistake": "Assigning a permanent dev type from a single sale.",
+      "takeaway": "Trace the position before labeling the behavior.",
+      "example": [
+        "A dev address transfers tokens and its balance falls.",
+        "Several recipients later sell in similar windows.",
+        "Investigate the links; transfers alone do not prove common control."
+      ],
+      "external": "Use explorer records and complete wallet histories where available. Meme Fast does not establish a dev cluster or its cost basis.",
+      "foundation": [
+        3,
+        "6-wallet-clusters"
+      ],
+      "deeper": "Treat dev types as a behavioral spectrum: builder; builder plus distributor; extractor; repeated extractor. Serial-scam allegations need evidence of actual misconduct, not merely repeated launches. A team can change behavior as incentives change. Common exchange funding and router activity can link unrelated participants; combine funding, transfers, timing, destinations, balances, and history. Current attribution informs your hygiene and exposure review rather than moral classification from one transaction."
     }
-  ]
+  ],
+  "principle": "Do not marry the position. Marry the net return. Reassess your exposure as buyers, dev incentives, and executable conditions change."
 }

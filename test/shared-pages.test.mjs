@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 test('rendered pages have one active navigation link and a stable Inspect brand destination',async()=>{
- const counts={'meme-101b':8,'meme-202a':11,'meme-202b':11,'meme-303':12};
+ const counts={'meme-101b':9,'meme-202a':11,'meme-202b':11,'meme-303':17};
  const learning=['learn','meme-101','meme-101-level-1','meme-101-level-2','meme-101-bundles',...Object.entries(counts).flatMap(([track,count])=>[track,...Array.from({length:count},(_,i)=>`${track}-lesson-${i+1}`)])];
  const pages=['model','order-flow','narratives','narrative','new-coins','radar','watchlist','sources',...learning];
  const active={model:'model.html',narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html',...Object.fromEntries(learning.map(page=>[page,'learn.html']))};
@@ -30,7 +30,7 @@ test('applied learning links complete both course paths and hand back to the too
  for(const course of ['meme-101b','meme-202a','meme-202b','meme-303']){
   const overview=await load(course);
   assert.ok(hub.includes(`href="./${course}.html"`));
-  const count=course==='meme-303'?12:course.startsWith('meme-202')?11:8;
+  const count=course==='meme-303'?17:course.startsWith('meme-202')?11:9;
   for(let i=1;i<=count;i++){
    const page=`${course}-lesson-${i}`,html=await load(page);
    const tabs=html.match(/<nav class="learning-tracks"[\s\S]*?<\/nav>/)?.[0];

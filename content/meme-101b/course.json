@@ -48,7 +48,7 @@
       "title": "Immediate rug risk",
       "question": "Can control over the token destroy an ordinary exit?",
       "definition": "An immediate rug is a rapid failure caused by abusive control over supply, trading rules, or liquidity.",
-      "why": "A token can look active while ordinary holders cannot exit normally.",
+      "why": "Structural failure can happen in seconds or minutes. A short planned hold does not make an abusive control harmless.",
       "checks": [
         "Current mint, freeze, blacklist, and transfer permissions",
         "Sellability and fees for ordinary wallets",
@@ -84,7 +84,7 @@
       "title": "Slow extraction",
       "question": "Who keeps selling into every new wave of buyers?",
       "definition": "Planned slow-rug behavior extracts value over time through recurring distribution, transfers, or liquidity removal.",
-      "why": "A lively chart can hide a supply overhang that repeatedly consumes demand.",
+      "why": "Extraction can unfold over hours, days, or longer while a lively chart consumes incoming demand.",
       "checks": [
         "Related inventory, transfers, and repeated sales over time",
         "Selling around attention spikes and failed rebounds",
@@ -138,7 +138,7 @@
         6,
         "level-6-checklist"
       ],
-      "deeper": "The source describes narrative decline, slower buyer arrivals, weak rebounds, and decaying activity. These are possible observations, not a fixed sequence. Holder counts can rise without meaningful new capital, and social activity can be manufactured. Compare multiple evidence sources rather than assigning a cause from the chart alone."
+      "deeper": "The source describes narrative decline, slower buyer arrivals, weak rebounds, and decaying activity. These are possible observations, not a fixed sequence. Holder counts can rise without meaningful new capital, and social activity can be manufactured. Compare multiple evidence sources rather than assigning a cause from the chart alone. Timing varies: organic demand decline can affect a short trade or a longer hold. Assess the failure evidence against your review window without assuming the token must survive forever."
     },
     {
       "title": "The self rug",
@@ -200,9 +200,10 @@
         6,
         "2-catalyst"
       ],
-      "deeper": "Organic attention spreads through independent participation. Maintained or promoted attention depends on recurring promotion, which can include paid activity. Fabricated attention uses deceptive activity or false claims. Those categories can overlap and require evidence; loudness alone cannot distinguish them. Lifecycle stages are hypotheses, not official labels or a compulsory sequence. A completed catalyst can remove the next reason to buy. Deeper small-buy and promotional behavior belongs in 303.",
+      "deeper": "Organic attention comes from independent discovery and propagation. Maintained attention can depend on boosts, recurring promotion, raids, KOL posts, or small support activity. Fabricated attention uses bots, deceptive trading, or false engagement and holder counts. Categories can overlap and require evidence. A token can be in Emergence while its meta is already in Saturation. Stages are hypotheses, not official labels or a compulsory sequence. Detailed inventory mechanics belong in 303.",
       "framework": [
-        "Token: Start → Burst → Sustained → Plateau → Renewal/Downtrend → Drained.",
+        "Token: Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion.",
+        "Extension: Maturity → Renewal → Expansion.",
         "Meta: Emergence → Expansion → Saturation → Rotation."
       ]
     },
@@ -261,6 +262,39 @@
         "8-exit-strategy"
       ],
       "deeper": "Skip means a severe hygiene failure or no credible thesis. Watch keeps unresolved cases under observation. Probe describes limited initial exposure only after the necessary checks and a plan. Add/Hold requires confirming evidence within that plan; Reduce/Exit responds to deterioration and execution constraints. Neither a label nor a provisional check promises safety."
+    },
+    {
+      "title": "The basic dev view",
+      "question": "What incentives and history sit behind this launch?",
+      "definition": "The visible dev wallet is one address. The team’s incentives, related inventory, and deployment history can extend beyond it.",
+      "why": "Economic alignment can change even when the original story remains.",
+      "checks": [
+        "Current incentives, controls, and disclosed allocations",
+        "Transfers and evidence of dev-linked supply",
+        "Repeated deployer behavior across earlier launches"
+      ],
+      "healthy": "Claims, controls, and behavior are supported by traceable evidence.",
+      "dangerous": "A clean visible wallet hides unanswered questions about related inventory.",
+      "mistake": "Assigning a builder or scammer label from one transaction.",
+      "takeaway": "Read incentives and history before judging alignment.",
+      "example": [
+        "A visible dev address holds little supply.",
+        "Earlier transfers lead to addresses with substantial inventory.",
+        "Investigate control and behavior; a low visible balance is not clearance."
+      ],
+      "external": "Verify deployment history, permissions, allocations, and related addresses with explorers. Meme Fast does not establish the complete dev economic position.",
+      "foundation": [
+        3,
+        "2-dev-creator-wallet"
+      ],
+      "deeper": "A dev may build, distribute, extract, or combine behaviors. Fee income, product claims, and continued promotion do not prove buyer alignment. Common funding is only a lead; exchanges and routers can connect unrelated users. Repeated suspicious deployment patterns need context and evidence before attributing misconduct. Detailed Dev Cycle economics belongs in 303.",
+      "related": [
+        [
+          "Dev and buyer cycles in 303",
+          "meme-303-lesson-13.html"
+        ]
+      ]
     }
-  ]
+  ],
+  "principle": "Strong Thesis + Failed Hygiene = SKIP. Understand how the failure mode could affect your intended holding period; a short hold does not neutralize structural risk."
 }

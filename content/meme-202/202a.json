@@ -2,7 +2,7 @@
   "code": "202A",
   "name": "Snipe",
   "slug": "meme-202a",
-  "question": "Why is it accelerating?",
+  "question": "Why is it accelerating now?",
   "intro": "Read changes in demand before the move becomes obvious: buyers, size, selling, absorption, and attention.",
   "lens": [
     "Demand accelerates",
@@ -188,7 +188,7 @@
         2,
         "1-bonding-curve"
       ],
-      "deeper": "Use equal, non-overlapping bars. Faster transactions are frequency growth; rising typical buy size is size growth. To call the pace itself accelerating, compare its change across successive periods. Unique-buyer and holder-growth acceleration require comparable identity and balance data; transaction senders and holder addresses may not be independent people. Smaller sells or faster recovery can support an absorption hypothesis, but liquidity changes can explain them too. Missing inputs stay unknown."
+      "deeper": "Momentum describes sustained activity; acceleration describes a strengthening pace. Equal 180-second bars can compress the observations, but they are not mature chart structure or a mandatory interval. Compare transaction, buy and sell frequency; typical buy and sell size; unique buyers and holder growth; liquidity consumed; sell impact and dip-recovery speed; and buyer persistence. Use separate comparable periods and current coverage. Unique people, complete holder changes, and available supply may need external data. Bots, liquidity changes, and missing observations can distort the comparison."
     },
     {
       "title": "Attention conversion",
@@ -281,7 +281,7 @@
         6,
         "5-attention-rotation"
       ],
-      "deeper": "Token Start and Meta Saturation can coexist. Reconsider the upside expectation and attention duration when the wider theme weakens; position limits belong in 303. Many competitors alone do not prove saturation if independent attention and demand are still expanding."
+      "deeper": "Token Emergence and Meta Saturation can coexist. Reconsider the upside expectation and attention duration when the wider theme weakens; position limits belong in 303. Many competitors alone do not prove saturation if independent attention and demand are still expanding."
     },
     {
       "title": "Migration as event risk",
@@ -311,7 +311,11 @@
         2,
         "2-graduation"
       ],
-      "deeper": "Pre-migration → migration → post-migration can contain an entire attention cycle. Verify the actual transaction, pool, routes, and current quotes. Launch mechanisms differ, and not every token migrates. Changes in venue and liquidity complicate before/after comparisons; renewal requires evidence."
+      "deeper": "Pre-migration → migration → post-migration can contain an entire attention cycle. Verify the actual transaction, pool, routes, and current quotes. Launch mechanisms differ, and not every token migrates. Changes in venue and liquidity complicate before/after comparisons; renewal requires evidence.",
+      "framework": [
+        "Pre-migration → migration → post-migration.",
+        "Event lens: anticipation → acceleration → event → maturity → renewal or sell-the-news."
+      ]
     },
     {
       "title": "PVP Dominance & Rotation",
@@ -319,7 +323,7 @@
       "definition": "PVP is competition between tokens claiming the same narrative. Early dominance is provisional; popularity does not establish official identity.",
       "why": "The current leader can change before any lasting winner emerges.",
       "checks": [
-        "Credible attention and capital participation across exact contracts",
+        "Verified legitimacy, credible attention, and capital participation across exact contracts",
         "Known-wallet inventory, holder composition, and selling",
         "Whether a rival has stronger independent backing"
       ],
@@ -333,7 +337,8 @@
         "Review staying or rotating against fresh evidence, hygiene, costs, and limits."
       ],
       "framework": [
-        "Current candidate → monitor rivals → stay if leadership persists → reassess rotation if a rival strengthens."
+        "Current candidate → monitor rivals → stay if leadership persists → reassess rotation if a rival strengthens.",
+        "The first token does not need to fail before capital rotates."
       ],
       "evidence": [
         "Tweet",
@@ -344,7 +349,7 @@
         6,
         "4-ct-kol-shilling"
       ],
-      "deeper": "KOL means key opinion leader. Recognition identifies a currently stronger candidate; coordination can help one become dominant; rotation responds when leadership shifts. KOLs may watch respected peers, proven-wallet activity, holder composition, and rival backing. That convergence can create reflexive validation or synergy, but reputation and common funding do not prove independent support. A trader may profit from an initial burst without owning the eventual leader; visible entries alone cannot prove those profits or the rotation timing. No market move confers official identity. Fresh evidence, current hygiene, executable costs, and the 303 plan still govern exposure."
+      "deeper": "KOL means key opinion leader. Recognition identifies a candidate supported by stronger current evidence. Coordination can make one candidate a focal point: an entry attracts followers or copy traders, another KOL cross-confirms, and participation converges. Rotation responds when a rival strengthens. KOLs may compare peers, known-wallet participation, holder composition, concentration, and competitor momentum. That synergy can create reflexive validation without proving independence or permanent leadership. A trader may realize gains from the first burst before rotating, even if the first candidate later loses; visible entries cannot prove that profit or timing. Fresh hygiene, executable costs, and the 303 plan still govern exposure. Market leadership does not confer official identity."
     }
   ],
   "principle": "Snipe reads flow, not levels. Early chart history is often too short for mature technical analysis; begin with acceleration, then check the other evidence."
