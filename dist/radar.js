@@ -6,7 +6,7 @@ import {isSaved,toggleSaved,watchlist} from './research-store.mjs?v=watchlist-fo
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {parseHolderInfo} from './holder-info.mjs';
 import {sourceCoverageNote} from './source-coverage.mjs';
-import {matchesChainFilter} from './radar-filter.mjs';
+import {matchesChainFilter,matchesTrackedWalletFilter} from './radar-filter.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {loadXFactor,xFactorBadge,xFactorDetail} from './x-factor.mjs';
 
@@ -68,7 +68,7 @@ const initialMode=initial.get('mode');
 const initialContract=initial.get('contract')?.trim()||'';
 const modePreferenceKey='meme-fast-radar-mode-v1';
 function savedMode(){try{return localStorage.getItem(modePreferenceKey)==='research'?'research':'swing'}catch{return 'swing'}}
-const state={mode:['swing','research'].includes(initialMode)?initialMode:savedMode(),chain:'all',query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false,xFactorReport:{version:1,status:'disconnected',coins:{}}};
+const state={mode:['swing','research'].includes(initialMode)?initialMode:savedMode(),chain:'all',trackedWallet:false,query:initialContract,catalogCoin:null,selectedId:null,snapshot:null,error:null,loading:false,xFactorReport:{version:1,status:'disconnected',coins:{}}};
 const dialog=$('#radar-inspector');
 const holderObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){holderObserver.unobserve(entry.target);queueHolder(entry.target.dataset.holderId)}},{rootMargin:'120px'});
 
@@ -177,8 +177,9 @@ function render(){
  if(state.loading){status.textContent='Loading observed coins…';return}
  if(state.error){status.textContent=state.error;results.innerHTML='<div class="radar-empty">Swing data is unavailable. Try refreshing.</div>';return}
  const snapshot=state.snapshot;if(!snapshot){status.textContent='Waiting for coin collection…';results.innerHTML='';return}
- const q=state.query.toLowerCase(),coins=universe().filter(coin=>matchesChainFilter(coin,state.chain)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
+ const q=state.query.toLowerCase(),coins=universe().filter(coin=>matchesChainFilter(coin,state.chain)&&matchesTrackedWalletFilter(coin,state.trackedWallet,walletReport)&&(!q||`${coin.name} ${coin.symbol} ${coin.contract_address}`.toLowerCase().includes(q)));
  const ranked=rankRadar(coins,state.mode),ready=ranked.filter(row=>row.score!==null&&marketFreshness(row.coin).usable),pending=ranked.filter(row=>row.score===null&&marketFreshness(row.coin).usable),staleRows=ranked.filter(row=>!marketFreshness(row.coin).usable);
+ $('#radar-candidate-count').textContent=ready.length;
  const fresh=ranked.filter(row=>!row.stale).length,historyNote=state.mode==='scalp'?'Acceleration needs a previous sample.':state.mode==='swing'?'One-hour signals need at least six samples.':'Day persistence needs at least eight hourly samples.';
  const degraded=Object.values(snapshot.feeds||{}).some(feed=>feed.error),sourceNote=sourceCoverageNote(snapshot);
  const robinhoodIncomplete=snapshot.feeds?.robinhood_rpc?.backfillComplete!==true;
@@ -187,13 +188,13 @@ function render(){
  const statusDetail=`${ranked.length} observed coins. ${fresh} with recent market data. Last collection ${collected}.${sourceNote?` ${sourceNote.slice(3)}.`:''}${robinhoodIncomplete?' Robinhood pool backfill in progress.':''} ${historyNote}`;
  status.title=statusDetail;
  status.setAttribute('aria-label',statusDetail);
- results.innerHTML=ranked.length?`${ready.length?`<h2 class="radar-section-title">Research candidates <span>${ready.length}</span></h2>${ready.map(card).join('')}`:''}${pending.length?`<h2 class="radar-section-title">Collecting history <span>${pending.length}</span></h2><p class="radar-section-note">These coins are visible for research and have no ranking yet. ${state.mode==='research'?'The Days view needs at least eight hourly samples.':'The Hours view needs repeated one-hour samples.'}</p>${pending.map(row=>card(row,null)).join('')}`:''}${staleRows.length?`<h2 class="radar-section-title">Market refresh needed <span>${staleRows.length}</span></h2><p class="radar-section-note">Stale, partial, or unknown market data. Research scores are withheld until current inputs are available.</p>${staleRows.map(row=>card(row,null)).join('')}`:''}`:`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Swing will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
+ results.innerHTML=ranked.length?`${ready.map(card).join('')}${pending.length?`<h2 class="radar-section-title">Collecting history <span>${pending.length}</span></h2><p class="radar-section-note">These coins are visible for research and have no ranking yet. ${state.mode==='research'?'The Days view needs at least eight hourly samples.':'The Hours view needs repeated one-hour samples.'}</p>${pending.map(row=>card(row,null)).join('')}`:''}${staleRows.length?`<h2 class="radar-section-title">Market refresh needed <span>${staleRows.length}</span></h2><p class="radar-section-note">Stale, partial, or unknown market data. Research scores are withheld until current inputs are available.</p>${staleRows.map(row=>card(row,null)).join('')}`:''}`:`<div class="radar-empty">${degraded&&!universe().length?'Market feeds are unavailable. Swing will show coins when collection succeeds.':robinhoodIncomplete&&/^0x[0-9a-f]{40}$/i.test(q)&&(state.chain==='all'||state.chain==='robinhood')?'No pool found in the indexed Robinhood sources yet. Historical backfill is still in progress.':'No observed coins match these filters. Try another chain or search.'}</div>`;
  results.querySelectorAll('[data-holder-id]').forEach(node=>{if(!holderInfo.has(node.dataset.holderId))holderObserver.observe(node)});
  renderInspector();
 }
 async function load(){
  state.loading=true;state.error=null;render();$('#refresh').disabled=true;
- try{const [response,report]=await Promise.all([fetch('/api/new-coins?view=radar',{cache:'no-store',signal:AbortSignal.timeout(20000)}),loadXFactor()]);if(!response.ok)throw new Error('Market history unavailable');const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid market history');state.snapshot=snapshot;state.xFactorReport=report}
+ try{const [response,report]=await Promise.all([fetch('/api/new-coins?view=radar',{cache:'no-store',signal:AbortSignal.timeout(20000)}),loadXFactor(),loadWallets()]);if(!response.ok)throw new Error('Market history unavailable');const snapshot=await response.json();if(!Array.isArray(snapshot.coins))throw new Error('Invalid market history');state.snapshot=snapshot;state.xFactorReport=report}
  catch(error){state.error=error.message||'Market history unavailable'}
  finally{state.loading=false;$('#refresh').disabled=false;render()}
 }
@@ -216,6 +217,7 @@ document.querySelectorAll('[data-chain-filter]').forEach(button=>button.addEvent
 let catalogTimer;
 $('#query').addEventListener('input',event=>{state.query=event.target.value.trim();state.catalogCoin=null;render();clearTimeout(catalogTimer);catalogTimer=setTimeout(loadCatalogMatch,300)});
 $('#refresh').addEventListener('click',load);
+$('#tracked-wallet').addEventListener('change',event=>{state.trackedWallet=event.target.checked;render()});
 document.addEventListener('click',async event=>{
  const close=event.target.closest('[data-close-inspect]');if(close){dialog.close();return}
  const copy=event.target.closest('[data-copy-ca]');if(copy){
@@ -238,5 +240,3 @@ $('#query').value=state.query;
 load().then(async()=>{if(initialContract){await loadCatalogMatch();const coin=universe().find(item=>String(item.contract_address).toLowerCase()===initialContract.toLowerCase());openInspector(coin?coinId(coin):`${state.chain}:${initialContract}`)}});
 
 void requestRefreshPriority(watchlist());
-
-void loadWallets().then(render);

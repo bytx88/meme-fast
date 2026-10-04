@@ -6,3 +6,5 @@
 .radar-section-note{margin:0 0 4px;color:#aebbd0;font-size:13px;line-height:1.45}
 
 .radar-thumb-stack .radar-market-age{white-space:normal;overflow-wrap:normal;max-width:52px;font-size:9px;line-height:1.3;text-align:center}.radar-signal .pending{font-size:12px;overflow-wrap:anywhere}
+
+.radar-results-heading{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px;margin:10px 0 8px}.radar-results-heading .radar-section-title{margin:0}.radar-wallet-filter{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;cursor:pointer}.radar-wallet-filter input{width:14px;height:14px;margin:0;accent-color:var(--accent)}
