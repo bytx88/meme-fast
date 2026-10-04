@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Decu",
+    "address": "4vw54BmAogeRV3vPKWyFet5yf8DTLcREzdSzx4rw9Ud9",
+    "code": "N2",
+    "network": "solana"
+  },
+  {
+    "name": "Dauman",
+    "address": "FfyLxGLJu6WnCMahP9AKEDkC3VFWRvcH8wUx42CQTGhB",
+    "code": "N1",
+    "network": "solana"
+  },
+  {
+    "name": "Cupysey",
+    "address": "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
+    "code": "C1",
+    "network": "solana"
+  },
+  {
+    "name": "Best 1",
+    "address": "8tEjj2KwGBJwHWnQ36LYnkgUNUyrDzTKzNqJdHQ1nHiJ",
+    "code": "F1",
+    "network": "solana"
+  },
+  {
+    "name": "Best 2",
+    "address": "SQHK48QT8SY1vYN44iXji7wQ6CJek8AjfX6mBp47TZq",
+    "code": "F1",
+    "network": "solana"
+  },
+  {
+    "name": "JeremyLin",
+    "address": "H2KAvWycyqeHhqkMC1f83Pwju3B2MztLYdXVpNMcDs2V",
+    "code": "F2",
+    "network": "solana"
+  },
+  {
+    "name": "JesseEckel",
+    "address": "9C9Fsb7h6LtvhKabb43DYH4E3xZdUHDEJEqBGsWCkpdE",
+    "code": "L1",
+    "network": "solana"
+  },
+  {
+    "name": "ChillDaddy",
+    "address": "pXGQ6J2ziRCvmYSLTT55FASf2jSHeCD6gju5xka31yV",
+    "code": "Dev",
+    "network": "solana"
+  }
+]

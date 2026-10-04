@@ -145,6 +145,20 @@ def collect_meme_index():
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
 
 
+@app.function(schedule=modal.Period(minutes=5), timeout=280, max_containers=1,
+              volumes={"/history": history_volume})
+def collect_followed_wallets():
+    import sys
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    from worker.followed_wallets import collect
+    history_volume.reload()
+    report = collect("/history/followed-wallets.json")
+    history_volume.commit()
+    return {"wallets": len(report["wallets"]),
+            "available": sum(row["status"] == "ok" for row in report["wallets"])}
+
+
 @app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})
 def collect_coin_evidence(token_id):
     import json
@@ -221,6 +235,17 @@ def web():
                 report = json.loads(Path("/history/x-factor.json").read_text())
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "status": "disconnected", "coins": {}}
+        return JSONResponse(report, headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/followed-wallets")
+    async def followed_wallets():
+        from worker.followed_wallets import awaiting
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                report = json.loads(Path("/history/followed-wallets.json").read_text())
+            except (FileNotFoundError, ValueError):
+                report = awaiting()
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/meme-index")

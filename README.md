@@ -72,6 +72,12 @@ Requires Git, Node.js 20+, Python 3.11+, the Modal Python package, GitHub push a
 
 Run `update-github-and-modal.bat --check` for local validation without committing, pushing, or deploying. This checks that the Modal profile is present, but does not verify its online credentials. Optionally pass `--message "Your commit message"` when publishing.
 
+## Followed wallets
+
+Snipe cards show compact class icons for positive Solana token balances held by the addresses in `worker/followed-wallets.json`. F1/F2 mean Finder class 1/2, C1/C2 Clipper fast/slow, N1/N2 Nurture slow/fast, L1 Long holder, and Dev Developer. Names and classes are user-assigned; they do not establish identity or prove token creation. Hover or tap a badge to see matching wallets and check times. The expandable Followed wallets line lists coverage and the class legend.
+
+`collect_followed_wallets` samples both SPL Token and Token-2022 accounts every five minutes with confirmed commitment, using Solana `getTokenAccountsByOwner`. Cards match exact mint addresses. Failed checks retain the last complete holdings as stale; successful empty checks clear them. Samples older than ten minutes are stale. No badge is inconclusive when coverage is incomplete. This is a balance snapshot, not a buy/sell alert, and may include dust or unsolicited tokens. The collector defaults to the public mainnet RPC; `SOLANA_WALLET_RPC_URL` can select a dedicated endpoint in the collector environment. Local preview samples independently when collection is enabled; manually run `py worker/followed_wallets.py .data/followed-wallets.json` when disabled. `/api/followed-wallets` serves the shared sampled report.
+
 ## Trust and freshness
 
 The collector refreshes up to 1,800 retained contracts per run alongside discovery: saved refresh interests first (up to 300), then the Swing universe, recent discoveries, and older contracts rotated by last refresh attempt. Saving a supported token or opening Snipe, Swing, or Watchlist requests 24-hour refresh priority for contracts already in the retained sample. This sends contract IDs only; the watchlist itself remains browser-local. Unknown contracts use manual lookup and are not silently added to scheduled collection. The shared priority queue does not guarantee a fresh provider response.
