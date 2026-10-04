@@ -1,7 +1,7 @@
 .learning-tracks{display:flex;gap:8px;flex-wrap:wrap;max-width:1120px;margin:25px auto 0;padding-bottom:18px;border-bottom:1px solid var(--line)}
 .learning-tracks a{padding:8px 12px;border:1px solid transparent;border-radius:7px;color:#acbeca;font-size:13px}
 .learning-tracks a[aria-current=page]{color:var(--accent);border-color:#52643b;background:#263323}
-.course-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:32px 0}
+.course-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:32px 0}
 .course-card{display:flex;flex-direction:column;gap:12px;padding:28px;border:1px solid #3a4c59;border-radius:12px;background:linear-gradient(145deg,#1d2c30,#121b27)}
 .course-card:hover{border-color:var(--accent);text-decoration:none}
 .course-card>span{color:var(--accent);font-size:11px;letter-spacing:.09em}

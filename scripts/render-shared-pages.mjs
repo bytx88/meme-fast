@@ -3,7 +3,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 // The Inspect page owns the server-rendered masthead. Keep every page's
 // initial HTML in sync without waiting for JavaScript to paint navigation.
 const lessons=Array.from({length:8},(_,i)=>`meme-101-level-${i+1}`);
-const applied=['meme-202a','meme-202b',...['a','b'].flatMap(track=>Array.from({length:8},(_,i)=>`meme-202${track}-lesson-${i+1}`))];
+const applied=['meme-101b','meme-202a','meme-202b',...['meme-101b','meme-202a','meme-202b'].flatMap(track=>Array.from({length:8},(_,i)=>`${track}-lesson-${i+1}`))];
 const learning=['learn','meme-101',...lessons,'meme-101-bundles',...applied];
 const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','sources','about','model','privacy','terms',...learning];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;

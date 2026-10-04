@@ -1,0 +1,252 @@
+{
+  "code": "101B",
+  "name": "Survival & Hygiene",
+  "slug": "meme-101b",
+  "question": "Does this token deserve a position at all?",
+  "intro": "Separate the upside story from what could destroy the trade. Check the token, the demand, and your own decisions.",
+  "lens": [
+    "Build a thesis",
+    "Check hygiene",
+    "Keep checking"
+  ],
+  "tool": [
+    "Inspect",
+    "order-flow.html"
+  ],
+  "lessons": [
+    {
+      "title": "Thesis vs hygiene",
+      "question": "A good story — but is there a reason to refuse?",
+      "definition": "Thesis explains why demand could grow. Hygiene checks for failures that can disqualify the token.",
+      "why": "More upside evidence cannot cancel a severe structural failure.",
+      "checks": [
+        "Timely narrative, credible attention, and actual buyers",
+        "Supply control, liquidity control, and trading permissions",
+        "What is verified, missing, or changing"
+      ],
+      "healthy": "The thesis and the hygiene checks have separate evidence.",
+      "dangerous": "Excitement excuses a failed check or fills an evidence gap.",
+      "mistake": "Calling a polished website proof of safety.",
+      "takeaway": "Strong thesis + failed hygiene = skip.",
+      "example": [
+        "A meme attracts credible discussion and new buyers.",
+        "A privileged controller can prevent ordinary exits.",
+        "The attractive story does not repair that failure."
+      ],
+      "external": "Verify current permissions, sell restrictions, and liquidity control with chain-specific explorers and security tools. Meme Fast does not issue a hygiene clearance.",
+      "foundation": [
+        7,
+        "level-7-checklist"
+      ],
+      "deeper": "The source calls thesis additive and hygiene gating. Narrative, meta fit, X history, website claims, community independence, buyer growth, wallet behavior, and acceleration can support a thesis. None proves safety. Keep critical unknowns unresolved until evidence answers them; a pass is provisional, never a guarantee."
+    },
+    {
+      "title": "Immediate rug risk",
+      "question": "Can control over the token destroy an ordinary exit?",
+      "definition": "An immediate rug is a rapid failure caused by abusive control over supply, trading rules, or liquidity.",
+      "why": "A token can look active while ordinary holders cannot exit normally.",
+      "checks": [
+        "Current mint, freeze, blacklist, and transfer permissions",
+        "Sellability and fees for ordinary wallets",
+        "Liquidity controller and concentrated creator or related supply"
+      ],
+      "healthy": "Current controls and exit conditions are understood and independently checked.",
+      "dangerous": "A controller can block selling, extract liquidity, or unload dominant supply.",
+      "mistake": "Assuming a successful buy proves future sellability.",
+      "takeaway": "Check structural failure before considering entry.",
+      "example": [
+        "A token shows busy buying and a rising price.",
+        "Ordinary wallets face a severe sell restriction.",
+        "Activity does not make the token normally tradable."
+      ],
+      "external": "Use the exact contract or mint, current pool controls, explorer records, and chain-appropriate sell simulations. A historical sale or simulation cannot guarantee future execution.",
+      "foundation": [
+        7,
+        "2-rug-pull"
+      ],
+      "deeper": "Inspect creator holdings, suspected linked wallets, bundle and sniper inventory, funding patterns, taxes, unexplained supply changes, and known exploit history. Lock or burn claims need verification of the actual liquidity mechanism and duration. Concentration is exposure to investigate; it alone does not establish malicious intent.",
+      "references": [
+        [
+          "Solana: token authorities and freeze controls",
+          "https://solana.com/docs/tokens/basics"
+        ],
+        [
+          "Uniswap: unsellable token scams",
+          "https://support.uniswap.org/hc/en-us/articles/17523088290573-Unsellable-token-scams"
+        ]
+      ]
+    },
+    {
+      "title": "Slow extraction",
+      "question": "Who keeps selling into every new wave of buyers?",
+      "definition": "Planned slow-rug behavior extracts value over time through recurring distribution, transfers, or liquidity removal.",
+      "why": "A lively chart can hide a supply overhang that repeatedly consumes demand.",
+      "checks": [
+        "Related inventory, transfers, and repeated sales over time",
+        "Selling around attention spikes and failed rebounds",
+        "Liquidity changes and evidence connecting suspected wallets"
+      ],
+      "healthy": "Ownership broadens and fresh demand absorbs observable selling.",
+      "dangerous": "A suspected cluster repeatedly extracts value while exit depth weakens.",
+      "mistake": "Treating fresh addresses as independent owners.",
+      "takeaway": "Follow the inventory, not just the pump.",
+      "example": [
+        "Attention returns and new buying lifts price.",
+        "Suspected related wallets sell into successive rebounds.",
+        "Trace the transfers before attributing coordinated extraction."
+      ],
+      "evidence": [
+        "Inspect",
+        "order-flow.html",
+        "Look for repeated observed selling. Trace funding, transfers, remaining supply, and ownership externally; sampled flow cannot prove coordination or intent."
+      ],
+      "foundation": [
+        3,
+        "level-3-checklist"
+      ],
+      "deeper": "Common funding is a lead, not proof: exchange customers can share a funding source. Combine transfers, timing, balances, and repeated behavior. Estimated cost basis can miss earlier trades or transfers. Falling balances may reflect a transfer rather than a sale; keep those events separate."
+    },
+    {
+      "title": "Organic slow death",
+      "question": "Has demand faded without anyone engineering a rug?",
+      "definition": "Organic decline happens when the narrative loses attention and fresh buyers stop arriving.",
+      "why": "A declining token is not automatically a scam, but loyal holders cannot guarantee new demand.",
+      "checks": [
+        "Attention and credible discussion across comparable periods",
+        "Buyer arrivals, repeat participation, and observed activity",
+        "Whether rebounds attract fresh demand and usable liquidity"
+      ],
+      "healthy": "New participation persists when price and promotion quiet down.",
+      "dangerous": "Each bounce meets exits while attention and activity keep thinning.",
+      "mistake": "Using a loyal community as the entire demand thesis.",
+      "takeaway": "Separate fading demand from deliberate extraction.",
+      "example": [
+        "The community stays loud after the first burst.",
+        "Fewer new buyers arrive and rebounds lose activity.",
+        "Check demand deterioration before assuming malicious intent."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Compare observed attention, then use Inspect for sampled buyer activity. Mentions and engagement do not establish genuine demand or a complete buyer count."
+      ],
+      "foundation": [
+        6,
+        "level-6-checklist"
+      ],
+      "deeper": "The source describes narrative decline, slower buyer arrivals, weak rebounds, and decaying activity. These are possible observations, not a fixed sequence. Holder counts can rise without meaningful new capital, and social activity can be manufactured. Compare multiple evidence sources rather than assigning a cause from the chart alone."
+    },
+    {
+      "title": "The self rug",
+      "question": "Is your own decision making becoming the biggest risk?",
+      "definition": "A self rug is trader shorthand for turning manageable exposure into a severe loss through poor decisions.",
+      "why": "A token can remain tradable while your position becomes unmanageable.",
+      "checks": [
+        "Exposure relative to your written loss and execution plan",
+        "Evidence that invalidates the thesis",
+        "Whether averaging, leverage, or chasing overrides the plan"
+      ],
+      "healthy": "Decisions follow defined conditions and current executable quotes.",
+      "dangerous": "Sunk cost or community excitement replaces the original plan.",
+      "mistake": "Calling refusal to reassess conviction.",
+      "takeaway": "A clean token can still become a bad trade.",
+      "example": [
+        "A trader plans a limited exposure with clear invalidation.",
+        "The evidence fails, but the trader keeps increasing exposure.",
+        "The worsening decision is separate from contract safety."
+      ],
+      "external": "Use your position record and current execution quotes. Meme Fast does not verify your portfolio exposure or enforce your exit plan.",
+      "foundation": [
+        8,
+        "1-position-size"
+      ],
+      "deeper": "Chasing, unplanned averaging, excessive leverage, ignored distribution, and deteriorating liquidity can compound exposure. A stop trigger is not a guaranteed fill or maximum loss. The source reserves detailed position management for a future 303 course; this chapter introduces the distinction without prescribing sizing or profit targets."
+    },
+    {
+      "title": "Attention & catalyst expiry",
+      "question": "What gives the next buyer a reason to arrive?",
+      "definition": "Attention can burst, persist, plateau, renew, or fade. Completing a catalyst can remove the next reason to buy.",
+      "why": "A successful event can still be followed by weaker demand.",
+      "checks": [
+        "Attention trend alongside buyer activity",
+        "What actually changed after the catalyst",
+        "Evidence of renewal beyond recycled promotion"
+      ],
+      "healthy": "A new reason to participate attracts observable fresh demand.",
+      "dangerous": "The event completes and only the old excitement remains.",
+      "mistake": "Automatically turning a short-lived narrative into a long hold.",
+      "takeaway": "Reassess the thesis when the reason to buy changes.",
+      "example": [
+        "Attention builds around a migration.",
+        "Migration succeeds, but buyer activity then fades.",
+        "Event success and demand persistence are separate questions."
+      ],
+      "evidence": [
+        "Tweet",
+        "narratives.html",
+        "Review attention evidence before and after the event, then compare sampled flow in Inspect. Attention stages are a research lens, not a verified lifecycle label."
+      ],
+      "foundation": [
+        6,
+        "2-catalyst"
+      ],
+      "deeper": "The source's lens is Start → Burst → Sustained → Plateau → Renewal or Downtrend → Drained. Tokens can skip or revisit stages. A catalyst may expand access or participation, but its completion does not guarantee continuation or a top. Expected attention duration informs reassessment; it is not a precise holding-period formula."
+    },
+    {
+      "title": "Due diligence keeps moving",
+      "question": "What changed since the last check?",
+      "definition": "Live due diligence updates both the demand thesis and the hygiene checks as new evidence arrives.",
+      "why": "An earlier check can become stale when controls, inventory, liquidity, or demand change.",
+      "checks": [
+        "Early move: current controls, concentration, and buyer activity",
+        "Later structure: selling history, absorption, and liquidity changes",
+        "Which new evidence confirms or rejects the original case"
+      ],
+      "healthy": "Checks are repeated when relevant evidence changes.",
+      "dangerous": "Token age or one clean snapshot becomes permanent clearance.",
+      "mistake": "Using speed as a reason to ignore a critical unknown.",
+      "takeaway": "More history helps investigation; it does not remove risk.",
+      "example": [
+        "An early snapshot shows demand and no resolved failure.",
+        "Later transfers and shrinking liquidity change the evidence.",
+        "Reassess the case instead of relying on the old snapshot."
+      ],
+      "evidence": [
+        "Swing",
+        "radar.html",
+        "Compare reported liquidity and observed token history; use Inspect for sampled flow. Permissions, related supply, and actual sellability still need external checks."
+      ],
+      "foundation": [
+        4,
+        "level-4-checklist"
+      ],
+      "deeper": "Snipe asks about early potential; Swing can investigate persistence after the first hype cycle. Both need current hygiene checks. Historical sales, lower concentration, returning buyers, and repeated absorption add context, but do not certify future exits. Keep critical unknowns explicit rather than treating them as acceptable because the opportunity is moving quickly."
+    },
+    {
+      "title": "Clear decision states",
+      "question": "What would make you change your decision?",
+      "definition": "Decision states connect evidence to a written plan: Skip, Watch, Probe, Add/Hold, or Reduce/Exit.",
+      "why": "A clear state helps stop excitement from silently changing the rules.",
+      "checks": [
+        "Thesis: supported, weak, or unresolved",
+        "Hygiene: failure, critical unknown, or provisionally acceptable",
+        "Conditions for reassessment and executable actions"
+      ],
+      "healthy": "Every decision has evidence, limits, and conditions for changing it.",
+      "dangerous": "A label is treated as an automatic trade instruction.",
+      "mistake": "Promoting Watch to entry because price moved.",
+      "takeaway": "Identify what can kill the trade before acting.",
+      "example": [
+        "Interesting narrative, but a critical permission is unresolved: Watch.",
+        "Verification reveals a severe restriction: Skip.",
+        "The thesis never overrides the failed hygiene check."
+      ],
+      "external": "These are learning labels for your plan, not Meme Fast ratings or trade signals. Critical evidence and execution conditions must be checked independently.",
+      "foundation": [
+        8,
+        "8-exit-strategy"
+      ],
+      "deeper": "Skip means a severe hygiene failure or no credible thesis. Watch keeps unresolved cases under observation. Probe describes limited initial exposure only after the necessary checks and a plan. Add/Hold requires confirming evidence within that plan; Reduce/Exit responds to deterioration and execution constraints. Neither a label nor a provisional check promises safety."
+    }
+  ]
+}
