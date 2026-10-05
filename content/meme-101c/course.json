@@ -2,13 +2,13 @@
   "code": "101C",
   "name": "Understand the Dev & Supply",
   "slug": "meme-101c",
-  "question": "What am I buying into—and what can the supply side do?",
-  "intro": "Start with bundles and visible wallets. Learn issuance, control, sellable supply, liquidity, earnings, and the dev–buyer relationship through practical checks.",
-  "principle": "See both sides: test the demand thesis and the hygiene of supply. Structural checks reduce blind spots; they do not guarantee market demand.",
+  "question": "Who holds the tokens, what can the dev change, and how do they get paid?",
+  "intro": "Start with wallet checks, then inspect supply, permissions, unlocks, liquidity, earnings, and buyer activity. Each chapter adds to one worked example and your own review record.",
+  "principle": "Check why people might buy and what could affect their ability to sell. Record the evidence, time, and unanswered questions for each check.",
   "lens": [
-    "Understand the mechanism",
-    "Inspect the evidence",
-    "Read both sides"
+    "Learn what to check",
+    "Open the records",
+    "Write your findings"
   ],
   "tool": [
     "Inspect",
@@ -17,7 +17,7 @@
   "lessons": [
     {
       "title": "Bundles: what you are buying into",
-      "question": "Could many wallets represent one early inventory position?",
+      "question": "Could these wallets be holding tokens for the same group?",
       "body_file": "content/meme-101c/01.md",
       "references": [
         [
@@ -31,6 +31,10 @@
         [
           "Solscan: Solana explorer",
           "https://solscan.io/"
+        ],
+        [
+          "Solscan: token page and holders",
+          "https://docs.solscan.io/browsing-the-site/token-page"
         ]
       ]
     },
@@ -38,7 +42,16 @@
       "title": "Primary address, side wallets & blind spots",
       "question": "What does “dev holding 2%” actually cover?",
       "body_file": "content/meme-101c/02.md",
-      "references": []
+      "references": [
+        [
+          "Solscan: token page and holders",
+          "https://docs.solscan.io/browsing-the-site/token-page"
+        ],
+        [
+          "Solscan: transaction details",
+          "https://docs.solscan.io/transaction-details/transaction-details"
+        ]
+      ]
     },
     {
       "title": "Creation, supply, first allocations & price",
@@ -63,6 +76,10 @@
         [
           "Solana: freeze accounts",
           "https://solana.com/docs/tokens/basics/freeze-account"
+        ],
+        [
+          "Solscan: program and upgrade details",
+          "https://docs.solscan.io/transaction-details/program"
         ]
       ]
     },
@@ -70,16 +87,42 @@
       "title": "Float, locks, vesting & unlocks",
       "question": "Which inventory can reach the market now—or later?",
       "body_file": "content/meme-101c/05.md",
-      "references": []
+      "references": [
+        [
+          "Streamflow: vesting schedule",
+          "https://docs.streamflow.finance/en/articles/9339223-token-vesting"
+        ],
+        [
+          "Streamflow: claimable tokens",
+          "https://docs.streamflow.finance/en/articles/9670516-claiming-unlocked-tokens"
+        ],
+        [
+          "Streamflow: cancellation rights",
+          "https://docs.streamflow.finance/en/articles/9674831-cancel-contract"
+        ],
+        [
+          "Streamflow: recipient-change rights",
+          "https://docs.streamflow.finance/en/articles/9670549-transfer-contract"
+        ]
+      ]
     },
     {
       "title": "Liquidity control, graduation & migration",
       "question": "Who can change the market underneath your position?",
       "body_file": "content/meme-101c/06.md",
-      "references": []
+      "references": [
+        [
+          "Solscan: markets and pool information",
+          "https://docs.solscan.io/browsing-the-site/token-page"
+        ],
+        [
+          "Raydium: liquidity positions and farms",
+          "https://docs.raydium.io/raydium/for-liquidity-providers/liquidity-pools/raydium-farms"
+        ]
+      ]
     },
     {
-      "title": "How the dev earns: fees, inventory & Pay Dev",
+      "title": "Creator earnings: fees, claims & token sales",
       "question": "Does the creator need to sell tokens to get paid?",
       "body_file": "content/meme-101c/07.md",
       "references": [
@@ -103,28 +146,33 @@
       "title": "Cost basis, sales & remaining inventory",
       "question": "What did the early holders pay, and what are they doing now?",
       "body_file": "content/meme-101c/09.md",
-      "references": []
+      "references": [
+        [
+          "Solscan: transaction details",
+          "https://docs.solscan.io/transaction-details/transaction-details"
+        ]
+      ]
     },
     {
-      "title": "Dev Cycle / Buyer Cycle: the symbiosis",
-      "question": "Why must a trader see the supply side as well as their own thesis?",
+      "title": "Dev and buyers: work, earnings & demand",
+      "question": "How do the dev’s work, earnings, and sales affect buyers?",
       "body_file": "content/meme-101c/10.md",
       "references": []
     },
     {
-      "title": "Alignment, monetization & destructive distribution",
+      "title": "Dev sales: spending, disclosure & buyer impact",
       "question": "When does earning from a token become a problem for buyers?",
       "body_file": "content/meme-101c/11.md",
       "references": []
     },
     {
-      "title": "Launch history, departures & demand exhaustion",
+      "title": "Past launches and changes in buyer demand",
       "question": "What could make the dev or the buyers stop?",
       "body_file": "content/meme-101c/12.md",
       "references": []
     },
     {
-      "title": "Whole-token review: thesis, hygiene & what you cannot see",
+      "title": "Review the token: demand, supply & unanswered questions",
       "question": "How do you turn these checks into one practical retail decision?",
       "body_file": "content/meme-101c/13.md",
       "references": []

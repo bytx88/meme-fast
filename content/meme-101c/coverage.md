@@ -44,3 +44,13 @@ General 101A vocabulary and technical LC remain foundation context; the dedicate
 ## Evidence limits
 
 Solana mint, authority, freeze, and transfer-fee explanations were checked against official documentation. Platform launch modes, issuance exceptions, and Pay Dev badge semantics require current platform-specific verification; no unsupported universal number or badge definition is taught. The Jito reference is linked for further reading; its page was inaccessible to this cloud and no unverified service-specific limits are asserted.
+
+## Practical revision
+
+Keep the 13 chapter URLs and visible answers. Chapter 1 now introduces the vocabulary and creator/buyer context before bundles. Each chapter produces a record for the final browser-local worksheet. The worksheet supports explicit save and text download; its read-only worked example cannot replace personal notes. A downloadable blank template works without JavaScript.
+
+SAMPLE is one illustrative case throughout: 150m total = 30m pool + 20m vesting + 100m available holder units. The confirmed creator group initially holds 12m available units. Later sales of 5m and purchases of 1m leave 8m. Internal transfers cancel. At the final review, the next 4m release would give 12m group units / 104m available holder units, about 11.5%, if nothing else changes. The 3% threshold is explicitly an example personal screen, never a universal safety threshold.
+
+Chapter 7 is renamed Creator earnings: fees, claims & token sales. Platform-specific Pay Dev labels remain questions to verify, rather than a promised universal definition. Wording uses direct checks and recorded findings.
+
+Real Solscan screenshots show field locations, captured on the public Wrapped SOL page on 5 October 2026. Captions identify its special mechanics and explain that it is a navigation example, separate from SAMPLE. The screenshot pixels are embedded in SVG assets with field notes. Streamflow vesting, claims, cancellation, and recipient-change guidance is linked to official documentation; Solscan token, transaction, and program documentation supports the walkthroughs. No wallet connection or transaction submission is required for the research steps.

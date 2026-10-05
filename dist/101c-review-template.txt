@@ -1,0 +1,53 @@
+101C token review
+Add source links and UTC check times to each entry.
+
+Token and check time
+Chain, full token address, launch mode, and UTC check time.
+
+
+Wallets and holdings
+Owner, units, confirmed links, suspected links, denominator, and transaction sources.
+
+
+Supply and allocations
+Total units, pool reserves, locked units, available holder units, and sources.
+
+
+Creator permissions
+Mint, freeze, fee, transfer, and upgrade controls; controller/status and sources.
+
+
+Locks and next releases
+Contract, beneficiary, claimable units, next amount/date/timezone, and change rights.
+
+
+Pools and sale quotes
+Pair, pool, liquidity controller, lock coverage/expiry, quote size, proceeds, impact, and time.
+
+
+Creator earnings
+Fee rule/source, recipient, accrued and paid amounts, claims, sales, and spending evidence.
+
+
+Buyer activity and catalyst
+Equal windows, pool coverage, group/other buying, primary sources, and competitors.
+
+
+Group transaction ledger
+Opening holdings + purchases + outside inflows - sales - outside outflows = closing holdings. Internal transfers cancel.
+
+
+Creator work and buyer response
+Dated delivery, promotion, disclosure, spending, buyer activity, and source links.
+
+
+Previous launches
+Contracts, team-link confidence, promises, delivery, sales, and outcomes.
+
+
+Unanswered questions
+Missing history, uncertain links, unknown controllers, stale data, and needed evidence.
+
+
+Conclusion and next check
+Separate demand and supply statuses, your screening limit, and what to check next with date/time.

@@ -22,7 +22,7 @@ test('101C is one reachable course with practical instruction for every core sup
   assert.ok(!page.includes('[[TOKEN'));
   assert.ok((await load(lesson.body_file)).includes('## '));
  }
- const expected={1:['What is a bundle?','Why is it risky?','What the bubble map cannot show'],3:['Who receives the first tokens?','Who sets the starting price?'],4:['How many more can they mint?','Freeze accounts'],5:['What does locked mean?','When does it release?'],7:['Does the creator need to sell tokens','Pay Dev','accrued or actually received'],8:['first-30-minute surge','retail may not see'],10:['dev-buyer-cycle','Buyer side','Dev side','interaction layer'],11:['destructive distribution','monetization'],12:['History is evidence','Reasons each side may change'],13:['demand thesis','Supply hygiene','Unknowns']};
+ const expected={1:['What is a bundle?','Why is it risky?','What the bubble map cannot show'],3:['Who receives the first tokens?','Who sets the starting price?'],4:['How many more can they mint?','Freeze accounts'],5:['What does locked mean?','Next release'],7:['Does the creator need to sell tokens','Pay Dev','accrued or actually received'],8:['first-30-minute surge','retail may not see'],10:['dev-buyer-cycle','Buyer side','Dev side','What the dev and buyers do'],11:['Destructive distribution','disclosure'],12:['History is evidence','Reasons each side may change'],13:['demand thesis','Supply hygiene','Unknowns']};
  for(const [number,terms] of Object.entries(expected)){
   const page=await load(`dist/meme-101c-lesson-${number}.html`);
   for(const term of terms)assert.ok(page.includes(term),`${number}: ${term}`);

@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 shared = runpy.run_path(str(ROOT / 'scripts/render-meme-101.py'))
 page = shared['page']
 escape = html.escape
+dev_tools = runpy.run_path(str(ROOT / 'scripts/render-101c-tools.py'))
+template = '101C token review\nAdd source links and UTC check times to each entry.\n\n' + '\n\n'.join(
+    label + '\n' + help_text + '\n' for _, label, help_text in dev_tools['FIELDS'])
+(ROOT / 'dist/101c-review-template.txt').write_text(template.rstrip() + '\n', encoding='utf-8')
 courses = [json.loads(path.read_text(encoding='utf-8')) for path in sorted((ROOT / 'content/meme-202').glob('202?.json'))]
 courses.insert(0, json.loads((ROOT / 'content/meme-101b/course.json').read_text(encoding='utf-8')))
 courses.insert(1, json.loads((ROOT / 'content/meme-101c/course.json').read_text(encoding='utf-8')))
@@ -46,6 +50,8 @@ for course in courses:
             headings = re.findall(r'^## (.+)$', source, re.M)
             toc = '<nav class="lesson-toc" aria-label="In this lesson"><h2>In this lesson</h2>' + ''.join(
                 f'<a href="#{re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")}">{escape(title)}</a>' for title in headings) + '</nav>'
+            if i == 13:
+                toc = toc.replace('</nav>', '<a href="#review-worksheet">Your review worksheet</a></nav>')
             curriculum = '<nav aria-label="Course chapters"><h2>101C · Dev &amp; Supply</h2>' + ''.join(
                 f'<a href="./{slug}-lesson-{n}.html"' + (' aria-current="page"' if n == i else '') + f'><span>{n:02}</span>{escape(item["title"])}</a>'
                 for n, item in enumerate(lessons, 1)) + '</nav>'
@@ -54,18 +60,23 @@ for course in courses:
             refs = ''.join(f'<p><a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{escape(label)} ↗</a></p>' for label, url in lesson.get('references', []))
             refs = '<section class="course-references"><h2>Mechanism references</h2>' + refs + '</section>' if refs else ''
             lesson_html = shared['markdown'](source)
+            case_heading = '<h2 id="practical-case-illustrative">'
+            lesson_html = lesson_html.replace(case_heading, dev_tools['field_guide'](i) + case_heading, 1)
+            checks_heading = '<h2 id="check-your-understanding-answered">'
+            lesson_html = lesson_html.replace(checks_heading,
+                (dev_tools['worksheet']() if i == 13 else dev_tools['record_link'](i)) + checks_heading, 1)
             if i == 10:
                 paths = [('Dev side', ['Create', 'Launch', 'Market', 'Improve', 'Monetize', 'Reinvest / Exit']),
                          ('Buyer side', ['Discover', 'Assess', 'Enter', 'Monitor', 'Add / Hold / Exit', 'Reassess'])]
-                diagram = '<figure class="dev-buyer-cycle"><figcaption>Two sides, one interaction layer</figcaption>'
+                diagram = '<figure class="dev-buyer-cycle"><figcaption>What the dev and buyers do</figcaption>'
                 for label, actions in paths:
                     diagram += f'<div><h3>{label}</h3><ol>' + ''.join(f'<li>{action}</li>' for action in actions) + '</ol></div>'
-                diagram += '<p>Shared layer: narrative · attention · inventory · liquidity · price · volume · fees · holders</p></figure>'
+                diagram += '<p>Check how work, promotion, sales, fees, and liquidity affect continued buying.</p></figure>'
                 lesson_html = diagram + lesson_html
             body = (f'<div class="learn-content applied-page" id="lesson-content"><p class="learn-breadcrumb">{link("learn.html", "Learn")} / <a href="./{slug}.html">101C · Dev &amp; Supply</a> / {i:02}</p>'
                     f'<header class="learn-intro"><span class="kicker">101C.{i} / CHAPTER {i} OF {count}</span><h1>{escape(lesson["title"])}</h1><p>{escape(lesson["question"])}</p></header>'
                     f'<div class="learn-layout"><aside class="learn-sidebar">{curriculum}</aside><article class="lesson-body">{toc}{lesson_html}{refs}'
-                    f'<p class="learn-muted">Illustrations teach mechanisms; they are not live token assessments. Inspect can orient sampled trades; wallet attribution and control checks may require external evidence.</p>'
+                    f'<p class="learn-muted">SAMPLE is made up for this course. For a real token, use current transaction records and platform rules. Inspect shows sampled trades; use external records to check ownership and permissions.</p>'
                     f'<nav class="lesson-pager" aria-label="Previous and next chapters"><a href="./{previous}">← Previous</a><a href="./{following}">Next →</a></nav></article></div></div>')
             page(f'{slug}-lesson-{i}', f'101C.{i} · {lesson["title"]}', lesson['question'], body)
             continue
@@ -122,7 +133,7 @@ for course in courses:
         context = 'Build on <a href="./meme-101.html">101A · Foundations</a>, then choose <a href="./meme-202a.html">202A · Snipe</a> or <a href="./meme-202b.html">202B · Swing</a>.'
         following_course = '<a href="./meme-101c.html">Continue to 101C · Dev &amp; Supply →</a>'
     elif code == '101C':
-        context = 'The complete dev and supply path: bundles, creator powers, inventory, liquidity, earnings, and the dev–buyer relationship.'
+        context = 'Follow SAMPLE through all 13 chapters. Build a wallet list, supply record, unlock calendar, transaction ledger, and final review. The numbers and wallet labels are illustrative.'
         following_course = '<a href="./meme-202a.html">Apply the evidence in 202A · Snipe →</a> / <a href="./meme-202b.html">202B · Swing →</a>'
     elif code == '303A':
         context = 'Build on <a href="./meme-101b.html">101B · Survival &amp; Hygiene</a> and the evidence lenses in <a href="./meme-202a.html">202A · Snipe</a> / <a href="./meme-202b.html">202B · Swing</a>.'
@@ -133,7 +144,12 @@ for course in courses:
         following_course = f'<a href="./{other["slug"]}.html">Explore {other["code"]} · {other["name"]} →</a> / <a href="./meme-303a.html">Next: 303A · Managing Your Position →</a>'
     category = 'SURVIVAL BASICS' if code == '101B' else 'MANAGE EXPOSURE' if code == '303A' else 'UNDERSTAND THE SUPPLY SIDE' if code == '101C' else 'APPLIED LEARNING'
     principle = f'<aside class="course-principle"><p>{escape(course["principle"])}</p></aside>' if course.get('principle') else ''
-    body = f'''<article class="learn-content applied-page" id="lesson-content"><header class="learn-intro"><span class="kicker">{category} / {code}</span><h1>{code} · {escape(name)}</h1><p>{escape(course['question'])}</p><p class="learn-muted">{escape(course['intro'])}</p><a class="learn-start" href="./{slug}-lesson-1.html">Start chapter 1 →</a><span class="course-count">{count} chapters with worked investigations · examples + evidence</span></header>{principle}{flow(course['lens'])}<p class="course-context">{context}</p><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Learn, then investigate</h2><p>{link(route, "Open " + tool + " →")} <span class="learning-divider">/</span> {following_course}</p></section></article>'''
+    orientation = ('<section class="learn-route"><h2>What you will check</h2><p>Start with the short introduction in Chapter 1. '
+        'Chapters 1–2 trace wallets; 3–6 check supply, permissions, unlocks, and liquidity; 7–9 track earnings, buyers, and sales; '
+        '10–12 compare creator work with buyer activity. Chapter 13 brings your records together.</p>'
+        '<p><a href="./meme-101c-lesson-13.html#review-worksheet">Open your review worksheet →</a> '
+        'Save notes in this browser or download a copy. Answers stay visible in every chapter.</p></section>') if code == '101C' else ''
+    body = f'''<article class="learn-content applied-page" id="lesson-content"><header class="learn-intro"><span class="kicker">{category} / {code}</span><h1>{code} · {escape(name)}</h1><p>{escape(course['question'])}</p><p class="learn-muted">{escape(course['intro'])}</p><a class="learn-start" href="./{slug}-lesson-1.html">Start chapter 1 →</a><span class="course-count">{count} chapters with worked investigations · examples + evidence</span></header>{principle}{flow(course['lens'])}<p class="course-context">{context}</p>{orientation}<div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Learn, then investigate</h2><p>{link(route, "Open " + tool + " →")} <span class="learning-divider">/</span> {following_course}</p></section></article>'''
     page(slug, f'{code} · {name}', course['intro'], body)
 
 course_cards = '<a class="course-card" href="./meme-101.html"><span>START HERE / 101A</span><h2>Foundations</h2><p>What am I looking at?</p><small>Token numbers, launch, ownership, flow, attention, and risk.</small><strong>8 foundation levels →</strong></a>'
