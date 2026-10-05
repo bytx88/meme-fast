@@ -1,0 +1,68 @@
+{
+  "1": {
+    "title": "Price structure",
+    "walkthrough": "On the chosen hourly chart, lows rise from 0.80 to 0.90 to 1.00 while highs repeatedly stall near 1.20. That is a defined range with rising lows, not proof of a coming breakout. Switching to minute candles can tell a different story.",
+    "method": "Mark completed highs, lows, and reactions on one declared timeframe. Record closes and wick extremes separately. Compare swaps and liquidity around repeated tests of the same area; draw only what the observations support rather than fitting a pattern to the desired trade.",
+    "exercise": "A wick crosses 1.20 and the candle closes at 1.05. Has the new range been accepted? Not yet. Require continuing activity and behavior around that level."
+  },
+  "2": {
+    "title": "Base & repricing",
+    "walkthrough": "After trading near 1.00, price spikes to 1.50, then spends hours between 1.30 and 1.40 through several sales. That can support a new working range more than a single print at 1.50. It still can fail later.",
+    "method": "Define the proposed range, time spent, number of distinct tests, sell sizes, and recovery. Check that pool coverage and liquidity remained comparable; a thinner pool can exaggerate both spikes and apparent rebounds. Record the lower boundary and behavior that would reject the base interpretation.",
+    "exercise": "Price touches 1.40 once with no continuing trades. Is that repricing? It is an isolated observed price, not evidence that participants sustained a new valuation range."
+  },
+  "3": {
+    "title": "Supply zones",
+    "walkthrough": "Repeated rejection near 1.20 accompanied by large sales suggests an area of selling pressure. It does not establish that every holder bought at 1.20 or that those sellers will always remain there.",
+    "method": "Compare transaction sizes and execution prices near each rejection. Use wallet history to identify actual remaining inventory where available. Distinguish candle-derived volume allocation from real per-swap selling; candles alone cannot reconstruct directional inventory or individual cost basis.",
+    "exercise": "Three candles reject the same price but holder histories are missing. Can you claim trapped holders are selling at break-even? No. Describe the repeated rejection and selling evidence without inventing cost basis."
+  },
+  "4": {
+    "title": "Demand & absorption",
+    "walkthrough": "A $2,000 sale drops price 8% in one window, while a similar sale later drops it 2% and price recovers with buying. That may indicate improved absorption, but added liquidity or a different route can also explain the smaller impact.",
+    "method": "Compare sales of similar size against contemporaneous depth and surrounding buys. Record downside, recovery time, and the buyers involved where identity is supported. Absorption means observed selling met sufficient buying or depth; it is not synonymous with every dip being safe.",
+    "exercise": "The second sale has lower impact only because pool depth doubled. Is stronger buyer conviction proven? No. A liquidity change explains part of the result; avoid attributing everything to demand."
+  },
+  "5": {
+    "title": "Holder rotation",
+    "walkthrough": "Wallet A transfers 5m units to B. Holder count changes, but no sale occurred. If A instead sells and unrelated purchasers receive inventory through swaps, that is a different ownership change. Missing links make independence provisional.",
+    "method": "Trace transaction type and quantities, reconcile old and new balances, and investigate funding links where appropriate. Separate ordinary pool and system addresses. Use actual cost histories rather than marking every new wallet’s balance at current price as its entry cost.",
+    "exercise": "Ten new addresses receive inventory from one source without buying. Has ownership become organic? Not established. It may be one position split across addresses."
+  },
+  "6": {
+    "title": "Expansion & pullback",
+    "walkthrough": "A move from 1.00 to 1.40 retraces to 1.20. That pullback differs from falling below the original 1.00 area with declining depth. The percentage decline alone does not reveal whether selling was absorbed.",
+    "method": "Mark the original base and expansion, then examine sell size, recovery, and current liquidity during the pullback. Compare actual activity with the earlier breakout window. Set the evidence that would invalidate continuation before describing every cheaper print as an opportunity.",
+    "exercise": "Price retraces mildly but the pool loses most of its liquidity. Is the shallow chart pullback enough to preserve the case? No. Executable conditions worsened independently of the chart."
+  },
+  "7": {
+    "title": "Continuation vs distribution",
+    "walkthrough": "Buying grows from $10k to $20k per equal hour, but price repeatedly fails to advance while early holders reduce balances. More buying effort with little progress can be consistent with distribution; verification requires the inventory evidence.",
+    "method": "Compare buying effort, price progress, actual seller history, and liquidity across equal windows. Account for arbitrage or routes that inflate activity. If buying starts to produce sustained progress while inventory pressure declines, update the interpretation rather than keeping a permanent distribution label.",
+    "exercise": "Volume doubles with flat price, but both sides are repetitive routing trades and balances are unknown. Is distribution confirmed? No. The volume pattern alone cannot identify who is unloading."
+  },
+  "8": {
+    "title": "Swing lifecycle",
+    "walkthrough": "A token expands, transfers early supply through actual sales, falls, and forms a range. Later it may recover, keep fading, or cease meaningful trading. These are descriptions of observed market phases, not a required sequence or technical launch milestones.",
+    "method": "Write a timeline with price range, demand evidence, inventory changes, and liquidity at each phase. State what new evidence would support another expansion and what would reject it. Do not rename every rebound a new cycle without renewed participation.",
+    "exercise": "A graduated token enters a price base. Has its technical lifecycle restarted? No. Graduation is a completed mechanism event; the price phase has changed."
+  },
+  "9": {
+    "title": "Retracement references: 0.5 & 0.618",
+    "walkthrough": "For a measured rise from 1.00 to 2.00, a 50% retracement of the rise is 1.50; a 61.8% retracement is 1.382. This uses the one-dollar move, not 61.8% of the final price. These references are chosen coordinates, not mechanisms forcing demand.",
+    "method": "State both anchors and the convention before calculating. Compare actual selling, liquidity, and renewed buying near the level. Changing anchors after every failure makes the reference difficult to test; retain the original measurement or explicitly record why it changed.",
+    "exercise": "Price touches 1.382 while hygiene deteriorates and buys disappear. Does the Fibonacci reference override those facts? No. A calculated level supplies no independent permission, demand, or execution evidence."
+  },
+  "10": {
+    "title": "Attention persistence",
+    "walkthrough": "An announcement can attract a short burst of posts, while genuine users or repeated buyers return after the event. A quiet-price period with continuing independent discussion differs from recycled promotion with no renewed buying.",
+    "method": "Compare equal attention windows, sources, publication dates, and contracts. Trace any claimed catalyst to primary evidence. Align the observations with buy activity and liquidity; a sampled RSS zero is not proof that nobody is discussing the token.",
+    "exercise": "Price is quiet and one promoter repeats yesterday’s announcement 30 times. Is attention persistent? Repetition is present, but independent breadth and renewed participation remain unproven."
+  },
+  "11": {
+    "title": "Market maturity & the method boundary",
+    "walkthrough": "A curve token with one thin pool, an established multi-pool DEX token, and a token with a perpetual market have different observable mechanics. Funding rates and open interest are irrelevant when the token has no derivatives venue.",
+    "method": "List actual venues, pool or book depth, available history, and applicable metrics first. On derivatives venues, distinguish spot trading from leveraged positioning and check funding definitions. On an early curve, prioritize launch controls and inventory. Use BTC correlation only on comparable data and a suitable horizon.",
+    "exercise": "A token gains a CEX listing. Has its liquidity, safety, or market maturity automatically improved enough for a larger position? No. Verify book depth, venue access, permissions, and the actual trading conditions."
+  }
+}

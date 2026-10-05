@@ -1,0 +1,68 @@
+{
+  "1": {
+    "title": "Choose the container",
+    "walkthrough": "A $1,000 position may be small relative to a $100,000 portfolio but large relative to a $5,000 pool. Portfolio affordability and execution capacity are separate limits. A intended one-hour observation can also become an unmanaged week-long holding.",
+    "method": "Write the role of the position, maximum total exposure, acceptable complete loss, expected reassessment time, and exit conditions. Compare quotes at that size. A “scout” or “runner” label is useful only if it changes a written exposure and monitoring plan.",
+    "exercise": "You can afford to lose $1,000 but your quote shows severe exit impact. Is the position sized appropriately? Portfolio tolerance is satisfied, but the execution constraint is not."
+  },
+  "2": {
+    "title": "Opportunity vs portfolio risk",
+    "walkthrough": "Four $250 tokens on the same chain expose $1,000 to a shared chain or venue failure. A spot token can become worthless; a leveraged position can introduce liquidation and other obligations according to its contract.",
+    "method": "Compute each worst-case cash loss and aggregate common failure sources before looking at expected upside. Distinguish cash already committed, marked value, and obligations. A stop-loss price does not guarantee limiting the cash loss in illiquid markets.",
+    "exercise": "Are four tokens automatically safer than one if all depend on the same bridge and pool venue? No. Different tickers can share the same failure exposure."
+  },
+  "3": {
+    "title": "Scout, then earn promotion",
+    "walkthrough": "A $50 scout can limit the cost of learning about a token. Adding $150 makes total committed capital $200; the add needs fresh evidence rather than a green candle. A small first position does not excuse unresolved critical permissions.",
+    "method": "Record what the scout is testing: demand persistence, executable depth, or a specific thesis. Define promotion criteria and maximum total allocation before entering. At an add, recheck hygiene, quote cost, and the new budget. Record which criterion passed and which remains unknown.",
+    "exercise": "The scout doubles in price, but no new participation evidence appears. Has it earned automatic promotion? No. A price outcome is not the same as satisfying the planned evidence conditions."
+  },
+  "4": {
+    "title": "Adding up or down",
+    "walkthrough": "Buying $100 at 1.00 and $100 at 0.50 acquires 300 units for $200, averaging about 0.667 before costs. The lower average does not improve the token’s permissions or restore disappeared demand.",
+    "method": "For any add, calculate new quantity, cost basis, total cash committed, current exposure, and exit quotes. Explain what improved independently of price and whether the original invalidation still holds. Apply the same evidence requirement to adds after rises and after falls.",
+    "exercise": "Your thesis is invalidated at 0.50, but averaging lowers break-even. Did the lower average repair the thesis? No. It changes accounting, not the supporting evidence."
+  },
+  "5": {
+    "title": "Harvest & residual exposure",
+    "walkthrough": "You invest $200 and later receive $220 net from partial sales. Original cash has been recovered, but a remaining position marked at $300 can still lose $300 of current value. “House money” hides that economic exposure.",
+    "method": "Record actual sale proceeds after fees, remaining units, current conservative valuation, and executable sale quotes. Reconcile realized cash against original cost. Decide why the residual deserves its present size; do not use recovered cost as proof that holding has no risk.",
+    "exercise": "After recovering cost, does a $300 residual have zero downside? It has no unrecovered original cash under that accounting, but it still has $300 of present marked exposure that may fall or be difficult to realize."
+  },
+  "6": {
+    "title": "Reset the mission",
+    "walkthrough": "After a partial exit, an old $1,000 position may leave $200 of current exposure. Adding $500 creates a new $700 exposure decision. The original trade’s success does not authorize that new amount.",
+    "method": "Write a fresh mission: current thesis, hygiene, allowable new capital, retained exposure, reassessment time, and invalidation. Count additions against the current budget rather than mentally financing them from past wins. Recheck quotes for the new total size.",
+    "exercise": "The earlier trade was profitable, so you restore the original size without a new case. What is missing? A current risk and evidence decision for the capital being recommitted."
+  },
+  "7": {
+    "title": "Break the attachment",
+    "walkthrough": "A trader calls a one-hour trade a long-term investment after it loses half its value. The holding period changed because of the loss rather than new evidence. The original entry price can anchor the decision even though the market does not owe a recovery.",
+    "method": "Write what you would conclude from today’s contract, liquidity, demand, and price if you had no trade history. Compare that conclusion with your actual plan. Record evidence supporting any longer holding period and the exposure you can still monitor.",
+    "exercise": "Would you buy the same current exposure today? If not, identify why you are retaining it. Taxes or execution costs can matter, but wanting to break even is not evidence of renewed demand."
+  },
+  "8": {
+    "title": "Attention & holding time",
+    "walkthrough": "A launch catalyst can be over within hours while a genuinely recurring theme lasts longer. A large initial audience does not set the appropriate holding time; persistence and renewed buying must be observed.",
+    "method": "Choose reassessment intervals matching the catalyst and available data. Compare attention, actual participation, and liquidity after the event. State what verified renewal could justify extending the observation period. Avoid keeping a position indefinitely on an expired announcement.",
+    "exercise": "Posts remain high after a catalyst, but buys decline and the posts are repeats. Is a longer holding period justified by attention alone? No. Review conversion, renewal, and the existing loss plan."
+  },
+  "9": {
+    "title": "Match the evidence to the market",
+    "walkthrough": "An early thin-pool move requires current launch and inventory checks. A later base may offer longer history, while a CEX book adds venue and order-depth questions. One familiar chart indicator cannot substitute for those different mechanics.",
+    "method": "Identify the actual stage and venue, then list available evidence and missing dependencies. On the early move, inspect current permissions and buyer behavior; on later structure, verify repeated tests and supply pressure. For every venue, obtain a quote for the contemplated size.",
+    "exercise": "A later token has a clean chart base but an unusable route quote. Can structure alone justify action? No. Research interpretation and executable conditions must both be addressed."
+  },
+  "10": {
+    "title": "Portfolio limits & concentration",
+    "walkthrough": "A portfolio has $500 each in five tokens tied to one theme: $2,500 shares the same demand risk. If one grows to $2,000, total marked exposure becomes $4,000 and that token is half of it, even without any new cash added.",
+    "method": "Aggregate current marked exposure and committed capital by token, theme, chain, and venue. Recompute after appreciation and exits. Set monitoring capacity as well as capital limits; ten positions are not useful diversification if you cannot track their changing conditions.",
+    "exercise": "A position exceeded your concentration limit only through appreciation. Does the limit still matter? Yes. Current concentration and common failures are about present exposure, not just purchase amounts."
+  },
+  "11": {
+    "title": "Measure the net result",
+    "walkthrough": "Buy 1,000 units for $100 and pay $5 of costs. Sell 600 for $90 with $3 costs; 400 remain conservatively valued at $32. Total proceeds plus remaining value are $119 versus $105 spent, giving $14 economic profit before other costs. Under proportional cost allocation, realized profit is $87 minus $63 = $24, and unrealized is $32 minus $42 = −$10.",
+    "method": "Record fills, quantities, all fees, outside cash flows, and remaining units. Keep the accounting convention consistent and include losing trades. Mark unrealized positions using a stated method; chart value can overstate executable value. Deposit or withdrawal movements are not trading profit.",
+    "exercise": "Can you report $90 profit because the sale received $90? No. Proceeds are not profit. Deduct allocated cost and execution charges, then keep the unsold inventory result separate."
+  }
+}

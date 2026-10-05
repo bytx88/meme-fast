@@ -10,6 +10,7 @@ CONTENT = ROOT / 'content/meme-101'
 GUIDANCE = json.loads((CONTENT / 'concept-guidance.json').read_text(encoding='utf-8'))
 EVIDENCE = json.loads((CONTENT / 'tool-evidence.json').read_text(encoding='utf-8'))
 REFINEMENTS = json.loads((CONTENT / 'refinements.json').read_text(encoding='utf-8'))
+PRACTICAL = json.loads((ROOT / 'content/curriculum/practical/meme-101.json').read_text(encoding='utf-8'))
 
 # Complete the few fields missing from the original lesson drafts.
 SUPPLEMENTS = {
@@ -46,7 +47,7 @@ def markdown(source):
         body = ''.join('<tr>' + ''.join(
             f'<th scope="row">{inline(cell)}</th>' if index == 0 else f'<td>{inline(cell)}</td>'
             for index, cell in enumerate(row)) + '</tr>' for row in rows[2:])
-        rendered = (f'<div class="lc-table-scroll" role="region" aria-label="Token lifecycle learning table" tabindex="0">'
+        rendered = (f'<div class="lc-table-scroll" role="region" aria-label="Learning comparison table" tabindex="0">'
                     f'<table class="lc-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>')
         return markdown(source[:table.start()]) + rendered + markdown(source[table.end():])
     if '[[TOKEN_LC_DIAGRAM]]' in source:
@@ -166,55 +167,15 @@ for index, path in enumerate(sorted(CONTENT.glob('*.md')), 1):
     goal = re.search(r'## Goal\s+([^\n]+)', source)[1]
     if index == 2:
         source = source.replace('## Level 2 Checklist', REFINEMENTS['market_maturity'] + '\n\n## Level 2 Checklist')
+    guide = PRACTICAL[str(index)]
+    source += ('\n\n## Work through the evidence\n\n'
+               '### Illustrative case: ' + guide['title'] + '\n\n'
+               + guide['walkthrough'] + '\n\n' + guide['mechanism']
+               + '\n\n### How to investigate it\n\n' + guide['method']
+               + '\n\n### Check your reasoning — answered\n\n' + guide['exercise'] + '\n')
     lessons.append((f'meme-101-level-{index}', title, goal, source.split('\n', 1)[1]))
 
-bundle = '''## Goal
-Read coordinated supply from accumulation through distribution.
-
-## 1. What a bundle is
-A bundle can involve coordinated launch transactions or related wallets. Similar timing is a lead, not proof of common ownership. Shared exchange funding alone can also reflect unrelated customers; combine funding, transfers, timing, and repeated behavior.
-
-## 2. Supply and entry
-Check how much supply a suspected cluster controls, when it entered, and what it paid. Many holder addresses can still represent one operator. Estimated cost basis may be incomplete when transfers or earlier trades are missing.
-
-## A 75% bundle example
-For an illustrative launch, a tool reports 75% bundled supply spread across several wallets. First check its definition: does it measure supply bought at launch or the cluster's current holdings, and which supply denominator does it use? The visible creator wallet may hold much less. A bundle estimate is not proof that the dev controls every address.
-
-A possible sequence is launch → coordinated early buying → other buyers enter → bundled wallets sell into demand. They can also hold, sell gradually, or transfer inventory. Selling must be established from trades; a balance reduction or transfer alone is not a sale. Trace destination wallets to avoid mistaking transfers for reduced group control.
-
-Bonding 75% measures progress toward the launch threshold. Bundled supply 75% measures a detected group's purchases or holdings under the tool's definition. Dev holdings 75% measures an attributed wallet's supply share. These figures are not interchangeable, and pool or bonding-contract balances are not automatically dev inventory.
-
-## 3. What the wallets are doing
-Distinguish holding, accumulation, launch sniping, support activity, and distribution. Look for synchronized or staggered sales, transfers to fresh wallets, replenishing buys, and selling into each rise.
-
-## 4. After the bundle push
-A coordinated push can move price rapidly. Ask whether independent buyers take over when that support stops. Look for unrelated entrants, persistent demand, and ownership spreading over time.
-
-## 5. Exit capacity
-Compare remaining inventory with pool depth and observed demand. A liquidity-to-position ratio is context, not a guarantee that the pool can absorb a sale at the displayed price.
-
-## Five numbers to investigate
-- Bundle supply percentage: check whether this is initial bundled purchases or current cluster holdings, the supply denominator, and the evidence linking wallets.
-- Bundle cost basis: what the cluster appears to have paid.
-- Bundle remaining percentage: current attributed inventory, including traced transfers; missing wallet coverage stays unknown.
-- Liquidity / bundle value: pool capital relative to that inventory.
-- Organic ownership growth: whether independent buyers are replacing the original holders.
-
-## Two paths to compare
-**Accumulation → push → independent demand takes over.**
-
-**Accumulation → push → retail enters → coordinated distribution.**
-
-Neither path guarantees an outcome. Follow balances, trades, liquidity, and demand over time.
-
-## Bundle checklist
-1. What evidence connects these wallets?
-2. How much supply do they still hold?
-3. What is known and unknown about their entry cost?
-4. Are they accumulating, supporting, transferring, or selling?
-5. Does activity persist without their buys?
-6. How large is their inventory relative to exit capacity?
-'''
+bundle = (ROOT / 'content/curriculum/bundle-deep-dive.md').read_text(encoding='utf-8')
 lessons.append(('meme-101-bundles', 'Bundle deep dive', 'Follow coordinated supply, cost basis, and independent demand.', bundle))
 template = (DIST / 'model.html').read_text(encoding='utf-8')
 header = re.search(r'<header class="masthead">[\s\S]*?</header>', template)[0]
@@ -245,7 +206,7 @@ def page(slug, title, description, body):
 cards = ''.join(f'<a class="lesson-card" href="./{slug}.html"><span>{"LEVEL " + str(i) if i < 9 else "BONUS / 09"}</span><h2>{title}</h2><p>{goal}</p><strong>Open lesson ↗</strong></a>' for i, (slug, title, goal, _) in enumerate(lessons, 1))
 page('meme-101', 'Meme 101A', 'Eight beginner lessons plus a bundle deep dive: token numbers, launch, ownership, wallets, price, attention, danger, and risk.', f'''<article class="learn-content" id="lesson-content"><header class="learn-intro"><span class="kicker">THE BEGINNER LEARNING PATH</span><h1>Meme 101A · Foundations</h1><p>Read the token. Understand the people behind it.</p><p class="learn-muted">Like <a href="https://www.investor.gov/additional-resources/spotlight/microcap-fraud" target="_blank" rel="noopener noreferrer">penny-stock speculation</a>, micro-tokens mix thin markets, promotion, and concentrated ownership. Global, round-the-clock on-chain trading can compress the cycle. Bots, launchpads, programmable token rules, migration, and copy trading can accelerate it further.</p><p class="learn-muted">Eight levels, from the first numbers on a token page to planning an exit. Start at Level 1, or choose the question you want to understand.</p><a class="learn-start" href="./meme-101-level-1.html">Start Level 1 →</a><span class="course-count">8 levels + 1 bundle deep dive</span></header><aside class="learn-question"><span class="kicker">KEEP ONE QUESTION IN VIEW</span><p>Who owns the supply, what did they pay for it, what are they doing now, and who will buy it from them?</p></aside><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Next: Survival &amp; Hygiene</h2><p><a href="./meme-101b.html">Continue to 101B →</a> before moving into the applied tracks.</p><h2>Put the questions to work</h2><p>Use <a href="./new-coins.html">Snipe</a> for launch context, <a href="./radar.html">Swing</a> to compare observed tokens, <a href="./order-flow.html">Inspect</a> for sampled swaps, and <a href="./narratives.html">Tweet</a> for attention evidence. Wallet clusters, cost basis, and contract permissions may need external research; these lessons do not imply that Meme Fast measures every concept.</p></section></article>''')
 for i, (slug, title, goal, source) in enumerate(lessons):
-    headings = [heading for heading in re.findall(r'^## (.+)$', source, re.M) if heading != 'Goal' and (i >= 8 or re.match(r'^\d+\. ', heading) or 'Checklist' in heading or heading == 'Technical Token Lifecycle (Token LC)')]
+    headings = [heading for heading in re.findall(r'^## (.+)$', source, re.M) if heading != 'Goal' and (i >= 8 or re.match(r'^\d+\. ', heading) or 'Checklist' in heading or heading in ['Technical Token Lifecycle (Token LC)', 'Work through the evidence'])]
     toc = ''.join(f'<a href="#{re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")}">{html.escape(text)}</a>' for text in headings)
     curriculum = ''.join(f'<a href="./{s}.html" {"aria-current=\"page\"" if s == slug else ""}><span>{n:02}</span> {t}</a>' for n, (s, t, _, _) in enumerate(lessons, 1))
     previous = f'<a href="./{lessons[i-1][0]}.html">← {lessons[i-1][1]}</a>' if i else '<a href="./meme-101.html">← Course overview</a>'

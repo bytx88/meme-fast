@@ -1,0 +1,38 @@
+{
+  "1": {
+    "title": "Read inventory, not green buys",
+    "walkthrough": "A wallet begins with 10m units, buys 1m, sells 3m, and ends with 8m. A green buy is visible, but net inventory fell 2m. Promotion of that buy can conceal the larger distribution window.",
+    "method": "Reconcile quantities across the same time interval and relevant addresses. Read actual swaps rather than colored feed entries alone. Include known linked destinations and explain incomplete history. Monetary proceeds and token quantity are separate measures of the economic position.",
+    "exercise": "A highlighted $500 purchase follows $5,000 of sales. Does it establish accumulation? No. Check net units and remaining inventory over a stated window."
+  },
+  "2": {
+    "title": "Dev Cycle / Buyer Cycle",
+    "walkthrough": "The dev may be marketing and claiming fees while buyers are rotating out. Those actions can occur at the same time: developer activity and buyer participation are separate timelines, not proof of shared incentives.",
+    "method": "Make a dated two-column log. Record verifiable delivery, spend, treasury movements, and payouts on one side; buyer arrivals, sales, depth, and holdings on the other. Connect them through observed events without assigning intent from one action.",
+    "exercise": "The dev posts daily but buyers and liquidity decline. Are the cycles aligned because work continues? Not established. Work, demand conversion, and economic incentives need separate evidence."
+  },
+  "3": {
+    "title": "Alignment, divergence & extraction",
+    "walkthrough": "A group promotes a token, claims fees, and reduces inventory during attention spikes. That pattern can establish monetization and selling if the transactions and links are verified. Whether it is deceptive extraction requires additional evidence about control and representations.",
+    "method": "Compare promised work with dated delivery and traceable spending. Reconcile related inventory and actual fee recipients. Review repeated event windows rather than one transaction, and describe observed divergence before alleging intent.",
+    "exercise": "Fee income rises while development spend is unverifiable. Is extraction proven? No. Record verified receipts, unresolved use of funds, and any independently established inventory sales without filling the gaps."
+  },
+  "4": {
+    "title": "Dev economics & incentives",
+    "walkthrough": "Suppose $100,000 of fee-bearing volume generates a documented 1% fee, of which 30% goes to the creator. Gross fee is $1,000 and creator allocation is $300 before claims or further deductions. Accrued allocation is not necessarily a completed payout.",
+    "method": "Read the current platform or contract rule, recipient addresses, calculation basis, claim mechanism, and change permissions. Verify actual payouts and documented spend separately. Add inventory sale proceeds and treasury flows only when supported; do not count internal transfers twice.",
+    "exercise": "A badge says Pay Dev and volume rises. Can you calculate creator earnings from volume alone? No. Establish the exact signal meaning, rate, allocation, claim status, and transaction evidence first."
+  },
+  "5": {
+    "title": "Token fees vs trading fees",
+    "walkthrough": "A hypothetical sale has gross proceeds of $100 and a 5% token charge, leaving $95. A route fee of 1% applied to that $95 leaves $94.05 before gas. Rates applied on different bases compound; real protocols may order or collect them differently.",
+    "method": "Use the exact route quote and transaction to identify each charge, recipient, basis, and net amount. Check buy, sell, and transfer rules separately, including exemptions and who can change them. A DEX fee is distinct from a token transfer tax and a creator payout signal.",
+    "exercise": "Can you always subtract 5% + 1% and report $94 net? No. The bases and order matter; reconcile the actual net receipt and gas cost."
+  },
+  "6": {
+    "title": "Visible wallet vs economic position",
+    "walkthrough": "The deployer shows 1m units, but directly connected wallets hold 9m. That supports investigating a broader position; it does not establish common control from a shared exchange withdrawal alone. A pool’s 50m units are another category entirely.",
+    "method": "Trace deployment funding, direct transfers, repeated destinations, and synchronized behavior. Label each relation with its evidence and plausible alternative explanation. Reconcile the supported group’s units through sales and transfers, leaving unknown ownership explicit.",
+    "exercise": "Two wallets withdraw from the same exchange and buy near launch. Is their combined balance definitely the dev position? No. Shared service funding can be unrelated; stronger links are required."
+  }
+}

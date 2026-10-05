@@ -1,0 +1,56 @@
+{
+  "1": {
+    "title": "Thesis vs hygiene",
+    "walkthrough": "A story and a tradable token are separate claims. A credible event may attract attention, while the exact contract still has a controller who can freeze accounts. A strong story cannot compensate for an exit that fails.",
+    "method": "Make two columns. In thesis, record the primary event source, date, exact-contract association, and evidence that buyers return. In hygiene, record permissions, ordinary-wallet sales, liquidity control, and related inventory. Put unknowns in the appropriate column rather than giving the token one blended grade.",
+    "exercise": "A token has rising attention and confirmed ordinary-wallet sales, but its liquidity controller is unknown. Is hygiene cleared? No: successful sales answer current selling ability, not who can withdraw the pool. Keep the controller question unresolved."
+  },
+  "2": {
+    "title": "Immediate rug risk",
+    "walkthrough": "An ordinary wallet buys 1,000 units, but a current sale quote returns almost nothing or an executed sale fails under a transfer rule. That is an immediate execution problem even if another privileged wallet can sell. A chart displaying trades does not establish equal permissions.",
+    "method": "Use the exact chain and contract in a block explorer or supported contract inspector. Record current authorities and fee settings. Inspect completed ordinary-wallet buys and sells under those settings, including net receipts and failure reasons. Separately identify who can change the settings or withdraw liquidity. A quote or simulation is preliminary evidence; do not treat it as a guaranteed fill.",
+    "exercise": "One address sold successfully while three ordinary addresses fail. Has sellability been demonstrated for everyone? No. Check exemptions, routes, transaction failures, and current rules before interpreting the successful sale."
+  },
+  "3": {
+    "title": "Slow extraction",
+    "walkthrough": "Suppose linked wallets begin with 30 million units. Over three promotions they sell 4m, 3m, and 5m, and transfer 6m between themselves. Group inventory falls to 18m, not 12m: internal transfers do not remove supply from the group. Continued selling is measurable; malicious intent is a separate claim.",
+    "method": "Create an address ledger with opening balances, purchases, sales, external transfers, and closing balances. Match actual swaps to attention spikes using timestamps. Include receiving addresses when linkage is justified. Compare remaining supply with current depth and quote sizes; a smaller visible creator balance can hide unchanged group control.",
+    "exercise": "The creator balance falls from 10m to 2m, while a supported linked address receives 8m. How much group inventory disappeared? Zero through that transfer. Investigate subsequent swaps before claiming the group sold 8m."
+  },
+  "4": {
+    "title": "Organic slow death",
+    "walkthrough": "A token has no newly detected permission failure, but fresh buyers fall from 40 to 10 per comparable hour and trading becomes intermittent. That can be demand decay without a coordinated extraction campaign. Sparse coverage can also mimic decay, so check whether the sample changed.",
+    "method": "Compare equal, non-overlapping windows using the same pools and provider coverage. Record buyer arrivals if genuinely available, buy value, liquidity, and independent attention sources. Review rebounds: did participation return, or did one isolated trade move a thin pool? Explain absence of renewal without inventing a culprit.",
+    "exercise": "Price falls 20% while the provider misses half the pools. Does that establish organic slow death? No. Repair the coverage comparison before attributing the decline to disappearing participation."
+  },
+  "5": {
+    "title": "The self rug",
+    "walkthrough": "A trader budgets $100 of exposure, then adds $100 after a decline and $200 to recover losses. Total capital exposed becomes $400 even though the original plan was $100. The token need not change for the trader to create a larger loss.",
+    "method": "Before entry, write the maximum cash loss, maximum total exposure, evidence that invalidates the idea, and an execution plan. After each proposed add, recompute those amounts. In thin tokens, a stop is an instruction rather than a guaranteed price; test current quotes and allow for worse execution or complete loss.",
+    "exercise": "A $100 position falls to $60 and you add $100. Is only $160 at risk? Current position value may be $160, but total committed capital is $200. Track both original cash and current exposure rather than using the cheaper price to reset the budget."
+  },
+  "6": {
+    "title": "Token cycle, meta cycle & attention",
+    "walkthrough": "A new token can launch into a tired theme. Its contract is new, but the same story may already have exhausted attention across ten competing tokens. Conversely, an older token can receive a genuinely new catalyst without becoming a new technical launch.",
+    "method": "Keep token events, theme events, and attention evidence on separate timelines. Compare original reporting with reposts; identify what changed, when, and which exact contracts have observed participation. A fresh ticker or repeated announcement does not by itself renew the wider theme.",
+    "exercise": "An hour-old token repeats last week’s heavily copied theme. Is it a fresh meta? No. It is a new token whose broader theme needs separate evidence of renewed interest."
+  },
+  "7": {
+    "title": "Due diligence keeps moving",
+    "walkthrough": "At entry, the main concern may be current permissions and initial concentration. Two days later, the same token may have changed authorities, lost liquidity, or transferred early inventory to new addresses. An old screenshot cannot clear today’s state.",
+    "method": "Record a timestamped baseline of permissions, liquidity, known related balances, and ordinary selling. Recheck after migration, ownership changes, fee changes, and major promotions. Compare the new observation with the baseline and explain which earlier conclusion changed. Keep unsupported facts unresolved rather than treating age as safety.",
+    "exercise": "The token passed your checks yesterday, but its fee controller changes today. What carries forward? The historical check remains a historical fact. Current fee and selling conditions require a fresh check."
+  },
+  "8": {
+    "title": "Clear decision states",
+    "walkthrough": "A decision state connects an observation to an action condition. “Interesting” is not a state you can audit. “Thesis supported; liquidity controller unresolved; watch until control is verified” tells you both the present limitation and what would change it.",
+    "method": "Write thesis status, hygiene status, the missing evidence, and the exact reassessment trigger. Use observable triggers such as a verified permission change or completed pool transition, not “looks better.” If an executable action is contemplated, record size and quote assumptions separately from the research conclusion.",
+    "exercise": "Attention strengthens while a critical hygiene question remains open. Should the state automatically become proceed? No. Improve the thesis column while retaining the unresolved hygiene condition."
+  },
+  "9": {
+    "title": "The basic dev view",
+    "walkthrough": "A creator may earn trading fees, own sellable inventory, and control a treasury. These are different economic routes. Repeated launches and transfers can help explain incentives, but a payout alone does not establish development delivery or abandonment.",
+    "method": "Find the deployer transaction and documented allocations. Trace direct transfers, actual swaps, and fee recipients using exact addresses. List verified work or spend separately from announced work. Compare earlier launches only where identity links are supported; shared infrastructure is not proof of one operator.",
+    "exercise": "The creator claims fees while its token balance stays unchanged. Has it sold tokens? Not on that evidence. Record fee income separately and inspect swaps before claiming inventory liquidation."
+  }
+}

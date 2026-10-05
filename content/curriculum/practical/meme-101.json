@@ -1,0 +1,58 @@
+{
+  "1": {
+    "title": "Read the numbers together",
+    "walkthrough": "A token price is $0.01 and the reported supply is 100m units, so displayed market cap is $1m. If only 20m units are circulating, circulating cap would be $200k under that supply definition. FDV may use the larger supply. None of these figures is money sitting in the pool.",
+    "mechanism": "A pool contains 1m token units and $10k of quote currency at the same price. Its total marked liquidity might be shown as about $20k because both sides are valued. A $5k purchase is large relative to the $10k quote reserve even though it is tiny relative to $1m market cap. Obtain the actual route quote instead of inferring execution from cap.",
+    "method": "Record the exact contract and chain, price timestamp, supply definition, cap type, pool reserves, and quote for the contemplated size. Compare volume over the same window and coverage. Separate missing cap or liquidity from zero. If the data is stale, the calculation describes the old observation, not the present exit.",
+    "exercise": "Is a $1m cap with $20k liquidity enough to sell $50k at chart price? No. Cap marks supply at a marginal price; pool depth and actual quotes determine achievable proceeds."
+  },
+  "2": {
+    "title": "Read a launch event before calling it a signal",
+    "walkthrough": "Two tokens show 85% bonding. One has a verified current launch mechanism and active trading; the other has an old provider observation. Only the first supports a current Final Stretch label under Meme Fast’s rule, and neither percentage proves migration has completed.",
+    "mechanism": "For the first token, compare the progression transaction or platform state with destination-pool evidence. Keep token creation, pool creation, first observed progress, actual migration, and first detection as distinct times. Fees or creator payouts are separate events; none automatically establishes token sales.",
+    "method": "Make a launch log with event, exact contract, source, actual time when available, first observation time, and current quote. During route changes, preserve missing quote samples rather than joining disconnected prices as if trading were continuous. Use the LC tables above to connect each observation to its mechanism.",
+    "exercise": "Bonding is 100% but no usable destination route is verified. Is the token proven tradable after migration? No. Completion status and executable destination trading need separate evidence."
+  },
+  "3": {
+    "title": "Reconstruct economic ownership",
+    "walkthrough": "A top-holder list shows ten addresses with 5% each. If five are supported related wallets, that group controls 25%, not five independent 5% positions. If another address is the pool contract, its balance belongs in a different category from ordinary owner inventory.",
+    "mechanism": "A creator wallet falls from 10m to 2m while a directly linked wallet receives 8m. The supported group still has 10m. A holder chart that only watches the creator can falsely suggest reduced control. A common exchange funding source alone is not enough to establish that link.",
+    "method": "Open the exact-contract holder list, classify pool, burn, system, exchange, and owner addresses, then trace supported relationships. Record initial and current units and the supply denominator. Distinguish buys, sells, transfers, and permissions. Keep uncertain associations visible instead of producing a falsely exact ownership percentage.",
+    "exercise": "Does more holder addresses prove decentralized control? No. Balance splitting or dust transfers can increase addresses without changing control or bringing in buyers."
+  },
+  "4": {
+    "title": "Follow cash and units through the wallet",
+    "walkthrough": "A wallet buys 1,000 units for $100 plus $5 costs, sells 600 for $90 minus $3 costs, and keeps 400. Net sale proceeds are $87, not $90 profit. Under proportional cost allocation, those sold units cost $63; realized profit is $24. Remaining cost is $42.",
+    "mechanism": "If the 400 remaining units mark at $32, unrealized profit is −$10 and combined economic profit is $14. Actual realizable value may be lower after impact and fees. Missing transferred-in inventory prevents claiming the whole account has this complete basis.",
+    "method": "Build a chronological ledger of quantities, gross amounts, fees, transfers, and closing units. Choose and state an accounting convention. Separate realized proceeds, realized profit, remaining cost, and marked value. Check more than a highlighted green buy and include sales from the same window.",
+    "exercise": "A wallet buys $50 after selling $500 earlier. Is it accumulating? Not necessarily. Reconcile net units and linked-address inventory before assigning the label."
+  },
+  "5": {
+    "title": "Connect chart structure to trades",
+    "walkthrough": "Price breaks from a repeated 1.00–1.10 range to 1.20, then closes back at 1.05. That records a failed attempt to hold above the old range on the selected timeframe. It does not reveal who sold, whether they were profitable, or whether recovery is impossible.",
+    "mechanism": "A later completed candle closes above 1.10 and repeated tests hold with continuing buys. That is stronger continuation evidence than a single wick. If liquidity collapsed meanwhile, both the rise and retest can be exaggerated by thin trading.",
+    "method": "Declare timeframe and pool, mark highs, lows, closes, and the original range, then inspect actual swaps and depth near the reactions. Define what would contradict your description. Do not use candles to invent exact directional volume, wallet identity, or holder cost basis.",
+    "exercise": "Does one recovery candle confirm a durable base? No. Look for repeated behavior, actual demand, usable depth, and comparable coverage."
+  },
+  "6": {
+    "title": "Trace attention into the exact token",
+    "walkthrough": "A news event attracts 20 indexed posts, then 40 in an equal later window. Some are reposts and several name a different contract with the same ticker. The raw count rose; exact-token independent interest may not have doubled.",
+    "mechanism": "Even if credible attention grows, buying can stay flat while early inventory sells. Conversely, a token can attract buying before indexed posts arrive. Compare timestamps and coverage instead of treating one metric as the cause of the other.",
+    "method": "Trace the primary story, publication date, and exact-contract association. Separate independent sources, repetitions, and aliases. Compare equivalent attention and trade windows and record indexing lag. Write what changed in interest and what changed in market participation as separate conclusions.",
+    "exercise": "Does zero RSS mentions mean no attention exists? No. It means none appeared in that bounded indexed sample. Absence from a sample is not total audience absence."
+  },
+  "7": {
+    "title": "Check the failure mechanism",
+    "walkthrough": "A token allows buys but restricts ordinary sellers under its current transfer rules. A successful sale by an exempt address does not resolve that failure. Another token may allow sales but have a liquidity controller who can remove depth. These are different risks requiring different evidence.",
+    "mechanism": "A lock badge applies to a particular position and duration; it may not cover all pools, creator inventory sales, minting, freezes, or changing fees. Current successful trading also does not guarantee future rules or quotes.",
+    "method": "Use the exact contract in a supported inspector or explorer. Record current authorities, change rights, fee settings, ordinary-wallet net sales, pool positions, controllers, and lock terms. Investigate failed transactions by reason. Mark critical unknowns rather than blending them with bullish attention.",
+    "exercise": "Does burned liquidity prove token safety? No. Check the specific position and separately investigate permissions, remaining inventory, routes, and other pools."
+  },
+  "8": {
+    "title": "Turn the idea into an exposure plan",
+    "walkthrough": "You commit $200 to a spot position and plan to sell if evidence fails. A 20% trigger suggests $40 chart loss, but a thin pool, gap, or unavailable route can produce more. Complete loss remains possible; a stop price is not guaranteed execution.",
+    "mechanism": "Selling part of the position for $220 net recovers original cash, but a residual marked at $300 remains current exposure. Adding again creates a new risk decision; it does not become free because the first sale was profitable.",
+    "method": "Write maximum total capital, acceptable loss, evidence invalidation, monitoring interval, and quote assumptions. Recalculate after every add, exit, or large appreciation. Include failed trades and fees in results. Compare current evidence without letting the original entry price dictate the conclusion.",
+    "exercise": "After recovering cost, is the runner risk-free? No. It still has economic value at risk and execution limits. Reassess why the residual deserves its current size."
+  }
+}

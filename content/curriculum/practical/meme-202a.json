@@ -1,0 +1,68 @@
+{
+  "1": {
+    "title": "Price moves at the margin",
+    "walkthrough": "In a simplified constant-product pool holding 1,000,000 tokens and $10,000, the marginal price is $0.01. A $1,000 buy with no fees leaves about 909,091 tokens and $11,000, so the new marginal price is about $0.0121: a 21% rise from a $1,000 trade. Real routes and pool designs can differ.",
+    "method": "Start from the exact pool and read both reserves. Calculate the trade’s size relative to the quote reserve, then compare an actual route quote. Market cap marks supply at the marginal price; it is not the cash that entered the pool or the proceeds everyone could receive.",
+    "exercise": "If a one-million-token supply is marked at $0.0121, its displayed cap is $12,100. Did $2,100 necessarily enter? No. Repricing the whole supply from a marginal trade creates that difference."
+  },
+  "2": {
+    "title": "Liquidity & price impact",
+    "walkthrough": "If the reference value of a planned purchase is $1,000 but the quote delivers only $930 of tokens at the reference price, the shortfall is $70 or 7%. Identify which parts are price impact, route fees, and other costs; do not label all of it slippage.",
+    "method": "Obtain quotes for several sizes on the same route close together in time. Record input, expected output, minimum output, fees, and quote age. Price impact is the trade’s expected effect on execution; slippage tolerance limits additional movement accepted after quoting. Increasing tolerance does not restore depth.",
+    "exercise": "A route quote already implies 7% impact and you set 10% tolerance. Is the total expected cost exactly 17%? No. Those quantities describe different mechanics; use net quoted output and actual fills rather than adding labels blindly."
+  },
+  "3": {
+    "title": "Buy/sell pressure",
+    "walkthrough": "Window A shows $12,000 buys and $10,000 sells: observed net is +$2,000. One $9,000 buy supplies most of that buying. Window B shows $8,000 buys across many smaller trades and $6,000 sells. Both have +$2,000 net, but the participation patterns differ.",
+    "method": "Use equal windows, the same pool coverage, and consistent buy/sell classification. Inspect the largest swaps and size distribution, then review the next independent window. A sender can be a router and trade count is not a count of people. Net observed flow also is not total cash deposited.",
+    "exercise": "Is a positive net sufficient to call demand broad? No. A single buyer, routing steps, or repetitive activity can dominate. Describe concentration before interpreting persistence."
+  },
+  "4": {
+    "title": "Supply transfer",
+    "walkthrough": "A supported early-wallet group holds 20m units, buys 2m, sells 5m, and moves 4m internally. Closing group inventory is 17m. Counting the internal transfer as a sale would incorrectly report 13m.",
+    "method": "Reconcile opening inventory + purchases − sales + outside receipts − outside transfers with closing balances. Mark unexplained differences and add known receiving wallets only when evidence supports linkage. Connect genuine inventory changes with trades and contemporaneous liquidity, not just holder counts.",
+    "exercise": "The group sells 5m and independent buyers absorb it while depth stays usable. Has distribution guaranteed a collapse? No. The relevant follow-up is whether demand persists and how much inventory remains."
+  },
+  "5": {
+    "title": "Early wallet flow",
+    "walkthrough": "An early wallet spends $200, receives tokens, and later sells $600 while still holding inventory marked at $400. The remaining position is not a new $400 cash investment, and the wallet may already have recovered its original spend.",
+    "method": "Follow buys, sells, fees, and transfers chronologically in an explorer. Record purchased quantities and costs, realized proceeds, and current holdings separately. Missing transferred-in history prevents a reliable full cost basis. Compare entry times and funding paths without calling every early buyer an insider.",
+    "exercise": "A known wallet buys $100 today but sold $1,000 yesterday. Is today’s green buy enough to conclude it is adding overall? No. Measure net inventory change over the stated window."
+  },
+  "6": {
+    "title": "Demand acceleration",
+    "walkthrough": "Compare consecutive five-minute bars: buy value rises from $2k to $4k to $8k while typical buy size stays near $100. That suggests more buy executions, but not necessarily more independent buyers. If price stops advancing despite stronger buying, inspect opposing sales and liquidity.",
+    "method": "Build a table of equal bars with price change, buy/sell value, largest trades, and freshness. Use new-buyer counts only if the data identifies and covers them. Avoid comparing a cumulative 15-minute number with a separate five-minute bar; overlap can manufacture apparent acceleration.",
+    "exercise": "Buy value doubles while all added buys come from one supported linked group. Is independent demand accelerating? Not established. Report increased buying concentration and seek broader participation."
+  },
+  "7": {
+    "title": "Attention conversion",
+    "walkthrough": "A post receives more attention, but the next hour has unchanged buy value and heavier early-holder sales. Attention has increased; conversion into buying has not been demonstrated. Later buying can also reflect another catalyst.",
+    "method": "Align publication times with equal before/after trade windows and the exact contract. Separate independent posts from reposts and sampled indexed mentions from full audience reach. Compare net buying, depth, and inventory behavior; do not assign the price move to the post merely because they happened together.",
+    "exercise": "Mentions double while buys remain flat and price falls. Does the attention metric fail? No. It measures a different observation; the missing link is conversion into sufficient market demand."
+  },
+  "8": {
+    "title": "Push, Hold or Fail",
+    "walkthrough": "Price pushes from 1.00 to 1.20, pauses, and meets repeated selling. Holding near 1.16 with renewed buying differs from losing 1.00 on thin depth. One wick to 1.20 is not enough to classify a sustained push or an absorbed hold.",
+    "method": "Choose the timeframe before reviewing the chart. Record the prior range, the push, the pause, actual sales, recovery, and liquidity. Mark the price or behavior that would invalidate “hold.” Review enough completed observations to distinguish a temporary pause from a failed move.",
+    "exercise": "Price holds only because one wallet repeatedly buys while unrelated buyers disappear. Is a stable chart proof of broad support? No. Record the dependency on that buyer."
+  },
+  "9": {
+    "title": "Meta saturation",
+    "walkthrough": "Ten nearly identical tokens can split the same audience. Total theme mentions may rise while each token receives fewer buyers. A new launch increases competition; it does not necessarily expand capital available to the theme.",
+    "method": "List exact contracts and launch times for the relevant competitors. Separate new independent reporting from repeated slogans. Compare buyer activity and liquidity in equivalent windows. Define the new event that could renew participation instead of relying on the number of tickers or posts.",
+    "exercise": "Five more tokens copy the same story and none gains persistent buying. Has the larger token count proved the theme is strengthening? No. It may show supply of competing launches rather than increased demand."
+  },
+  "10": {
+    "title": "Migration as event risk",
+    "walkthrough": "An illustrative migration completes at estimated MC $84k, reaches $91k after one minute, falls to $73k after five, then recovers to $112k after fifteen. Technical completion remains true throughout; the market response changes.",
+    "method": "Verify event time, destination pool, route availability, and the current launch rules. Compare completed samples before and after with consistent contract and pool coverage. Record actual event time separately from first detection; a five-minute collector cannot reconstruct an exact one-minute reaction without historical data.",
+    "exercise": "If a token’s progress reads 99%, can you start the post-migration price comparison? No. Confirm completion first. Missing event or price samples remain unknown."
+  },
+  "11": {
+    "title": "PVP Dominance & Rotation",
+    "walkthrough": "Two exact-contract tokens share a story. Token A has credible project backing but shallow liquidity; token B has more volume dominated by one group. Neither one metric nor a reputation label establishes the stronger continuing market.",
+    "method": "Compare primary contract links, credible backing, buyer activity, related inventory, and route depth over the same horizon. Track when attention and participation move between competitors. PVP describes competition for participation; it is not evidence that one ticker must win.",
+    "exercise": "A rival gains stronger independent buying while your token keeps promotional mentions but loses depth. What changed? The competition for demand and execution conditions changed; update the comparison rather than defending the original choice."
+  }
+}

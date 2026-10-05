@@ -46,3 +46,5 @@
 .course-help{color:var(--accent);font-size:12px;margin-left:14px;white-space:nowrap}
 @media(max-width:850px){.course-grid{grid-template-columns:1fr}.course-card{padding:24px}.applied-example ol{grid-template-columns:1fr}}
 @media(max-width:600px){.learning-tracks{gap:4px;margin-top:18px}.learning-tracks a{padding:8px;font-size:12px}.course-flow{gap:10px}.course-flow li{font-size:13px}.applied-page .learn-intro>p{font-size:16px}.learning-divider{margin:0 5px}}
+
+.practical-investigation{margin:28px 0;padding:24px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.practical-investigation .kicker{font-size:11px;letter-spacing:.1em;color:var(--accent)}.practical-investigation h2{margin:12px 0 20px;font-size:24px}.practical-investigation h3{font-size:16px;margin-top:24px}.practical-investigation p{line-height:1.85}@media(max-width:700px){.practical-investigation{padding:18px}}
