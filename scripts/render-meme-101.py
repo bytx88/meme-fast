@@ -35,6 +35,33 @@ def inline(value):
 
 
 def markdown(source):
+    # Render structured lesson tables without permitting raw HTML in course text.
+    table = re.search(r'^\|[^\n]+\|\n\|[ :|\-]+\|\n(?:\|[^\n]+\|(?:\n|$))+', source, re.M)
+    if table:
+        rows = [[cell.strip() for cell in line.strip().strip('|').split('|')]
+                for line in table[0].strip().splitlines()]
+        if any(len(row) != len(rows[0]) for row in rows[2:]):
+            raise ValueError('Inconsistent lesson table columns')
+        head = ''.join(f'<th scope="col">{inline(cell)}</th>' for cell in rows[0])
+        body = ''.join('<tr>' + ''.join(
+            f'<th scope="row">{inline(cell)}</th>' if index == 0 else f'<td>{inline(cell)}</td>'
+            for index, cell in enumerate(row)) + '</tr>' for row in rows[2:])
+        rendered = (f'<div class="lc-table-scroll" role="region" aria-label="Token lifecycle learning table" tabindex="0">'
+                    f'<table class="lc-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>')
+        return markdown(source[:table.start()]) + rendered + markdown(source[table.end():])
+    if '[[TOKEN_LC_DIAGRAM]]' in source:
+        before, after = source.split('[[TOKEN_LC_DIAGRAM]]', 1)
+        stages = [('Created', 'Token exists'), ('Trading / Bonding', 'Trades on launch mechanism'),
+                  ('Final Stretch', 'Near completion'), ('Migrating', 'Venue transition underway'),
+                  ('Migrated / Graduated', 'Transition verified'), ('Post-Migration Trading', 'Destination activity')]
+        steps = ''.join(f'<li><strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></li>'
+                        for title, note in stages)
+        diagram = (f'<figure class="lc-diagram"><figcaption>Possible curve-launch path</figcaption>'
+                   f'<ol class="lc-path">{steps}</ol><p class="lc-direct"><strong>Direct-to-DEX path:</strong> '
+                   'Created → DEX Trading → Continuing market activity</p>'
+                   '<p class="lc-events">Alongside either path: early inventory can be held, transferred, or sold. '
+                   'Fee and Pay Dev signals appear when their platform rules and evidence support them.</p></figure>')
+        return markdown(before) + diagram + markdown(after)
     output, paragraph, listing = [], [], None
     def flush():
         if paragraph:
@@ -218,7 +245,7 @@ def page(slug, title, description, body):
 cards = ''.join(f'<a class="lesson-card" href="./{slug}.html"><span>{"LEVEL " + str(i) if i < 9 else "BONUS / 09"}</span><h2>{title}</h2><p>{goal}</p><strong>Open lesson ↗</strong></a>' for i, (slug, title, goal, _) in enumerate(lessons, 1))
 page('meme-101', 'Meme 101A', 'Eight beginner lessons plus a bundle deep dive: token numbers, launch, ownership, wallets, price, attention, danger, and risk.', f'''<article class="learn-content" id="lesson-content"><header class="learn-intro"><span class="kicker">THE BEGINNER LEARNING PATH</span><h1>Meme 101A · Foundations</h1><p>Read the token. Understand the people behind it.</p><p class="learn-muted">Like <a href="https://www.investor.gov/additional-resources/spotlight/microcap-fraud" target="_blank" rel="noopener noreferrer">penny-stock speculation</a>, micro-tokens mix thin markets, promotion, and concentrated ownership. Global, round-the-clock on-chain trading can compress the cycle. Bots, launchpads, programmable token rules, migration, and copy trading can accelerate it further.</p><p class="learn-muted">Eight levels, from the first numbers on a token page to planning an exit. Start at Level 1, or choose the question you want to understand.</p><a class="learn-start" href="./meme-101-level-1.html">Start Level 1 →</a><span class="course-count">8 levels + 1 bundle deep dive</span></header><aside class="learn-question"><span class="kicker">KEEP ONE QUESTION IN VIEW</span><p>Who owns the supply, what did they pay for it, what are they doing now, and who will buy it from them?</p></aside><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Next: Survival &amp; Hygiene</h2><p><a href="./meme-101b.html">Continue to 101B →</a> before moving into the applied tracks.</p><h2>Put the questions to work</h2><p>Use <a href="./new-coins.html">Snipe</a> for launch context, <a href="./radar.html">Swing</a> to compare observed tokens, <a href="./order-flow.html">Inspect</a> for sampled swaps, and <a href="./narratives.html">Tweet</a> for attention evidence. Wallet clusters, cost basis, and contract permissions may need external research; these lessons do not imply that Meme Fast measures every concept.</p></section></article>''')
 for i, (slug, title, goal, source) in enumerate(lessons):
-    headings = [heading for heading in re.findall(r'^## (.+)$', source, re.M) if heading != 'Goal' and (i >= 8 or re.match(r'^\d+\. ', heading) or 'Checklist' in heading)]
+    headings = [heading for heading in re.findall(r'^## (.+)$', source, re.M) if heading != 'Goal' and (i >= 8 or re.match(r'^\d+\. ', heading) or 'Checklist' in heading or heading == 'Technical Token Lifecycle (Token LC)')]
     toc = ''.join(f'<a href="#{re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")}">{html.escape(text)}</a>' for text in headings)
     curriculum = ''.join(f'<a href="./{s}.html" {"aria-current=\"page\"" if s == slug else ""}><span>{n:02}</span> {t}</a>' for n, (s, t, _, _) in enumerate(lessons, 1))
     previous = f'<a href="./{lessons[i-1][0]}.html">← {lessons[i-1][1]}</a>' if i else '<a href="./meme-101.html">← Course overview</a>'
