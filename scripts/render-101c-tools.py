@@ -4,12 +4,12 @@ import html
 escape = html.escape
 FIELDS = [
     ('identity', 'Token and check time', 'Chain, full token address, launch mode, and UTC check time.'),
-    ('inventory', 'Wallets and holdings', 'Owner, units, confirmed links, suspected links, denominator, and transaction sources.'),
+    ('inventory', 'Wallets and holdings', 'Owner, units, confirmed links, suspected links, supply total used, and transaction sources.'),
     ('supply', 'Supply and allocations', 'Total units, pool reserves, locked units, available holder units, and sources.'),
     ('powers', 'Creator permissions', 'Mint, freeze, fee, transfer, and upgrade controls; controller/status and sources.'),
     ('unlocks', 'Locks and next releases', 'Contract, beneficiary, claimable units, next amount/date/timezone, and change rights.'),
     ('liquidity', 'Pools and sale quotes', 'Pair, pool, liquidity controller, lock coverage/expiry, quote size, proceeds, impact, and time.'),
-    ('earnings', 'Creator earnings', 'Fee rule/source, recipient, accrued and paid amounts, claims, sales, and spending evidence.'),
+    ('earnings', 'Creator earnings', 'Fee rule/source, recipient, earned-but-waiting and received amounts, claims, sales, and spending evidence.'),
     ('demand', 'Buyer activity and catalyst', 'Equal windows, pool coverage, group/other buying, primary sources, and competitors.'),
     ('ledger', 'Group transaction ledger', 'Opening holdings + purchases + outside inflows - sales - outside outflows = closing holdings. Internal transfers cancel.'),
     ('timeline', 'Creator work and buyer response', 'Dated delivery, promotion, disclosure, spending, buyer activity, and source links.'),
@@ -42,7 +42,7 @@ def worksheet():
             '<dt>Unlock</dt><dd>4m at 09:00 UTC on Day 2. With no other changes: 12m / 104m = about 11.5%.</dd>'
             '<dt>Permissions and liquidity</dt><dd>Mint and freeze revoked in this example. Main liquidity position locked for 30 days; '
             'secondary pool rights differ. Illustrative 5m sale quote had 18% impact.</dd>'
-            '<dt>Earnings and demand</dt><dd>$200 claimed and $100 accrued under the made-up fee rule. '
+            '<dt>Earnings and demand</dt><dd>$200 received and $100 waiting to be withdrawn under the made-up fee rule. '
             'Other observed buying weakened. Cost history and private promotion payments remain unknown.</dd>'
             '<dt>Conclusion</dt><dd>The 8% group holding exceeds the example 3% limit. Recheck balances, unlock transactions, '
             'quotes, and whether other buyers return.</dd></dl></div>'

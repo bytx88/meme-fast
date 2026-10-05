@@ -182,7 +182,7 @@
   "sections": [
     {
       "title": "Basic terms",
-      "question": "What do these words mean?",
+      "question": "Follow a token from its launch into wallets and trading.",
       "topics": [],
       "body_file": "content/meme-101c/basics.md"
     },
@@ -197,14 +197,16 @@
       "question": "How do the dev’s work, earnings, and sales affect traders?",
       "topics": [
         10
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/03.md"
     },
     {
       "title": "Creation, allocation and starting price",
       "question": "Who gets the first tokens, and what does the first buyer pay?",
       "topics": [
         3
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/04.md"
     },
     {
       "title": "Wallets, bundles and concentration",
@@ -212,7 +214,8 @@
       "topics": [
         1,
         2
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/05.md"
     },
     {
       "title": "Permissions, locks and unlocks",
@@ -220,14 +223,16 @@
       "topics": [
         4,
         5
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/06.md"
     },
     {
       "title": "Liquidity and migration",
       "question": "What supports your sale, and who controls it?",
       "topics": [
         6
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/07.md"
     },
     {
       "title": "Creator earnings and promotion",
@@ -235,7 +240,8 @@
       "topics": [
         7,
         8
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/08.md"
     },
     {
       "title": "Sales, delivery and launch history",
@@ -244,14 +250,16 @@
         9,
         11,
         12
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/09.md"
     },
     {
       "title": "Review the whole token",
       "question": "What do the demand and supply checks tell you together?",
       "topics": [
         13
-      ]
+      ],
+      "body_file": "content/meme-101c/sections/10.md"
     }
   ]
 }

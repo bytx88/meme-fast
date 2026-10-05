@@ -34,5 +34,5 @@ test('foundation cases and the bundle screen teach practical evidence checks',as
  const bundle=await load('dist/meme-101-bundles.html');
  assert.match(bundle,/content="0;url=\.\/meme-101c-section-5.html"/);
  const content=await load('dist/meme-101c-section-5.html');
- for(const term of ['What is a bundle?','How does it come about?','Why is it risky?','How to investigate it','What the bubble map cannot show'])assert.ok(content.includes(term),term);
+ for(const term of ['What is a bundle?','fund several wallets','Why is it risky?','How to investigate it','Check the map and its gaps'])assert.ok(content.includes(term),term);
 });

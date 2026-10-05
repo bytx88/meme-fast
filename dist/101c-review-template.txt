@@ -6,7 +6,7 @@ Chain, full token address, launch mode, and UTC check time.
 
 
 Wallets and holdings
-Owner, units, confirmed links, suspected links, denominator, and transaction sources.
+Owner, units, confirmed links, suspected links, supply total used, and transaction sources.
 
 
 Supply and allocations
@@ -26,7 +26,7 @@ Pair, pool, liquidity controller, lock coverage/expiry, quote size, proceeds, im
 
 
 Creator earnings
-Fee rule/source, recipient, accrued and paid amounts, claims, sales, and spending evidence.
+Fee rule/source, recipient, earned-but-waiting and received amounts, claims, sales, and spending evidence.
 
 
 Buyer activity and catalyst

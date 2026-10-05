@@ -30,8 +30,14 @@ The learning requirements have not changed. Version 2 changes the reading order 
 | 9 | Sales, delivery and launch history | 9, 11, 12 |
 | 10 | Review the whole token | 13 |
 
-The thirteen original Markdown topic files remain the content sources. Every original topic appears exactly once in the presentation; only chapter references change to the corresponding section number. The introductory explanations add a beginner entry point without replacing the detailed checks.
+The thirteen original Markdown topic files remain as reference sources. The active section files teach the same required mechanisms and evidence checks in coherent lessons. Preserving coverage allows sentences to be simplified, duplicate instructions to be combined, and examples to be introduced in a useful order.
 
 New active pages use `meme-101c-section-N.html`. The thirteen original chapter URLs redirect to the corresponding subject rather than silently changing subject under an existing bookmark. Worksheet field bookmarks and browser-local saved notes are preserved. Historical consolidation aliases point directly to the equivalent active section. The sitemap lists the ten active sections.
 
 This document supersedes the reading-order and URL-count descriptions in `coverage.md`; its coverage checklist and evidence limits remain in force.
+
+## Editorial and visual correction
+
+The opening introduces vocabulary through a three-step launch diagram, a proportional supply diagram, and a purchase/sale diagram. Definitions remain beside the relevant action. All diagrams have visible text and work without JavaScript.
+
+Each section now has one investigation, worked example, record, and set of visible answers. Sections 5, 6, 8, and 9 combine their original topics into one connected lesson; their complete mechanisms and evidence limits remain covered. Section 3 uses a standalone example without relying on the later holdings ledger. Headings describe the subject directly, and fee earnings, claims, qualifying trades, and supply totals are explained in everyday language. Historical bookmarks continue to land on the corresponding subject.
