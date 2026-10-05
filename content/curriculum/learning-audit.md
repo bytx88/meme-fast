@@ -4,7 +4,7 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 
 ## Findings and corrections
 
-- Bundle material previously supplied questions without a complete investigation. Rebuilt around explorer steps, a reconciled 75%-bundle ledger, cost basis, constant-product exit calculations, alternative demand windows, interpretation tables, and answered exercises.
+- Bundle material previously supplied questions without a complete investigation. Rebuilt as a bubble-map and top-ten-holder screen: holder freshness, allocations, purchase timing, funding, creator links, transfers versus sales, common concentration-disguising patterns, and early-surge investigation. The 3% threshold is a user-selected concentration rule applied to supported groups and verified float, not a universal entry guarantee.
 - All 48 applied chapters previously relied on short examples and research handoffs. Added topic-specific visible mechanism cases, investigation methods, and answered exercises, stored in practical content files.
 - All eight foundation levels now include a concrete case, practical procedure, and answered reasoning exercise. The LC diagram, event tables, and price-path explanation are retained.
 - Practical content is rendered visibly before evidence handoffs; it is not hidden inside Go deeper.

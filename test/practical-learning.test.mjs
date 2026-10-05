@@ -24,7 +24,7 @@ test('every applied chapter visibly teaches an investigation before handing read
  assert.equal(total,48);
 });
 
-test('foundation cases and the bundle ledger teach the reasoning behind their questions',async()=>{
+test('foundation cases and the bundle screen teach practical evidence checks',async()=>{
  for(let i=1;i<=8;i++){
   const page=await load(`dist/meme-101-level-${i}.html`);
   assert.match(page,/href="#work-through-the-evidence"/);
@@ -32,7 +32,10 @@ test('foundation cases and the bundle ledger teach the reasoning behind their qu
   assert.match(page,/Check your reasoning — answered/);
  }
  const bundle=await load('dist/meme-101-bundles.html');
- assert.equal((bundle.match(/<table\b/g)||[]).length,5);
- for(const term of ['Worked inventory ledger','56m supported inventory','$14,736.84','C1 and C2 are alternative cases','Practice, with worked answers','Your research output'])assert.ok(bundle.includes(term),term);
- assert.ok(bundle.indexOf('Worked inventory ledger')<bundle.indexOf('Turn the checklist into an investigation'));
+ assert.equal((bundle.match(/<table\b/g)||[]).length,2);
+ for(const term of ['bubble map first','Top-ten holder check','Common patterns','first 30 minutes','10% linked group','Practice, with worked answers','buyer attribution unresolved'])assert.ok(bundle.includes(term),term);
+ assert.ok(bundle.includes('concentration filter, not proof'));
+ assert.ok(bundle.includes('Shared exchange or router infrastructure alone is weak evidence'));
+ assert.ok(bundle.indexOf('How to check the bundle')<bundle.indexOf('Make the result useful'));
+
 });
