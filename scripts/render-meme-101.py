@@ -150,6 +150,13 @@ A bundle can involve coordinated launch transactions or related wallets. Similar
 ## 2. Supply and entry
 Check how much supply a suspected cluster controls, when it entered, and what it paid. Many holder addresses can still represent one operator. Estimated cost basis may be incomplete when transfers or earlier trades are missing.
 
+## A 75% bundle example
+For an illustrative launch, a tool reports 75% bundled supply spread across several wallets. First check its definition: does it measure supply bought at launch or the cluster's current holdings, and which supply denominator does it use? The visible creator wallet may hold much less. A bundle estimate is not proof that the dev controls every address.
+
+A possible sequence is launch → coordinated early buying → other buyers enter → bundled wallets sell into demand. They can also hold, sell gradually, or transfer inventory. Selling must be established from trades; a balance reduction or transfer alone is not a sale. Trace destination wallets to avoid mistaking transfers for reduced group control.
+
+Bonding 75% measures progress toward the launch threshold. Bundled supply 75% measures a detected group's purchases or holdings under the tool's definition. Dev holdings 75% measures an attributed wallet's supply share. These figures are not interchangeable, and pool or bonding-contract balances are not automatically dev inventory.
+
 ## 3. What the wallets are doing
 Distinguish holding, accumulation, launch sniping, support activity, and distribution. Look for synchronized or staggered sales, transfers to fresh wallets, replenishing buys, and selling into each rise.
 
@@ -160,9 +167,9 @@ A coordinated push can move price rapidly. Ask whether independent buyers take o
 Compare remaining inventory with pool depth and observed demand. A liquidity-to-position ratio is context, not a guarantee that the pool can absorb a sale at the displayed price.
 
 ## Five numbers to investigate
-- Bundle supply percentage: estimated supply controlled by the suspected cluster.
+- Bundle supply percentage: check whether this is initial bundled purchases or current cluster holdings, the supply denominator, and the evidence linking wallets.
 - Bundle cost basis: what the cluster appears to have paid.
-- Bundle remaining percentage: how much inventory remains available to sell.
+- Bundle remaining percentage: current attributed inventory, including traced transfers; missing wallet coverage stays unknown.
 - Liquidity / bundle value: pool capital relative to that inventory.
 - Organic ownership growth: whether independent buyers are replacing the original holders.
 

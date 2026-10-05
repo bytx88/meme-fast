@@ -5,6 +5,34 @@ Understand how a meme token moves from creation into active trading and why laun
 
 ---
 
+## Technical Token Lifecycle (Token LC)
+
+Token LC describes the launch mechanism and the technical milestones a token has reached. For a curve-based launch, a possible path is **Created → Trading / Bonding → Final Stretch → Migrating → Migrated / Graduated → Post-Migration Activity**. Launchpads differ; some tokens start directly in a DEX pool and never follow this path.
+
+### Shared launch vocabulary
+- **Created:** the token exists onchain. Token creation and pool creation can happen at different times.
+- **Trading / Bonding:** trades occur through the launch mechanism. Bonding progress measures progress toward that platform's completion threshold; it is not a wallet's share of supply.
+- **Final Stretch:** approaching completion. Meme Fast uses measured progress of 80% or more without confirmed completion; this is a product threshold, not a universal launchpad rule.
+- **Migrating:** the transition is underway, where supported by evidence. High bonding progress alone does not establish that migration has started.
+- **Migrated / Graduated:** the launch transition has completed, where the platform links these terms. Verify the destination pool and trading route.
+- **Post-Migration Activity:** trading observed after the transition. Activity does not guarantee continuing demand.
+
+**Technical progress, price behavior, and attention answer different questions.** A token can graduate while price falls, or attract attention while early holders sell. Completing a technical milestone does not confirm a bullish move.
+
+### Bundling alongside the launch
+A coordinated group can acquire early supply across several wallets. Transaction bundles can execute transactions together; grouping wallets into a suspected ownership cluster requires additional evidence. Neither tells us automatically that the creator owns every wallet.
+
+One possible sequence is **Launch → coordinated early buying → other buyers enter → bundled wallets sell into demand**. The group may instead hold, sell gradually, or transfer inventory. Distribution is observed behavior, not a required lifecycle stage.
+
+For an illustrative token, **75% bundled supply** might mean a detected group acquired or still holds 75% of the supply denominator used by the tool. Check whether the number describes launch purchases or current remaining holdings. It does not establish that the visible dev wallet holds 75%, that the group belongs to the dev, or that selling has begun. A bonding-curve or pool balance is also not automatically creator inventory.
+
+Compare the original allocation, current related-wallet balances, actual sales, transfers, and pool depth. **Bonding 75%, bundled supply 75%, and dev holdings 75% describe different measurements.** DEX Paid is a separate profile-payment signal and does not establish any of these percentages.
+
+### Evidence and coverage
+Keep milestones, inventory, and price observations separate. Unknown evidence means unknown, not incomplete. A collector's first observation time can differ from the actual onchain event time. Meme Fast currently shows available launch progress and graduation coverage; these lessons do not imply that it detects every bundle, creator relationship, payment, or migration event.
+
+---
+
 ## 1. Bonding Curve
 
 ### What is it?
