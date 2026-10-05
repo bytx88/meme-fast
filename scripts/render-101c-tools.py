@@ -71,5 +71,5 @@ def field_guide(number):
 def record_link(number):
     key = ['inventory', 'inventory', 'supply', 'powers', 'unlocks', 'liquidity', 'earnings',
            'demand', 'ledger', 'timeline', 'timeline', 'history', 'conclusion'][number - 1]
-    return (f'<p class="record-handoff"><a href="./meme-101c-lesson-13.html#review-{key}" target="_blank" rel="noopener">'
-            'Add this chapter\'s findings to your review worksheet →</a></p>')
+    return (f'<p class="record-handoff"><a href="./meme-101c-section-10.html#review-{key}" target="_blank" rel="noopener">'
+            'Add these findings to your review worksheet →</a></p>')

@@ -3,7 +3,7 @@
   "name": "Understand the Dev & Supply",
   "slug": "meme-101c",
   "question": "Who holds the tokens, what can the dev change, and how do they get paid?",
-  "intro": "Start with wallet checks, then inspect supply, permissions, unlocks, liquidity, earnings, and buyer activity. Each chapter adds to one worked example and your own review record.",
+  "intro": "Start with the basic terms, why the risks matter, and how the dev and traders affect each other. Then work through the checks and record your findings.",
   "principle": "Check why people might buy and what could affect their ability to sell. Record the evidence, time, and unanswered questions for each check.",
   "lens": [
     "Learn what to check",
@@ -176,6 +176,82 @@
       "question": "How do you turn these checks into one practical retail decision?",
       "body_file": "content/meme-101c/13.md",
       "references": []
+    }
+  ],
+  "presentation_version": 2,
+  "sections": [
+    {
+      "title": "Basic terms",
+      "question": "What do these words mean?",
+      "topics": [],
+      "body_file": "content/meme-101c/basics.md"
+    },
+    {
+      "title": "Why the dev and supply matter",
+      "question": "What could hurt buyers, and how does dumping happen?",
+      "topics": [],
+      "body_file": "content/meme-101c/importance.md"
+    },
+    {
+      "title": "The dev-trader relationship",
+      "question": "How do the dev’s work, earnings, and sales affect traders?",
+      "topics": [
+        10
+      ]
+    },
+    {
+      "title": "Creation, allocation and starting price",
+      "question": "Who gets the first tokens, and what does the first buyer pay?",
+      "topics": [
+        3
+      ]
+    },
+    {
+      "title": "Wallets, bundles and concentration",
+      "question": "Who could be holding tokens together?",
+      "topics": [
+        1,
+        2
+      ]
+    },
+    {
+      "title": "Permissions, locks and unlocks",
+      "question": "What can change, and which tokens become available next?",
+      "topics": [
+        4,
+        5
+      ]
+    },
+    {
+      "title": "Liquidity and migration",
+      "question": "What supports your sale, and who controls it?",
+      "topics": [
+        6
+      ]
+    },
+    {
+      "title": "Creator earnings and promotion",
+      "question": "How does the dev earn, and who brings or funds buyers?",
+      "topics": [
+        7,
+        8
+      ]
+    },
+    {
+      "title": "Sales, delivery and launch history",
+      "question": "What has the group sold, what was delivered, and what happened before?",
+      "topics": [
+        9,
+        11,
+        12
+      ]
+    },
+    {
+      "title": "Review the whole token",
+      "question": "What do the demand and supply checks tell you together?",
+      "topics": [
+        13
+      ]
     }
   ]
 }

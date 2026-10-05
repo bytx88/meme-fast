@@ -5,7 +5,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 const lessons=Array.from({length:8},(_,i)=>`meme-101-level-${i+1}`);
 const courseSources=['content/meme-101b/course.json','content/meme-101c/course.json','content/meme-202/202a.json','content/meme-202/202b.json','content/meme-303/303a.json'];
 const courses=await Promise.all(courseSources.map(async path=>JSON.parse(await readFile(path,'utf8'))));
-const applied=courses.flatMap(course=>[course.slug,...course.lessons.map((_,i)=>`${course.slug}-lesson-${i+1}`)]);
+const applied=courses.flatMap(course=>[course.slug,...(course.sections||course.lessons).map((_,i)=>`${course.slug}-${course.sections?'section':'lesson'}-${i+1}`)]);
 const learning=['learn','meme-101',...lessons,'meme-303',...applied];
 const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','sources','about','model','privacy','terms',...learning];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;

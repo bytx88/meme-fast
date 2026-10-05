@@ -32,7 +32,7 @@ test('foundation cases and the bundle screen teach practical evidence checks',as
   assert.match(page,/Check your reasoning — answered/);
  }
  const bundle=await load('dist/meme-101-bundles.html');
- assert.match(bundle,/content="0;url=\.\/meme-101c-lesson-1.html"/);
- const content=await load('dist/meme-101c-lesson-1.html');
+ assert.match(bundle,/content="0;url=\.\/meme-101c-section-5.html"/);
+ const content=await load('dist/meme-101c-section-5.html');
  for(const term of ['What is a bundle?','How does it come about?','Why is it risky?','How to investigate it','What the bubble map cannot show'])assert.ok(content.includes(term),term);
 });

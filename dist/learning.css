@@ -60,3 +60,6 @@
 .review-actions{display:flex;flex-wrap:wrap;gap:10px}.review-actions button{border:1px solid #718f59;border-radius:6px;padding:10px 14px;background:#253423;color:#e1efce;font:inherit;font-size:14px;cursor:pointer}.review-actions button:hover{background:#35472f}.review-actions button:focus-visible,.review-field textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #review-status{font-size:14px;line-height:1.6}#review-sample{padding:18px;margin-top:20px;border:1px solid var(--line);border-radius:6px}#review-sample[hidden]{display:none}#review-sample dt{font-weight:600;margin-top:14px}#review-sample dd{margin:6px 0;font-size:14px;line-height:1.7}
 @media(max-width:600px){.explorer-guide,.review-sheet{padding:14px}.review-actions button{width:100%}}
+/* Separate retained topics within the ten-section 101C presentation. */
+.course-topic + .course-topic { border-top: 1px solid var(--border, #29313c); margin-top: 2.5rem; padding-top: 1.5rem; }
+.course-topic .topic-title { font-size: 1.6rem; }

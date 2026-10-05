@@ -1,5 +1,7 @@
 # 101C learning requirements
 
+Presentation version 2 is defined in `presentation-v2.md`. The coverage below is fixed; the historical chapter numbers identify retained source topics, not the current reading order. The active course now presents these topics in ten sections, starting with terms, importance and risks, and the dev–trader relationship.
+
 One active course: bundles and creator/supply foundations through dev–buyer symbiosis. The chapter order starts with the learner's bundle question, then fills the mechanics needed to interpret it. Each chapter contains a direct explanation, investigation method, practical illustration, interpretation, and answered understanding check.
 
 | Learner question | Chapter |

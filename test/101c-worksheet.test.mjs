@@ -59,13 +59,13 @@ test('worksheet reports unavailable storage and malformed saved data without los
 });
 
 test('all chapter worksheet links resolve to labelled fields and answers stay visible', async () => {
-  const final = await readFile(new URL('../dist/meme-101c-lesson-13.html', import.meta.url), 'utf8');
-  for (let i = 1; i <= 13; i++) {
-    const page = await readFile(new URL(`../dist/meme-101c-lesson-${i}.html`, import.meta.url), 'utf8');
-    for (const match of page.matchAll(/meme-101c-lesson-13\.html#(review-[a-z]+)/g)) {
+  const final = await readFile(new URL('../dist/meme-101c-section-10.html', import.meta.url), 'utf8');
+  for (let i = 1; i <= 10; i++) {
+    const page = await readFile(new URL(`../dist/meme-101c-section-${i}.html`, import.meta.url), 'utf8');
+    for (const match of page.matchAll(/meme-101c-section-10\.html#(review-[a-z]+)/g)) {
       assert.ok(final.includes(`id="${match[1]}"`), `${i}: missing ${match[1]}`);
     }
-    const checks = page.slice(page.indexOf('<h2 id="check-your-understanding-answered">'));
+    const checks = page.slice(page.indexOf('check-your-understanding-answered'));
     assert.ok(checks.includes('<strong>'));
     assert.ok(!checks.includes('<details'));
   }
