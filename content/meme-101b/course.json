@@ -200,7 +200,7 @@
         6,
         "2-catalyst"
       ],
-      "deeper": "Organic attention comes from independent discovery and propagation. Maintained attention can depend on boosts, recurring promotion, raids, KOL posts, or small support activity. Fabricated attention uses bots, deceptive trading, or false engagement and holder counts. Categories can overlap and require evidence. A token can be in Emergence while its meta is already in Saturation. Stages are hypotheses, not official labels or a compulsory sequence. Detailed inventory mechanics belong in 303B.",
+      "deeper": "Organic attention comes from independent discovery and propagation. Maintained attention can depend on boosts, recurring promotion, raids, KOL posts, or small support activity. Fabricated attention uses bots, deceptive trading, or false engagement and holder counts. Categories can overlap and require evidence. A token can be in Emergence while its meta is already in Saturation. Stages are hypotheses, not official labels or a compulsory sequence. Detailed inventory and dev–buyer mechanics belong in 101C.",
       "framework": [
         "Token: Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion.",
         "Extension: Maturity → Renewal → Expansion.",
@@ -262,38 +262,6 @@
         "8-exit-strategy"
       ],
       "deeper": "Skip means a severe hygiene failure or no credible thesis. Watch keeps unresolved cases under observation. Probe describes limited initial exposure only after the necessary checks and a plan. Add/Hold requires confirming evidence within that plan; Reduce/Exit responds to deterioration and execution constraints. Neither a label nor a provisional check promises safety."
-    },
-    {
-      "title": "The basic dev view",
-      "question": "What incentives and history sit behind this launch?",
-      "definition": "The visible dev wallet is one address. The team’s incentives, related inventory, and deployment history can extend beyond it.",
-      "why": "Economic alignment can change even when the original story remains.",
-      "checks": [
-        "Current incentives, controls, and disclosed allocations",
-        "Transfers and evidence of dev-linked supply",
-        "Repeated deployer behavior across earlier launches"
-      ],
-      "healthy": "Claims, controls, and behavior are supported by traceable evidence.",
-      "dangerous": "A clean visible wallet hides unanswered questions about related inventory.",
-      "mistake": "Assigning a builder or scammer label from one transaction.",
-      "takeaway": "Read incentives and history before judging alignment.",
-      "example": [
-        "A visible dev address holds little supply.",
-        "Earlier transfers lead to addresses with substantial inventory.",
-        "Investigate control and behavior; a low visible balance is not clearance."
-      ],
-      "external": "Verify deployment history, permissions, allocations, and related addresses with explorers. Meme Fast does not establish the complete dev economic position.",
-      "foundation": [
-        3,
-        "2-dev-creator-wallet"
-      ],
-      "deeper": "A dev may build, distribute, extract, or combine behaviors. Fee income, product claims, and continued promotion do not prove buyer alignment. Common funding is only a lead; exchanges and routers can connect unrelated users. Repeated suspicious deployment patterns need context and evidence before attributing misconduct. Detailed Dev Cycle economics belongs in 303B.",
-      "related": [
-        [
-          "Dev and buyer cycles in 303B",
-          "meme-303b-lesson-2.html"
-        ]
-      ]
     }
   ],
   "principle": "Strong Thesis + Failed Hygiene = SKIP. Understand how the failure mode could affect your intended holding period; a short hold does not neutralize structural risk."

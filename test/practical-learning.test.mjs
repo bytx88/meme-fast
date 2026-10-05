@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 const load=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
 test('every applied chapter visibly teaches an investigation before handing readers to a tool',async()=>{
- const paths={'meme-101b':'content/meme-101b/course.json','meme-202a':'content/meme-202/202a.json','meme-202b':'content/meme-202/202b.json','meme-303a':'content/meme-303/303a.json','meme-303b':'content/meme-303/303b.json'};
+ const paths={'meme-101b':'content/meme-101b/course.json','meme-202a':'content/meme-202/202a.json','meme-202b':'content/meme-202/202b.json','meme-303a':'content/meme-303/303a.json'};
  let total=0;
  for(const [slug,path] of Object.entries(paths)){
   const course=JSON.parse(await load(path));
@@ -21,7 +21,7 @@ test('every applied chapter visibly teaches an investigation before handing read
    total++;
   }
  }
- assert.equal(total,48);
+ assert.equal(total,41);
 });
 
 test('foundation cases and the bundle screen teach practical evidence checks',async()=>{
@@ -32,10 +32,7 @@ test('foundation cases and the bundle screen teach practical evidence checks',as
   assert.match(page,/Check your reasoning — answered/);
  }
  const bundle=await load('dist/meme-101-bundles.html');
- assert.equal((bundle.match(/<table\b/g)||[]).length,2);
- for(const term of ['bubble map first','Top-ten holder check','Common patterns','first 30 minutes','10% linked group','Practice, with worked answers','buyer attribution unresolved'])assert.ok(bundle.includes(term),term);
- assert.ok(bundle.includes('concentration filter, not proof'));
- assert.ok(bundle.includes('Shared exchange or router infrastructure alone is weak evidence'));
- assert.ok(bundle.indexOf('How to check the bundle')<bundle.indexOf('Make the result useful'));
-
+ assert.match(bundle,/content="0;url=\.\/meme-101c-lesson-1.html"/);
+ const content=await load('dist/meme-101c-lesson-1.html');
+ for(const term of ['What is a bundle?','How does it come about?','Why is it risky?','How to investigate it','What the bubble map cannot show'])assert.ok(content.includes(term),term);
 });

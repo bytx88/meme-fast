@@ -46,11 +46,5 @@
     "walkthrough": "A decision state connects an observation to an action condition. “Interesting” is not a state you can audit. “Thesis supported; liquidity controller unresolved; watch until control is verified” tells you both the present limitation and what would change it.",
     "method": "Write thesis status, hygiene status, the missing evidence, and the exact reassessment trigger. Use observable triggers such as a verified permission change or completed pool transition, not “looks better.” If an executable action is contemplated, record size and quote assumptions separately from the research conclusion.",
     "exercise": "Attention strengthens while a critical hygiene question remains open. Should the state automatically become proceed? No. Improve the thesis column while retaining the unresolved hygiene condition."
-  },
-  "9": {
-    "title": "The basic dev view",
-    "walkthrough": "A creator may earn trading fees, own sellable inventory, and control a treasury. These are different economic routes. Repeated launches and transfers can help explain incentives, but a payout alone does not establish development delivery or abandonment.",
-    "method": "Find the deployer transaction and documented allocations. Trace direct transfers, actual swaps, and fee recipients using exact addresses. List verified work or spend separately from announced work. Compare earlier launches only where identity links are supported; shared infrastructure is not proof of one operator.",
-    "exercise": "The creator claims fees while its token balance stays unchanged. Has it sold tokens? Not on that evidence. Record fee income separately and inspect swaps before claiming inventory liquidation."
   }
 }

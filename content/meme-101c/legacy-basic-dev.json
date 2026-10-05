@@ -1,0 +1,32 @@
+{
+  "title": "The basic dev view",
+  "question": "What incentives and history sit behind this launch?",
+  "definition": "The visible dev wallet is one address. The team’s incentives, related inventory, and deployment history can extend beyond it.",
+  "why": "Economic alignment can change even when the original story remains.",
+  "checks": [
+    "Current incentives, controls, and disclosed allocations",
+    "Transfers and evidence of dev-linked supply",
+    "Repeated deployer behavior across earlier launches"
+  ],
+  "healthy": "Claims, controls, and behavior are supported by traceable evidence.",
+  "dangerous": "A clean visible wallet hides unanswered questions about related inventory.",
+  "mistake": "Assigning a builder or scammer label from one transaction.",
+  "takeaway": "Read incentives and history before judging alignment.",
+  "example": [
+    "A visible dev address holds little supply.",
+    "Earlier transfers lead to addresses with substantial inventory.",
+    "Investigate control and behavior; a low visible balance is not clearance."
+  ],
+  "external": "Verify deployment history, permissions, allocations, and related addresses with explorers. Meme Fast does not establish the complete dev economic position.",
+  "foundation": [
+    3,
+    "2-dev-creator-wallet"
+  ],
+  "deeper": "A dev may build, distribute, extract, or combine behaviors. Fee income, product claims, and continued promotion do not prove buyer alignment. Common funding is only a lead; exchanges and routers can connect unrelated users. Repeated suspicious deployment patterns need context and evidence before attributing misconduct. Detailed Dev Cycle economics belongs in 303B.",
+  "related": [
+    [
+      "Dev and buyer cycles in 303B",
+      "meme-303b-lesson-2.html"
+    ]
+  ]
+}

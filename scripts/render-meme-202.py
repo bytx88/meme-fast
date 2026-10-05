@@ -1,4 +1,4 @@
-"""Build Learn, 101, and the concise 202A/202B paths from local course content."""
+"""Build Learn and its foundation, dev/supply, trading, and position paths from local course content."""
 from pathlib import Path
 import html
 import json
@@ -11,7 +11,10 @@ page = shared['page']
 escape = html.escape
 courses = [json.loads(path.read_text(encoding='utf-8')) for path in sorted((ROOT / 'content/meme-202').glob('202?.json'))]
 courses.insert(0, json.loads((ROOT / 'content/meme-101b/course.json').read_text(encoding='utf-8')))
-courses.extend(json.loads((ROOT / f'content/meme-303/303{track}.json').read_text(encoding='utf-8')) for track in ['a', 'b'])
+courses.insert(1, json.loads((ROOT / 'content/meme-101c/course.json').read_text(encoding='utf-8')))
+courses.append(json.loads((ROOT / 'content/meme-303/303a.json').read_text(encoding='utf-8')))
+archived_303b = json.loads((ROOT / 'content/meme-303/303b.json').read_text(encoding='utf-8'))
+legacy_dev_targets = [9, 10, 11, 7, 7, 2]
 
 
 def link(route, label, **attrs):
@@ -29,12 +32,43 @@ for course in courses:
     slug, code, name = course['slug'], course['code'], course['name']
     lessons = course['lessons']
     count = len(lessons)
-    practical = json.loads((ROOT / f'content/curriculum/practical/{slug}.json').read_text(encoding='utf-8'))
-    if set(practical) != {str(i) for i in range(1, count + 1)}:
+    practical = {} if code == '101C' else json.loads((ROOT / f'content/curriculum/practical/{slug}.json').read_text(encoding='utf-8'))
+    if code != '101C' and set(practical) != {str(i) for i in range(1, count + 1)}:
         raise ValueError(f'{slug}: incomplete practical chapter coverage')
     if not count:
         raise ValueError(f'{code} needs chapters')
     for i, lesson in enumerate(lessons, 1):
+        if code == '101C':
+            source = (ROOT / lesson['body_file']).read_text(encoding='utf-8')
+            for required in ['## How to investigate', '## Practical case', '## Check your understanding']:
+                if required not in source:
+                    raise ValueError(f'{slug}.{i}: missing learning section {required}')
+            headings = re.findall(r'^## (.+)$', source, re.M)
+            toc = '<nav class="lesson-toc" aria-label="In this lesson"><h2>In this lesson</h2>' + ''.join(
+                f'<a href="#{re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")}">{escape(title)}</a>' for title in headings) + '</nav>'
+            curriculum = '<nav aria-label="Course chapters"><h2>101C · Dev &amp; Supply</h2>' + ''.join(
+                f'<a href="./{slug}-lesson-{n}.html"' + (' aria-current="page"' if n == i else '') + f'><span>{n:02}</span>{escape(item["title"])}</a>'
+                for n, item in enumerate(lessons, 1)) + '</nav>'
+            previous = f'{slug}-lesson-{i-1}.html' if i > 1 else f'{slug}.html'
+            following = f'{slug}-lesson-{i+1}.html' if i < count else f'{slug}.html'
+            refs = ''.join(f'<p><a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{escape(label)} ↗</a></p>' for label, url in lesson.get('references', []))
+            refs = '<section class="course-references"><h2>Mechanism references</h2>' + refs + '</section>' if refs else ''
+            lesson_html = shared['markdown'](source)
+            if i == 10:
+                paths = [('Dev side', ['Create', 'Launch', 'Market', 'Improve', 'Monetize', 'Reinvest / Exit']),
+                         ('Buyer side', ['Discover', 'Assess', 'Enter', 'Monitor', 'Add / Hold / Exit', 'Reassess'])]
+                diagram = '<figure class="dev-buyer-cycle"><figcaption>Two sides, one interaction layer</figcaption>'
+                for label, actions in paths:
+                    diagram += f'<div><h3>{label}</h3><ol>' + ''.join(f'<li>{action}</li>' for action in actions) + '</ol></div>'
+                diagram += '<p>Shared layer: narrative · attention · inventory · liquidity · price · volume · fees · holders</p></figure>'
+                lesson_html = diagram + lesson_html
+            body = (f'<div class="learn-content applied-page" id="lesson-content"><p class="learn-breadcrumb">{link("learn.html", "Learn")} / <a href="./{slug}.html">101C · Dev &amp; Supply</a> / {i:02}</p>'
+                    f'<header class="learn-intro"><span class="kicker">101C.{i} / CHAPTER {i} OF {count}</span><h1>{escape(lesson["title"])}</h1><p>{escape(lesson["question"])}</p></header>'
+                    f'<div class="learn-layout"><aside class="learn-sidebar">{curriculum}</aside><article class="lesson-body">{toc}{lesson_html}{refs}'
+                    f'<p class="learn-muted">Illustrations teach mechanisms; they are not live token assessments. Inspect can orient sampled trades; wallet attribution and control checks may require external evidence.</p>'
+                    f'<nav class="lesson-pager" aria-label="Previous and next chapters"><a href="./{previous}">← Previous</a><a href="./{following}">Next →</a></nav></article></div></div>')
+            page(f'{slug}-lesson-{i}', f'101C.{i} · {lesson["title"]}', lesson['question'], body)
+            continue
         if len(lesson['checks']) != 3 or len(lesson['example']) != 3:
             raise ValueError(f'{code}.{i}: use three checks and three example steps')
         steps = [
@@ -86,29 +120,43 @@ for course in courses:
     tool, route = course['tool']
     if code == '101B':
         context = 'Build on <a href="./meme-101.html">101A · Foundations</a>, then choose <a href="./meme-202a.html">202A · Snipe</a> or <a href="./meme-202b.html">202B · Swing</a>.'
-        following_course = '<a href="./meme-202a.html">Continue to 202A · Snipe →</a> / <a href="./meme-202b.html">202B · Swing →</a>'
+        following_course = '<a href="./meme-101c.html">Continue to 101C · Dev &amp; Supply →</a>'
+    elif code == '101C':
+        context = 'The complete dev and supply path: bundles, creator powers, inventory, liquidity, earnings, and the dev–buyer relationship.'
+        following_course = '<a href="./meme-202a.html">Apply the evidence in 202A · Snipe →</a> / <a href="./meme-202b.html">202B · Swing →</a>'
     elif code == '303A':
         context = 'Build on <a href="./meme-101b.html">101B · Survival &amp; Hygiene</a> and the evidence lenses in <a href="./meme-202a.html">202A · Snipe</a> / <a href="./meme-202b.html">202B · Swing</a>.'
-        following_course = '<a href="./meme-303b.html">Next: 303B · Actor Inventory &amp; Incentives →</a>'
-    elif code == '303B':
-        context = 'Build on <a href="./meme-101b.html">101B · Survival &amp; Hygiene</a> and <a href="./meme-303a.html">303A · Managing Your Position</a>. Use actor evidence to reassess your own exposure.'
-        following_course = '<a href="./meme-303a.html">Revisit 303A · Managing Your Position →</a>'
+        following_course = '<a href="./meme-101c.html">Revisit 101C · Dev &amp; Supply →</a>'
     else:
         other = next(item for item in courses if item['code'].startswith('202') and item != course)
         context = 'Build on <a href="./meme-101.html">101A · Foundations</a> and <a href="./meme-101b.html">101B · Survival &amp; Hygiene</a>. Choose the question that fits the token; the applied tracks can overlap.'
         following_course = f'<a href="./{other["slug"]}.html">Explore {other["code"]} · {other["name"]} →</a> / <a href="./meme-303a.html">Next: 303A · Managing Your Position →</a>'
-    category = 'SURVIVAL BASICS' if code == '101B' else 'MANAGE EXPOSURE' if code == '303A' else 'READ THE ACTORS' if code == '303B' else 'APPLIED LEARNING'
+    category = 'SURVIVAL BASICS' if code == '101B' else 'MANAGE EXPOSURE' if code == '303A' else 'UNDERSTAND THE SUPPLY SIDE' if code == '101C' else 'APPLIED LEARNING'
     principle = f'<aside class="course-principle"><p>{escape(course["principle"])}</p></aside>' if course.get('principle') else ''
     body = f'''<article class="learn-content applied-page" id="lesson-content"><header class="learn-intro"><span class="kicker">{category} / {code}</span><h1>{code} · {escape(name)}</h1><p>{escape(course['question'])}</p><p class="learn-muted">{escape(course['intro'])}</p><a class="learn-start" href="./{slug}-lesson-1.html">Start chapter 1 →</a><span class="course-count">{count} chapters with worked investigations · examples + evidence</span></header>{principle}{flow(course['lens'])}<p class="course-context">{context}</p><div class="lesson-grid">{cards}</div><section class="learn-next"><h2>Learn, then investigate</h2><p>{link(route, "Open " + tool + " →")} <span class="learning-divider">/</span> {following_course}</p></section></article>'''
     page(slug, f'{code} · {name}', course['intro'], body)
 
-course_cards = '<a class="course-card" href="./meme-101.html"><span>START HERE / 101A</span><h2>Foundations</h2><p>What am I looking at?</p><small>Token numbers, launch, ownership, flow, attention, and risk.</small><strong>8 levels + bundle deep dive →</strong></a>'
+course_cards = '<a class="course-card" href="./meme-101.html"><span>START HERE / 101A</span><h2>Foundations</h2><p>What am I looking at?</p><small>Token numbers, launch, ownership, flow, attention, and risk.</small><strong>8 foundation levels →</strong></a>'
 for course in courses:
     course_cards += f'<a class="course-card" href="./{course["slug"]}.html"><span>NEXT LAYER / {course["code"]}</span><h2>{escape(course["name"])}</h2><p>{escape(course["question"])}</p><small>{escape(course["intro"])}</small><strong>{len(course["lessons"])} chapters with worked investigations →</strong></a>'
-page('learn', 'Learn', '101A Foundations, 101B Survival & Hygiene, 202A Snipe, 202B Swing, 303A Managing Your Position, and 303B Actor Inventory & Incentives. Practical lessons with worked investigations and evidence.', f'''<article class="learn-content learning-hub" id="lesson-content"><header class="learn-intro"><span class="kicker">LEARN / CONNECT THE EVIDENCE</span><h1>Understand the move.</h1><p>Learn the mechanism. Work through the numbers. Investigate the evidence.</p><p class="learn-muted">Understand the token. Check what could kill the trade. Explore the move, then manage the exposure.</p></header><div class="course-grid">{course_cards}</div>{flow(['Understand the mechanism', 'Work through a case', 'Check the evidence'])}<section class="learn-next"><h2>Build the case, then check it</h2><p>101A explains the token. 101B separates thesis from hygiene. 202A investigates the early move; 202B investigates the structure after it. 303A manages your exposure. 303B reads the actors and incentives around it.</p></section></article>''')
+page('learn', 'Learn', '101A Foundations, 101B Survival & Hygiene, 202A Snipe, 202B Swing, 303A Managing Your Position, and 101C Dev & Supply. Practical lessons with worked investigations and evidence.', f'''<article class="learn-content learning-hub" id="lesson-content"><header class="learn-intro"><span class="kicker">LEARN / CONNECT THE EVIDENCE</span><h1>Understand the move.</h1><p>Learn the mechanism. Work through the numbers. Investigate the evidence.</p><p class="learn-muted">Understand the token. Check what could kill the trade. Explore the move, then manage the exposure.</p></header><div class="course-grid">{course_cards}</div>{flow(['Understand the mechanism', 'Work through a case', 'Check the evidence'])}<section class="learn-next"><h2>Build the case, then check it</h2><p>101A explains the token. 101B separates thesis from hygiene. 202A investigates the early move; 202B investigates the structure after it. 303A manages your exposure. 101C explains the supply side and its relationship with buyers.</p></section></article>''')
 position_courses = [course for course in courses if course['code'].startswith('303')]
 position_cards = ''.join(f'<a class="course-card" href="./{course["slug"]}.html"><span>{course["code"]}</span><h2>{escape(course["name"])}</h2><p>{escape(course["question"])}</p><strong>{len(course["lessons"])} chapters with worked investigations →</strong></a>' for course in position_courses)
-page('meme-303', '303 · Position & Actors', 'Choose 303A to manage your position or 303B to read actor inventory and incentives.', f'<article class="learn-content learning-hub" id="lesson-content"><header class="learn-intro"><span class="kicker">303 / TWO CONNECTED COURSES</span><h1>Your position. The actors around it.</h1><p>Start with your exposure, then read whose incentives can change the trade.</p></header><div class="course-grid">{position_cards}</div></article>')
+page('meme-303', '303 · Your Position', 'Manage exposure in 303A; dev and supply mechanics are consolidated in 101C.', f'<article class="learn-content learning-hub" id="lesson-content"><header class="learn-intro"><h1>Manage your position.</h1><p>Creator inventory, incentives, and the dev–buyer relationship now belong in <a href="./meme-101c.html">101C · Dev &amp; Supply</a>.</p></header><div class="course-grid">{position_cards}</div></article>')
+
+
+def write_redirect(old_slug, target, label):
+    document = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                f'<title>{escape(label)}</title><link rel="canonical" href="https://meme.oneerp.org/{target}">'
+                f'<meta http-equiv="refresh" content="0;url=./{target}"></head><body><p>This material is now in 101C · Dev &amp; Supply.</p>'
+                f'<a href="./{target}">{escape(label)} →</a></body></html>\n')
+    (ROOT / 'dist' / f'{old_slug}.html').write_text(document, encoding='utf-8')
+
+write_redirect('meme-101-bundles', 'meme-101c-lesson-1.html', 'Bundles: what you are buying into')
+write_redirect('meme-101b-lesson-9', 'meme-101c-lesson-2.html', 'Primary address, side wallets & blind spots')
+write_redirect('meme-303b', 'meme-101c.html', '101C · Understand the Dev & Supply')
+for i, target in enumerate(legacy_dev_targets, 1):
+    write_redirect(f'meme-303b-lesson-{i}', f'meme-101c-lesson-{target}.html', archived_303b['lessons'][i-1]['title'])
 legacy_numbers = []
 for course in position_courses:
     for i, lesson in enumerate(course['lessons'], 1):
@@ -118,12 +166,15 @@ for course in position_courses:
         label = escape(f'{course["code"]}.{i} · {lesson["title"]}')
         redirect = f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{label}</title><link rel="canonical" href="https://meme.oneerp.org/{target}"><meta http-equiv="refresh" content="0;url=./{target}"></head><body><p>This chapter is now in {course["code"]}.</p><a href="./{target}">Continue to {label} →</a></body></html>\n'
         (ROOT / 'dist' / f'meme-303-lesson-{old}.html').write_text(redirect, encoding='utf-8')
+for chapter, target in zip(archived_303b['lessons'], legacy_dev_targets):
+    legacy_numbers.append(chapter['legacy_lesson'])
+    write_redirect(f"meme-303-lesson-{chapter['legacy_lesson']}", f'meme-101c-lesson-{target}.html', chapter['title'])
 if sorted(legacy_numbers) != list(range(1, 18)):
     raise ValueError('All 17 legacy 303 chapters must map exactly once')
 
 sitemap_path = ROOT / 'dist/sitemap.xml'
 sitemap = sitemap_path.read_text(encoding='utf-8')
-sitemap = re.sub(r'\s*<url><loc>https://meme\.oneerp\.org/meme-303-lesson-\d+\.html</loc></url>', '', sitemap)
+sitemap = re.sub(r'\s*<url><loc>https://meme\.oneerp\.org/(?:meme-303-lesson-\d+|meme-303b(?:-lesson-\d+)?|meme-101-bundles|meme-101b-lesson-9)\.html</loc></url>', '', sitemap)
 slugs = ['learn'] + [course['slug'] for course in courses] + [f'{course["slug"]}-lesson-{i}' for course in courses for i in range(1, len(course["lessons"])+1)]
 entries = ''.join(f'  <url><loc>https://meme.oneerp.org/{slug}.html</loc></url>\n' for slug in slugs if f'/{slug}.html</loc>' not in sitemap)
 sitemap_path.write_text(sitemap.replace('</urlset>', entries + '</urlset>'), encoding='utf-8')

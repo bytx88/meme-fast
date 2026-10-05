@@ -1,0 +1,133 @@
+{
+  "code": "101C",
+  "name": "Understand the Dev & Supply",
+  "slug": "meme-101c",
+  "question": "What am I buying into—and what can the supply side do?",
+  "intro": "Start with bundles and visible wallets. Learn issuance, control, sellable supply, liquidity, earnings, and the dev–buyer relationship through practical checks.",
+  "principle": "See both sides: test the demand thesis and the hygiene of supply. Structural checks reduce blind spots; they do not guarantee market demand.",
+  "lens": [
+    "Understand the mechanism",
+    "Inspect the evidence",
+    "Read both sides"
+  ],
+  "tool": [
+    "Inspect",
+    "order-flow.html"
+  ],
+  "lessons": [
+    {
+      "title": "Bundles: what you are buying into",
+      "question": "Could many wallets represent one early inventory position?",
+      "body_file": "content/meme-101c/01.md",
+      "references": [
+        [
+          "Jito: transaction bundles",
+          "https://docs.jito.wtf/lowlatencytxnsend/"
+        ],
+        [
+          "Bubble-map documentation",
+          "https://docs.bubblemaps.io/"
+        ],
+        [
+          "Solscan: Solana explorer",
+          "https://solscan.io/"
+        ]
+      ]
+    },
+    {
+      "title": "Primary address, side wallets & blind spots",
+      "question": "What does “dev holding 2%” actually cover?",
+      "body_file": "content/meme-101c/02.md",
+      "references": []
+    },
+    {
+      "title": "Creation, supply, first allocations & price",
+      "question": "Who decides how many units exist and what the first buyer pays?",
+      "body_file": "content/meme-101c/03.md",
+      "references": [
+        [
+          "Solana: create a mint",
+          "https://solana.com/docs/tokens/basics/create-mint"
+        ]
+      ]
+    },
+    {
+      "title": "Creator powers: mint, freeze, fees & transfers",
+      "question": "What can change after you buy?",
+      "body_file": "content/meme-101c/04.md",
+      "references": [
+        [
+          "Solana: set or revoke authority",
+          "https://solana.com/docs/tokens/basics/set-authority"
+        ],
+        [
+          "Solana: freeze accounts",
+          "https://solana.com/docs/tokens/basics/freeze-account"
+        ]
+      ]
+    },
+    {
+      "title": "Float, locks, vesting & unlocks",
+      "question": "Which inventory can reach the market now—or later?",
+      "body_file": "content/meme-101c/05.md",
+      "references": []
+    },
+    {
+      "title": "Liquidity control, graduation & migration",
+      "question": "Who can change the market underneath your position?",
+      "body_file": "content/meme-101c/06.md",
+      "references": []
+    },
+    {
+      "title": "How the dev earns: fees, inventory & Pay Dev",
+      "question": "Does the creator need to sell tokens to get paid?",
+      "body_file": "content/meme-101c/07.md",
+      "references": [
+        [
+          "Solana: transfer fees",
+          "https://solana.com/docs/tokens/extensions/transfer-fees"
+        ],
+        [
+          "Raydium: fee mechanics",
+          "https://docs.raydium.io/raydium/protocol/protocol-fees"
+        ]
+      ]
+    },
+    {
+      "title": "Marketing, supported demand & early surges",
+      "question": "Who is bringing buyers—and who is funding the buying?",
+      "body_file": "content/meme-101c/08.md",
+      "references": []
+    },
+    {
+      "title": "Cost basis, sales & remaining inventory",
+      "question": "What did the early holders pay, and what are they doing now?",
+      "body_file": "content/meme-101c/09.md",
+      "references": []
+    },
+    {
+      "title": "Dev Cycle / Buyer Cycle: the symbiosis",
+      "question": "Why must a trader see the supply side as well as their own thesis?",
+      "body_file": "content/meme-101c/10.md",
+      "references": []
+    },
+    {
+      "title": "Alignment, monetization & destructive distribution",
+      "question": "When does earning from a token become a problem for buyers?",
+      "body_file": "content/meme-101c/11.md",
+      "references": []
+    },
+    {
+      "title": "Launch history, departures & demand exhaustion",
+      "question": "What could make the dev or the buyers stop?",
+      "body_file": "content/meme-101c/12.md",
+      "references": []
+    },
+    {
+      "title": "Whole-token review: thesis, hygiene & what you cannot see",
+      "question": "How do you turn these checks into one practical retail decision?",
+      "body_file": "content/meme-101c/13.md",
+      "references": []
+    }
+  ]
+}

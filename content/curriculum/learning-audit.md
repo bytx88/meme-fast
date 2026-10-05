@@ -1,14 +1,14 @@
 # Learning content audit
 
-Scope: all 96 static HTML pages scanned for local destinations and fragment anchors. All 57 teaching pages reviewed for practical instruction: eight 101A foundation levels, the bundle deep dive, and 48 applied chapters. Course indexes and the learning hub remain navigation pages; legacy 303 pages remain redirects.
+Scope: all 110 static HTML pages scanned for local destinations and fragment anchors. All 62 teaching pages reviewed for practical instruction: eight 101A foundation levels, 13 101C chapters and 41 continuing applied chapters. Course indexes and the learning hub remain navigation pages; legacy 303 pages remain redirects.
 
 ## Findings and corrections
 
-- Bundle material previously supplied questions without a complete investigation. Rebuilt as a bubble-map and top-ten-holder screen: holder freshness, allocations, purchase timing, funding, creator links, transfers versus sales, common concentration-disguising patterns, and early-surge investigation. The 3% threshold is a user-selected concentration rule applied to supported groups and verified float, not a universal entry guarantee.
-- All 48 applied chapters previously relied on short examples and research handoffs. Added topic-specific visible mechanism cases, investigation methods, and answered exercises, stored in practical content files.
-- All eight foundation levels now include a concrete case, practical procedure, and answered reasoning exercise. The LC diagram, event tables, and price-path explanation are retained.
-- Practical content is rendered visibly before evidence handoffs; it is not hidden inside Go deeper.
-- Numerical cases are illustrative with stated assumptions. Wallet attribution, payment signal definitions, price causality, and data coverage remain explicitly qualified.
+- 101C is the complete 13-chapter creator and supply path. Every chapter teaches a mechanism, how to investigate it, a practical case, interpretation, and an answered understanding check. Coverage of the user's questions is mapped in `content/meme-101c/coverage.md`.
+- Bundles begin the course; primary and side wallets, supply creation and pricing, authorities, float and locks, liquidity, earnings, marketing, cost basis, symbiosis, alignment, and departure risks follow.
+- The dedicated 101A bundle page, 101B Basic Dev View, 303B overview, and its six chapters redirect into 101C. Original numbered 303 bookmarks retain the matching destinations. Historical source files remain available for traceability.
+- 101A retains eight foundation levels. 101B retains eight hygiene chapters. The 41 continuing applied chapters retain their visible worked investigations; 303A remains position management.
+- Official Solana documentation supported checks of mint supply, authorities, freezing, and transfer-fee mechanics. Platform-specific launch quantities and Pay Dev meanings are not guessed. Missing coverage, ownership links, and exact signal semantics remain explicit.
 
 ## Page inventory
 
@@ -19,7 +19,7 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 | index.html | Snipe & stories · Meme Fast | Index or application page |
 | jeanphil.html | Jean Phil · Coin vs Social · Meme Fast | Index or application page |
 | learn.html | Learn · Meme Fast | Index or application page |
-| meme-101-bundles.html | Bundle deep dive · Meme Fast | Teaching page |
+| meme-101-bundles.html | Bundles: what you are buying into | Legacy redirect |
 | meme-101-level-1.html | Read the Token · Meme Fast | Teaching page |
 | meme-101-level-2.html | Understand the Launch · Meme Fast | Teaching page |
 | meme-101-level-3.html | Understand Ownership · Meme Fast | Teaching page |
@@ -37,8 +37,22 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 | meme-101b-lesson-6.html | 101B.6 · Token cycle, meta cycle & attention · Meme Fast | Teaching page |
 | meme-101b-lesson-7.html | 101B.7 · Due diligence keeps moving · Meme Fast | Teaching page |
 | meme-101b-lesson-8.html | 101B.8 · Clear decision states · Meme Fast | Teaching page |
-| meme-101b-lesson-9.html | 101B.9 · The basic dev view · Meme Fast | Teaching page |
+| meme-101b-lesson-9.html | Primary address, side wallets & blind spots | Legacy redirect |
 | meme-101b.html | 101B · Survival & Hygiene · Meme Fast | Index or application page |
+| meme-101c-lesson-1.html | 101C.1 · Bundles: what you are buying into · Meme Fast | Teaching page |
+| meme-101c-lesson-10.html | 101C.10 · Dev Cycle / Buyer Cycle: the symbiosis · Meme Fast | Teaching page |
+| meme-101c-lesson-11.html | 101C.11 · Alignment, monetization & destructive distribution · Meme Fast | Teaching page |
+| meme-101c-lesson-12.html | 101C.12 · Launch history, departures & demand exhaustion · Meme Fast | Teaching page |
+| meme-101c-lesson-13.html | 101C.13 · Whole-token review: thesis, hygiene & what you cannot see · Meme Fast | Teaching page |
+| meme-101c-lesson-2.html | 101C.2 · Primary address, side wallets & blind spots · Meme Fast | Teaching page |
+| meme-101c-lesson-3.html | 101C.3 · Creation, supply, first allocations & price · Meme Fast | Teaching page |
+| meme-101c-lesson-4.html | 101C.4 · Creator powers: mint, freeze, fees & transfers · Meme Fast | Teaching page |
+| meme-101c-lesson-5.html | 101C.5 · Float, locks, vesting & unlocks · Meme Fast | Teaching page |
+| meme-101c-lesson-6.html | 101C.6 · Liquidity control, graduation & migration · Meme Fast | Teaching page |
+| meme-101c-lesson-7.html | 101C.7 · How the dev earns: fees, inventory & Pay Dev · Meme Fast | Teaching page |
+| meme-101c-lesson-8.html | 101C.8 · Marketing, supported demand & early surges · Meme Fast | Teaching page |
+| meme-101c-lesson-9.html | 101C.9 · Cost basis, sales & remaining inventory · Meme Fast | Teaching page |
+| meme-101c.html | 101C · Understand the Dev & Supply · Meme Fast | Index or application page |
 | meme-202a-lesson-1.html | 202A.1 · Price moves at the margin · Meme Fast | Teaching page |
 | meme-202a-lesson-10.html | 202A.10 · Migration as event risk · Meme Fast | Teaching page |
 | meme-202a-lesson-11.html | 202A.11 · PVP Dominance & Rotation · Meme Fast | Teaching page |
@@ -67,11 +81,11 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 | meme-303-lesson-10.html | 303A.9 · Match the evidence to the market | Legacy redirect |
 | meme-303-lesson-11.html | 303A.10 · Portfolio limits & concentration | Legacy redirect |
 | meme-303-lesson-12.html | 303A.11 · Measure the net result | Legacy redirect |
-| meme-303-lesson-13.html | 303B.2 · Dev Cycle / Buyer Cycle | Legacy redirect |
-| meme-303-lesson-14.html | 303B.3 · Alignment, divergence & extraction | Legacy redirect |
-| meme-303-lesson-15.html | 303B.4 · Dev economics & incentives | Legacy redirect |
-| meme-303-lesson-16.html | 303B.5 · Token fees vs trading fees | Legacy redirect |
-| meme-303-lesson-17.html | 303B.6 · Visible wallet vs economic position | Legacy redirect |
+| meme-303-lesson-13.html | Dev Cycle / Buyer Cycle | Legacy redirect |
+| meme-303-lesson-14.html | Alignment, divergence & extraction | Legacy redirect |
+| meme-303-lesson-15.html | Dev economics & incentives | Legacy redirect |
+| meme-303-lesson-16.html | Token fees vs trading fees | Legacy redirect |
+| meme-303-lesson-17.html | Visible wallet vs economic position | Legacy redirect |
 | meme-303-lesson-2.html | 303A.2 · Opportunity vs portfolio risk | Legacy redirect |
 | meme-303-lesson-3.html | 303A.3 · Scout, then earn promotion | Legacy redirect |
 | meme-303-lesson-4.html | 303A.4 · Adding up or down | Legacy redirect |
@@ -79,8 +93,8 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 | meme-303-lesson-6.html | 303A.6 · Reset the mission | Legacy redirect |
 | meme-303-lesson-7.html | 303A.7 · Break the attachment | Legacy redirect |
 | meme-303-lesson-8.html | 303A.8 · Attention & holding time | Legacy redirect |
-| meme-303-lesson-9.html | 303B.1 · Read inventory, not green buys | Legacy redirect |
-| meme-303.html | 303 · Position & Actors · Meme Fast | Index or application page |
+| meme-303-lesson-9.html | Read inventory, not green buys | Legacy redirect |
+| meme-303.html | 303 · Your Position · Meme Fast | Index or application page |
 | meme-303a-lesson-1.html | 303A.1 · Choose the container · Meme Fast | Teaching page |
 | meme-303a-lesson-10.html | 303A.10 · Portfolio limits & concentration · Meme Fast | Teaching page |
 | meme-303a-lesson-11.html | 303A.11 · Measure the net result · Meme Fast | Teaching page |
@@ -93,13 +107,13 @@ Scope: all 96 static HTML pages scanned for local destinations and fragment anch
 | meme-303a-lesson-8.html | 303A.8 · Attention & holding time · Meme Fast | Teaching page |
 | meme-303a-lesson-9.html | 303A.9 · Match the evidence to the market · Meme Fast | Teaching page |
 | meme-303a.html | 303A · Managing Your Position · Meme Fast | Index or application page |
-| meme-303b-lesson-1.html | 303B.1 · Read inventory, not green buys · Meme Fast | Teaching page |
-| meme-303b-lesson-2.html | 303B.2 · Dev Cycle / Buyer Cycle · Meme Fast | Teaching page |
-| meme-303b-lesson-3.html | 303B.3 · Alignment, divergence & extraction · Meme Fast | Teaching page |
-| meme-303b-lesson-4.html | 303B.4 · Dev economics & incentives · Meme Fast | Teaching page |
-| meme-303b-lesson-5.html | 303B.5 · Token fees vs trading fees · Meme Fast | Teaching page |
-| meme-303b-lesson-6.html | 303B.6 · Visible wallet vs economic position · Meme Fast | Teaching page |
-| meme-303b.html | 303B · Actor Inventory & Incentives · Meme Fast | Index or application page |
+| meme-303b-lesson-1.html | Read inventory, not green buys | Legacy redirect |
+| meme-303b-lesson-2.html | Dev Cycle / Buyer Cycle | Legacy redirect |
+| meme-303b-lesson-3.html | Alignment, divergence & extraction | Legacy redirect |
+| meme-303b-lesson-4.html | Dev economics & incentives | Legacy redirect |
+| meme-303b-lesson-5.html | Token fees vs trading fees | Legacy redirect |
+| meme-303b-lesson-6.html | Visible wallet vs economic position | Legacy redirect |
+| meme-303b.html | 101C · Understand the Dev & Supply | Legacy redirect |
 | model.html | The Meme Fast Model · How It Works | Index or application page |
 | narrative.html | Narrative research · Meme Fast | Index or application page |
 | narratives.html | Meme Fast · Incoming Narratives | Index or application page |
