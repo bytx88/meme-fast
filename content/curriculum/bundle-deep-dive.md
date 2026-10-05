@@ -5,7 +5,7 @@ Screen early supply with a bubble map and the top ten holders. Learn what should
 
 **Your working rule: no ordinary holder above 3% of the verified tradable float.** Apply it to supported linked groups too, not just individual wallets.
 
-This is a concentration filter, not proof that a token is good to enter. Also check sellability, permissions, usable liquidity, an executable quote for your size, and a credible reason for demand. 
+This is a concentration filter, not proof that a token is good to enter. Also check sellability, permissions, usable liquidity, an executable quote for your size, and a credible reason for demand.
 
 Check the denominator. A provider's “% of total supply” may differ from your “% of float.” Classify pool, burn, locked, exchange, and system addresses separately; do not blindly subtract them. If float or ownership is unclear, mark the screen unresolved.
 
