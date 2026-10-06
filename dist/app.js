@@ -17,6 +17,7 @@ import {createFlowCache} from './flow-cache.mjs';
 import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 import {createCandleHistory} from './candle-history.mjs';
 import {renderCandleHistory} from './candle-view.mjs';
+import {readFlowWindow,saveFlowWindow} from './flow-preferences.mjs';
 const flowCache=createFlowCache();
 const flowHistory=createFlowHistory();
 const renderTape=setupTape();
@@ -41,7 +42,7 @@ function renderRecentContracts(){
   }
 }
 const DEFAULT_ADDRESS='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
-const state={token:{address:DEFAULT_ADDRESS,network:'robinhood',symbol:'CASHED',name:'Cashed Money'},minutes:1440,trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
+const state={token:{address:DEFAULT_ADDRESS,network:'robinhood',symbol:'CASHED',name:'Cashed Money'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.historyTrades=[];
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
@@ -178,7 +179,7 @@ function render(){
   }
 
 }
-$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);render()}));
+$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 $('inspect-intro-toggle').addEventListener('click',()=>{const body=$('inspect-intro-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('inspect-intro-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse Inspect introduction':'Expand Inspect introduction');button.title=expanded?'Collapse Inspect introduction':'Expand Inspect introduction';button.firstElementChild.textContent=expanded?'▴':'▾';button.closest('.inspect-intro').classList.toggle('is-collapsed',!expanded)});
 const explicitQuery=tokenQueryFromSearch(location.search);
@@ -189,7 +190,7 @@ const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$
   $('query').value=address;
   if(canonical(address)!==canonical(state.searchedQuery))search(address).catch(e=>error(e.message));
 }});
-$('show-all').addEventListener('click',()=>{state.minutes=1440;render()});
+$('show-all').addEventListener('click',()=>{state.minutes=1440;saveFlowWindow(state.minutes);render()});
 $('select-matches').addEventListener('click',()=>{state.draft=new Set(state.matches.map(listingKey));updateSelection()});
 $('clear-matches').addEventListener('click',()=>{state.draft.clear();updateSelection()});
 $('combine-selected').addEventListener('click',()=>selectListings(state.matches.filter(t=>state.draft.has(listingKey(t)))));

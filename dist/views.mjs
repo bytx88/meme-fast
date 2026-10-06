@@ -23,7 +23,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   const {bins,stepMinutes,start,end}=flowTimeline(rows,minutes,now);
   const {firstShown,bins:visibleBins}=visibleFlowRange(bins),visibleStart=visibleBins[0]?.start??start;
   const caps=marketCapTimeline(rows,bins,combined?null:valuation).slice(firstShown),values=caps.filter(v=>v!=null),hasMC=values.length>0;
-  const mcNote=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Sparse price outliers are omitted using the selected window. Gaps mean no representative observed price.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
+  const mcNote=combined?'Select one listing to see its market cap; caps are not added across contracts.':values.length?'Estimated MC uses trade price × supply implied by the latest reported MC and price, assuming unchanged supply. Sparse price outliers are omitted using the selected window. Dashed connections span intervals with no representative observed price; they do not add price observations.':valuation?'Latest reported MC is shown above. No usable trade prices in this window to estimate the line.':busy?'Checking market cap…':'Market cap was not supplied for this listing. FDV is not substituted for MC.';
   const info=$('coverage-tooltip');
   info.textContent+=` ${mcNote} Observed swaps only. Empty intervals do not establish zero market activity. Buy/sell bars and estimated MC use separate scales.`;
   document.querySelector('.coverage-help summary').title=info.textContent;
@@ -58,8 +58,17 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
     const capY=v=>bottom-(v-minCap)/(maxCap-minCap)*(bottom-top);
     label('MC · est.',right+20,14);
     for(const fraction of [0,.5,1]){const value=minCap+(maxCap-minCap)*fraction,y=capY(value);const tick=svgEl('line',{x1:right,x2:right+5,y1:y,y2:y,stroke:'#7db9ff'});svg.append(tick);label(axisMoney(value),right+20,y+5)}
-    let segment=[];const flush=()=>{if(segment.length>1)svg.append(svgEl('polyline',{points:segment.join(' '),fill:'none',stroke:'#7db9ff','stroke-width':2,'vector-effect':'non-scaling-stroke'}));segment=[]};
-    caps.forEach((value,i)=>{if(value==null){flush();return}const x=left+(i+.5)*unit,y=capY(value);segment.push(`${x},${y}`);svg.append(svgEl('circle',{cx:x,cy:y,r:2.5,fill:'#7db9ff'}))});flush();
+    let previous=null;
+    caps.forEach((value,i)=>{
+      if(value==null)return;
+      const x=left+(i+.5)*unit,y=capY(value);
+      if(previous){
+        const attributes={x1:previous.x,y1:previous.y,x2:x,y2:y,stroke:'#7db9ff','stroke-width':2,'vector-effect':'non-scaling-stroke'};
+        if(i>previous.i+1)attributes['stroke-dasharray']='4 4';
+        svg.append(svgEl('line',attributes));
+      }
+      svg.append(svgEl('circle',{cx:x,cy:y,r:2.5,fill:'#7db9ff'}));previous={x,y,i};
+    });
   }
   visibleBins.forEach((bin,i)=>{
     const x=left+i*unit,g=svgEl('g',{tabindex:0,role:'img'}),barWidth=Math.max(1,Math.min(18,unit*.34));
