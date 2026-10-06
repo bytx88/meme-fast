@@ -33,9 +33,9 @@ VISUALS = {
         ('Alpha', 'A claimed useful information advantage: “this token has a new integration.” Verify the original announcement, date, and exact token address.')],
         'Twenty reposts can come from one claim. Check the primary source, then look for actual buying and returning participation.'),
     'BUNDLE_INVENTORY': cards('Cheap early inventory can take three paths', [
-        ('Constructive', 'Sell gradually to pay for marketing, liquidity, development, or other disclosed work. Check where the money went and what was delivered.'),
+        ('Constructive', 'Raise capital early, then sell some inventory later to fund further development, marketing, or community building. Progress and delivered work are shown and communicated.'),
         ('Neutral / speculative', 'Early buyers took launch risk and later take profits. Check the size and pace of sales.'),
-        ('Predatory', 'Insiders attract public buyers, then dump cheap inventory into them. Compare promotion, linked sales, and remaining holdings.')],
+        ('Predatory', 'Attract public buyers and dump cheap inventory into them, with no intent to deliver actual utility or build a community.')],
         'Illustrative EARLY token: five wallets buy 2m units each at $0.0001. Combined cost is $1,000 before fees. At $0.001, their 10m units mark at $10,000. A large sale may receive much less. Early entry suggests a cost advantage; verify the actual payments.'),
     'BUNDLE_EVIDENCE': cards('Build the evidence for coordination and control', [
         ('1. Extremely early buying', 'Bought at creation or very soon after.'),
