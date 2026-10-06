@@ -5,7 +5,7 @@ import {loadListings} from './data.mjs?v=unit-price-v1';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
-import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=trader-5d-v1';
+import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=flow-links-v2';
 import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
 import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
