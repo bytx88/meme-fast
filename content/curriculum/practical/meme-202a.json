@@ -54,15 +54,15 @@
     "exercise": "Five more tokens copy the same story and none gains persistent buying. Has the larger token count proved the theme is strengthening? No. It may show supply of competing launches rather than increased demand."
   },
   "10": {
-    "title": "Migration as event risk",
-    "walkthrough": "An illustrative migration completes at estimated MC $84k, reaches $91k after one minute, falls to $73k after five, then recovers to $112k after fifteen. Technical completion remains true throughout; the market response changes.",
-    "method": "Verify event time, destination pool, route availability, and the current launch rules. Compare completed samples before and after with consistent contract and pool coverage. Record actual event time separately from first detection; a five-minute collector cannot reconstruct an exact one-minute reaction without historical data.",
-    "exercise": "If a token’s progress reads 99%, can you start the post-migration price comparison? No. Confirm completion first. Missing event or price samples remain unknown."
+    "title": "Three basic checks",
+    "walkthrough": "An illustrative token has a clear meme thesis and a modest valuation, but the linked X account announces a different CA. A recognizable trader appears in a holdings snapshot. The thesis is worth considering, the contract mismatch is unresolved, and the snapshot does not tell you whether that trader is buying or exiting. These are three findings, not a buy signal.",
+    "method": "Keep one brief record per check with source and check time: thesis/meta/upside; bundles, X and exact-CA consistency plus obvious sell or liquidity issues; notable participants and observed behavior. Separate observed facts from the upside judgment. Mark unverified information Unknown. Use 202A.11 to decide the depth and trading approach.",
+    "exercise": "A token has a working X link and a known trader holds it. Has it passed all three checks? No. Neither fact explains fresh demand or clears bundles and contract mismatches. A holding snapshot also does not establish accumulation. Complete the minimal checks before shaping a trade."
   },
   "11": {
-    "title": "PVP Dominance & Rotation",
-    "walkthrough": "Two exact-contract tokens share a story. Token A has credible project backing but shallow liquidity; token B has more volume dominated by one group. Neither one metric nor a reputation label establishes the stronger continuing market.",
-    "method": "Compare primary contract links, credible backing, buyer activity, related inventory, and route depth over the same horizon. Track when attention and participation move between competitors. PVP describes competition for participation; it is not evidence that one ticker must win.",
-    "exercise": "A rival gains stronger independent buying while your token keeps promotional mentions but loses depth. What changed? The competition for demand and execution conditions changed; update the comparison rather than defending the original choice."
+    "title": "How to trade the demand wave",
+    "walkthrough": "Two traders assess the same illustrative wave. One enters before the anticipated buying and sells into the rise. The other arrives after the burst and calls the same story an early entry. The story did not change, but the captured part of the wave did. If the first trader instead gets no upward follow-through inside the preset snipe window, that snipe fails even if price rises much later.",
+    "method": "Write the demand source, expected scale and arrival window first. Choose snipe, PvP rotation or swing accordingly. Specify the early-entry condition, position size against usable liquidity, planned profit-taking, and time or thesis invalidation. For a swing, expand all three checks into catalyst and demand persistence, supply and structural risk, and holder behavior. Monitor buying that absorbs selling and produces price response. A five-minute collection is a bounded sample, not a live snipe execution signal.",
+    "exercise": "You planned a short snipe, but upward pressure never produces the run within your defined window. Price recovers the next day. Did the snipe succeed? No. Its necessary condition failed inside its frame and time. Exit on that failure; any later opportunity needs a new assessment rather than a retrospective change of definition."
   }
 }

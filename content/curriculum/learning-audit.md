@@ -54,8 +54,8 @@ Scope: all 110 static HTML pages scanned for local destinations and fragment anc
 | meme-101c-lesson-9.html | 101C.9 · Cost basis, sales & remaining inventory · Meme Fast | Teaching page |
 | meme-101c.html | 101C · Understand the Dev & Supply · Meme Fast | Index or application page |
 | meme-202a-lesson-1.html | 202A.1 · Price moves at the margin · Meme Fast | Teaching page |
-| meme-202a-lesson-10.html | 202A.10 · Migration as event risk · Meme Fast | Teaching page |
-| meme-202a-lesson-11.html | 202A.11 · PVP Dominance & Rotation · Meme Fast | Teaching page |
+| meme-202a-lesson-10.html | 202A.10 · Three basic checks · Meme Fast | Teaching page |
+| meme-202a-lesson-11.html | 202A.11 · How to trade the demand wave · Meme Fast | Teaching page |
 | meme-202a-lesson-2.html | 202A.2 · Liquidity & price impact · Meme Fast | Teaching page |
 | meme-202a-lesson-3.html | 202A.3 · Buy/sell pressure · Meme Fast | Teaching page |
 | meme-202a-lesson-4.html | 202A.4 · Supply transfer · Meme Fast | Teaching page |
