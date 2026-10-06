@@ -287,66 +287,98 @@
       ]
     },
     {
-      "title": "Attention persistence",
-      "question": "Is this a base with returning demand, or stranded holders?",
-      "definition": "Attention persistence asks whether discussion and fresh participation survive quiet price periods and renew after catalysts.",
-      "why": "A stable chart can hide fading demand and holders waiting to exit.",
+      "title": "Comprehensive swing check",
+      "question": "What brings the next buyers, can the token survive, and is ownership strengthening?",
+      "definition": "For a 3-14 day swing, deepen the same three basic entry checks from 202A.10: thesis, quality and upside; survival and dump risk; participants and demand conversion. The longer exposure needs a more comprehensive assessment before entry.",
+      "why": "A swing needs enough survival time for the expected demand wave to develop, and enough remaining upside to justify exposure. A stable chart, respected dev, or large KOL audience alone does not establish either.",
       "checks": [
-        "Credible discussion while price is quiet",
-        "Returning buyers and evidence of attention renewal",
-        "Catalyst extension and whether the meta has rotated"
+        "Thesis, quality and upside: assess the meta, narrative or product, dev reputation and delivery, KOL quality/reach/persistence, and community. Identify upcoming catalysts, renewable attention, distribution or token economics that can bring fresh buyers. Judge remaining upside against credible comparables.",
+        "Survival and dump risk: verify contract and CA legitimacy, liquidity and exitability, dev holdings and selling, bundles and linked wallets, holder concentration, and cheap early supply. Can the token survive until the expected demand arrives?",
+        "Participants and demand conversion: identify who owns meaningful supply and whether they are accumulating, holding or distributing. Is attention becoming fresh buyers, growing holders, and demand that absorbs existing sellers?"
       ],
-      "healthy": "Fresh participation returns beyond a single promotional burst.",
-      "dangerous": "Only trapped-holder discussion remains while buyers disappear.",
-      "mistake": "Calling quiet price action accumulation without demand evidence.",
-      "takeaway": "A base needs participation, not just time.",
+      "healthy": "Credible delivery and outreach support a catalyst inside the swing window; independent attention converts into buyers; ownership and liquidity can withstand the expected selling. The largest dependency and unknowns are explicit.",
+      "dangerous": "Reputation substitutes for checking dev sales, follower counts substitute for demand, or cheap insider inventory can overwhelm incoming buyers. A distant roadmap or recycled promotion is the only reason offered for a run.",
+      "mistake": "Calling quiet price action accumulation, treating all KOL posts as independent outreach, or assuming a good project automatically gives its token upside.",
+      "takeaway": "Conclude with why it can run, what can kill it, and its largest dependency. Keep evidence brief and mark unknowns explicitly; passing the check does not automatically justify entry.",
       "example": [
-        "Price stabilizes and discussion continues.",
-        "Buyers return after a verified catalyst and selling meets recovery.",
-        "That strengthens a base hypothesis; stability alone would not."
+        "Illustrative thesis: a dev with a delivery record has a release expected within seven days. Several KOLs reach distinct audiences and continue explaining the story. Compare the current valuation with relevant peers and explain differences.",
+        "Illustrative survival check: linked low-cost wallets still own substantial supply. Check actual sales, usable liquidity, and whether expected buyers could absorb an exit; dev reputation cannot clear that overhang.",
+        "Illustrative conversion check: attention grows, but holder snapshots and sampled buys show little broadening. State that fresh demand remains unproven and identify the release as the largest thesis dependency."
+      ],
+      "framework": [
+        "The same three entry checks, with greater depth for a 3-14 day swing.",
+        "SURVIVE -> ATTRACT -> CONVERT -> REPRICE.",
+        "Why it can run / what can kill it / largest dependency."
       ],
       "evidence": [
-        "Tweet",
-        "narratives.html",
-        "Review observed sources during quiet periods, then compare sampled participation in Inspect. Posts do not establish independent holders or sustained demand."
+        "Swing",
+        "radar.html",
+        "Use fresh listing context, source evidence, and sampled flow in Inspect as leads. Verify dev history, KOL outreach, bundles, permissions, holder behavior and catalysts externally. RSS counts and wallet snapshots are incomplete evidence."
       ],
       "foundation": [
         6,
         "3-social-momentum"
       ],
-      "deeper": "Ask whether attention regenerates, buyers return, and the wider theme remains relevant. Compare token and meta cycles separately. A catalyst can extend a working lifecycle without guaranteeing a new move. Missing buyer or ownership history prevents a confident distinction between accumulation and stranded inventory."
+      "related": [
+        [
+          "meme-202a-lesson-10.html",
+          "202A.10 - Three basic checks"
+        ],
+        [
+          "meme-101c.html",
+          "101C - Understand the dev and supply"
+        ]
+      ],
+      "deeper": "Separate dev reputation from current behavior: past delivery supports credibility, while current holdings, sales and contract control determine risk. Separate product existence from evidence of real usage. For KOL outreach, distinguish quality, reach across non-overlapping audiences, and persistence beyond a single paid or promotional post. For upside, look for external validation, ecosystem proof, an independent attention source, or a recurring catalyst engine; product or child-asset success needs a believable link to token demand. Compare market cap and FDV with adoption and credible peers rather than mechanically copying their valuations. Check volume quality, unique participation and holder growth over comparable windows; wash activity and coordinated wallets can distort them. Quiet-price discussion matters only if fresh participation can renew. Confirmed sell traps, dangerous contract control, removable liquidity or overwhelming insider distribution can invalidate the setup regardless of narrative strength. Unknown critical safety or execution information leaves the entry unresolved. No numerical total is required."
     },
     {
-      "title": "Market maturity & the method boundary",
-      "question": "When does the wider market become part of the case?",
-      "definition": "Venue development can add history, participants, and market connections: launchpad → migrated DEX → established DEX → CEX.",
-      "why": "Meme-specific attention and wallet methods may no longer explain the whole move.",
+      "title": "How to trade the swing",
+      "question": "How do you shape a 3-14 day trade around the expected demand wave?",
+      "definition": "Assess the wave, then build the container: estimate how large demand could become and when it could arrive, enter early before the expected repricing, and sell into the rise. A swing allows pressure to develop over days within a defined frame and time window.",
+      "why": "The same thesis can offer an early entry or a late chase. Structure, absorption and holder behavior help judge which part of the expected wave is still available; the trade must fit that wave rather than an indefinite hope of recovery.",
       "checks": [
-        "Early: launch mechanics, wallet control, and thin liquidity",
-        "Established DEX: structure, liquidity, and broader chain context",
-        "CEX/perpetuals where available: BTC sensitivity, order books, open interest, and funding"
+        "Wave and entry: use the comprehensive swing check to identify the demand source, plausible scale and arrival window. Define an early-entry condition using structure, absorption and holder behavior before the expected repricing.",
+        "Size and hold: fit exposure to usable liquidity, supply risk and uncertainty. Allow pressure to build only while the thesis, demand engine and ownership conditions remain intact.",
+        "Exit and failure: plan where or when to sell into the rise. Define the thesis break, overwhelming distribution, and expiry of the time window that end the trade."
       ],
-      "healthy": "The method expands with verified venues and available evidence.",
-      "dangerous": "Maturity is assumed to guarantee liquidity, safety, or smaller downside.",
-      "mistake": "Using an early-launch lens for every later market condition.",
-      "takeaway": "Expand the method as the market changes.",
+      "healthy": "Entry precedes expected demand, position size fits an executable exit, and a quiet buildup remains inside the planned window with its conditions intact. Profit-taking captures the rise as the wave arrives.",
+      "dangerous": "Entry chases a completed burst, price stability hides stranded holders, or the catalyst disappears while insiders distribute. The trader repeatedly extends the window instead of recognizing failure.",
+      "mistake": "Turning a failed snipe into a swing, mistaking patience for evidence, or using a later recovery to validate a trade whose original frame already failed.",
+      "takeaway": "Enter early and sell into the rise. A swing gives demand more time to build than a snipe, but still requires a defined frame, a time window, and conditions for failure.",
       "example": [
-        "A token grows beyond one launch pool into several venues.",
-        "Price starts moving with broader crypto conditions.",
-        "Review those venues and correlations alongside local structure and flow."
+        "Illustrative plan: a verified release is expected on day seven. The entry condition is an early base with selling absorbed and holder behavior consistent with the thesis, before the anticipated demand reprices the token.",
+        "Size against available liquidity and supply risk. Record profit-taking into the expected rise, the latest allowed demand window, and what would invalidate the release or ownership case. Hold a quiet buildup only while those conditions remain true.",
+        "When the demand wave arrives, sell into the rise under the plan. If the release is canceled, distribution overwhelms buying, or the window expires without the required demand, exit rather than redefine the trade."
       ],
-      "external": "Use venue-specific market data for order books, open interest, and funding. Meme Fast does not provide complete CEX or derivatives coverage.",
+      "framework": [
+        "Assess the wave -> build the container -> enter early -> allow demand to develop -> sell into the rise.",
+        "Wave / entry / size / hold / exit / failure.",
+        "Frame and time define success; a later recovery cannot rescue an already invalidated trade."
+      ],
+      "evidence": [
+        "Swing",
+        "radar.html",
+        "Use sampled flow and price response in Inspect to assess absorption and selling. Verify catalyst timing and execution quotes separately; Meme Fast does not provide a complete live tape or guarantee exit capacity."
+      ],
       "foundation": [
         2,
         "9-market-maturity"
       ],
-      "deeper": "More mature venues can improve information and execution while changing the upside/downside profile, but neither improvement nor reduced asymmetry is guaranteed. BTC beta means sensitivity to BTC moves and must be measured. Open interest counts outstanding derivatives contracts; funding belongs to perpetual markets, not every CEX listing. Smart-money concepts (SMC), liquidity sweeps, and broader technical analysis are additional hypotheses requiring their own evidence. This chapter marks the boundary of the meme-specific course rather than certifying those methods.",
-      "references": [
+      "related": [
         [
-          "Coinbase: perpetual funding",
-          "https://help.coinbase.com/en/international-exchange/funding/what-is-the-funding-rate"
+          "meme-202b-lesson-10.html",
+          "202B.10 - Comprehensive swing check"
+        ],
+        [
+          "meme-202a-lesson-11.html",
+          "202A.11 - Snipe and PvP timing"
+        ],
+        [
+          "meme-303a.html",
+          "303A - Manage exposure and exits"
         ]
-      ]
+      ],
+      "deeper": "Use 202B.1-9 for structure, bases, supply zones, absorption, holder rotation, pullbacks and distribution. These refine timing after the demand thesis is assessed; retracement levels alone do not create buyers. The expected low and high are entry and exit regions, not exact extrema known in advance. A quiet period can fit a swing if the demand source, ownership conditions and catalyst remain intact inside the chosen 3-14 day window. It is failure when necessary conditions break or the required demand does not arrive by the predefined deadline. Profit-taking can be staged into the rise; do not substitute a fixed target for observing whether the demand engine is fading. On established multi-venue tokens, check broader market conditions and actual venue depth alongside the local thesis. Open interest and funding apply only where derivatives exist; a CEX listing does not automatically establish liquidity or safety. A new opportunity after failure needs a new assessment rather than a retrospective extension of the original trade."
     }
   ],
   "principle": "Swing reads structure, then verifies flow. Structure gives the area; current supply and demand show whether that area is alive."

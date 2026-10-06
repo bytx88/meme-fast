@@ -66,8 +66,8 @@ Scope: all 110 static HTML pages scanned for local destinations and fragment anc
 | meme-202a-lesson-9.html | 202A.9 · Meta saturation · Meme Fast | Teaching page |
 | meme-202a.html | 202A · Snipe · Meme Fast | Index or application page |
 | meme-202b-lesson-1.html | 202B.1 · Price structure · Meme Fast | Teaching page |
-| meme-202b-lesson-10.html | 202B.10 · Attention persistence · Meme Fast | Teaching page |
-| meme-202b-lesson-11.html | 202B.11 · Market maturity & the method boundary · Meme Fast | Teaching page |
+| meme-202b-lesson-10.html | 202B.10 · Comprehensive swing check · Meme Fast | Teaching page |
+| meme-202b-lesson-11.html | 202B.11 · How to trade the swing · Meme Fast | Teaching page |
 | meme-202b-lesson-2.html | 202B.2 · Base & repricing · Meme Fast | Teaching page |
 | meme-202b-lesson-3.html | 202B.3 · Supply zones · Meme Fast | Teaching page |
 | meme-202b-lesson-4.html | 202B.4 · Demand & absorption · Meme Fast | Teaching page |
