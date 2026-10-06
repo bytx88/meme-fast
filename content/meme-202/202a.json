@@ -3,7 +3,7 @@
   "name": "Snipe",
   "slug": "meme-202a",
   "question": "Why is it accelerating now?",
-  "intro": "Read changes in demand before the move becomes obvious: buyers, size, selling, absorption, and attention.",
+  "intro": "Assess the expected demand wave first, then use buying, selling, absorption and attention to shape an early entry and an exit into the rise. Chapters 1-9 teach the mechanics; chapters 10-11 bring them into the decision.",
   "lens": [
     "Demand accelerates",
     "Supply reacts",
@@ -296,15 +296,15 @@
       "healthy": "The thesis is understandable, the contract links are consistent, and participant behavior supports the expected demand. Findings are brief, sourced, and explicit about unknowns.",
       "dangerous": "A familiar ticker, working X link, or known-wallet badge is treated as proof of safety or as an automatic reason to buy. Bundles, a changed CA, or existing sellers are ignored.",
       "mistake": "Turning the minimal check into a long scoring exercise, or entering simply because the token passes it.",
-      "takeaway": "Use the same three checks for every entry. Keep this first pass minimal; deepen it and decide how to trade in 202A.11.",
+      "takeaway": "Use the same three checks for every entry. Keep this first pass minimal. Use 202A.11 for fast execution, 202B.10 for comprehensive swing assessment, and 202B.11 for swing execution.",
       "example": [
-        "A new token fits an active story. State the source of possible fresh attention and a plausible upside case from its current valuation.",
-        "Compare the exact CA with project and X links, inspect bundles, and record who still holds meaningful supply. An unresolved replacement CA is Unknown, not cleared.",
-        "Summarize thesis, red flags, and participants in three short findings. Only then consider whether the expected demand supports a snipe, PvP trade, or swing."
+        "Thesis / meta / upside: a new token fits an active story. Identify who could bring fresh attention and how much room remains from its current valuation.",
+        "Scam red flags: compare the exact CA with project and X links, inspect bundles, and check obvious selling or liquidity restrictions. An unresolved replacement CA is Unknown, not cleared.",
+        "Who is already in: identify notable traders, KOLs, the dev and related wallets. Check who still holds meaningful supply and whether they are buying, holding or selling."
       ],
       "framework": [
-        "Thesis / meta / upside -> scam red flags -> who is already in.",
-        "A generic minimum for every entry; trading depth and execution belong in 202A.11."
+        "Thesis / meta / upside → scam red flags → who is already in.",
+        "Fast execution: 202A.11. Comprehensive swing assessment: 202B.10. Swing execution: 202B.11."
       ],
       "evidence": [
         "Snipe",
@@ -315,7 +315,21 @@
         6,
         "4-ct-kol-shilling"
       ],
-      "deeper": "CA means contract address; KOL means key opinion leader. A working X link is only a consistency check, not proof that the token is legitimate. Compare exact contracts rather than names, verify any claimed replacement against primary announcements, and mark unverified information Unknown. A profitable or recognizable wallet is not automatically supportive: entry timing, position size, remaining inventory, and selling matter. A balance snapshot alone cannot establish buying or selling. Upside is a reasoned case about possible demand, not a promised target."
+      "deeper": "CA means contract address; KOL means key opinion leader. A working X link is only a consistency check, not proof that the token is legitimate. Compare exact contracts rather than names, verify any claimed replacement against primary announcements, and mark unverified information Unknown. A profitable or recognizable wallet is not automatically supportive: entry timing, position size, remaining inventory, and selling matter. A balance snapshot alone cannot establish buying or selling. Upside is a reasoned case about possible demand, not a promised target.",
+      "related": [
+        [
+          "202A.11 - Fast execution",
+          "meme-202a-lesson-11.html"
+        ],
+        [
+          "202B.10 - Comprehensive swing assessment",
+          "meme-202b-lesson-10.html"
+        ],
+        [
+          "202B.11 - Swing execution",
+          "meme-202b-lesson-11.html"
+        ]
+      ]
     },
     {
       "title": "How to trade the demand wave",
@@ -323,7 +337,7 @@
       "definition": "Assess the coming flow of demand first, then shape the trade around its expected size and timing. Snipe and swing are containers for capturing an early entry and selling into the rise; PvP adds competition for the same attention and capital.",
       "why": "You enter early, before the expected rise, and sell into that rise. A good story at a late price is a different opportunity. The approach must fit the demand wave rather than forcing the token into a preferred holding period.",
       "checks": [
-        "Assess the wave: use the three basic checks to identify fresh demand, plausible scale, timing, and competing tokens. For a swing, deepen all three checks before entry.",
+        "Assess the wave: use the three basic checks to identify fresh demand, plausible scale, timing and competing tokens. Use 202B.10 if the expected wave needs a swing window.",
         "Shape the container: choose snipe, PvP rotation, or swing; define an early entry condition, exposure that fits usable liquidity, and where or when to sell into the expected rise.",
         "Define the frame: state the required upward pressure, the time allowed for it to produce the move, and the exit when it fails, fades, or the planned rise has been captured."
       ],
@@ -332,12 +346,12 @@
       "mistake": "Choosing the holding period first, treating a later recovery as proof that a failed snipe worked, or waiting indefinitely for a thesis to become demand.",
       "takeaway": "Assess the wave, build the container, enter early, and sell into the rise. If the necessary pressure fails within the defined frame and time, the trade has failed.",
       "example": [
-        "Illustrative snipe: early attention and buying are building before the run. Define a short window for upward pressure to produce the move, enter only while the early-entry condition holds, and plan to sell into the rise.",
-        "Illustrative PvP rotation: two exact-contract tokens compete for the same story. Compare fresh buyers, credible backing, remaining insider inventory, and liquidity. Stay only while the chosen wave holds; reassess a rival without chasing its completed burst.",
-        "Illustrative swing: a catalyst is expected inside 3-14 days. Deepen the thesis, supply and contract checks, and holder behavior; enter before anticipated demand, plan profit-taking into the rise, and exit if the catalyst or sustained-demand case fails."
+        "Snipe entry: assume the basic checks pass. At minute 0, price is 1.00, fresh buyers are arriving and dips recover. The planned wave is 1.20-1.30 within five minutes. Enter only near 1.00-1.05 while that early condition holds; a first look at 1.25 is already outside this entry plan.",
+        "Capture the run: at minute 2, buying drives price to 1.22. The plan sells half in 1.20-1.25 and exits the rest by 1.30, on fading pressure, or at minute 5, whichever comes first. Order size must fit current buy and sell quotes.",
+        "Failure: exit earlier if the 1.00 area fails without recovery or buying stops advancing price. If no sustained move above 1.05 occurs by minute 3, exit rather than wait for minute 5. A later rally cannot validate this failed snipe."
       ],
       "framework": [
-        "Assess demand -> choose the container -> enter early -> sell into the rise -> exit on failure.",
+        "Assess demand → choose the container → enter early → sell into the rise → exit on failure.",
         "Snipe: upward pressure must exist immediately or be building, and produce the run while you are in. Without it, within this snipe frame the trade can only go down: exit.",
         "Frame and time define success. A later recovery outside the window cannot validate the original snipe."
       ],
@@ -352,20 +366,24 @@
       ],
       "related": [
         [
-          "meme-202a-lesson-10.html",
-          "202A.10 - Three basic checks"
+          "202A.10 - Three basic checks",
+          "meme-202a-lesson-10.html"
         ],
         [
-          "meme-202b.html",
-          "202B - Deepen the swing assessment"
+          "202B.10 - Comprehensive swing assessment",
+          "meme-202b-lesson-10.html"
         ],
         [
-          "meme-303a.html",
-          "303A - Manage exposure and exits"
+          "202B.11 - Swing execution",
+          "meme-202b-lesson-11.html"
+        ],
+        [
+          "303A - Manage exposure and exits",
+          "meme-303a.html"
         ]
       ],
-      "deeper": "Snipe is a short timing approach: immediate or building buying pressure must absorb selling and produce price follow-through during the intended exposure. Set the holding window before entry; no follow-through or fading pressure means exit rather than convert it to a swing. PvP means competing for participation, often between tokens claiming the same narrative. Snipe timing can overlap with PvP; monitor current leadership, rival demand, and the cost of rotation. Swing uses the same entry checks more comprehensively: thesis, meta, comparables and catalysts over 3-14 days; liquidity and contract controls, bundles, dev sales and cheap early supply; holder composition, accumulation versus distribution, and new demand absorbing sellers. Product or ecosystem success matters only if it supports token demand. Migration may create a wave of anticipation, but technical completion alone does not create renewed buying; confirm the event and assess demand before and after. Position size, executable quotes, profit-taking and invalidation must fit the chosen window. The low and high are the intended early-entry and exit regions, not exact extrema known in advance."
+      "deeper": "The example uses invented price units and a five-minute window to demonstrate a complete plan; these are not universal thresholds. Snipe upward pressure must be immediate or building and produce price follow-through during the intended exposure. Set the deadline before entry. No follow-through or fading pressure means exit, not conversion to a swing. PvP adds competition for the same participation: compare rival attention, fresh buyers, remaining inventory and usable liquidity. Reassess current leadership without chasing a rival whose wave has already run. Snipe timing can overlap with PvP; the first token need not fail before capital rotates. Migration may create anticipation, but completion alone does not create new buying. When the expected wave builds over days, use the comprehensive assessment in 202B.10 and execution in 202B.11. The low and high are planned entry and exit regions, not exact extrema known in advance."
     }
   ],
-  "principle": "Snipe reads flow, not levels. Early chart history is often too short for mature technical analysis; begin with acceleration, then check the other evidence."
+  "principle": "Assess demand first, then shape the snipe. Flow and acceleration help time an early entry; upward pressure must produce the run inside the defined holding window. Sell into the rise and exit when that frame fails."
 }

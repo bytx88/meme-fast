@@ -48,10 +48,22 @@ for course in courses:
     for i, lesson in enumerate(lessons, 1):
         if len(lesson['checks']) != 3 or len(lesson['example']) != 3:
             raise ValueError(f'{code}.{i}: use three checks and three example steps')
+        check_details = lesson.get('check_details', [[], [], []])
+        if len(check_details) != 3:
+            raise ValueError(f'{code}.{i}: details must match the three checks')
+        checks = '<ul>'
+        for check, details in zip(lesson['checks'], check_details):
+            checks += f'<li>{escape(check)}'
+            if details:
+                checks += '<ul>' + ''.join(
+                    f'<li><strong>{escape(item["label"])}:</strong> {escape(item["text"])}</li>'
+                    for item in details) + '</ul>'
+            checks += '</li>'
+        checks += '</ul>'
         steps = [
             ('Definition', f'<p>{escape(lesson["definition"])}</p>'),
             ('Why it matters', f'<p>{escape(lesson["why"])}</p>'),
-            ('What to check', '<ul>' + ''.join(f'<li>{escape(check)}</li>' for check in lesson['checks']) + '</ul>'),
+            ('What to check', checks),
             ('Healthy / Dangerous', f'<div class="concept-comparison"><div class="concept-healthy"><h3>Healthy</h3><p>{escape(lesson["healthy"])}</p></div><div class="concept-dangerous"><h3>Dangerous</h3><p>{escape(lesson["dangerous"])}</p></div></div>'),
             ('Beginner mistake', f'<p>{escape(lesson["mistake"])}</p>'),
             ('Takeaway', f'<p><strong>{escape(lesson["takeaway"])}</strong></p>')

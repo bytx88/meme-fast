@@ -55,6 +55,24 @@ test('applied learning links complete both course paths and hand back to the too
 });
 
 
+test('snipe and swing deeper links resolve to teaching pages',async()=>{
+ for(const track of ['202a','202b']){
+  for(const chapter of [10,11]){
+   const page=`meme-${track}-lesson-${chapter}`;
+   const html=await readFile(new URL(`../dist/${page}.html`,import.meta.url),'utf8');
+   const deeper=html.match(/<details class="applied-deeper">[\s\S]*?<\/details>/)?.[0];
+   assert.ok(deeper,page);
+   const links=[...deeper.matchAll(/href="\.\/([^"#?]+)"/g)];
+   assert.ok(links.length,`${page} has research destinations`);
+   for(const [,destination] of links){
+    assert.match(destination,/^meme-[a-z0-9-]+\.html$/,`${page} local destination`);
+    const target=await readFile(new URL(`../dist/${destination}`,import.meta.url),'utf8');
+    assert.match(target,/<h1>/,`${page} destination teaches a topic`);
+   }
+  }
+ }
+});
+
 test('303 split preserves every chapter and redirects existing bookmarks',async()=>{
  const load=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
  const original=JSON.parse(await load('content/meme-303/course.json'));
