@@ -1,7 +1,7 @@
 {
   "1": {
     "title": "Read the numbers together",
-    "walkthrough": "A token price is $0.01 and the reported supply is 100m units, so displayed market cap is $1m. If only 20m units are circulating, circulating cap would be $200k under that supply definition. FDV may use the larger supply. None of these figures is money sitting in the pool.",
+    "walkthrough": "A token trades at $0.01, with 20m circulating units and a stated fully diluted supply of 100m. Circulating market cap is $200k; FDV is $1m. A dashboard using all 100m units may label $1m as market cap. Record its definition. None of these figures is money sitting in the pool.",
     "mechanism": "A pool contains 1m token units and $10k of quote currency at the same price. Its total marked liquidity might be shown as about $20k because both sides are valued. A $5k purchase is large relative to the $10k quote reserve even though it is tiny relative to $1m market cap. Obtain the actual route quote instead of inferring execution from cap.",
     "method": "Record the exact contract and chain, price timestamp, supply definition, cap type, pool reserves, and quote for the contemplated size. Compare volume over the same window and coverage. Separate missing cap or liquidity from zero. If the data is stale, the calculation describes the old observation, not the present exit.",
     "exercise": "Is a $1m cap with $20k liquidity enough to sell $50k at chart price? No. Cap marks supply at a marginal price; pool depth and actual quotes determine achievable proceeds."
@@ -16,7 +16,7 @@
   "3": {
     "title": "Reconstruct economic ownership",
     "walkthrough": "A top-holder list shows ten addresses with 5% each. If five are supported related wallets, that group controls 25%, not five independent 5% positions. If another address is the pool contract, its balance belongs in a different category from ordinary owner inventory.",
-    "mechanism": "A creator wallet falls from 10m to 2m while a directly linked wallet receives 8m. The supported group still has 10m. A holder chart that only watches the creator can falsely suggest reduced control. A common exchange funding source alone is not enough to establish that link.",
+    "mechanism": "A creator wallet falls from 10m to 2m while a directly linked wallet receives 8m. The supported group still has 10m. A holder chart that only watches the creator can falsely suggest reduced control. A common exchange funding source alone is not enough to establish that link. For bundled launch buyers, also record acquisition payments and fees. A bundle percentage describes detected early concentration under the tool’s rules; it does not establish dev ownership or the group’s current sellable balance.",
     "method": "Open the exact-contract holder list, classify pool, burn, system, exchange, and owner addresses, then trace supported relationships. Record initial and current units and the supply denominator. Distinguish buys, sells, transfers, and permissions. Keep uncertain associations visible instead of producing a falsely exact ownership percentage.",
     "exercise": "Does more holder addresses prove decentralized control? No. Balance splitting or dust transfers can increase addresses without changing control or bringing in buyers."
   },
@@ -38,7 +38,7 @@
     "title": "Trace attention into the exact token",
     "walkthrough": "A news event attracts 20 indexed posts, then 40 in an equal later window. Some are reposts and several name a different contract with the same ticker. The raw count rose; exact-token independent interest may not have doubled.",
     "mechanism": "Even if credible attention grows, buying can stay flat while early inventory sells. Conversely, a token can attract buying before indexed posts arrive. Compare timestamps and coverage instead of treating one metric as the cause of the other.",
-    "method": "Trace the primary story, publication date, and exact-contract association. Separate independent sources, repetitions, and aliases. Compare equivalent attention and trade windows and record indexing lag. Write what changed in interest and what changed in market participation as separate conclusions.",
+    "method": "Trace the primary story, publication date, and exact-contract association. Separate independent sources, repetitions, and aliases. Compare equivalent attention and trade windows and record indexing lag. Write what changed in interest and what changed in market participation as separate conclusions. For claimed alpha, open the primary announcement and match its date and full token address. A screenshot or repost alone does not verify an integration, launch, or partnership.",
     "exercise": "Does zero RSS mentions mean no attention exists? No. It means none appeared in that bounded indexed sample. Absence from a sample is not total audience absence."
   },
   "7": {

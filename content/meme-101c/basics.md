@@ -4,7 +4,7 @@ Meet SAMPLE, a made-up token. Follow the dev, the tokens, and the money. The lab
 [[TOKEN_LAUNCH_WALKTHROUGH]]
 
 ## Look across a group of wallets
-One person can use several wallets. **Linked wallets** are accounts with evidence connecting their owners; keep suspected links separate. A **bundle** groups transactions for ordered execution. Scanners may also use the word for launch purchases they detect as coordinated. Check the tool's definition before using its number.
+One person can use several wallets. **Linked wallets** are accounts with evidence connecting their owners; keep suspected links separate. In meme research, a **bundle** means supply captured through coordinated buying at creation or very early, at or near the initial price. Those wallets may hold much cheaper inventory than later buyers. Check actual purchase costs and the scanner’s definition; the label does not prove they belong to one person.
 
 If a group holds many available tokens, it has more selling capacity than any one wallet suggests. **Dumping** means selling a large amount quickly enough to put heavy pressure on the market. Check how much other buyers and the pool can take in.
 

@@ -19,7 +19,31 @@
     "Meme Lifecycle": {
       "What is it?": "An attention lifecycle is a working description of how participation changes, not a guaranteed sequence.",
       "Common path": "Emergence → Acceleration → Expansion → Maturity → Decline → Exhaustion. Extension: Maturity → Renewal → Expansion."
+    },
+    "Market Cap": {
+      "What is it?": "Market cap normally means current price × circulating supply. FDV (fully diluted valuation) uses the stated fully diluted supply, often total or maximum supply. Some meme dashboards call price × total supply “market cap”; check the provider’s definition.\n\n[[VALUATION_EXAMPLE]]",
+      "Beginner mistake": "Treating market cap or FDV as money that holders can withdraw from the pool."
+    },
+    "DEX": {
+      "What is it?": "A DEX is a decentralized exchange: an app routes swaps through on-chain trading contracts. In this course, follow the token from its launch mechanism to its DEX pool and current swap route.\n\n[[WALLET_BASICS]]",
+      "What should I check?": "- Exact token address and chain\n- Pool reserves, route, fees, and sale quote\n- App URL and the message or transaction you are asked to sign\n- Permissions affecting transfers and selling"
+    },
+    "Slippage": {
+      "What is it?": "Slippage is the difference between the quoted trade outcome and the actual execution. Slippage tolerance is the limit you allow; price impact is the effect of your own order on pool pricing.\n\n[[SWAP_QUOTE]]",
+      "Beginner mistake": "Increasing tolerance until a swap works without reading minimum received, fees, or the reason for failure.",
+      "Takeaway": "**Read the expected output and minimum received for your actual order size.**"
+    },
+    "Narrative": {
+      "What is it?": "A narrative is the story used to explain why a token might attract buyers. Meta describes a broader theme across tokens. Alpha means a claimed information advantage; it needs verification.\n\n[[ATTENTION_EXAMPLE]]",
+      "What should I check?": "- Original announcement, date, and exact token address\n- Whether posts add new information or repeat one source\n- Actual buying and returning participation\n- Competing tokens in the same theme"
+    },
+    "Bundles": {
+      "What is it?": "In meme-token research, a bundle means supply captured through coordinated buying at creation or very early, at or near the initial price. Scanners use different detection rules. A technical transaction bundle groups transactions for ordered execution; that label alone does not establish early ownership.\n\n[[BUNDLE_INVENTORY]]",
+      "Why does it matter?": "Very early buyers may have much cheaper inventory than later buyers, so they can profit at prices where later buyers lose. Check actual acquisition payments, fees, remaining units, and sales. Early concentration can support work, ordinary profit-taking, or dumping.",
+      "What should I check?": "- Launch purchases, timing, actual payments, and fees\n- Bundle percentage definition, supply total, and snapshot time\n- Current remaining holdings and sale quotes\n- Funding, transfers, and evidence of common control\n- Promotion, sales, spending, and delivery",
+      "Beginner mistake": "Treating bundle percentage as proven dev ownership, or assuming every early buyer has the same cost.",
+      "Takeaway": "**Bundle % describes detected early concentration. Wallet linkage helps investigate who controls the inventory.**"
     }
   },
-  "market_maturity": "## 9. Market Maturity\n\n### What is it?\nA possible venue path is launchpad → migrated DEX → established DEX → CEX, a centralized exchange. Not every token follows it.\n\n### Why does it matter?\nAt launch, attention, wallets, and controls dominate the questions. Later, more history and broader market conditions become relevant. The venue path is not a safety ranking.\n\n### What should I check?\n- Current venue and actual migration status\n- Available price history\n- Current pool depth or order-book depth\n\n### Beginner mistake\nTreating migration or a listing as proof of safety.\n\n### Takeaway\n**Know the trading environment before interpreting the numbers.**\n\n---"
+  "market_maturity": "## 9. Market Maturity\n\n### What is it?\nA possible venue path is launchpad → migrated DEX → continuing DEX trading. Not every token follows it.\n\n### Why does it matter?\nAt launch, attention, wallets, and controls dominate the questions. Later, more history and broader market conditions become relevant. The venue path is not a safety ranking.\n\n### What should I check?\n- Current venue and actual migration status\n- Available price history\n- Current pool reserves and available trading routes\n\n### Beginner mistake\nTreating migration or a listing as proof of safety.\n\n### Takeaway\n**Know the trading environment before interpreting the numbers.**\n\n---"
 }

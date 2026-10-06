@@ -7,14 +7,14 @@
   },
   "2": {
     "title": "Immediate rug risk",
-    "walkthrough": "An ordinary wallet buys 1,000 units, but a current sale quote returns almost nothing or an executed sale fails under a transfer rule. That is an immediate execution problem even if another privileged wallet can sell. A chart displaying trades does not establish equal permissions.",
+    "walkthrough": "An ordinary wallet buys 1,000 units, but a current sale quote returns almost nothing or an executed sale fails under a transfer rule. That is an immediate execution problem even if another privileged wallet can sell. A chart displaying trades does not establish equal permissions. Bundled early supply adds a different risk: cheap inventory can be sold into later buyers even while permissions and selling work normally. Check concentration and current sale capacity separately.",
     "method": "Use the exact chain and contract in a block explorer or supported contract inspector. Record current authorities and fee settings. Inspect completed ordinary-wallet buys and sells under those settings, including net receipts and failure reasons. Separately identify who can change the settings or withdraw liquidity. A quote or simulation is preliminary evidence; do not treat it as a guaranteed fill.",
     "exercise": "One address sold successfully while three ordinary addresses fail. Has sellability been demonstrated for everyone? No. Check exemptions, routes, transaction failures, and current rules before interpreting the successful sale."
   },
   "3": {
     "title": "Slow extraction",
     "walkthrough": "Suppose linked wallets begin with 30 million units. Over three promotions they sell 4m, 3m, and 5m, and transfer 6m between themselves. Group inventory falls to 18m, not 12m: internal transfers do not remove supply from the group. Continued selling is measurable; malicious intent is a separate claim.",
-    "method": "Create an address ledger with opening balances, purchases, sales, external transfers, and closing balances. Match actual swaps to attention spikes using timestamps. Include receiving addresses when linkage is justified. Compare remaining supply with current depth and quote sizes; a smaller visible creator balance can hide unchanged group control.",
+    "method": "Create an address ledger with opening balances, purchases, sales, external transfers, and closing balances. Match actual swaps to attention spikes using timestamps. Include receiving addresses when linkage is justified. Compare remaining supply with current depth and quote sizes; a smaller visible creator balance can hide unchanged group control. For coordinated early buyers, reconstruct purchase costs and fees where possible. Compare sales with disclosed spending and delivered work. A cheap entry or high bundle % alone does not establish a scam or common ownership.",
     "exercise": "The creator balance falls from 10m to 2m, while a supported linked address receives 8m. How much group inventory disappeared? Zero through that transfer. Investigate subsequent swaps before claiming the group sold 8m."
   },
   "4": {
@@ -32,7 +32,7 @@
   "6": {
     "title": "Token cycle, meta cycle & attention",
     "walkthrough": "A new token can launch into a tired theme. Its contract is new, but the same story may already have exhausted attention across ten competing tokens. Conversely, an older token can receive a genuinely new catalyst without becoming a new technical launch.",
-    "method": "Keep token events, theme events, and attention evidence on separate timelines. Compare original reporting with reposts; identify what changed, when, and which exact contracts have observed participation. A fresh ticker or repeated announcement does not by itself renew the wider theme.",
+    "method": "Keep token events, theme events, and attention evidence on separate timelines. Compare original reporting with reposts; identify what changed, when, and which exact contracts have observed participation. A fresh ticker or repeated announcement does not by itself renew the wider theme. Treat alpha as a claim to investigate: match the original announcement, date, and exact token address, then check whether participation actually changed.",
     "exercise": "An hour-old token repeats last week’s heavily copied theme. Is it a fresh meta? No. It is a new token whose broader theme needs separate evidence of renewed interest."
   },
   "7": {

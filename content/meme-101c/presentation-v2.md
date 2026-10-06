@@ -41,3 +41,7 @@ This document supersedes the reading-order and URL-count descriptions in `covera
 The opening introduces vocabulary through a three-step launch diagram, a proportional supply diagram, and a purchase/sale diagram. Definitions remain beside the relevant action. All diagrams have visible text and work without JavaScript.
 
 Each section now has one investigation, worked example, record, and set of visible answers. Sections 5, 6, 8, and 9 combine their original topics into one connected lesson; their complete mechanisms and evidence limits remain covered. Section 3 uses a standalone example without relying on the later holdings ledger. Headings describe the subject directly, and fee earnings, claims, qualifying trades, and supply totals are explained in everyday language. Historical bookmarks continue to land on the corresponding subject.
+
+## Bundle presentation
+
+Lead with coordinated creation/very-early purchases and the cost advantage of early inventory. Show constructive funding, speculative profit-taking, and predatory dumping as distinct uses to investigate. Keep early concentration, actual cost, and current common control as separate records. The evidence ladder is a corroboration path, not an ownership score. Distinguish technical transaction bundles, scanner definitions, and creator allocations. Keep the DEX focus and the existing ten sections.

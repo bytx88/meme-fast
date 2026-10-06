@@ -3,6 +3,7 @@ from pathlib import Path
 import html
 import json
 import re
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / 'dist'
@@ -11,6 +12,7 @@ GUIDANCE = json.loads((CONTENT / 'concept-guidance.json').read_text(encoding='ut
 EVIDENCE = json.loads((CONTENT / 'tool-evidence.json').read_text(encoding='utf-8'))
 REFINEMENTS = json.loads((CONTENT / 'refinements.json').read_text(encoding='utf-8'))
 PRACTICAL = json.loads((ROOT / 'content/curriculum/practical/meme-101.json').read_text(encoding='utf-8'))
+VISUALS = runpy.run_path(str(ROOT / 'scripts/render-foundation-visuals.py'))['VISUALS']
 
 # Complete the few fields missing from the original lesson drafts.
 SUPPLEMENTS = {
@@ -36,6 +38,9 @@ def inline(value):
 
 
 def markdown(source):
+    visual = re.search(r'\[\[(' + '|'.join(VISUALS) + r')\]\]', source)
+    if visual:
+        return markdown(source[:visual.start()]) + VISUALS[visual[1]] + markdown(source[visual.end():])
     # Render structured lesson tables without permitting raw HTML in course text.
     table = re.search(r'^\|[^\n]+\|\n\|[ :|\-]+\|\n(?:\|[^\n]+\|(?:\n|$))+', source, re.M)
     if table:
