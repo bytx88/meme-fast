@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildTweetView,tweetSocialBadge} from '../dist/tweet-view.mjs';
+import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics} from '../dist/tweet-view.mjs';
 const now=1800000000000;
 const article=(id,title,publisher='Decrypt',age=1000)=>({id,url:`https://decrypt.co/${id}`,title,summary:'Reported development',publisher,time:now-age});
 const coins=[{id:'solana:a',chain:'Solana',symbol:'AAA',name:'Alpha',buyers:10,contract_address:'Ab'.repeat(20)},
@@ -49,4 +49,27 @@ test('on-demand cache expiry never leaves an old count displayed as fresh',()=>{
   assert.match(tweetSocialBadge({},'coin',cache,now),/<strong>7<\/strong>/);
   assert.match(tweetSocialBadge({},'coin',cache,now+1001),/not sampled/);
   assert.match(tweetSocialBadge({},'coin',{...cache,value:{...cache.value,cacheStatus:'stale'}},now),/stale/);
+});
+
+test('multi-publisher news retains actual excerpts instead of article-count boilerplate',()=>{
+  const narrative={summary:'2 articles from 2 publishers cover this developing story.',posts:[
+    {publisher:'Decrypt',title:'Venue challenge',summary:'Prosecutors cite a previous ruling to contest where the case can be heard.'},
+    {publisher:'Cointelegraph',title:'Venue challenge',summary:'The defense argues that the alleged conduct did not occur in this jurisdiction.'}]};
+  const excerpt=newsExcerpt(narrative);
+  assert.match(excerpt.text,/Prosecutors cite/);assert.match(excerpt.text,/defense argues/);
+  assert.doesNotMatch(excerpt.text,/2 articles from/);assert.equal(excerpt.sources.length,2);
+  assert.equal(newsExcerpt({posts:[]}).text,'');
+});
+test('news excerpts deduplicate syndicated descriptions without hiding distinct context',()=>{
+  const posts=[{title:'Headline',summary:'The regulator published a detailed report explaining the risks to public blockchains.'},
+    {title:'Headline',summary:'The regulator published a detailed report explaining the risks to public blockchains.'},
+    {title:'Headline',summary:'Researchers say wallet migration needs preparation before encryption methods change.'}];
+  const excerpt=newsExcerpt({posts});assert.equal(excerpt.sources.length,2);
+  assert.equal(excerpt.text.split('The regulator').length,2);assert.match(excerpt.text,/Researchers say/);
+});
+test('compact coin metrics distinguish unknown fields from measured zero and preserve price direction',()=>{
+  const metrics=tweetCoinMetrics({mc:null,liquidity:NaN,volume:1000,buyers:23,volume5m:0,buys5m:0,sells5m:null,priceChange:-12.5});
+  assert.equal(metrics.mc,null);assert.equal(metrics.liquidity,null);assert.equal(metrics.buys24h,null);
+  assert.equal(metrics.volume5m,0);assert.equal(metrics.buys5m,0);assert.equal(metrics.sells5m,null);
+  assert.equal(metrics.change24h,-12.5);assert.equal(metrics.buyers24h,23);assert.equal(metrics.volume24h,1000);
 });
