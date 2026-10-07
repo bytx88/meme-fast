@@ -1,3 +1,4 @@
+import {matchesChainFilter,toggleChainFilter} from './radar-filter.mjs';
 import {walletBadges,walletRegistry} from './followed-wallets.mjs';
 import {requestRefreshPriority} from './refresh-priority.mjs';
 import {marketFreshness,freshnessCounts} from './market-freshness.mjs';
@@ -83,11 +84,13 @@ function compareCoins(a,b){
  if(second==null)return -1;
  return second-first||(b.firstSeen??0)-(a.firstSeen??0);
 }
+function selectedChains(){return Array.isArray(state.screener.chain)?state.screener.chain:state.screener.chain==='all'?[]:[state.screener.chain]}
+function matchesSelectedChains(coin){return matchesChainFilter({network:coin.network||coin.chain},state.screener.chain)}
 function candidates(){
- if(nameSearch)return competition.sameName(state.query).filter(c=>showHidden||!hiddenCoins.has(c.id)).sort(compareCoins);
+ if(nameSearch)return competition.sameName(state.query).filter(c=>matchesSelectedChains(c)&&(showHidden||!hiddenCoins.has(c.id))).sort(compareCoins);
  const q=state.query.trim().toLowerCase(),cutoff=Date.now()-state.hours*3600000;
  const regular=data.coins.filter(c=>c.firstSeen>=cutoff||state.view==='discover'&&(stageFor(c)==='stretch'||c.launchpad?.completed===true&&c.graduationObservedAt>=cutoff)),manual=data.manualCoins;
- return [...new Map([...manual,...regular].filter(c=>(showHidden||!hiddenCoins.has(c.id))&&(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
+ return [...new Map([...manual,...regular].filter(c=>matchesSelectedChains(c)&&(showHidden||!hiddenCoins.has(c.id))&&(!state.skipRug||!c.ruggedAt&&!c.earlyRampWarning||contractQuery&&String(c.contract_address).toLowerCase()===contractQuery.toLowerCase())&&(state.view==='entry'||passesScreener(c,state.screener))&&(!q||`${c.name} ${c.symbol} ${c.contract_address}`.toLowerCase().includes(q))).map(c=>[c.id,c])).values()]
   .sort((a,b)=>Number(Boolean(b.manual))-Number(Boolean(a.manual))||compareCoins(a,b));
 }
 function marketState(c){
@@ -273,11 +276,13 @@ function render(){
  $('.coin-scanner').classList.toggle('discover-mode',state.view==='discover');
  $('.coin-scanner').classList.toggle('explore-mode',state.view==='explore');
   document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===state.view)));
+ const chains=selectedChains();
+ document.querySelectorAll('[data-chain-filter]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.chainFilter==='all'?chains.length===0:chains.includes(button.dataset.chainFilter))));
  document.querySelectorAll('[data-skip-rug]').forEach(input=>input.checked=state.skipRug);
  updateAutoButtons();
  $('#coin-list').innerHTML=nameSearch?nameSearchCards(all):state.view==='entry'?entryBoard(all):state.view==='discover'?cards(stages,all.filter(c=>c.launchpad).length,all.length,all):exploreCards(rows);
  const health=$('#market-health');if(health)health.textContent=state.historyLoaded&&nameReady?`${freshnessCounts(all,Date.now(),6)} · market freshness across these contracts${state.coverageNote}. Collection runs every 5m.`:state.historyError?'Collection unavailable; retained values may be stale.':'Loading market freshness…';
- $('#status').textContent=loading&&!state.historyLoaded?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across all chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
+ $('#status').textContent=loading&&!state.historyLoaded?'Loading shared server history…':state.notice||(nameSearch?`${rows.length} same-name contracts across ${selectedChains().length?'selected':'all'} chains`:`${rows.length} coin groups · ${all.length} contracts · ${state.hours===120?'5D':state.hours+'H'} window`);
  document.querySelectorAll('[data-sort]').forEach(select=>select.value=state.sort);
  document.querySelectorAll('[data-open-screener]').forEach(button=>button.title=`Screener settings · minimum 24h volume $${state.screener.volume24h.toLocaleString('en-US')}`);
  document.querySelectorAll('[data-volume-min]').forEach(label=>label.textContent=state.screener.volume24h?`${money(state.screener.volume24h)}+`:'All vol');
@@ -370,7 +375,8 @@ function updateScreenerTabs(){
 }
 function openScreener(){
  const form=$('#screener-settings');
- for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds','chain'])form.elements.namedItem(key).value=state.screener[key];
+ for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])form.elements.namedItem(key).value=state.screener[key];
+ const chains=selectedChains();form.elements.namedItem('chain').value=chains.length>1?'multiple':chains[0]||'all';
  for(const lane of ['newPairs','recovery','graduation'])for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])form.elements.namedItem(`${lane}.${key}`).value=state.screener.lanes?.[lane]?.[key]||0;
  updateScreenerTabs();
  $('#screener-dialog').showModal();
@@ -415,11 +421,12 @@ $('#show-hidden').addEventListener('change',event=>{showHidden=event.target.chec
 window.addEventListener('storage',event=>{if(event.key===hiddenPreferenceKey){hiddenCoins=savedHidden();preserveScroll(render)}if(event.key==='meme-fast-watchlist-v1'){rebuildCompetition();preserveScroll(render)}});
 document.addEventListener('toggle',event=>{if(event.target.matches?.('.entry-holds'))state.holdsOpen=event.target.open},true);
 $('#coin-detail').addEventListener('close',()=>{state.selectedId=null});
+document.querySelectorAll('[data-chain-filter]').forEach(button=>button.addEventListener('click',()=>{const chains=toggleChainFilter(selectedChains(),button.dataset.chainFilter);applyScreener({...state.screener,chain:chains.length?chains:'all'})}));
 document.querySelectorAll('[data-sort]').forEach(select=>select.addEventListener('change',event=>setSort(event.target.value)));
 document.querySelectorAll('[data-skip-rug]').forEach(input=>input.addEventListener('change',event=>{state.skipRug=event.target.checked;try{localStorage.setItem(skipRugPreferenceKey,String(state.skipRug))}catch{}render()}));
 $('#screener-settings').addEventListener('input',updateScreenerTabs);
 $('#screener-settings').addEventListener('change',updateScreenerTabs);
-$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
+$('#screener-settings').addEventListener('submit',event=>{event.preventDefault();const settings=Object.fromEntries(new FormData(event.currentTarget));if(settings.chain==='multiple'||settings.chain===undefined)settings.chain=state.screener.chain;settings.lanes={};for(const lane of ['newPairs','recovery','graduation']){settings.lanes[lane]={};for(const key of ['volume24h','liquidity','volume5m','transactions5m','transactionsLifetime','poolAgeMinSeconds','poolAgeMaxSeconds'])settings.lanes[lane][key]=settings[`${lane}.${key}`]}applyScreener(settings)});
 $('#screener-reset').addEventListener('click',()=>applyScreener(DEFAULT_SCREENER));
 document.querySelectorAll('[data-entry]').forEach(input=>input.addEventListener('change',event=>{state.entry=normalizeEntry({...state.entry,[event.target.dataset.entry]:event.target.value});try{localStorage.setItem(entryPreferenceKey,JSON.stringify(state.entry))}catch{}render()}));
 $('#query').addEventListener('input',event=>{state.query=event.target.value;if(nameSearch){document.title=`${state.query} · Snipe listings · Meme Fast`;state.pendingSnapshot=null}render();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim())nameSearchTimer=setTimeout(()=>{history.replaceState(null,'',nameSearchHref(state.query));void refresh()},300)}});$('#query').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(nameSearch){clearTimeout(nameSearchTimer);if(state.query.trim()){history.replaceState(null,'',nameSearchHref(state.query));void refresh()}}else investigate()}});

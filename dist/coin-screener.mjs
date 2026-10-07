@@ -1,3 +1,5 @@
+import {matchesChainFilter} from './radar-filter.mjs';
+
 export const DEFAULT_SCREENER = Object.freeze({volume24h:15000,liquidity:0,volume5m:0,transactions5m:0,transactionsLifetime:0,poolAgeMinSeconds:0,poolAgeMaxSeconds:0,chain:'all',lanes:Object.freeze({newPairs:Object.freeze({poolAgeMaxSeconds:108000}),recovery:Object.freeze({}),graduation:Object.freeze({})})});
 
 export function normalizeScreener(value={}){
@@ -7,6 +9,7 @@ export function normalizeScreener(value={}){
   if(value[key]!==''&&value[key]!=null&&Number.isFinite(number)&&number>=0)result[key]=Math.floor(number);
  }
  if(['all','solana','base','robinhood'].includes(value.chain))result.chain=value.chain;
+ if(Array.isArray(value.chain)){const chains=[...new Set(value.chain.filter(chain=>['solana','base','robinhood'].includes(chain)))];result.chain=chains.length?chains:'all';}
  result.lanes={};
  for(const lane of ['newPairs','recovery','graduation']){
   result.lanes[lane]={...DEFAULT_SCREENER.lanes[lane]};
@@ -21,7 +24,7 @@ export function normalizeScreener(value={}){
 }
 
 export function passesScreener(coin,settings,now=Date.now()){
- if(settings.chain!=='all'&&String(coin.network||coin.chain).toLowerCase()!==settings.chain)return false;
+ if(!matchesChainFilter({network:coin.network||coin.chain},settings.chain))return false;
  for(const [key,minimum] of [['volume',settings.volume24h],['liquidity',settings.liquidity],['volume5m',settings.volume5m]]){
   if(minimum>0&&(!Number.isFinite(Number(coin[key]))||coin[key]==null||Number(coin[key])<minimum))return false;
  }

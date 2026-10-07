@@ -29,6 +29,20 @@ test('Robinhood Chain is available in Coin filters',()=>{
  assert.equal(passesScreener({network:'solana'},settings),false);
 });
 
+test('multiple chain selections persist and compose with lane thresholds',()=>{
+ const settings=normalizeScreener({chain:['base','solana','base','unknown'],volume24h:0,lanes:{recovery:{liquidity:3000}}});
+ assert.deepEqual(settings.chain,['base','solana']);
+ assert.deepEqual(normalizeScreener(JSON.parse(JSON.stringify(settings))),settings);
+ for(const network of ['base','solana']){
+  assert.equal(passesLaneScreener({network,liquidity:3000},settings,'recovery'),true);
+  assert.equal(passesLaneScreener({network,liquidity:2999},settings,'recovery'),false);
+ }
+ assert.equal(passesScreener({network:'robinhood',liquidity:3000},settings),false);
+ const all=normalizeScreener({...settings,chain:[]});
+ assert.equal(all.chain,'all');
+ assert.equal(passesScreener({network:'robinhood'},all),true);
+});
+
 test('column minimums stay independent and combine with common filters',()=>{
  const settings=normalizeScreener({lanes:{newPairs:{liquidity:10000},recovery:{volume5m:500},graduation:{transactions5m:20}}});
  const coin={poolCreated:Date.now()-3600000,volume:20000,liquidity:5000,volume5m:600,buys5m:5,sells5m:5};

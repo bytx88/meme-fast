@@ -460,3 +460,17 @@ body:not(.tiles-only) .new-coins .discovery-board{height:auto}
 @media(max-width:400px){.screener-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.screener-fields label{grid-column:auto}}
 
 .screener-fields .screener-lifetime{grid-column:1/-1}
+
+/* Match Swing's compact chain letters in both Snipe toolbars. */
+body.trader-ui .new-coins .new-controls{flex-wrap:wrap}
+.snipe-chain-filters{display:flex;flex:none;align-items:center;gap:3px}
+.snipe-chain-filters>span{margin-right:2px;color:var(--muted);font-size:11px}
+body.trader-ui .snipe-chain-filters .snipe-chain-filter{position:relative;isolation:isolate;display:grid;flex:0 0 28px;place-items:center;box-sizing:border-box;width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:#15202a;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
+.snipe-chain-filter::before{position:absolute;z-index:-1;inset:3px;border-radius:50%;background:var(--chain-color);content:''}
+.snipe-chain-filter.all{--chain-color:#ee7281}
+.snipe-chain-filter.robinhood{--chain-color:#36d49b}
+.snipe-chain-filter.base{--chain-color:#78b4f3}
+.snipe-chain-filter.solana{--chain-color:#f5a14d}
+body.trader-ui .snipe-chain-filters .snipe-chain-filter:hover{background:#ffffff0a;border-color:#53616d}
+body.trader-ui .snipe-chain-filters .snipe-chain-filter[aria-pressed=true]{border-color:#c4f452;background:#c4f45214;box-shadow:inset 0 0 0 1px #c4f45233}
+body.trader-ui .snipe-chain-filters .snipe-chain-filter:focus-visible{outline:2px solid #e7f1ff;outline-offset:2px}
