@@ -43,9 +43,7 @@ Warmth is a provisional 0–100 saturation curve of indexed posts whose visible 
 
 ## Swing chain filter
 
-Swing's chain toolbar uses locally served Robinhood Chain, Base, and Solana icons. Select multiple chains to combine their results; **All** or deselecting the last chain resets the selection. Base matches only Base pools. Buttons expose full chain names and selection state to assistive technology, with hover titles and visible keyboard focus.
-
-Icon sources: [Robinhood Chain's official compact feather avatar](https://docs.robinhood.com/chain/brand-guidelines/) (unchanged JPEG embedded in an SVG container), [Base's official blue square](https://github.com/base/brand-kit/blob/main/logo/TheSquare/Digital/Base_square_blue.svg), and [Solana's official gradient logomark](https://solana.com/branding).
+Swing's chain toolbar uses small coloured letter circles: A for All, R for Robinhood Chain, B for Base, and S for Solana. Select multiple chains to combine their results; **All** or deselecting the last chain resets the selection. Base matches only Base pools. Buttons expose full chain names and selection state to assistive technology, with hover titles and visible keyboard focus.
 
 ## X social signal
 
