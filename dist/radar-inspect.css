@@ -215,10 +215,13 @@
 
 /* Compact brand icons with independent chain selection and an All reset. */
 .radar-controls>.radar-filter-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.radar-chain-filters{display:flex;align-items:center;gap:4px}
+.radar-chain-filters{display:flex;align-items:center;gap:3px}
 #chain-filter-label{margin-right:2px;color:var(--muted);font-size:11px}
-.radar-chain-filter{display:grid;flex:none;place-items:center;width:40px;height:40px;min-height:40px;padding:0;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font:700 11px 'Space Grotesk',sans-serif;line-height:1}
-.radar-chain-filter img{display:block;width:24px;height:24px;object-fit:contain}
+.radar-chain-filter{display:grid;flex:none;place-items:center;width:28px;height:28px;min-height:28px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--muted);font:700 11px 'Space Grotesk',sans-serif;line-height:1}
+.radar-chain-filter img{display:block;width:18px;height:18px;object-fit:contain}
+.radar-chain-filter.robinhood img{border-radius:50%}
+.radar-chain-filter.base img{border-radius:50%}
+.radar-chain-filter.solana img{box-sizing:border-box;padding:3px;border-radius:50%;background:#19212c}
 .radar-chain-filter:hover{background:#ffffff0a;border-color:#53616d;color:#e7f1ff}
 .radar-chain-filter[aria-pressed=true]{border-color:#c4f452;background:#c4f45214;color:#d1ff69;box-shadow:inset 0 0 0 1px #c4f45233}
 .radar-chain-filter:focus-visible{outline:2px solid #e7f1ff;outline-offset:2px}
