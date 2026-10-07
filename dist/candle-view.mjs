@@ -10,7 +10,7 @@ export function renderCandleHistory(history,snapshot,now=Date.now()){
   const host=$('timeline');host.replaceChildren();
   const candles=history?.candles||[],data=candleMarketCaps(candles,snapshot);
   const message=!history||history.status==='loading'?'Loading five-day candle history…':history.status==='failed'?`Historical candles unavailable: ${history.message}`:!candles.length?'No historical candles returned for this pool.':!data?'Historical prices loaded; market-cap estimate needs a reported MC and matching price.':null;
-  const method='15-minute OHLCV from the most liquid discovered pool. Estimated MC = candle price × supply implied by the latest reported MC and price, assuming unchanged supply. Each candle’s total volume is assigned to its closing MC tier as an approximation; its high/low identifies other tiers touched, with no volume assigned there. No buy/sell split or trade count is available from candles. Gaps are unknown; only completed candles within the requested window are included.';
+  const method='15-minute OHLCV from the most liquid discovered pool. Estimated MC = candle price × supply implied by the latest reported MC and price, assuming unchanged supply. Each candle’s total volume is assigned to its closing MC tier as an approximation; its high/low identifies other tiers touched, with no volume assigned there. No buy/sell split or trade count is available from candles. Gaps are unknown; only completed candles within the requested window are included. Dashed connections link observed closes across empty four-hour intervals; no market-cap points or volume are inferred inside those gaps.';
   $('coverage-tooltip').textContent=method;document.querySelector('.coverage-help summary').title=method;
   $('timeline-title').textContent='Flow trend';
   $('timeline-detail').textContent='';
@@ -38,12 +38,12 @@ export function renderCandleHistory(history,snapshot,now=Date.now()){
   let previous=null;
   groups.forEach((g,i)=>{
     const cx=left+(i+.5)*unit;
-    if(!g.rows.length){previous=null;return}
+    if(!g.rows.length)return;
     const group=svg('g',{tabindex:0,role:'img'}),height=g.volume/maxVolume*(bottom-top),barWidth=Math.max(1,Math.min(18,unit*.34));
     group.append(svg('rect',{x:cx-barWidth/2,y:bottom-height,width:barWidth,height,fill:'url(#flow-total)'}));
     group.append(svg('line',{x1:cx,x2:cx,y1:y(g.low),y2:y(g.high),stroke:'#7db9ff','stroke-opacity':.5}));
-    if(previous)group.append(svg('line',{x1:previous.x,x2:cx,y1:y(previous.close),y2:y(g.close),stroke:'#7db9ff','stroke-width':2}));
-    group.append(svg('circle',{cx,cy:y(g.close),r:2.5,fill:'#7db9ff'}));previous={x:cx,close:g.close};
+    if(previous)group.append(svg('line',{x1:previous.x,x2:cx,y1:y(previous.close),y2:y(g.close),stroke:'#7db9ff','stroke-width':2,...(i>previous.index+1?{'stroke-dasharray':'4 4'}:{})}));
+    group.append(svg('circle',{cx,cy:y(g.close),r:2.5,fill:'#7db9ff'}));previous={x:cx,close:g.close,index:i};
     const description=`${easternRange(g.start,g.end)} · Total volume ${formatUSD(g.volume)} · Est. MC ${formatUSD(g.close)} · Range ${compact(g.low)}–${compact(g.high)} · ${g.rows.length} candles · Buy/sell split unavailable`;
     group.setAttribute('aria-label',description);const title=svg('title');title.textContent=description;group.append(title);
     group.append(svg('rect',{x:left+i*unit,y:top,width:unit,height:bottom-top,fill:'transparent',class:'interval-hit'}));
