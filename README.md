@@ -114,3 +114,7 @@ Routine market sampling uses one batched meme request and one bounded alt reques
 ### 101C practical records
 
 101C uses one illustrative SAMPLE token across 13 chapters. Lessons stay in `content/meme-101c/`; the renderer uses `scripts/render-101c-tools.py` for annotated explorer field guides and the final review worksheet. Chapter 13 stores notes only in the current browser after an explicit Save action, supports a text download, and shows the worked example separately from personal notes. `dist/101c-review-template.txt` is a blank fallback without JavaScript. Understanding answers remain visible. Regenerate with `py scripts/render-meme-202.py` and `node scripts/build-worker.mjs`.
+
+### BNB Chain coverage
+
+Snipe (including Full) and Swing include a yellow **N** circle for BNB Chain; **B** remains Base. BNB uses the provider network ID `bsc` and the existing verified BSC address/trading-link format. Its first new-pool page and one-hour trending feed run before launchpad checks, with no deeper BNB pagination: two discovery requests per five-minute collection, within the shared 36-request Gecko budget. Retained BNB contracts use the existing batched Dexscreener refresh, saved-contract priorities, and freshness rules. Holder information is requested when available. This initial integration does not check BNB launchpad graduation; absent stages and holder metrics remain unknown. Coverage is a sampled pool feed, not every BNB launch.

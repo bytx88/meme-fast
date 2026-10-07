@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 
 HOUR_MS = 3_600_000
 MAX_TARGETS = 8
-ID_RE = re.compile(r"^(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40})$")
+ID_RE = re.compile(r"^(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40})$")
 ARTICLE_RE = re.compile(r"^/rss/articles/[A-Za-z0-9_-]+$")
 
 

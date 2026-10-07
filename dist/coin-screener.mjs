@@ -8,8 +8,8 @@ export function normalizeScreener(value={}){
   const number=Number(value[key]);
   if(value[key]!==''&&value[key]!=null&&Number.isFinite(number)&&number>=0)result[key]=Math.floor(number);
  }
- if(['all','solana','base','robinhood'].includes(value.chain))result.chain=value.chain;
- if(Array.isArray(value.chain)){const chains=[...new Set(value.chain.filter(chain=>['solana','base','robinhood'].includes(chain)))];result.chain=chains.length?chains:'all';}
+ if(['all','solana','base','robinhood','bsc'].includes(value.chain))result.chain=value.chain;
+ if(Array.isArray(value.chain)){const chains=[...new Set(value.chain.filter(chain=>['solana','base','robinhood','bsc'].includes(chain)))];result.chain=chains.length?chains:'all';}
  result.lanes={};
  for(const lane of ['newPairs','recovery','graduation']){
   result.lanes[lane]={...DEFAULT_SCREENER.lanes[lane]};

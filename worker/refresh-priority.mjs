@@ -1,7 +1,7 @@
 export const PRIORITY_TTL=86400000;
 export const tokenKey=id=>String(id).startsWith('solana:')?String(id):String(id).toLowerCase();
 export function validPriorityIds(ids){
- if(!Array.isArray(ids)||!ids.length||ids.length>30||ids.some(id=>typeof id!=='string'||! /^(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40})$/.test(id)))throw new Error('Request 1 to 30 supported token contracts');
+ if(!Array.isArray(ids)||!ids.length||ids.length>30||ids.some(id=>typeof id!=='string'||! /^(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40})$/.test(id)))throw new Error('Request 1 to 30 supported token contracts');
  return [...new Set(ids.map(tokenKey))];
 }
 export function selectMarketTargets(coins,radarCoins,priorityIds=[],now=Date.now(),limit=1800){

@@ -49,7 +49,7 @@ async function pumpHolderQueue(){
   const id=holderQueue.shift();queuedHolders.delete(id);
   if(holderInfo.has(id))continue;
   const coin=universe().find(item=>coinId(item)===id),address=contractForCopy(coin);
-  if(!address||!['solana','base','robinhood'].includes(coin.network))continue;
+  if(!address||!['solana','base','robinhood','bsc'].includes(coin.network))continue;
   const wait=Math.max(0,2200-(Date.now()-lastHolderRequest));
   if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
   lastHolderRequest=Date.now();

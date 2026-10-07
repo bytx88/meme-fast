@@ -6,7 +6,7 @@ const HOUR=60*60_000;
 const MAX_TARGETS=8;
 const MAX_PAGES=3;
 const EMPTY={version:1,status:'disconnected',sampledAt:null,coins:{}};
-const validId=id=>/^(solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40})$/.test(id);
+const validId=id=>/^(solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40})$/.test(id);
 const compact=value=>String(value??'').trim();
 const uniq=items=>[...new Set(items)];
 

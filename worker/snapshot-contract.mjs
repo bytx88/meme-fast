@@ -1,4 +1,5 @@
 import {SAMPLE_LIMITS} from '../dist/core.mjs';
+import {NETWORKS} from '../dist/public-radar.mjs';
 export {feedStatus} from '../dist/source-coverage.mjs';
 export const PIPELINE_LIMITS=Object.freeze({retentionMs:5*86400000,radarPerChain:200,newPoolPages:3});
 
@@ -8,7 +9,7 @@ export function coverageFor(feeds){
    status:feed.status??(feed.error?'failed':'unknown'),lastAttempt:feed.lastAttempt??null,lastSuccess:feed.lastSuccess??null,
    error:feed.error??null,records:feed.records??null,returnedRecords:feed.returnedRecords??null,
   }])),
-  sampling:{coinRetentionDays:PIPELINE_LIMITS.retentionMs/86400000,radarLimitPerChain:PIPELINE_LIMITS.radarPerChain,newPoolPagesPerChain:PIPELINE_LIMITS.newPoolPages,swapPoolsPerListing:SAMPLE_LIMITS.poolsPerListing,swapTradesPerPool:SAMPLE_LIMITS.tradesPerPool},
+  sampling:{coinRetentionDays:PIPELINE_LIMITS.retentionMs/86400000,radarLimitPerChain:PIPELINE_LIMITS.radarPerChain,newPoolPagesPerChain:PIPELINE_LIMITS.newPoolPages,newPoolPagesByChain:Object.fromEntries(NETWORKS.map(n=>[n.id,n.discoveryPages??PIPELINE_LIMITS.newPoolPages])),swapPoolsPerListing:SAMPLE_LIMITS.poolsPerListing,swapTradesPerPool:SAMPLE_LIMITS.tradesPerPool},
  };
 }
 

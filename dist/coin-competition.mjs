@@ -26,7 +26,7 @@ export function createCompetitionIndex(coins=[],saved=[]){
   // Use one whole market snapshot, including its unknowns, rather than mixing pools or dates.
   const current=!old||marketTime(coin)>marketTime(old.coin)?coin:old.coin;
   const [network,contract_address]=key.split(':');
-  records.set(key,{key,coin:{...current,id:current.id||key,network,contract_address:current.contract_address||contract_address,chain:current.chain||({solana:'Solana',base:'Base',robinhood:'Robinhood Chain'}[network]||network)},firstSeen:firstSeen.length?Math.min(...firstSeen):null,saved:Boolean(old?.saved||isSaved)});
+  records.set(key,{key,coin:{...current,id:current.id||key,network,contract_address:current.contract_address||contract_address,chain:current.chain||({solana:'Solana',base:'Base',robinhood:'Robinhood Chain',bsc:'BSC'}[network]||network)},firstSeen:firstSeen.length?Math.min(...firstSeen):null,saved:Boolean(old?.saved||isSaved)});
  }
  coins.forEach(coin=>add(coin));
  saved.forEach(item=>{const coin=savedCoin(item);if(coin)add(coin,true)});

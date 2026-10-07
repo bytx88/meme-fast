@@ -7,9 +7,10 @@ export function discoveryPlan(){
  const top=RADAR_NETWORKS.filter(network=>network.id==='solana'||network.id==='robinhood');
  // Cover every chain and research view before spending requests on deeper pages.
  const plan=[...NETWORKS.map(n=>request(n,'new_pools')),
-  ...RADAR_NETWORKS.map(n=>request(n,'trending_pools')),...top.map(n=>request(n,'pools'))];
+  ...RADAR_NETWORKS.filter(n=>n.priorityTrending).map(n=>request(n,'trending_pools')),
+  ...RADAR_NETWORKS.filter(n=>!n.priorityTrending).map(n=>request(n,'trending_pools')),...top.map(n=>request(n,'pools'))];
  for(let page=2;page<=PIPELINE_LIMITS.newPoolPages;page++){
-  plan.push(...NETWORKS.map(n=>request(n,'new_pools',page)),...top.map(n=>request(n,'pools',page)));
+  plan.push(...NETWORKS.filter(n=>page<=(n.discoveryPages??PIPELINE_LIMITS.newPoolPages)).map(n=>request(n,'new_pools',page)),...top.map(n=>request(n,'pools',page)));
  }
  return plan;
 }

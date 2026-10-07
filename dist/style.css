@@ -45,6 +45,7 @@
 .chain-marker{display:inline-grid;flex:none;place-items:center;width:15px;height:15px;border-radius:50%;vertical-align:middle;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
 .chain-marker.solana{background:#f5a14d;color:#261408}
 .chain-marker.robinhood{background:#36d49b;color:#07251b}
+.chain-marker.bsc{background:#f0ce49;color:#302708}
 
 /* Every page uses document scrolling, with a native fallback before enhancement. */
 html{overflow-y:auto;scrollbar-color:#65778b #0b1119;scrollbar-width:auto}

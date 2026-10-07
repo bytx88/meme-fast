@@ -5,7 +5,7 @@ export function marketPath(url) {
   const path=url.pathname.slice(prefix.length);
   const search=path==='/search/pools';
   const pools=/^\/networks\/[a-z0-9_-]{1,40}\/tokens\/[a-zA-Z0-9]{1,100}\/pools$/.test(path);
-  const info=/^\/networks\/(?:solana|base|robinhood)\/tokens\/[a-zA-Z0-9]{1,100}\/info$/.test(path);
+  const info=/^\/networks\/(?:solana|base|robinhood|bsc)\/tokens\/[a-zA-Z0-9]{1,100}\/info$/.test(path);
   const newPools=/^\/networks\/[a-z0-9_-]{1,40}\/new_pools$/.test(path);
   const trades=/^\/networks\/[a-z0-9_-]{1,40}\/pools\/[a-zA-Z0-9]{1,100}\/trades$/.test(path);
   const candles=/^\/networks\/[a-z0-9_-]{1,40}\/pools\/[a-zA-Z0-9]{1,100}\/ohlcv\/minute$/.test(path);

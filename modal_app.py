@@ -300,7 +300,7 @@ def web():
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="Invalid token request")
         if not isinstance(token_id, str) or not re.fullmatch(
-            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40}", token_id
+            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40}", token_id
         ):
             raise HTTPException(status_code=400, detail="Invalid token ID")
         try:
@@ -313,7 +313,7 @@ def web():
     async def coin_context(request: Request):
         token_id = request.query_params.get("id", "")
         if not re.fullmatch(
-            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40}", token_id
+            r"solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40}", token_id
         ):
             raise HTTPException(status_code=400, detail="Invalid token ID")
         snapshot = await load_snapshot()
@@ -394,7 +394,7 @@ def web():
         path = "/" + market_path
         is_search = path == "/search/pools"
         is_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/tokens/[a-zA-Z0-9]{1,100}/pools", path))
-        is_info = bool(re.fullmatch(r"/networks/(solana|base|robinhood)/tokens/[a-zA-Z0-9]{1,100}/info", path))
+        is_info = bool(re.fullmatch(r"/networks/(solana|base|robinhood|bsc)/tokens/[a-zA-Z0-9]{1,100}/info", path))
         is_new_pools = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/new_pools", path))
         is_trades = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/trades", path))
         is_candles = bool(re.fullmatch(r"/networks/[a-z0-9_-]{1,40}/pools/[a-zA-Z0-9]{1,100}/ohlcv/minute", path))

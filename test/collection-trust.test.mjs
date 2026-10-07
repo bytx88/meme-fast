@@ -47,23 +47,24 @@ test('a provider in cooldown does not block another provider',async()=>{
 });
 test('first discovery requests cover every chain and view before deeper pagination',()=>{
  const plan=discoveryPlan(),firstDeep=plan.findIndex(item=>item.page>1);
- assert.equal(firstDeep,8);
- assert.deepEqual(plan.slice(0,3).map(item=>item.key),['solana','base','robinhood']);
- assert.equal(new Set(plan.slice(0,firstDeep).map(item=>item.key)).size,8);
- assert.equal(plan.length,18);
+ assert.equal(firstDeep,10);
+ assert.deepEqual(plan.slice(0,5).map(item=>item.key),['solana','base','robinhood','bsc','bsc_trending']);
+ assert.equal(new Set(plan.slice(0,firstDeep).map(item=>item.key)).size,10);
+ assert.equal(plan.length,20);
+ assert.deepEqual(plan.filter(item=>item.network.id==='bsc').map(item=>[item.kind,item.page]),[['new_pools',1],['trending_pools',1]]);
 });
 test('indexed refresh runs before deeper pages even when later discovery exhausts its budget',async()=>{
  const calls=[],feeds={};let indexed=false;
  const fetcher=async url=>{
   calls.push(url);
-  if(calls.length>9)throw Error('collection budget reached');
+  if(calls.length>11)throw Error('collection budget reached');
   if(url.endsWith('/indexed'))indexed=true;
   return Response.json({data:[],included:[]});
  };
  await discoverPools(fetcher,1000,feeds,{betweenPasses:()=>fetcher('https://api.geckoterminal.com/indexed')});
  assert.equal(indexed,true);
- assert(calls[8].endsWith('/indexed'));
- assert(calls[9].includes('page=2'));
+ assert(calls[10].endsWith('/indexed'));
+ assert(calls[11].includes('page=2'));
  assert.equal(feeds.solana_trending.status,'ok');
  assert.equal(feeds.solana.error,'collection budget reached');
 });

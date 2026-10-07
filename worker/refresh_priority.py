@@ -2,7 +2,7 @@
 import re
 
 PRIORITY_TTL = 86400000
-TOKEN = re.compile(r"(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood):0x[a-fA-F0-9]{40})")
+TOKEN = re.compile(r"(?:solana:[1-9A-HJ-NP-Za-km-z]{32,44}|(?:base|robinhood|bsc):0x[a-fA-F0-9]{40})")
 
 
 def valid_priority_ids(ids):

@@ -194,10 +194,10 @@ async function story(coin,fetcher){
  return lead?{kind:'web',web:{...lead,exact:false,attribution:'Related name or theme; connection to this contract is unverified.'}}:null;
 }
 export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[],priorityIds=[]}={}){
- const launchCandidates=selectLaunchCandidates(coins);
+ const launchCandidates=selectLaunchCandidates(coins.filter(c=>c.network!=='bsc'));
  const selectedIds=new Set(launchCandidates.map(c=>c.id));
  const priority=new Set(priorityIds.map(tokenKey));
- for(const coin of coins.filter(c=>priority.has(tokenKey(c.id))).slice(0,30)){
+ for(const coin of coins.filter(c=>c.network!=='bsc'&&priority.has(tokenKey(c.id))).slice(0,30)){
   if(!selectedIds.has(coin.id)){launchCandidates.push(coin);selectedIds.add(coin.id)}
  }
  // Additional budget for active curves, independent of newest-pair admission.
@@ -297,7 +297,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  if(paced)fetcher=paced;
  // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
  let tracked=[],indexedCoins=[],launch,launchPools=[];
- const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length,betweenPasses:async({incoming,trending})=>{
+ const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length+RADAR_NETWORKS.filter(n=>n.priorityTrending).length,betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
  const retainedLaunchPools=(previous.coins||[]).filter(c=>c.launchpadSource&&c.firstSeen>now-RETENTION_MS);
  launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds,{launchPools:retainedLaunchPools,priorityIds});
