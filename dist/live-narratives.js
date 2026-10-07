@@ -6,6 +6,7 @@ import {SOURCE_KEY,loadSources} from './source-watchlist.mjs';
 import {feedStatus} from './source-coverage.mjs';
 import {loadXFactor} from './x-factor.mjs';
 import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics,tweetCoinOneLiner} from './tweet-view.mjs';
+import {fetchTweetContext} from './tweet-context.mjs';
 import {buildEvidenceLinks} from './evidence-links.mjs';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n),num=n=>n===null?'—':n.toLocaleString('en-US');
@@ -19,12 +20,10 @@ function loadCoinContexts(coins){
  const pending=coins.filter(c=>!coinContexts.has(c.id));
  for(const c of pending)coinContexts.set(c.id,null);
  if(!pending.length)return;
- Promise.allSettled(pending.map(async c=>{
-  try{
-   const response=await fetch(`/api/coin-context?id=${encodeURIComponent(c.id)}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-   if(response.ok)coinContexts.set(c.id,(await response.json()).context||null);
-  }catch{}
- })).then(()=>render());
+ pending.forEach((c,index)=>setTimeout(async()=>{
+  coinContexts.set(c.id,await fetchTweetContext(c));
+  render();
+ },index*2200));
 }
 function read(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function save(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}}
@@ -94,7 +93,7 @@ function indexedUrl(value){try{const u=new URL(value);return u.protocol==='https
 function savedContextHtml(context){if(!context)return '<p class="detail-note">No saved context lead for this contract.</p>';
  const articles=Array.isArray(context.articles)?context.articles:[];
  if(articles.length)return articles.map(a=>safeURL(a.url)?`<p class="detail-summary"><a href="${esc(safeURL(a.url))}" target="_blank" rel="noopener noreferrer">${esc(a.title||'Read source')} ↗</a><small> · ${context.kind==='verified'?'Exact contract in source':'Related name in source; contract unverified'}</small></p>`:'').join('');
- if(context.profile)return `<p class="detail-note">Token profile linked to the exact contract: ${esc(context.profile.description||'No description provided')}. Profile text is supplied by the token project.</p>`;
+ if(context.profile)return `<p class="detail-note">${esc(context.profile.description||'No description provided')}<br>Profile text is supplied by the token project.</p>${safeURL(context.profile.url)?`<a href="${esc(safeURL(context.profile.url))}" target="_blank" rel="noopener noreferrer">View token profile source ↗</a>`:''}`;
  const web=context.web;
  if(web&&safeURL(web.url))return `<p class="detail-summary"><a href="${esc(safeURL(web.url))}" target="_blank" rel="noopener noreferrer">${esc(web.title||'Context source')} ↗</a></p><p class="detail-note">${esc(web.snippet||'')} ${esc(web.attribution||'Connection to this contract is unverified.')}</p>`;
  return '<p class="detail-note">No article lead in saved context.</p>';
@@ -122,7 +121,7 @@ async function showCoinEvidence(id){
   fetchCoinEvidence(id)
  ]);
  if(!dialog.open||dialog.dataset.coinEvidence!==id)return;
- $('#coin-context-detail').innerHTML=context.status==='fulfilled'?savedContextHtml(context.value):'<p class="detail-note">Saved context unavailable.</p>';
+ $('#coin-context-detail').innerHTML=context.status==='fulfilled'?savedContextHtml(context.value||coinContexts.get(id)):savedContextHtml(coinContexts.get(id));
  $('#coin-rss-detail').innerHTML=rss.status==='fulfilled'?rssEvidenceHtml(rss.value):`<p class="detail-note">${esc(rss.reason?.message||'RSS sample unavailable.')}</p>`;
  if(rss.status==='fulfilled')render();
 }
