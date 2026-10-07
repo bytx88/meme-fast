@@ -3,7 +3,7 @@
   "name": "Swing",
   "slug": "meme-202b",
   "question": "Has it earned another tradable cycle?",
-  "intro": "Assess the demand wave over 3-14 days first, then use structure, absorption and holder behavior to shape entry, holding and exit. Chapters 1-9 teach the mechanics; chapters 10-11 bring them into the decision.",
+  "intro": "Assess the demand wave over 3-9 days first, then use structure, absorption and holder behavior to shape entry, holding and exit. Chapters 1-9 teach the mechanics; chapters 10-11 bring them into the decision.",
   "lens": [
     "Expansion",
     "Supply transfer",
@@ -289,7 +289,7 @@
     {
       "title": "Comprehensive swing check",
       "question": "What brings the next buyers, can the token survive, and is ownership strengthening?",
-      "definition": "For a 3-14 day swing, deepen the same three basic entry checks from 202A.10: thesis, quality and upside; survival and dump risk; participants and demand conversion. The longer exposure needs a more comprehensive assessment before entry.",
+      "definition": "For a 3-9 day swing, deepen the same three basic entry checks from 202A.10: thesis, quality and upside; survival and dump risk; participants and demand conversion. The longer exposure needs a more comprehensive assessment before entry.",
       "why": "A swing needs enough survival time for the expected demand wave to develop, and enough remaining upside to justify exposure. A stable chart, respected dev, or large KOL audience alone does not establish either.",
       "checks": [
         "Thesis, quality and upside — what can create the next demand wave?",
@@ -306,7 +306,7 @@
         "Participants / conversion: new independent buyers and holders increase after content reaches those audiences. Check whether they absorb early selling. The largest dependency is continued outside attention, not merely existing holders repeating the story."
       ],
       "framework": [
-        "The same three entry checks, with greater depth for a 3-14 day swing.",
+        "The same three entry checks, with greater depth for a 3-9 day swing.",
         "SURVIVE → ATTRACT → CONVERT → REPRICE.",
         "Why it can run / what can kill it / largest dependency."
       ],
@@ -342,7 +342,7 @@
           },
           {
             "label": "Meta, catalysts and upside",
-            "text": "Identify catalysts within 3-14 days, renewable attention, distribution and any economics linking success to token demand. Compare current MC/FDV with credible peers and explain differences."
+            "text": "Identify catalysts within 3-9 days, renewable attention, distribution and any economics linking success to token demand. Compare current MC/FDV with credible peers and explain differences."
           }
         ],
         [
@@ -377,7 +377,7 @@
     },
     {
       "title": "How to trade the swing",
-      "question": "How do you shape a 3-14 day trade around the expected demand wave?",
+      "question": "How do you shape a 3-9 day trade around the expected demand wave?",
       "definition": "Assess the wave, then build the container: estimate how large demand could become and when it could arrive, enter early before the expected repricing, and sell into the rise. A swing allows pressure to develop over days within a defined frame and time window.",
       "why": "The same thesis can offer an early entry or a late chase. Structure, absorption and holder behavior help judge which part of the expected wave is still available; the trade must fit that wave rather than an indefinite hope of recovery.",
       "checks": [
@@ -422,7 +422,7 @@
           "meme-303a.html"
         ]
       ],
-      "deeper": "Use 202B.1-9 for structure, bases, supply zones, absorption, holder rotation, pullbacks and distribution. These refine timing after the demand thesis is assessed; retracement levels alone do not create buyers. The expected low and high are entry and exit regions, not exact extrema known in advance. A quiet period can fit a swing if the demand source, ownership conditions and catalyst remain intact inside the chosen 3-14 day window. It is failure when necessary conditions break or the required demand does not arrive by the predefined deadline. Profit-taking can be staged into the rise; do not substitute a fixed target for observing whether the demand engine is fading. On established multi-venue tokens, check broader market conditions and actual venue depth alongside the local thesis. Open interest and funding apply only where derivatives exist; a CEX listing does not automatically establish liquidity or safety. A new opportunity after failure needs a new assessment rather than a retrospective extension of the original trade."
+      "deeper": "Use 202B.1-9 for structure, bases, supply zones, absorption, holder rotation, pullbacks and distribution. These refine timing after the demand thesis is assessed; retracement levels alone do not create buyers. The expected low and high are entry and exit regions, not exact extrema known in advance. A quiet period can fit a swing if the demand source, ownership conditions and catalyst remain intact inside the chosen 3-9 day window. It is failure when necessary conditions break or the required demand does not arrive by the predefined deadline. Profit-taking can be staged into the rise; do not substitute a fixed target for observing whether the demand engine is fading. On established multi-venue tokens, check broader market conditions and actual venue depth alongside the local thesis. Open interest and funding apply only where derivatives exist; a CEX listing does not automatically establish liquidity or safety. A new opportunity after failure needs a new assessment rather than a retrospective extension of the original trade."
     }
   ],
   "principle": "Assess demand first, then shape the swing. Structure gives an entry area; flow and holder behavior test whether demand can develop inside the defined window. Enter early, sell into the rise, and exit when the frame fails."
