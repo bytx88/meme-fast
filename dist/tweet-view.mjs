@@ -6,7 +6,7 @@ export function tweetCoinOneLiner(context){
   if(!context)return null;
   const text=cleanText(context.profile?.description||context.articles?.[0]?.summary||context.articles?.[0]?.title||context.web?.snippet||context.web?.title||'');
   if(!text)return null;
-  return {text,label:context.profile?'Project description':context.kind==='verified'?'Exact contract source':'Related lead'};
+  return {text,label:context.profile?'Project description':context.kind==='verified'||context.web?.exact?'Exact contract source':'Related lead'};
 }
 
 // Show publisher excerpts, rather than substituting article-count boilerplate.
