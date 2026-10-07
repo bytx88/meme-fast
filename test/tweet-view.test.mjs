@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildTweetView,tweetSocialBadge} from '../dist/tweet-view.mjs';
+const now=1800000000000;
+const article=(id,title,publisher='Decrypt',age=1000)=>({id,url:`https://decrypt.co/${id}`,title,summary:'Reported development',publisher,time:now-age});
+const coins=[{id:'solana:a',chain:'Solana',symbol:'AAA',name:'Alpha',buyers:10,contract_address:'Ab'.repeat(20)},
+  {id:'base:b',chain:'Base',symbol:'BBB',name:'Beta',buyers:20,contract_address:'0x'+'b'.repeat(40)},
+  {id:'robinhood:c',chain:'Robinhood Chain',symbol:'CCC',name:'Gamma',buyers:5,contract_address:'0x'+'c'.repeat(40)}];
+const dataset={coins,articles:[article('one','Artificial intelligence agent launches research'),
+  article('two','Artificial intelligence agent launches research','Cointelegraph',7200000),
+  article('three','Mining hardware improves efficiency','Decrypt',10800000)]};
+
+test('news topics, coverage and time windows do not filter 24H coin rankings',()=>{
+  const baseline=buildTweetView(dataset,{},now);
+  for(const filters of [{topic:'AI'},{stage:'single'},{stage:'multiple'},{hours:1},{topic:'AI',stage:'multiple',hours:1}]){
+    assert.deepEqual(buildTweetView(dataset,filters,now).coins,baseline.coins);
+  }
+  assert.equal(buildTweetView(dataset,{topic:'AI'},now).trends.length,1);
+  assert.equal(buildTweetView(dataset,{stage:'multiple'},now).trends[0].sources,2);
+  assert.equal(buildTweetView(dataset,{stage:'single'},now).trends[0].sources,1);
+  assert.equal(buildTweetView(dataset,{hours:1},now).trends[0].sources,1);
+});
+test('coin-chain filters including Robinhood leave publisher news unchanged',()=>{
+  const baseline=buildTweetView(dataset,{},now);
+  for(const chain of ['Solana','Base','Robinhood Chain']){
+    const view=buildTweetView(dataset,{chain},now);
+    assert.equal(view.coins.length,1);assert.equal(view.coins[0].chain,chain);
+    assert.deepEqual(view.trends,baseline.trends);
+  }
+});
+test('search still filters both streams and evidence uses only visible coins',()=>{
+  const linked={coins,articles:[article('linked',`Artificial intelligence agent ${coins[0].contract_address}`)]};
+  assert.equal(buildTweetView(linked,{},now).crossovers.length,1);
+  assert.equal(buildTweetView(linked,{chain:'Base'},now).crossovers.length,0);
+  assert.equal(buildTweetView(linked,{query:'AAA'},now).trends.length,1);
+  assert.equal(buildTweetView(dataset,{query:'BBB'},now).coins[0].id,'base:b');
+});
+test('unobserved X counts stay distinct from a measured zero and stale data',()=>{
+  const id='solana:a',report={version:1,status:'connected',source:'google-news-rss',coins:{}};
+  assert.match(tweetSocialBadge(report,id,null,now),/not sampled/);
+  report.coins[id]={posts6h:0,previousPosts6h:0,sampledAt:now};
+  assert.match(tweetSocialBadge(report,id,null,now),/<strong>0<\/strong>/);
+  assert.match(tweetSocialBadge(report,id,null,now+46*60000),/stale/);
+  assert.match(tweetSocialBadge({...report,status:'error'},id,null,now),/unavailable/);
+});
+test('on-demand cache expiry never leaves an old count displayed as fresh',()=>{
+  const cache={until:now+1000,value:{posts6h:7,status:'ok'}};
+  assert.match(tweetSocialBadge({},'coin"bad',cache,now),/data-coin-evidence="coin&quot;bad"/);
+  assert.match(tweetSocialBadge({},'coin',cache,now),/<strong>7<\/strong>/);
+  assert.match(tweetSocialBadge({},'coin',cache,now+1001),/not sampled/);
+  assert.match(tweetSocialBadge({},'coin',{...cache,value:{...cache.value,cacheStatus:'stale'}},now),/stale/);
+});

@@ -1,0 +1,14 @@
+.tweet-stream-controls{padding:12px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:#141d28}
+.tweet-stream-controls .periods{display:flex;align-items:center;flex-wrap:wrap;gap:3px;width:100%}
+.tweet-control-label{color:var(--muted);font-size:11px;margin-right:8px}
+.tweet-stream-controls .periods button{font-size:12px;min-height:30px;padding:5px 9px}
+.tweet-stream-controls .group-filter{font-size:12px;gap:8px}
+.tweet-stream-controls select{min-height:30px;font-size:12px;padding:5px 8px}
+.tweet-stream-controls .stage-filter{width:100%;gap:4px}
+.tweet-stream-controls .stage-filter button{min-height:30px;font-size:11px;padding:5px 8px}
+.tweet-control-note,.saved-accounts-note{font-size:11px;line-height:1.5;color:var(--muted);margin:0}
+.saved-accounts-note{margin-left:auto;max-width:100%;overflow-wrap:anywhere}
+.radar-controls{flex-wrap:wrap}
+.radar-controls .search-filter{margin-left:0}
+.x-sample-note{font-size:11px;color:var(--muted);padding:3px 0}
+@media(max-width:760px){.tweet-stream-controls{padding:10px}.saved-accounts-note{margin-left:0}.tweet-stream-controls .periods button,.tweet-stream-controls .stage-filter button,.tweet-stream-controls select{min-height:36px}}
