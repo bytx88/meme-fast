@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {matchesChainFilter,matchesTrackedWalletFilter} from '../dist/radar-filter.mjs';
+import {matchesChainFilter,matchesTrackedWalletFilter,toggleChainFilter} from '../dist/radar-filter.mjs';
+
+test('icon filters combine chains, keep Base exact, and reset to All',()=>{
+ let selected=toggleChainFilter([],'base');
+ assert.equal(matchesChainFilter({network:'base'},selected),true);
+ assert.equal(matchesChainFilter({network:'ethereum'},selected),false);
+ assert.equal(matchesChainFilter({network:'solana'},selected),false);
+ selected=toggleChainFilter(selected,'solana');
+ assert.equal(matchesChainFilter({network:'solana'},selected),true);
+ assert.equal(matchesChainFilter({network:'robinhood'},selected),false);
+ selected=toggleChainFilter(selected,'base');
+ assert.deepEqual(selected,['solana']);
+ assert.deepEqual(toggleChainFilter(selected,'all'),[]);
+ assert.deepEqual(toggleChainFilter(selected,'solana'),[]);
+ assert.equal(matchesChainFilter({network:'robinhood'},[]),true);
+});
 
 test('Swing chain filters keep All broad and Other exclusive of Solana and Robinhood',()=>{
  const solana={network:'solana'},robinhood={network:'robinhood'},base={network:'base'};

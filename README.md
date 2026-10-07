@@ -41,6 +41,12 @@ Inspect's **5D** view fetches historical 15-minute OHLCV candles for one listing
 
 Warmth is a provisional 0–100 saturation curve of indexed posts whose visible titles explicitly mention Jean Phil or Jean Philanthrope in the preceding two hours. Coin-only mentions are counted separately. The page shows the underlying posts and sample times. RSS coverage is incomplete and may lag; there are no X likes, reposts, views, unique-account measures, or Instagram engagement in this score. Failed feeds preserve earlier samples and report collection issues rather than recording false zeroes.
 
+## Swing chain filter
+
+Swing's chain toolbar uses locally served Robinhood Chain, Base, and Solana icons. Select multiple chains to combine their results; **All** or deselecting the last chain resets the selection. Base matches only Base pools. Buttons expose full chain names and selection state to assistive technology, with hover titles and visible keyboard focus.
+
+Icon sources: [Robinhood Chain's official compact feather avatar](https://docs.robinhood.com/chain/brand-guidelines/) (unchanged JPEG embedded in an SVG container), [Base's official blue square](https://github.com/base/brand-kit/blob/main/logo/TheSquare/Digital/Base_square_blue.svg), and [Solana's official gradient logomark](https://solana.com/branding).
+
 ## X social signal
 
 Tweet and Swing show an **X RSS** badge for each sampled contract. It counts x.com posts indexed by Google News RSS in the current six hours and shows the change versus the previous six hours. The inspector links to indexed items. A zero means none appeared in this RSS sample; it does not mean there were no X posts. The count does not include likes, reposts, author diversity, or a 0–100 X Factor score, and it does not affect market rankings.
