@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
   <link rel="stylesheet" href="./order-flow-quick.css?v=trader-5d-v1">
   <link rel="stylesheet" href="./order-flow-depth.css?v=header-controls-v2">
+  <link rel="stylesheet" href="./mc-detail-bars.css?v=1">
   <script type="module" src="./app.js?v=flow-window-v2"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 <link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><script type="module" src="./donate.js?v=static-header-v1"></script><link rel="stylesheet" href="./site-footer.css?v=1"></head>
@@ -48,7 +49,7 @@
     <section id="mc-detail-pane" class="panel mc-detail-panel" role="tabpanel" aria-labelledby="breakdown-mc-tab" hidden>
       <div class="panel-heading"><h3>Flow by market-cap tier</h3><label class="mc-metric-label">Metric <select id="mc-metric"><option value="value">Total Value</option><option value="count">Count</option><option value="average">Average Value</option></select></label></div>
       <p id="mc-detail-note" class="chart-note" role="status">Loading swap data…</p>
-      <div class="mc-table-wrap"><table aria-label="Observed flow by estimated market cap"><thead><tr><th scope="col">MC Tier (USD)</th><th scope="col" class="numeric" id="mc-net-heading">Net</th><th scope="col" class="numeric">Buy</th><th scope="col" class="numeric">Sell</th><th scope="col">Read</th></tr></thead><tbody id="mc-tiers"></tbody></table></div>
+      <div class="mc-table-wrap"><table aria-label="Observed flow by estimated market cap"><thead><tr><th scope="col">MC Tier (USD)</th><th scope="col" class="numeric" id="mc-net-heading">Net</th><th scope="col" class="numeric" id="mc-buy-heading">Buy</th><th scope="col" class="numeric" id="mc-sell-heading">Sell</th><th scope="col">Read</th></tr></thead><tbody id="mc-tiers"></tbody></table></div>
       <details class="mc-method"><summary>How MC tiers are estimated</summary><p class="chart-note">For 5D candles, the Total column shows estimated USD volume assigned by closing MC, not net flow; Buy, Sell, trade count and average per swap are unavailable. Blue shading indicates relative total volume, not buy dominance. A wick-only tier has unknown volume allocation. For observed swaps: estimated execution MC = swap price × supply implied by the latest reported MC and price, assuming unchanged supply. Tiers use the selected time window. A tier more than 4× from its USD-weighted middle MC is excluded if it has under 1% of the window's observed USD flow. Empty tiers are omitted and sparse neighbors may be merged. Color intensity is relative to visible tiers. This is a bounded swap sample, not complete market history or net capital inflow.</p></details>
     </section>
     </section>
