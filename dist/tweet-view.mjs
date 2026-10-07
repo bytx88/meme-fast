@@ -1,6 +1,13 @@
-import {buildPublicView,addressMatches} from './public-radar.mjs';
+import {buildPublicView,addressMatches,cleanText} from './public-radar.mjs';
 import {xFactorReading,xFactorBadge} from './x-factor.mjs';
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+export function tweetCoinOneLiner(context){
+  if(!context)return null;
+  const text=cleanText(context.profile?.description||context.articles?.[0]?.summary||context.articles?.[0]?.title||context.web?.snippet||context.web?.title||'');
+  if(!text)return null;
+  return {text,label:context.profile?'Project description':context.kind==='verified'?'Exact contract source':'Related lead'};
+}
 
 // Show publisher excerpts, rather than substituting article-count boilerplate.
 export function newsExcerpt(narrative){

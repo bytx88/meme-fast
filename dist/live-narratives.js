@@ -5,7 +5,7 @@ import {chainMarker} from './chain-marker.mjs';
 import {SOURCE_KEY,loadSources} from './source-watchlist.mjs';
 import {feedStatus} from './source-coverage.mjs';
 import {loadXFactor} from './x-factor.mjs';
-import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics} from './tweet-view.mjs';
+import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics,tweetCoinOneLiner} from './tweet-view.mjs';
 import {buildEvidenceLinks} from './evidence-links.mjs';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n),num=n=>n===null?'—':n.toLocaleString('en-US');
@@ -14,6 +14,18 @@ const state={hours:24,topic:'all',chain:'all',stage:'all',query:''};let expanded
 const dataset={articles:[],coins:[]},sourceState=new Map();let previous=null,current=null,baselineSet=false;
 let xFactorReport={version:1,status:'disconnected',coins:{}};
 const evidenceCache=new Map();
+const coinContexts=new Map();
+function loadCoinContexts(coins){
+ const pending=coins.filter(c=>!coinContexts.has(c.id));
+ for(const c of pending)coinContexts.set(c.id,null);
+ if(!pending.length)return;
+ Promise.allSettled(pending.map(async c=>{
+  try{
+   const response=await fetch(`/api/coin-context?id=${encodeURIComponent(c.id)}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+   if(response.ok)coinContexts.set(c.id,(await response.json()).context||null);
+  }catch{}
+ })).then(()=>render());
+}
 function read(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function save(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}}
 function metrics(items){return `<dl class="signal-metrics">${items.map(([name,value])=>`<div><dt>${esc(name)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`}
@@ -25,6 +37,7 @@ function empty(message){return `<p class="empty-state">${esc(message)}</p>`}
 function render(){
  const view=buildTweetView(dataset,state);
  const links=buildEvidenceLinks(view.trends,view.coins);
+ loadCoinContexts(expandedCoins?view.coins:view.coins.slice(0,3));
  $('#trend-count').textContent=view.trends.length;$('#coin-count').textContent=view.coins.length;$('#crossover-count').textContent=links.length;
  $('#filter-status').textContent=`${view.trends.length} news signals · ${view.coins.length} coins · ${state.hours===72?'3-day':state.hours+'H'} news window${state.topic!=='all'?' · topic: '+state.topic:''}${state.chain!=='all'?' · chain: '+state.chain:''}${state.stage!=='all'?' · '+(state.stage==='single'?'single publisher':'multiple publishers'):''} · market metrics: 24H`;
  $('#trends').innerHTML=(expandedTrends?view.trends:view.trends.slice(0,3)).map(n=>{
@@ -36,7 +49,8 @@ function render(){
   const change=m.change24h==null?'—':`${m.change24h>0?'+':''}${m.change24h.toFixed(1)}%`;
   const stats=[['MC',money(m.mc),'Reported market cap; FDV is not substituted'],['Liquidity',money(m.liquidity),'Liquidity in the selected pool'],['Price · 24H',change,'Reported price change over 24 hours',m.change24h==null?'':m.change24h>0?'positive':m.change24h<0?'negative':''],['Vol · 24H',money(m.volume24h),'USD volume in the selected pool over 24 hours'],['Buyers · 24H',num(m.buyers24h),'Reported buyers in the selected pool over 24 hours'],['B/S · 24H',`${num(m.buys24h)} / ${num(m.sells24h)}`,'Buy / sell swap counts over 24 hours; not USD flow'],['Vol · 5m',money(m.volume5m),'USD volume in the selected pool over five minutes'],['B/S · 5m',`${num(m.buys5m)} / ${num(m.sells5m)}`,'Buy / sell swap counts over five minutes; not USD flow'],['Pool age',Number.isFinite(c.poolCreated)&&c.poolCreated>0&&c.poolCreated<=Date.now()?ago(c.poolCreated).replace(' ago',''):'—','Time since pool creation; not token launch age']];
   const portrait=`<span class="tweet-coin-avatar"><span>${esc(c.symbol.slice(0,1))}</span>${image?`<img src="${esc(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>`;
-  return `<article class="signal-card tweet-coin-card"><div class="signal-top"><span class="rank">${String(c.rank).padStart(2,'0')}</span>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Fomo">${portrait}</a>`:portrait}<div class="signal-name"><h3>$${esc(c.symbol)} ${chainMarker(c)}</h3><small>${esc(c.name)}</small></div>${actions(c)}</div><dl class="tweet-coin-metrics">${stats.map(([name,value,title,tone=''])=>`<div><dt title="${esc(title)}">${name}</dt><dd class="${tone}">${esc(value)}</dd></div>`).join('')}</dl>${related.length?`<div class="coin-context">News links: ${exact} exact CA · ${related.length-exact} related lead${related.length-exact===1?'':'s'}</div>`:''}<div class="signal-bottom"><div class="tweet-coin-evidence">${socialBadge(c)}<span class="tweet-market-time${sourceState.get(c.network)?.status==='failed'?' cached':''}">${sourceState.get(c.network)?.status==='failed'?'Cached · ':''}Fetched ${esc(ago(c.fetchedAt))}</span></div><button type="button" class="text-button" data-coin-evidence="${esc(c.id)}">View evidence ↗</button></div></article>`;
+  const brief=tweetCoinOneLiner(coinContexts.get(c.id)||c.savedContext),oneLiner=brief?`<button type="button" class="tweet-coin-brief" data-coin-evidence="${esc(c.id)}" title="${esc(brief.label+': '+brief.text)}"><span>${esc(brief.label)}</span> ${esc(brief.text)}</button>`:'';
+  return `<article class="signal-card tweet-coin-card"><div class="signal-top"><span class="rank">${String(c.rank).padStart(2,'0')}</span>${fomo?`<a href="${esc(fomo)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(c.symbol)} on Fomo">${portrait}</a>`:portrait}<div class="signal-name"><h3>$${esc(c.symbol)} ${chainMarker(c)}</h3><small>${esc(c.name)}</small></div>${oneLiner}${actions(c)}</div><dl class="tweet-coin-metrics">${stats.map(([name,value,title,tone=''])=>`<div><dt title="${esc(title)}">${name}</dt><dd class="${tone}">${esc(value)}</dd></div>`).join('')}</dl>${related.length?`<div class="coin-context">News links: ${exact} exact CA · ${related.length-exact} related lead${related.length-exact===1?'':'s'}</div>`:''}<div class="signal-bottom"><div class="tweet-coin-evidence">${socialBadge(c)}<span class="tweet-market-time${sourceState.get(c.network)?.status==='failed'?' cached':''}">${sourceState.get(c.network)?.status==='failed'?'Cached · ':''}Fetched ${esc(ago(c.fetchedAt))}</span></div><button type="button" class="text-button" data-coin-evidence="${esc(c.id)}">View evidence ↗</button></div></article>`;
  }).join('')||empty(loading&&!dataset.coins.length?'Loading market activity…':'No coins match these filters, or the market feed is unavailable. Try another coin chain or search term.');
  for(const [selector,count,expanded,noun] of [['#trends-more',view.trends.length,expandedTrends,'signals'],['#coins-more',view.coins.length,expandedCoins,'coins']]){const b=$(selector);b.hidden=count<=3;b.textContent=expanded?'Show top 3':`View all ${count} ${noun}`;b.setAttribute('aria-expanded',expanded)}
  $('#crossovers').innerHTML=links.slice(0,8).map(link=>`<button type="button" class="crossover-card" data-match="${esc(link.id)}"><span class="crossover-direction">NEWS ↔ COIN · ${link.level==='exact'?'EXACT CONTRACT':'RELATED LEAD'}</span><strong>$${esc(link.coin.symbol)} ${chainMarker(link.coin)} ↗</strong><span class="crossover-brief">${esc(link.narrative.title)} · ${esc(link.reason)}</span></button>`).join('')||'<p class="crossover-empty">No supported links between the current news and coin samples. Open a coin’s evidence to check indexed X posts.</p>';

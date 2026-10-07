@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics} from '../dist/tweet-view.mjs';
+import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics,tweetCoinOneLiner} from '../dist/tweet-view.mjs';
 const now=1800000000000;
+test('coin one-liners use source text only and distinguish project descriptions from related leads',()=>{
+  assert.equal(tweetCoinOneLiner(null),null);
+  assert.equal(tweetCoinOneLiner({profile:{description:'  '}}),null);
+  assert.deepEqual(tweetCoinOneLiner({profile:{description:'<p>A character inspired by a viral meme.</p>'}}),{text:'A character inspired by a viral meme.',label:'Project description'});
+  assert.deepEqual(tweetCoinOneLiner({kind:'verified',articles:[{title:'Origin of the meme'}]}),{text:'Origin of the meme',label:'Exact contract source'});
+  assert.equal(tweetCoinOneLiner({kind:'web',web:{snippet:'A community meme character.'}}).label,'Related lead');
+});
 const article=(id,title,publisher='Decrypt',age=1000)=>({id,url:`https://decrypt.co/${id}`,title,summary:'Reported development',publisher,time:now-age});
 const coins=[{id:'solana:a',chain:'Solana',symbol:'AAA',name:'Alpha',buyers:10,contract_address:'Ab'.repeat(20)},
   {id:'base:b',chain:'Base',symbol:'BBB',name:'Beta',buyers:20,contract_address:'0x'+'b'.repeat(40)},
