@@ -192,12 +192,12 @@ body.trader-ui.inspect-depth .order-flow-page .refresh-group { font-size: 11px; 
 body.trader-ui.inspect-depth .order-flow-page .window-coverage { color: #a9c6e7; font-size: 10px; line-height: 1.3; }
 body.trader-ui.inspect-depth .order-flow-page .window-coverage[hidden] { display: none; }
 body.trader-ui.inspect-depth .order-flow-page .flow-summary { gap: 0; margin: 4px 0 6px; border: 1px solid #4d637b44; border-radius: 5px; background: #14202c; }
-body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric { flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 66px; padding: 10px 8px; border: 0; border-right: 1px solid #4d637b44; border-radius: 0; background: transparent; box-shadow: none; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric { flex-direction: column; align-items: center; justify-content: center; gap: 4.5px; min-height: 59.4px; padding: 9px 7.2px; border: 0; border-right: 1px solid #4d637b44; border-radius: 0; background: transparent; box-shadow: none; }
 body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric:last-child { border-right: 0; }
 body.trader-ui.inspect-depth .flow-summary .flow-metric::after { display: none; }
-body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric span { font-size: 12px; white-space: nowrap; }
-body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric strong { order: 1; font-size: clamp(18px,1.6vw,24px); line-height: 1.2; text-shadow: none; }
-body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-price .price-scale { position: absolute; right: 8px; bottom: 8px; font-size: 10px; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric span { font-size: 10.8px; white-space: nowrap; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-metric strong { order: 1; font-size: clamp(16.2px,1.44vw,21.6px); line-height: 1.2; text-shadow: none; }
+body.trader-ui.inspect-depth .order-flow-page .flow-summary .flow-price .price-scale { position: absolute; right: 7.2px; bottom: 7.2px; font-size: 9px; }
 body.trader-ui.inspect-depth .order-flow-page .timeline-panel { position: relative; }
 body.trader-ui.inspect-depth .order-flow-page .timeline-panel .panel-heading { align-items: center; flex-wrap: nowrap; gap: 8px; }
 body.trader-ui.inspect-depth .order-flow-page .timeline-title-group { display: flex; align-items: center; flex: none; gap: 6px; }
