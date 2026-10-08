@@ -470,7 +470,7 @@ body.trader-ui .snipe-chain-filters .snipe-chain-filter{position:relative;isolat
 .snipe-chain-filter.all{--chain-color:#ee7281}
 .snipe-chain-filter.robinhood{--chain-color:#36d49b}
 .snipe-chain-filter.base{--chain-color:#78b4f3}
-.snipe-chain-filter.solana{--chain-color:#f5a14d}
+.snipe-chain-filter.solana{--chain-color:#b38aff}
 .snipe-chain-filter.bsc{--chain-color:#f0ce49}
 body.trader-ui .snipe-chain-filters .snipe-chain-filter:hover{background:#ffffff0a;border-color:#53616d}
 body.trader-ui .snipe-chain-filters .snipe-chain-filter[aria-pressed=true]{border-color:#c4f452;background:#c4f45214;box-shadow:inset 0 0 0 1px #c4f45233}

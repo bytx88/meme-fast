@@ -43,7 +43,7 @@
 .search-area{padding-bottom:2px}.recent-contracts{margin-top:4px}.recent-list{gap:4px;padding-bottom:0}.search-area .recent-contract{min-height:24px;padding:2px 6px;gap:5px;font-size:11px;line-height:1.15}.recent-contract small{font-size:10px}.recent-heading{bottom:0}.search-area .recent-heading button{min-height:24px;padding:0;font-size:11px}.token-row{margin-top:6px}
 
 .chain-marker{display:inline-grid;flex:none;place-items:center;width:15px;height:15px;border-radius:50%;vertical-align:middle;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
-.chain-marker.solana{background:#f5a14d;color:#261408}
+.chain-marker.solana{background:#b38aff;color:#201331}
 .chain-marker.base{background:#78b4f3;color:#15202a}
 .chain-marker.robinhood{background:#36d49b;color:#07251b}
 .chain-marker.bsc{background:#f0ce49;color:#302708}
