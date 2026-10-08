@@ -44,10 +44,18 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       if(!listing.image_url)listing.image_url=safeURL(exactToken?.attributes?.image_url);
       const found=[...(token.poolHints||[]),...result.data].filter(p=>p.attributes?.address&&[p.relationships?.base_token?.data?.id,p.relationships?.quote_token?.data?.id].some(id=>id?.startsWith(`${token.network}_`)&&canonical(id.slice(token.network.length+1))===canonical(token.address)));
       const unique=[...new Map(found.map(p=>[canonical(p.attributes.address),p])).values()].sort((a,b)=>(Number(b.attributes.reserve_in_usd)||0)-(Number(a.attributes.reserve_in_usd)||0)).slice(0,SAMPLE_LIMITS.poolsPerListing);
-      const valuationPools=[...unique,...(token.poolHints||[])];
+      // Lookup hints may be cached: use them for pool addresses, never live valuations.
+      const valuationPools=result.data;
       listing.price=tokenPriceSnapshot(token,valuationPools);
       listing.marketCap=marketCapSnapshot(token,valuationPools);
-      if(!listing.marketCap&&lookupMarketCap)tasks.push(async()=>{try{const cap=await lookupMarketCap(token);if(isCurrent()){listing.marketCap=cap;snapshot()}}catch{/* Missing valuation never prevents swaps from loading. */}});
+      if(lookupMarketCap)tasks.push(async()=>{try{
+        const cap=await lookupMarketCap(token),price=listing.price?.value;
+        // Cross-check the fresh valuation against the independently fetched pool price.
+        // Reject mismatched units or anomalous pools instead of displaying a huge cap.
+        if(isCurrent()&&cap?.tokenKey===listing.key&&Number.isFinite(cap.value)&&cap.value>0&&Number.isFinite(cap.price)&&cap.price>0&&(!price||cap.price/price>=.8&&cap.price/price<=1.25)){
+          listing.marketCap=cap;listing.price={value:cap.price,fetchedAt:cap.fetchedAt,tokenKey:listing.key};snapshot();
+        }
+      }catch{/* Missing valuation never prevents swaps from loading. */}});
       listing.poolCount=unique.length;listing.status=unique.length?'loading':'no-pools';listing.discovered=true;
       for(const p of unique) {
         const key=`${token.network}:${canonical(p.attributes.address)}`;
