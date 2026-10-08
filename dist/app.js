@@ -8,8 +8,9 @@ import {createRequestClient} from './requests.mjs';
 import {renderCoverage,renderTimeline,setupTape} from './views.mjs?v=flow-links-v2';
 import {easternDateTime} from './eastern-time.mjs';
 import {formatUnitPrice} from './unit-price.mjs?v=price-scale-v2';
-import {toggleSaved,isSaved} from './research-store.mjs?v=watchlist-fomo-v2';
-import {createRecentContracts,isContractAddress,tokenQueryFromSearch} from './recent-contracts.mjs?v=symbol-history-v1';
+import {toggleSaved,isSaved,watchlist} from './research-store.mjs?v=watchlist-fomo-v2';
+import {initialInspectQuery,DEFAULT_INSPECT_QUERY} from './inspect-startup.mjs';
+import {createRecentContracts,isContractAddress} from './recent-contracts.mjs?v=symbol-history-v1';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
@@ -41,8 +42,7 @@ function renderRecentContracts(){
     button.addEventListener('click',()=>{$('query').value=item.address;search(item.address).catch(e=>error(e.message))});$('recent-list').append(button);
   }
 }
-const DEFAULT_ADDRESS='0x6249519883b8d7ccf915dfcd6c0442984dae9d24';
-const state={token:{address:DEFAULT_ADDRESS,network:'robinhood',symbol:'CASHED',name:'Cashed Money'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
+const state={token:{address:'',network:'',symbol:DEFAULT_INSPECT_QUERY,name:'Bitcoin / US Dollar'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.historyTrades=[];
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
@@ -181,7 +181,6 @@ function render(){
 }
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
-const explicitQuery=tokenQueryFromSearch(location.search);
 const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,nameForAddress:address=>{
   const names=[...new Set([...state.matches,...state.tokens,...(flowCache.read(address)?.tokens||[])].filter(token=>!token.unverified&&canonical(token.address)===canonical(address)&&token.name&&token.name!=='Token'&&token.name!==address).map(token=>token.name.trim()).filter(Boolean))];
   return names.length===1?names[0]:'';
@@ -211,6 +210,5 @@ $('query').addEventListener('input',()=>{clearTimeout(recentInputTimer);recentIn
 window.addEventListener('pagehide',()=>{if(recentInputTimer)recentContracts.remember($('query').value)});
 $('clear-recent').addEventListener('click',()=>{clearTimeout(recentInputTimer);recentInputTimer=null;recentContracts.clear();renderRecentContracts()});
 renderRecentContracts();
-updateIdentity();render();
-const initialQuery=explicitQuery||recentContracts.entries[0]?.address||DEFAULT_ADDRESS;
+const initialQuery=initialInspectQuery(location.search,recentContracts.lastAddress,watchlist());
 if(initialQuery){$('query').value=initialQuery;search(initialQuery).catch(e=>error(e.message))}else load();
