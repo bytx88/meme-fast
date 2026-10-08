@@ -1,7 +1,7 @@
 import {setupMCDetail} from './mc-detail-view.mjs';
 import {setupClipboardAddress} from './clipboard-address.mjs';
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD,SAMPLE_LIMITS} from './core.mjs';
-import {loadListings} from './data.mjs?v=unit-price-v1';
+import {loadListings} from './data.mjs?v=inspect-valuation-v2';
 import {lookupTokens,dexMatches} from './lookup.mjs';
 import {marketCapSnapshot} from './market-cap.mjs';
 import {createRequestClient} from './requests.mjs';
@@ -14,7 +14,7 @@ import {createRecentContracts,isContractAddress} from './recent-contracts.mjs?v=
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
-import {createFlowCache} from './flow-cache.mjs';
+import {createFlowCache} from './flow-cache.mjs?v=inspect-valuation-v2';
 import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 import {createCandleHistory} from './candle-history.mjs';
 import {renderCandleHistory} from './candle-view.mjs';
