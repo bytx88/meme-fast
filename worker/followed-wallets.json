@@ -70,5 +70,11 @@
     "address": "64hP97Bwr5PubotcTeGgfhkFrGiLVVxT2kVo9M9b4AEz",
     "code": "F1",
     "network": "solana"
+  },
+  {
+    "name": "Frankdegods",
+    "address": "498g1rVnFcnjBjpfw1xyqA1WvgQXUU8RWuELjxkjAayQ",
+    "code": "L2",
+    "network": "solana"
   }
 ]

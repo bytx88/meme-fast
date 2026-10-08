@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from worker.followed_wallets import collect, positive_mints, awaiting, PROGRAMS
+from worker.followed_wallets import collect, positive_mints, awaiting, PROGRAMS, registry_wallets, validate_wallet
 
 
 def payload(owner, amounts):
@@ -27,7 +27,7 @@ class WalletTests(unittest.TestCase):
                 calls.append((owner, program))
                 return payload(owner, [('A' if program == PROGRAMS[0] else 'B', '1')])
             report = collect(path, fetch, now=1000)
-            self.assertEqual(len(calls), 16)
+            self.assertEqual(len(calls), len(registry_wallets()) * len(PROGRAMS))
             self.assertTrue(all(row['mints'] == ['A', 'B'] for row in report['wallets']))
             def fail(owner, program):
                 if program == PROGRAMS[1]:
@@ -41,10 +41,13 @@ class WalletTests(unittest.TestCase):
 
     def test_registry(self):
         rows = awaiting()['wallets']
-        self.assertEqual(len(rows), 8)
-        self.assertEqual(len({row['address'] for row in rows}), 8)
+        self.assertEqual(len(rows), 13)
+        self.assertEqual(len({row['address'] for row in rows}), 13)
         best = next(row for row in rows if row['name'] == 'Best 2')
         chill = next(row for row in rows if row['name'] == 'ChillDaddy')
         self.assertEqual(best['code'], 'F1')
         self.assertEqual(chill['code'], 'Dev')
         self.assertNotEqual(best['address'], chill['address'])
+        frank = next(row for row in rows if row['name'] == 'Frankdegods')
+        self.assertEqual(frank['address'], '498g1rVnFcnjBjpfw1xyqA1WvgQXUU8RWuELjxkjAayQ')
+        self.assertEqual(validate_wallet(frank)['code'], 'L2')

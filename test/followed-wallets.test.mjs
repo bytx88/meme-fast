@@ -21,5 +21,13 @@ test('old or failed samples retain explicitly stale badges, no sample earns none
 });
 test('wallet names are escaped and all assigned codes are available',()=>{
  assert.match(walletBadges(coin,{wallets:[{...row,name:'<img onerror="x">'}]},now),/&lt;img/);
- assert.deepEqual(Object.keys(CLASSES),['F1','F2','Dev','C1','C2','N1','N2','L1']);
+ assert.deepEqual(Object.keys(CLASSES),['F1','F2','Dev','C1','C2','N1','N2','L1','L2']);
+});
+
+test('short holders match exact holdings and show the L2 label and wallet name',()=>{
+ const report={wallets:[{...row,name:'Frankdegods',code:'L2'}]};
+ assert.equal(CLASSES.L2,'Short holder');
+ assert.equal(holdingsFor(coin,report,now).length,1);
+ const html=walletBadges(coin,report,now);
+ assert.match(html,/Short holder/);assert.match(html,/Frankdegods/);assert.match(html,/>L2<\/summary>/);
 });

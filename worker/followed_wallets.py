@@ -9,7 +9,7 @@ PROGRAMS = ('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb')
 
 
-CODES = {'F1', 'F2', 'Dev', 'C1', 'C2', 'N1', 'N2', 'L1'}
+CODES = {'F1', 'F2', 'Dev', 'C1', 'C2', 'N1', 'N2', 'L1', 'L2'}
 BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
 

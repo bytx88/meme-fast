@@ -1,4 +1,4 @@
-export const CLASSES={F1:'Finder class 1',F2:'Finder class 2',Dev:'Developer',C1:'Clipper fast',C2:'Clipper slow',N1:'Nurture slow',N2:'Nurture fast',L1:'Long holder'};
+export const CLASSES={F1:'Finder class 1',F2:'Finder class 2',Dev:'Developer',C1:'Clipper fast',C2:'Clipper slow',N1:'Nurture slow',N2:'Nurture fast',L1:'Long holder',L2:'Short holder'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={F:'<circle cx="9" cy="9" r="5"/><path d="m13 13 5 5"/>',C:'<path d="m12 2-7 11h6l-1 7 9-12h-7z"/>',N:'<path d="M12 20V10M12 14C4 14 3 9 3 4c6 0 9 3 9 10Zm0-4c0-5 4-7 9-7 0 5-3 9-9 9"/>',L:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',D:'<path d="m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18"/>'};
 const icon=code=>`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[code[0]]||paths.D}</svg>`;
