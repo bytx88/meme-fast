@@ -44,6 +44,7 @@
 
 .chain-marker{display:inline-grid;flex:none;place-items:center;width:15px;height:15px;border-radius:50%;vertical-align:middle;font:700 10px 'Space Grotesk',sans-serif;line-height:1}
 .chain-marker.solana{background:#f5a14d;color:#261408}
+.chain-marker.base{background:#78b4f3;color:#15202a}
 .chain-marker.robinhood{background:#36d49b;color:#07251b}
 .chain-marker.bsc{background:#f0ce49;color:#302708}
 
