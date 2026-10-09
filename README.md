@@ -85,6 +85,10 @@ Requires Git, Node.js 20+, Python 3.11+, the Modal Python package, GitHub push a
 
 Run `update-github-and-modal.bat --check` for local validation without committing, pushing, or deploying. This checks that the Modal profile is present, but does not verify its online credentials. Optionally pass `--message "Your commit message"` when publishing.
 
+## Ethereum Watchlist lookup
+
+Watchlist fetches saved Ethereum contracts through the existing GeckoTerminal proxy when their browser-local stats are missing or stale. Opening Watchlist performs that lookup; **Refresh stats** retries missing or stale entries. It selects the most liquid returned pool for the exact Ethereum contract, including Uniswap V4 pool IDs, and stores successful stats in this browser. Ethereum stays outside scheduled discovery and the refresh-priority queue. Provider failures retain the previous snapshot and its market age; absent values stay unknown.
+
 ## Followed wallets
 
 `/admin.html` shows the tracked-wallet registry, class legend, check status, check/attempt times, and last observed positive token-balance count, with name/address search and class filtering. An invisible footer link after Terms opens it; the link has no visible text or hover effect. It has no sitemap entry and requests no indexing. It is an unlisted page without login protection. Add wallet saves a name, validated Solana address and class to the durable Modal tracked-wallet registry; duplicate addresses are rejected. Added wallets survive deployments and join the next scheduled holdings collection. Refresh status reads the shared report; scheduled holdings collection still runs every five minutes.

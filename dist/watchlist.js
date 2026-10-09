@@ -15,6 +15,10 @@ const addQuery=document.getElementById('add-token-query');
 const addStatus=document.getElementById('add-token-status');
 const addResults=document.getElementById('add-token-results');
 const market=new Map();
+// Watchlist-only lookup coverage; do not expand scheduled discovery networks.
+const lookupNetworks=[...NETWORKS,{id:'eth',name:'Ethereum'}];
+const lookupNetwork=id=>lookupNetworks.find(entry=>entry.id===(id==='ethereum'?'eth':id));
+const lookupErrors=new Map();
 let matches=[];
 let loading=false,loadError=false;
 
@@ -43,8 +47,8 @@ function metric(label,value,extra=''){
  return `<div class="watch-metric"><span>${esc(label)}</span><strong class="${extra}">${esc(value)}</strong></div>`;
 }
 
-function stats(coin){
- if(!coin)return `<p class="watch-no-data">${loading?'Loading the latest collected snapshot…':loadError?'Market snapshot unavailable right now.':'No current market snapshot for this saved token.'}</p>`;
+function stats(coin,id){
+ if(!coin)return `<p class="watch-no-data">${loading?'Loading market data…':lookupErrors.get(key(id))|| (loadError?'Market snapshot unavailable right now.':'No current market snapshot for this saved token.')}</p>`;
  const cap=number(coin.mc)>0?['Market cap',coin.mc]:number(coin.fdv)>0?['FDV',coin.fdv]:['Market cap',null];
  const buys=number(coin.buys5m),sells=number(coin.sells5m),trades=buys===null||sells===null?'—':`${buys.toLocaleString()} / ${sells.toLocaleString()}`;
  const daily=number(coin.priceChange);
@@ -72,7 +76,7 @@ function tokenCard(item){
  const updatedTitle=updated===null?'Market update unavailable':`Market updated ${new Date(updated).toLocaleString()}${stale?' · stale':''}`;
  const route=item.type==='coin'?'new-coins.html':item.type==='radar'?'radar.html':'order-flow.html';
  const href=`./${route}?${new URLSearchParams({[item.type==='coin'||item.type==='radar'?'contract':'query']:contract})}`;
- return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main"><div class="watch-thumb-stack">${artwork}<span class="watch-market-age" title="${esc(updatedTitle)}" aria-label="${esc(updatedTitle)}">${esc(freshness)}${updated!==null&&stale?'<span class="watch-stale-label">stale</span>':''}</span></div><div class="saved-item-copy"><div class="watch-token-title"><h2 title="${esc('$'+symbol)}">${esc('$'+symbol)}</h2>${marker}</div>${name?`<p class="watch-token-name" title="${esc(name)}">${esc(name)}</p>`:''}<p class="watch-token-meta" title="${esc(detail)}">${esc(detail)}</p></div></div>${stats(coin)}<div class="saved-item-actions"><a href="${esc(href)}">Open ↗</a><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
+ return `<article class="saved-item watch-token ${coin&&stale?'watch-stale':''}" title="${esc(contract)}"><div class="saved-item-main"><div class="watch-thumb-stack">${artwork}<span class="watch-market-age" title="${esc(updatedTitle)}" aria-label="${esc(updatedTitle)}">${esc(freshness)}${updated!==null&&stale?'<span class="watch-stale-label">stale</span>':''}</span></div><div class="saved-item-copy"><div class="watch-token-title"><h2 title="${esc('$'+symbol)}">${esc('$'+symbol)}</h2>${marker}</div>${name?`<p class="watch-token-name" title="${esc(name)}">${esc(name)}</p>`:''}<p class="watch-token-meta" title="${esc(detail)}">${esc(detail)}</p></div></div>${stats(coin,item.id)}<div class="saved-item-actions"><a href="${esc(href)}">Open ↗</a><button type="button" data-remove="${esc(item.id)}" data-type="${esc(item.type)}">Remove</button></div></article>`;
 }
 
 function otherCard(item){
@@ -96,7 +100,7 @@ async function loadStats(refreshMissing=false){
  if(!ids.length){draw();return}
  loading=true;loadError=false;draw();
  const priority=await requestRefreshPriority(saved),priorityNote=document.getElementById('priority-status');
- if(priorityNote)priorityNote.textContent=priority.ok?`${priority.accepted} saved token${priority.accepted===1?'':'s'} prioritized for scheduled refresh for 24h. Tokens outside the retained sample use manual lookup.`:'Refresh priority unavailable. Saved items are retained; displayed values show their market age.';
+ if(priorityNote)priorityNote.textContent=priority.ok?`${priority.accepted} saved token${priority.accepted===1?'':'s'} prioritized for scheduled refresh for 24h. Ethereum uses Gecko lookup here; Refresh stats checks missing or stale tokens.`:'Refresh priority unavailable. Saved items are retained; displayed values show their market age.';
  try{
   const batches=Array.from({length:Math.ceil(ids.length/30)},(_,index)=>ids.slice(index*30,index*30+30));
   const results=await Promise.all(batches.map(async batch=>{
@@ -110,20 +114,22 @@ async function loadStats(refreshMissing=false){
   for(const result of results){
    for(const coin of result.coins||[])market.set(key(coin.id),coin);
   }
-  if(refreshMissing){
-   const missing=saved.filter(item=>tokenTypes.has(item.type)&&!marketFreshness(market.get(key(item.id))).usable);
+  {
+   const missing=saved.filter(item=>tokenTypes.has(item.type)&&!marketFreshness(market.get(key(item.id))).usable&&(refreshMissing||['eth','ethereum'].includes(item.id.split(':')[0])&&!marketFreshness(item.marketSnapshot).usable));
    const queue=[...missing];
    await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=>{
     while(queue.length){
      const item=queue.shift(),[networkId,contract]=item.id.split(':');
-     const network=NETWORKS.find(entry=>entry.id===networkId);
+     const network=lookupNetwork(networkId);
      if(!network||!contract)continue;
      try{
-      const response=await fetch(`/api/market/networks/${encodeURIComponent(networkId)}/tokens/${encodeURIComponent(contract)}/pools`,{signal:AbortSignal.timeout(15000)});
-      if(!response.ok)continue;
-      const coin=parsePools(await response.json(),network).find(entry=>key(entry.id)===key(item.id));
+      lookupErrors.delete(key(item.id));
+      const response=await fetch(`/api/market/networks/${encodeURIComponent(network.id)}/tokens/${encodeURIComponent(contract)}/pools`,{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw new Error(response.status===429?'Gecko is rate-limiting market lookup. Try Refresh stats later.':'Gecko market lookup unavailable. Try Refresh stats later.');
+      const coin=parsePools(await response.json(),network).find(entry=>key(entry.id)===key(`${network.id}:${contract}`));
       if(coin){market.set(key(item.id),coin);item.marketSnapshot=coin}
-     }catch{}
+      else lookupErrors.set(key(item.id),'No matching Gecko pool found for this contract.');
+     }catch(error){lookupErrors.set(key(item.id),error.message?.startsWith('Gecko ')?error.message:'Gecko market lookup unavailable. Try Refresh stats later.')}
     }
    }));
   }

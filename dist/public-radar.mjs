@@ -25,7 +25,7 @@ export function parsePools(data,network,now=Date.now()) {
   const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),image_url:safeURL(t.image_url),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,dex:pool.relationships?.dex?.data?.id??null,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),volume5m:numeric(a.volume_usd?.m5),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),buys5m:numeric(a.transactions?.m5?.buys),sells5m:numeric(a.transactions?.m5?.sells),priceUsd:numeric(a.base_token_price_usd),priceChange:numeric(a.price_change_percentage?.h24),fetchedAt:now};
   if(c.volume5m!==null&&c.buys5m!==null&&c.sells5m!==null)c.marketUpdatedAt=now;
   if(c.priceUsd!==null)c.priceUpdatedAt=now;
-  const poolValid=contractForCopy({...c,contract_address:c.pool})||network.id==='robinhood'&&/^0x[a-fA-F0-9]{64}$/.test(c.pool);
+  const poolValid=contractForCopy({...c,contract_address:c.pool})||['eth','robinhood'].includes(network.id)&&/^0x[a-fA-F0-9]{64}$/.test(c.pool);
   if(!contractForCopy(c)||!poolValid)continue;
   if(['SOL','WETH','ETH','BNB','WBNB','USDC','USDT','USDS','DAI','WBTC','CBBTC','USDE'].includes(c.symbol.toUpperCase()))continue;
   const previous=coins.get(c.id);
