@@ -269,3 +269,70 @@ body.trader-ui.inspect-depth .order-flow-page .tape-section > .chart-note { marg
   body.trader-ui.inspect-depth .order-flow-page .order-flow-toolbar { flex-wrap: wrap; gap: 3px; }
   body.trader-ui.inspect-depth .order-flow-page .refresh-group { width: 100%; justify-content: flex-end; }
 }
+/* Inspect listing/history controls use the same compact scale as the trading toolbar. */
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area {
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .match-chooser:not([hidden]) {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  background: transparent;
+  border: 0;
+}
+body.trader-ui.inspect-depth .order-flow-page .match-chooser > summary {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+body.trader-ui.inspect-depth .order-flow-page.token-loaded .match-chooser[open]:not([hidden]) {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  width: min(550px,100%);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  box-shadow: 0 8px 18px #0008;
+}
+body.trader-ui.inspect-depth .order-flow-page .scope-tabs { gap: 4px; }
+body.trader-ui.inspect-depth .order-flow-page .scope-tabs button {
+  min-height: 26px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 16px;
+}
+body.trader-ui.inspect-depth .order-flow-page .scope-tabs button[aria-pressed=true] {
+  color: #ecffbe;
+  background: #273c30;
+  border-color: #8ca369;
+  box-shadow: none;
+}
+body.trader-ui.inspect-depth .order-flow-page .listing-coverage {
+  margin-top: 4px;
+  gap: 4px 12px;
+  font-size: 10px;
+}
+body.trader-ui.inspect-depth .order-flow-page .recent-list .recent-contract {
+  min-height: 24px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  body.trader-ui.inspect-depth .order-flow-page.token-loaded .search-area form { flex: 1 1 100%; }
+  body.trader-ui.inspect-depth .order-flow-page .scope-tabs button { min-height: 32px; }
+  body.trader-ui.inspect-depth .order-flow-page.token-loaded .match-chooser[open]:not([hidden]) { top: 100%; }
+}
