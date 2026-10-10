@@ -59,6 +59,33 @@ function showLiquidity(){
  const detail=el('details','liquidity-extra');detail.open=expanded;detail.append(el('summary','','ETF source availability / observed liquidation sample'));const extra=el('div','driver-monitor two-channel');extra.append(etfNode,source(card('FILLED LIQUIDATIONS / BOUNDED SAMPLE',liq.length?`${liq.length} records`:'Unavailable',liq.length?`${longs} long / ${shorts} short records. ${new Date(liq[0].timestamp).toLocaleString('en-GB')} → ${new Date(liq.at(-1).timestamp).toLocaleString('en-GB')}. ${fresh?'Provider cap: 100 filled records; not a 24-hour total or market-wide liquidation volume.':'Source unavailable / delayed; retained sample is not current evidence.'}`:'No accessible recent filled-liquidation sample.',fresh?'':'amber'),'LIQ','OKX BTC-USDT-SWAP sample','https://www.okx.com/trade-market/liquidation-orders'));detail.append(extra);panel.append(detail);
  set('liquidity-scope','OI / funding / liquidations cover one OKX perpetual. Spot taker volumes cover OKX BTC spot activity; the daily price-response proxy uses OKX BTC/USDT candles. A ≥55% taker-sell share alongside a higher daily low and close is a candidate, not proof of passive absorption. No aggregate liquidation totals, order-book attribution or broad-alt breadth are inferred. A direct advance does not require a prior crash.');
 }
+function showFactorMap(){
+ const a=assessment,latest=report.series.BTC.at(-1),tape=document.getElementById('market-tape');tape.replaceChildren();
+ const cells=[['FED TARGET',driverRead('FED').value,'Policy date '+(driverRead('FED').date?niceDate(driverRead('FED').date):'unavailable')],['US 10Y',driverRead('YIELD').value,report.drivers?.YIELD?.length>=6?`5 sessions ${((report.drivers.YIELD.at(-1).close-report.drivers.YIELD.at(-6).close)*100).toFixed(1)} bp`:'Unavailable'],['BRENT',driverRead('BRENT').value,a.oil?`5 sessions ${pct(a.oil.change5)}`:'Unavailable'],['OPEN INTEREST',a.oiFresh?pct(a.oi5):'Unavailable','5 observations · OKX BTC units'],['FUNDING',a.fundFresh?`${(a.fundingRate*100).toFixed(4)}%`:'Unavailable','Per payment · OKX'],['SPOT BUY SHARE',a.spotFresh&&a.spotBuyShare5!==null?`${a.spotBuyShare5.toFixed(1)}%`:'Unavailable','5 daily buckets · OKX']];
+ for(const [i,[label,value,change]] of cells.entries()){const key=['FED','YIELD','BRENT','OI','FUNDING','SPOT'][i],fresh=usable(report,key,a.asOf),n=el('div','tape-cell');n.append(el('small','',label),el('strong','',value),el('span','',fresh?change:'DELAYED / UNAVAILABLE'));tape.append(n);}
+ const freshMacro=usable(report,'YIELD',a.asOf)&&usable(report,'BRENT',a.asOf);
+ const macroHelp=freshMacro&&((a.yield?.significant&&a.yield.change5<0)||(a.oil?.significant&&a.oil.change5<0));
+ const macroPressure=freshMacro&&(a.yield?.percentile>=80||a.oil?.percentile>=80);
+ const structureHelp=a.priceFresh&&a.low!==null&&!a.broken;
+ const weak=a.priceFresh&&usable(report,'QQQ',a.asOf)&&a.q?.value<0;
+ const demand=a.etfFresh&&a.flow5>0||a.spotFresh&&a.spotBuyShare5>=55;
+ const pressure=a.oiFresh&&a.oi5>0&&a.oiPrice<0||a.spotFresh&&a.spotBuyShare5<50;
+ const rows=[
+ ['01 / MACRO → COST OF CAPITAL',
+ [macroHelp?'Measured easing':'Easing needs confirmation',macroHelp?'Rates / energy move exceeds its recent fluctuation scale.':'Watch lower yields + softer oil.',macroHelp?'Demand still needs to follow.':'A small decline alone is not a regime shift.',macroHelp?'OBSERVED':'CONDITION TO WATCH'],
+ [macroPressure?'High macro hurdle':'Watch renewed tightening',a.yield&&a.oil?`10Y ${driverRead('YIELD').value} · Brent ${driverRead('BRENT').value}`:'Macro readings unavailable',macroPressure?'Yield / oil in upper fifth of recent levels.':'Higher yields + oil would challenge demand.',macroPressure?'OBSERVED PRESSURE':freshMacro?'CONDITION TO WATCH':'UNMEASURED']],
+ ['02 / STRUCTURE → PRICE RESPONSE',
+ [a.accepted?'Range accepted':structureHelp?'Range support intact':'Support must hold',a.low===null?'Daily range unavailable':`Floor $${price(a.low)}`,a.referenceHigh===null?'Reclaim reference unavailable':`Reclaim $${price(a.referenceHigh)} → hold → advance`,structureHelp?'OBSERVED SUPPORT':a.priceFresh?'CONDITION TO WATCH':'UNMEASURED'],
+ [weak?'BTC losing leadership':'Watch failed structure',a.q?`BTC / QQQ ${pct(a.q.value)} · 5 sessions`:'QQQ comparison unavailable',a.g?`BTC / XAU ${pct(a.g.value)} · ${niceDate(a.g.date)}`:'Gold comparison unavailable',weak?'OBSERVED PRESSURE':'CONDITION TO WATCH']],
+ ['03 / LIQUIDITY → DEMAND & LEVERAGE',
+ [demand?'Spot buying corroborates':a.clearing?'Positions unwinding':'Demand must strengthen',a.clearing?'OI and aligned price contracted.':'Watch OI reset + sustained spot buying.',a.absorptionCandidate?'Daily absorption candidate observed.':a.etfFresh?`ETF 5 reports ${a.flow5===null?'incomplete':('$'+a.flow5.toFixed(1)+'m')}`:'ETF channel unavailable / incomplete.',demand||a.clearing?'OBSERVED':a.spotFresh?'CONDITION TO WATCH':'UNMEASURED'],
+ [pressure?'Position / demand friction':'Watch crowded leverage',a.oiFresh?`OI ${pct(a.oi5)} · aligned price ${pct(a.oiPrice)}`:'OI unavailable',a.spotFresh&&a.spotBuyShare5!==null?`Spot buy share ${a.spotBuyShare5.toFixed(1)}% · OKX`:'Spot pressure unavailable',pressure?'OBSERVED PRESSURE':'CONDITION TO WATCH']]
+ ];
+ const map=document.getElementById('factor-rows');map.replaceChildren();
+ for(const [label,bull,bear] of rows){const row=el('article','factor-row');row.append(el('h3','',label));const pair=el('div','factor-pair');for(const [data,tone] of [[bull,'bull'],[bear,'bear']]){const n=el('div','factor-cell '+tone);n.append(el('strong','',data[0]),el('p','',data[1]),el('p','',data[2]),el('span','factor-status',data[3]));pair.append(n);}row.append(pair);map.append(row);}
+ set('factor-conclusion',!a.priceFresh?'Price source delayed · current conclusion withheld':a.accepted?'Acceptance observed · demand determines continuation':a.broken?'Range failed · expansion thesis challenged':'Support holds, but expansion is not confirmed');
+}
+
 function showJournal(){
  const history=[...(report.history||[])].sort((a,b)=>b.date.localeCompare(a.date)),body=document.getElementById('journal-body');body.replaceChildren();
  const get=row=>row.assessment||assess(row,row.observedAt.slice(0,10));
@@ -114,7 +141,8 @@ function showReview(saveVisit=false){
  const balance=document.getElementById('thesis-balance');balance.replaceChildren();
  for(const [label,items,tone] of [['SUPPORTING EVIDENCE',support,'support'],['COUNTER-EVIDENCE',pressure,'pressure']]){const n=el('article',tone);n.append(el('b','',label));if(!items.length)n.append(el('p','','No fresh corroborating evidence in the measured channels.'));else for(const item of items)n.append(el('p','',item));balance.append(n);}
  const checks=document.getElementById('phase-checks');checks.replaceChildren();
- for(const row of assessment.checks){const n=el('article',row.status);n.append(el('b','',row.label),el('span','',row.status==='unknown'?'UNMEASURED / INCOMPLETE':row.status.toUpperCase()),el('p','',row.detail));checks.append(n);}
+ for(const row of assessment.checks){const n=el('article',row.status);n.append(el('b','',row.label),el('span','',row.status==='unknown'?'UNMEASURED / INCOMPLETE':row.status.toUpperCase()),el('details','check-detail'));const d=n.lastElementChild;d.append(el('summary','',row.label==='Reclaim'&&assessment.referenceHigh!==null?'Above $'+price(assessment.referenceHigh):row.label==='Acceptance'?'Two closes + held level':row.label==='Participation'?'Leadership + spot demand':'Sweep / position unwind'),el('p','',row.detail));checks.append(n);}
+ showFactorMap();
  const stateRead=assessment.summary;
  const signals=document.getElementById('review-signals');signals.replaceChildren(
   card('BTC / QQQ · 5-SESSION RELATIVE RETURN',pct(r.relative),!assessment.priceFresh||!usable(report,'QQQ',assessment.asOf)?`Retained closes dated ${niceDate(r.date)}; current benchmark confirmation unavailable.`:r.relative===null?'Insufficient shared history.':r.relative>0?'Crypto is gaining relative strength.':r.relative<0?'Crypto is losing relative strength.':'No relative change.',!assessment.priceFresh||!usable(report,'QQQ',assessment.asOf)?'amber':r.relative>0?'positive':r.relative<0?'negative':''),
