@@ -12,6 +12,17 @@ def render_macro_bootstrap(source, report):
     values = {'review-refresh-state': 'Saved shared review · refreshing sources in background'}
     if latest:
         a = latest['assessment']
+        cards = []
+        for row in a.get('dailyRead', []):
+            tone = row.get('tone') if row.get('tone') in ('support', 'pressure', 'neutral', 'unavailable') else 'unavailable'
+            contents = ''.join(f'<{tag} class="{cls}">{html.escape(str(row.get(key, "")))}</{tag}>' for tag, cls, key in (
+                ('h3', '', 'label'), ('strong', 'daily-read-value', 'value'),
+                ('p', 'daily-read-detail', 'detail'), ('span', 'daily-read-context', 'context'),
+                ('time', 'daily-read-date', 'date')))
+            cards.append(f'<article class="daily-read-card {tone}">{contents}</article>')
+        if cards:
+            source = re.sub(r'(<div\b[^>]*\bid="daily-market-read"[^>]*>).*?(</div>)',
+                            lambda m: m[1] + ''.join(cards) + m[2], source, count=1, flags=re.S)
         floor = a.get('referenceHigh') if a.get('accepted') else a.get('low')
         values.update({'review-headline': a.get('phase', 'Saved assessment'),
                        'review-date': latest['date'],

@@ -301,7 +301,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==1 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -420,6 +420,7 @@ class MacroReview:
             self.report['etfFeedVersion']=1
             self.report['deskEvidenceVersion']=1
             self.report['causalFeedVersion']=1
+            self.report['dailyReadVersion']=1
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
@@ -427,7 +428,10 @@ class MacroReview:
                        'drivers':{s:rows[-65:] for s,rows in self.report['drivers'].items()},
                        'positioning':copy.deepcopy(self.report['positioning']), 'feeds':copy.deepcopy(self.report['feeds'])}
                 if self.analysis_path.exists():
-                    program='import {assess} from '+json.dumps(self.analysis_path.resolve().as_uri())+';let s="";for await(const c of process.stdin)s+=c;const r=JSON.parse(s);process.stdout.write(JSON.stringify(assess(r,r.observedAt.slice(0,10))));'
+                    daily_path=self.analysis_path.with_name('macro-daily.mjs')
+                    daily_import='import {dailyRead} from '+json.dumps(daily_path.resolve().as_uri())+';' if daily_path.exists() else ''
+                    daily_build='a.dailyRead=dailyRead(r,a);' if daily_path.exists() else ''
+                    program='import {assess} from '+json.dumps(self.analysis_path.resolve().as_uri())+';'+daily_import+'let s="";for await(const c of process.stdin)s+=c;const r=JSON.parse(s);const a=assess(r,r.observedAt.slice(0,10));'+daily_build+'process.stdout.write(JSON.stringify(a));'
                     value=subprocess.run(['node','--input-type=module','-e',program],input=json.dumps(entry),capture_output=True,text=True,timeout=8,check=True)
                     entry['assessment']=json.loads(value.stdout)
                     entry['ruleVersion']=5
