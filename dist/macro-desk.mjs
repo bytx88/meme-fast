@@ -1,6 +1,24 @@
 // Presentation rules: dated observations, conditional paths, no probability score.
 import {usable} from './macro-analysis.mjs';
 const finite=Number.isFinite;
+export function factorChanges(a,previous){
+ const names={QQQ:'BTC / QQQ',XAU:'BTC / gold',YIELD:'10Y yield',BRENT:'Brent',ETF:'ETF daily flow',OI:'Open interest',FUNDING:'Funding / payment',SPOT:'Spot buy share',STRUCTURE:'Market structure'};
+ return Object.entries(names).map(([key,label])=>{
+  const row=a.observations?.[key],old=previous?.observations?.[key]||a.priorObservations?.[key];
+  const valid=row?.fresh&&(finite(row.value)||key==='STRUCTURE'&&typeof row.value==='string');
+  const comparable=valid&&old?.fresh&&old.scope===row.scope&&(finite(old.value)||key==='STRUCTURE')&&(old.timestamp||old.date)<(row.timestamp||row.date);
+  let delta='No earlier comparable observation',direction='Awaiting comparison';
+  if(!valid){delta='Current evidence unavailable';direction='Unmeasured';}
+  else if(old&&(old.timestamp||old.date)===(row.timestamp||row.date)){delta=old.value===row.value?'Same source observation':'Source value revised · same date';direction=old.value===row.value?'Unchanged source':'Revision';}
+  else if(comparable){
+   if(key==='STRUCTURE'){delta=old.value+' → '+row.value;direction=old.value===row.value?'Unchanged':'Phase changed';}
+   else {const diff=row.value-old.value,scale=key==='YIELD'?100:key==='FUNDING'?10000:1;delta=(diff>=0?'+':'')+(key==='OI'||key==='BRENT'?100*diff/old.value:diff*scale).toFixed(2)+(key==='OI'||key==='BRENT'?'%':key==='YIELD'||key==='FUNDING'?' bp':key==='ETF'?' $m':' pp');direction=diff===0?'Unchanged':['QQQ','XAU'].includes(key)?diff>0?'Improving':'Deteriorating':diff>0?'Rising':'Falling';}
+  }
+  let reading=valid?key==='STRUCTURE'?row.value:key==='ETF'?(row.value>0?'Inflow':row.value<0?'Outflow':'Balanced')+' · '+row.value.toFixed(1)+' $m':key==='OI'?(finite(a.oi5)?(a.oi5<0?'Contracting':a.oi5>0?'Expanding':'Unchanged')+' · '+a.oi5.toFixed(2)+'% / 5 observations':'Window incomplete'):key==='FUNDING'?(row.value*100).toFixed(4)+'%':row.value.toFixed(2)+(key==='YIELD'?'%':key==='BRENT'?' USD':key==='SPOT'?'%':'% relative / 5 sessions'):'Unavailable';
+  const interpretation=key==='OI'&&valid&&finite(a.oi5)&&finite(a.oiPrice)?(a.oi5<0?a.oiPrice<0?'Position contraction during price weakness; possible unwind':'Position contraction during price strength; possible short covering':'Position growth; leverage risk depends on price and funding'):'Measured condition · not a forecast';
+  return {label,direction,reading,delta,date:row?.timestamp||row?.date||'No source date',previousDate:comparable?old.timestamp||old.date:null,scope:row?.scope||'Unknown scope',interpretation};
+ });
+}
 export function deskStamp(report,key){
  const row=report.positioning?.[key]?.at(-1)||report.drivers?.[key]?.at(-1);
  return {date:row?.date||report.feeds?.[key]?.latestDate||null,timestamp:row?.timestamp||null};
@@ -8,6 +26,7 @@ export function deskStamp(report,key){
 export function reviewChanges(a,previous,report){
  if(!previous)return {baseline:null,items:[],message:'First saved session · no earlier review to compare'};
  const items=[];
+ for(const row of factorChanges(a,previous).filter(r=>['ETF daily flow','Open interest'].includes(r.label)&&r.previousDate))items.push({label:row.label,value:row.direction+' · '+row.delta,tone:'neutral'});
  if(previous.phase!==a.phase)items.push({label:'Phase',value:previous.phase+' → '+a.phase,tone:'neutral'});
  const add=(label,old,next,fresh,unit,scale=1)=>{if(!fresh||!finite(old)||!finite(next))return;const delta=(next-old)*scale;if(Math.abs(delta)<.005)return;items.push({label,value:(delta>=0?'+':'')+delta.toFixed(2)+' '+unit,tone:'neutral'});};
  add('BTC / QQQ',previous.q?.value,a.q?.value,a.priceFresh&&usable(report,'QQQ',a.asOf),'pp');
@@ -26,7 +45,7 @@ export function horizonReads(a,report){
  const short= !shortFresh?'Unmeasured':a.broken?'Range failure':a.q.value<0?'Relative pressure':a.q.value>0?'Relative improvement':'Relative balance';
  return [
  {label:'1–7 DAYS',state:short,tone:!shortFresh?'unavailable':a.broken||a.q.value<0?'pressure':a.q.value>0?'support':'neutral',detail:shortFresh?'BTC / QQQ leadership + daily range':'Fresh price / benchmark required'},
- {label:'1–3 MONTHS',state:!a.priceFresh||a.phase==='Assessment withheld'?'Unmeasured':a.accepted?'Acceptance observed':a.reclaimed?'Reclaim awaiting hold':'Recovery unconfirmed',tone:!a.priceFresh||a.phase==='Assessment withheld'?'unavailable':a.accepted?'support':'awaiting',detail:'Daily structure + demand · no forecast'},
+ {label:'1–3 MONTHS',state:!a.priceFresh||a.phase==='Assessment withheld'?'Unmeasured':a.accepted?'Acceptance observed':a.reclaimed?'Reclaim awaiting hold':'Recovery unconfirmed',tone:!a.priceFresh||a.phase==='Assessment withheld'?'unavailable':a.accepted?'support':'awaiting',detail:(a.accepted?'Structure supports recovery':a.reclaimed?'Reclaim supports recovery; hold pending':'Structure confirmation missing')+' · '+(a.etfFresh&&finite(a.flow5)?a.flow5>0?'ETF window supports':'ETF window challenges':'ETF window unmeasured')},
  {label:'2027–29',state:'Conditional cycle thesis',tone:'awaiting',detail:'Expansion → maturity · timing unvalidated'}
  ];
 }

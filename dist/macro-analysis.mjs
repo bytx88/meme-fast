@@ -93,7 +93,30 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
   check('Acceptance',!priceFresh||!ohlc?'unknown':accepted?'observed':'pending',accepted?`Two-close acceptance ${acceptance.date}; no subsequent close at / below the retained level.${acceptance.retest?' Daily retest-and-close candidate '+acceptance.retest+'.':' A subsequent daily retest is not observed.'}`:'Two closes above their preceding 20-day high, retained while subsequent closes stay above it. Breakout search covers the latest 40 daily sessions.'),
   check('Participation',!aligned||!usable(report,'QQQ',asOf)||!usable(report,'XAU',asOf)||!demandKnown||!fundFresh||rank===null?'unknown':dualStrength&&demand&&!crowded?'observed':'pending','Same-date BTC leadership versus QQQ / XAU; positive five-report ETF flows or ≥55% OKX five-day spot taker-buy share; measured funding below the positive upper-decile flag. Channels retain their different coverage scopes.')
  ];
- return {asOf,date:latest?.date,phase,summary,next,high,referenceHigh,low,baseLow,acceptance,failedAcceptance,accepted,reclaimed,swept,broken,checks,
+ const observations={
+  QQQ:{date:q?.date,start:q?.start,value:q?.value,fresh:priceFresh&&usable(report,'QQQ',asOf),scope:'5 shared sessions'},
+  XAU:{date:g?.date,start:g?.start,value:g?.value,fresh:priceFresh&&usable(report,'XAU',asOf),scope:'5 shared sessions'},
+  YIELD:{date:last(report.drivers?.YIELD||[])?.date,value:last(report.drivers?.YIELD||[])?.close,fresh:usable(report,'YIELD',asOf),scope:'Yahoo 10Y yield'},
+  BRENT:{date:last(report.drivers?.BRENT||[])?.date,value:last(report.drivers?.BRENT||[])?.close,fresh:usable(report,'BRENT',asOf),scope:'Yahoo Brent futures'},
+  ETF:{date:last(report.positioning?.ETF||[])?.date,value:last(report.positioning?.ETF||[])?.millionUsd,fresh:etfFresh,scope:report.feeds?.ETF?.provider||'ETF'},
+  OI:{date:last(oi)?.date,timestamp:last(oi)?.timestamp,value:last(oi)?.btc,fresh:oiFresh,scope:'OKX BTC units'},
+  FUNDING:{date:last(report.positioning?.FUNDING||[])?.date,timestamp:last(report.positioning?.FUNDING||[])?.timestamp,value:fundingRate,fresh:fundFresh,scope:'OKX per payment'},
+  SPOT:{date:latestSpot?.date,value:spotBuyShare5,fresh:spotFresh,scope:'OKX 5 daily buckets'},
+  STRUCTURE:{date:latest?.date,value:phase,fresh:priceFresh,scope:'Daily OHLC rules'}
+ };
+ const priorObservations={};
+ for(const key of ['YIELD','BRENT','ETF','OI','FUNDING']){
+  const list=report.drivers?.[key]||report.positioning?.[key]||[],row=list.at(-2);
+  if(row)priorObservations[key]={...observations[key],date:row.date,timestamp:row.timestamp,scope:key==='ETF'?row.provider||'ETF':observations[key].scope,value:key==='ETF'?row.millionUsd:key==='OI'?row.btc:key==='FUNDING'?row.rate:row.close,fresh:true};
+ }
+ for(const [key,reading] of [['QQQ',q],['XAU',g]])if(reading){
+  const series=Object.fromEntries(Object.entries(report.series).map(([k,list])=>[k,list.filter(row=>row.date<reading.date)]));
+  const prev=ratioReturn(series,'BTC',key,5,key==='XAU'?series.QQQ.map(r=>r.date):undefined);
+  if(prev)priorObservations[key]={...observations[key],...prev,fresh:true};
+ }
+ const prevSpot=spot.slice(-6,-1);
+ if(prevSpot.length===5&&dateMs(last(prevSpot).date)-dateMs(prevSpot[0].date)===4*86400000){const buy=prevSpot.reduce((s,r)=>s+r.buy,0),sell=prevSpot.reduce((s,r)=>s+r.sell,0);if(buy+sell>0)priorObservations.SPOT={...observations.SPOT,date:last(prevSpot).date,value:100*buy/(buy+sell),fresh:true};}
+ return {observations,priorObservations,asOf,date:latest?.date,phase,summary,next,high,referenceHigh,low,baseLow,acceptance,failedAcceptance,accepted,reclaimed,swept,broken,checks,
   invalidation:low===null?'Daily range unavailable.':(accepted?`A close at / below $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})} cancels the retained acceptance. `:'')+`Daily close below $${low.toLocaleString('en-US',{maximumFractionDigits:0})} challenges the broader range. Daily retest patterns do not prove order-flow absorption.`,
   q,g,aligned,oi5,oiPrice,oiFresh,clearing,fundingRate,rank,crowded,fundFresh,flow5,etfFresh,spotBuyShare5,spotSellShare,spotFresh,spotDate:latestSpot?.date,absorptionCandidate:!!absorptionCandidate,
   yield:driverContext(report.drivers?.YIELD),oil:driverContext(report.drivers?.BRENT),priceFresh};

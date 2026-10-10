@@ -1,4 +1,4 @@
-import {overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
+import {factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
 import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns} from './macro-series.mjs';
@@ -16,8 +16,10 @@ const sourceLinks={FED:'https://www.federalreserve.gov/monetarypolicy/fomccalend
 let previousVisit=null,lastFetchAt=0;
 try{const saved=JSON.parse(localStorage.getItem('meme-macro-last-visit')||'null');if(saved&&/^\d{4}-\d{2}-\d{2}$/.test(saved.date)&&Number.isFinite(saved.btc)&&saved.btc>0)previousVisit=saved;}catch{}
 let cachedReport=null;try{cachedReport=restoreDeskCache(localStorage.getItem('meme-macro-last-report'));}catch{}
-let hasLiveReport=!!cachedReport;
-let report=cachedReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null;
+const sharedReport=restoreDeskCache(document.getElementById('macro-bootstrap')?.textContent);
+const initialReport=[cachedReport,sharedReport].filter(Boolean).sort((a,b)=>Date.parse(b.collectedAt)-Date.parse(a.collectedAt))[0];
+let hasLiveReport=!!initialReport;
+let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null;
 const slider=document.getElementById('chart-date'),readout=document.getElementById('chart-readout');
 function card(label,value,detail,tone=''){const n=el('article',tone);n.append(el('span','metric-label',label),el('strong','',value),el('p','',detail));return n;}
 function driverRead(key){
@@ -67,6 +69,12 @@ function showDeskContext(){
  const a=assessment,h=document.getElementById('horizon-reads');h.replaceChildren();for(const r of horizonReads(a,report)){const n=el('article',r.tone);n.append(el('small','',r.label),el('strong','',r.state),el('span','',r.detail));h.append(n);}
  const previous=[...(report.history||[])].filter(r=>r.date<a.date&&r.assessment).sort((x,y)=>y.date.localeCompare(x.date))[0]?.assessment;const changes=reviewChanges(a,previous,report),panel=document.getElementById('desk-changes');panel.replaceChildren();panel.append(el('span','delta-baseline',changes.baseline?niceDate(changes.baseline)+' → '+niceDate(a.date):changes.message));for(const r of changes.items){const n=el('span','delta-item');n.append(el('b','',r.label),el('span','',r.value));panel.append(n);}if(changes.baseline&&!changes.items.length)panel.append(el('span','delta-empty',changes.message));
  set('phase-evidence',overviewEvidence(a,report).join(' / '));
+ let table=document.getElementById('factor-changes');if(!table){const details=el('details','factor-changes');details.append(el('summary','','Factor observations / changes'));table=el('div','factor-table');table.id='factor-changes';details.append(table);panel.parentElement.parentElement.append(details);}
+ const sourceDate=d=>d.includes('T')?new Date(d).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Singapore'})+' SGT':d;
+ table.replaceChildren();for(const row of factorChanges(a,previous)){const n=el('article','factor-change');n.append(el('b','',row.label),el('strong','',row.reading),el('span','',row.direction+' · '+row.delta),el('small','',row.previousDate?sourceDate(row.previousDate)+' → '+sourceDate(row.date):sourceDate(row.date)),el('small','',row.scope));if(row.label==='Open interest')n.append(el('span','interpretation',row.interpretation));table.append(n);}
+ let stamps=document.getElementById('assessment-stamps');if(!stamps){stamps=el('div','assessment-stamps');stamps.id='assessment-stamps';document.getElementById('review-refresh-state').after(stamps);}
+ const saved=(report.history||[]).filter(r=>r.assessment).at(-1);const stamp=t=>t?new Date(t).toLocaleString('en-GB',{timeZone:'Asia/Singapore'})+' SGT':'Unavailable';
+ stamps.replaceChildren();for(const [label,value] of [['Last collected',stamp(report.collectedAt)],['BTC source observation',a.date||'Unavailable'],['Shared thesis assessment',stamp(saved?.observedAt)]]){const n=el('span','');n.append(el('b','',label),el('span','',value));stamps.append(n);}
  const triggers=triggerReads(a);set('trigger-up',triggers.up);set('trigger-down',triggers.down);set('leadership-alignment',!usable(report,'QQQ',a.asOf)||!usable(report,'XAU',a.asOf)?'Leadership evidence incomplete · delayed / unavailable benchmark':a.aligned?'Leadership dates aligned':`Leadership dates differ · QQQ ${a.q?.date?niceDate(a.q.date):'unavailable'} / gold ${a.g?.date?niceDate(a.g.date):'unavailable'} · combined confirmation withheld`);
 }
 function showFactorMap(){

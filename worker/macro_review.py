@@ -253,7 +253,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -354,6 +354,7 @@ class MacroReview:
             self.report['nextRefreshAt'] = dt.datetime.fromtimestamp(self.next_refresh, dt.timezone.utc).isoformat()
             self.report['analysisRuleVersion']=5
             self.report['etfFeedVersion']=1
+            self.report['deskEvidenceVersion']=1
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,

@@ -1,8 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {overviewEvidence,triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
+import {factorChanges,overviewEvidence,triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
 const report={collectedAt:'2026-10-10T12:00:00Z',feeds:Object.fromEntries(['BTC','QQQ','XAU','YIELD','BRENT','SPOT','FUNDING'].map(k=>[k,{status:'ok',latestDate:'2026-10-09'}])),drivers:{},positioning:{},series:Object.fromEntries(['BTC','QQQ','XAU'].map(s=>[s,[{date:'2026-10-09',close:100}]]))};
 const a={asOf:'2026-10-10',date:'2026-10-09',priceFresh:true,phase:'Range',referenceHigh:110,low:90,accepted:false,q:{value:-2},spotFresh:true,fundFresh:true};
+test('factor comparisons require matching fresh scopes and distinct source dates',()=>{
+ const old={observations:{ETF:{date:'2026-10-08',value:-10,fresh:true,scope:'TFTC'},OI:{date:'2026-10-08',value:100,fresh:true,scope:'OKX'}}};
+ const next={oi5:-2,oiPrice:-3,observations:{ETF:{date:'2026-10-09',value:20,fresh:true,scope:'TFTC'},OI:{date:'2026-10-09',value:95,fresh:true,scope:'OKX'}}};
+ const rows=factorChanges(next,old);assert.equal(rows.find(r=>r.label==='ETF daily flow').delta,'+30.00 $m');assert.equal(rows.find(r=>r.label==='Open interest').delta,'-5.00%');assert.match(rows.find(r=>r.label==='Open interest').interpretation,/possible unwind/);
+ next.observations.ETF.scope='Farside';assert.equal(factorChanges(next,old).find(r=>r.label==='ETF daily flow').previousDate,null);
+ next.observations.OI.fresh=false;assert.equal(factorChanges(next,old).find(r=>r.label==='Open interest').direction,'Unmeasured');
+ assert.equal(factorChanges(next,null).length,9);
+});
 test('decision thresholds specify close-based triggers and switch at acceptance',()=>{
  assert.match(triggerReads(a).up,/Daily close above/);assert.match(triggerReads(a).down,/Daily close below/);
  assert.match(triggerReads({...a,accepted:true}).down,/at \/ below.*acceptance lost/);

@@ -199,7 +199,7 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
-@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume})
+@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -533,6 +533,20 @@ def web():
         etag = f'"{ASSET_REVISION}-{candidate.name}"'
         headers = {"cache-control": "no-cache", "etag": etag,
                    "x-content-type-options": "nosniff", "x-meme-fast-revision": ASSET_REVISION}
+        if candidate.name == "macro.html":
+            from worker.macro_bootstrap import render_macro_bootstrap
+            from worker.macro_review import public_report
+            from worker.asset_revision import version_html_assets
+            source = candidate.read_text(encoding="utf-8")
+            try:
+                await macro_volume.reload.aio()
+                source = render_macro_bootstrap(source, public_report(json.loads(Path('/macro/review.json').read_text(encoding='utf-8'))))
+            except Exception:
+                # Persistence outages must not prevent the static shell and API fallback.
+                source = candidate.read_text(encoding="utf-8")
+            headers['cache-control'] = 'no-store'
+            headers.pop('etag', None)
+            return Response(version_html_assets(source, ASSET_REVISION), media_type='text/html', headers=headers)
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers=headers)
         if candidate.suffix == ".html":
