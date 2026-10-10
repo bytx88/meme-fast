@@ -16,6 +16,7 @@ The local preview indexes Robinhood pools into `.data/robinhood-pools.sqlite` on
 
 ## Product areas
 
+- **Macro** (`/macro.html`) — a DuPont-inspired factor tree for liquidity, spot demand, risk appetite and market structure. Four equal branch budgets aggregate manually assigned directions; weighted coverage distinguishes missing evidence from neutral readings. BTC, ETH, altcoin and meme lenses explain sensitivity without inventing coin-specific data. The optional user-example scenario is explicitly unverified. Readings and dated source notes persist in browser storage; no live news feed or scheduled macro collector is connected. The October 2026 CPI calendar reference was checked against BLS on October 10; the review window is a scenario, not a safety forecast.
 - **Learn** (`/learn.html`) — 101A Foundations (8 levels), 101B Survival & Hygiene (8 chapters), 101C Understand the Dev & Supply (13 chapters), 202A Snipe and 202B Swing (11 each), and 303A Managing Your Position (11). 101C is the complete path for bundles, issuance, creator powers, economic inventory, locks, liquidity, earnings, marketing, and the dev–buyer symbiosis. Old bundle, Basic Dev View, and 303B URLs redirect to the matching 101C chapters. The Snipe and Swing tools link back to their courses.
 - **Model** (`/model`) — visual research workflow, data coverage, order-flow reading guide, and signal limits
 - **Tweet** — incoming public-news signals and active Solana, Base, and Robinhood Chain pools
