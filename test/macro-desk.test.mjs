@@ -26,5 +26,8 @@ test('cache restoration rejects corrupt inputs and preserves last-successful dat
 
 test('first-screen evidence explains the phase without treating missing demand as support',()=>{
  assert.deepEqual(overviewEvidence({...a,spotBuyShare5:48},report),['Range intact','BTC lags QQQ','Spot sellers lead']);
+ assert.equal(overviewEvidence({...a,low:null},report)[0],'Structure unavailable');
+ assert.equal(horizonReads({...a,phase:'Assessment withheld'},report)[1].state,'Unmeasured');
+ assert.match(triggerReads({...a,phase:'Assessment withheld'}).up,/withheld/);
  assert.deepEqual(overviewEvidence({...a,priceFresh:false,spotFresh:false},report),['Price unavailable','Leadership unavailable','Spot demand unavailable']);
 });

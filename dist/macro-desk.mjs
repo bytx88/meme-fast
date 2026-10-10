@@ -26,12 +26,12 @@ export function horizonReads(a,report){
  const short= !shortFresh?'Unmeasured':a.broken?'Range failure':a.q.value<0?'Relative pressure':a.q.value>0?'Relative improvement':'Relative balance';
  return [
  {label:'1–7 DAYS',state:short,tone:!shortFresh?'unavailable':a.broken||a.q.value<0?'pressure':a.q.value>0?'support':'neutral',detail:shortFresh?'BTC / QQQ leadership + daily range':'Fresh price / benchmark required'},
- {label:'1–3 MONTHS',state:!a.priceFresh?'Unmeasured':a.accepted?'Acceptance observed':a.reclaimed?'Reclaim awaiting hold':'Recovery unconfirmed',tone:!a.priceFresh?'unavailable':a.accepted?'support':'awaiting',detail:'Daily structure + demand · no forecast'},
+ {label:'1–3 MONTHS',state:!a.priceFresh||a.phase==='Assessment withheld'?'Unmeasured':a.accepted?'Acceptance observed':a.reclaimed?'Reclaim awaiting hold':'Recovery unconfirmed',tone:!a.priceFresh||a.phase==='Assessment withheld'?'unavailable':a.accepted?'support':'awaiting',detail:'Daily structure + demand · no forecast'},
  {label:'2027–29',state:'Conditional cycle thesis',tone:'awaiting',detail:'Expansion → maturity · timing unvalidated'}
  ];
 }
 export function triggerReads(a){
- if(a.priceFresh===false)return {up:'Dated reference - current confirmation withheld',down:'Dated reference - current failure assessment withheld'};
+ if(a.priceFresh===false||a.phase==='Assessment withheld')return {up:'Dated reference - current confirmation withheld',down:'Dated reference - current failure assessment withheld'};
  return {up:a.referenceHigh===null?'Range reference unavailable':a.accepted?'Stay above accepted level':'Daily close above → reclaim candidate',down:a.low===null?'Range floor unavailable':a.accepted?'Daily close at / below → acceptance lost':'Daily close below → range failure'};
 }
 export function restoreDeskCache(raw){
@@ -42,7 +42,7 @@ export function restoreDeskCache(raw){
 }
 
 export function overviewEvidence(a,report){
- const structure=!a.priceFresh?'Price unavailable':a.broken?'Range failed':a.accepted?'Range accepted':'Range intact';
+ const structure=!a.priceFresh?'Price unavailable':!Number.isFinite(a.low)||a.phase==='Assessment withheld'?'Structure unavailable':a.broken?'Range failed':a.accepted?'Range accepted':'Range intact';
  const leader=a.priceFresh&&usable(report,'QQQ',a.asOf)&&Number.isFinite(a.q?.value)?a.q.value<0?'BTC lags QQQ':a.q.value>0?'BTC leads QQQ':'BTC / QQQ balanced':'Leadership unavailable';
  const spot=a.spotFresh&&Number.isFinite(a.spotBuyShare5)?a.spotBuyShare5<50?'Spot sellers lead':a.spotBuyShare5>=55?'Spot buying confirms':'Spot demand mixed':'Spot demand unavailable';
  return [structure,leader,spot];
