@@ -154,6 +154,54 @@ def gold_rows(text, today):
     return valid_rows([{'date': row['date'], 'close': row.get('close_usd_per_troy_oz')}
                        for row in csv.DictReader(io.StringIO(text))], today)
 
+def cpi_rows(payloads, today):
+    """BLS all-items NSA year-on-year and SA month-on-month, exact calendar lags."""
+    series = {}
+    for payload in payloads:
+        if payload.get('status') != 'REQUEST_SUCCEEDED':
+            raise ValueError('BLS request failed')
+        for item in payload['Results']['series']:
+            values = {}
+            for row in item['data']:
+                try:
+                    if not re.fullmatch(r'M(?:0[1-9]|1[0-2])', row['period']): continue
+                    date = dt.date(int(row['year']), int(row['period'][1:]), 1)
+                    value = float(row['value'])
+                    if date.isoformat() < today and math.isfinite(value) and value > 0: values[date] = value
+                except (ValueError, KeyError, TypeError): continue
+            series[item['seriesID']] = values
+    nsa, sa = series['CUUR0000SA0'], series['CUSR0000SA0']
+    result = []
+    for month in sorted(nsa.keys() & sa.keys()):
+        prior_year = month.replace(year=month.year-1)
+        prior_month = (month-dt.timedelta(days=1)).replace(day=1)
+        if prior_year not in nsa or prior_month not in sa: continue
+        end = (month.replace(day=28)+dt.timedelta(days=4)).replace(day=1)-dt.timedelta(days=1)
+        if end.isoformat() >= today: continue
+        result.append({'date':end.isoformat(), 'period':month.strftime('%Y-%m'),
+                       'yoy':100*(nsa[month]/nsa[prior_year]-1), 'mom':100*(sa[month]/sa[prior_month]-1),
+                       'sourceUrl':'https://www.bls.gov/news.release/cpi.htm'})
+    if not result: raise ValueError('No comparable BLS months')
+    return result
+
+def h41_rows(text, today):
+    """First H.4.1 table, weekly averages and matching weekly changes, USD millions."""
+    parser = FlowTable(); parser.feed(text)
+    header = next((r for r in parser.rows if r and r[0].startswith('Week ended')), None)
+    if not header: raise ValueError('H41 weekly header missing')
+    date = dt.datetime.strptime(header[0].replace('Week ended','').strip(), '%b %d, %Y').date().isoformat()
+    if date > today: raise ValueError('Future H41 week')
+    labels = {'securities':'Securities held outright', 'reserves':'Reserve balances with Federal Reserve Banks',
+              'tga':'U.S. Treasury, General Account', 'rrp':'Reverse repurchase agreements'}
+    result = {'date':date, 'sourceUrl':'https://www.federalreserve.gov/releases/h41/current/', 'basis':'weekly average', 'unit':'USD millions'}
+    for key,label in labels.items():
+        row = next((r for r in parser.rows if len(r)==5 and r[0].startswith(label)), None)
+        if row is None: raise ValueError('Missing H41 '+key)
+        values = [float(re.sub(r'[\s,]', '', cell)) for cell in row[1:3]]
+        if not all(math.isfinite(v) for v in values) or values[0] < 0: raise ValueError('Invalid H41 balance')
+        result[key], result[key+'Change'] = values
+    return [result]
+
 def fed_statement(text, url):
     text = re.sub(r'<[^>]+>', ' ', unescape(text))
     for before, after in [('¾', '-3/4'), ('½', '-1/2'), ('¼', '-1/4'), ('‑', '-'), ('–', '-')]:
@@ -253,7 +301,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -270,6 +318,8 @@ class MacroReview:
                         'YIELD': 'https://query2.finance.yahoo.com/v8/finance/chart/%5ETNX?period1=1756684800&interval=1d',
                         'BRENT': 'https://query2.finance.yahoo.com/v8/finance/chart/BZ%3DF?period1=1756684800&interval=1d',
                         'FED': 'https://www.federalreserve.gov/feeds/press_monetary.xml',
+                        'CPI': 'https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear='+str(int(today[:4])-1)+'&endyear='+today[:4],
+                        'H41': 'https://www.federalreserve.gov/releases/h41/current/',
                         'FEDCAL': 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
                         'OI': 'https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=BTC-USDT-SWAP&period=1Dutc&limit=100',
                         'FUNDING': 'https://www.okx.com/api/v5/public/funding-rate-history?instId=BTC-USDT-SWAP&limit=100',
@@ -279,6 +329,10 @@ class MacroReview:
                         'ETF': TFTC_URL, **NEWS}
             for key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
                 requests[key] += f'&period2={int(now)}'
+            # Anonymous BLS quota: at most two series requests every two hours.
+            last_cpi=self.report['feeds'].get('CPI',{})
+            if last_cpi.get('attemptedAt') and 0<=now-dt.datetime.fromisoformat(last_cpi['attemptedAt']).timestamp()<7200:
+                requests.pop('CPI',None)
             async def one(key, url):
                 try:
                     if key == 'ETF':
@@ -296,6 +350,12 @@ class MacroReview:
                     response.raise_for_status()
                     if key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
                         rows = yahoo_rows(response.json(), today)
+                    elif key == 'CPI':
+                        sa_url=url.replace('CUUR0000SA0','CUSR0000SA0')
+                        sa=await asyncio.wait_for(self.fetch(sa_url),timeout=12);sa.raise_for_status()
+                        rows=cpi_rows([response.json(),sa.json()],today)
+                    elif key == 'H41':
+                        rows=h41_rows(response.text,today)
                     elif key == 'XAU':
                         rows = gold_rows(response.text, today)
                     elif key in ('OI', 'FUNDING','SPOT','SPOT_PRICE'):
@@ -332,7 +392,11 @@ class MacroReview:
                     if key in ('QQQ', 'BTC', 'XAU'):
                         self.report['series'][key] = rows
                         status['latestDate'] = rows[-1]['date']
-                    elif key in ('YIELD', 'BRENT', 'FED'):
+                    elif key in ('YIELD', 'BRENT', 'FED', 'CPI', 'H41'):
+                        if key in ('CPI','H41'):
+                            dated={r['date']:r for r in self.report['drivers'].get(key,[])}
+                            dated.update({r['date']:r for r in rows})
+                            rows=[dated[d] for d in sorted(dated)][-65:]
                         self.report['drivers'][key] = rows
                         status['latestDate'] = rows[-1]['date']
                     elif key in ('OI', 'FUNDING', 'ETF','SPOT','SPOT_PRICE','LIQ'):
@@ -355,6 +419,7 @@ class MacroReview:
             self.report['analysisRuleVersion']=5
             self.report['etfFeedVersion']=1
             self.report['deskEvidenceVersion']=1
+            self.report['causalFeedVersion']=1
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,

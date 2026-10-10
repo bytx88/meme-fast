@@ -7,7 +7,7 @@ export function usable(report,key,asOf){
  const feed=report.feeds?.[key];
  if(feed?.status!=='ok'||!feed.latestDate)return false;
  const age=(dateMs(asOf)-dateMs(feed.latestDate))/86400000;
- return age>=0&&age<=(key==='FED'?90:key==='FUNDING'||key==='LIQ'?1:['OI','BTC','SPOT','SPOT_PRICE'].includes(key)?2:4);
+ return age>=0&&age<=(key==='FED'?90:key==='CPI'?50:key==='H41'?10:key==='FUNDING'||key==='LIQ'?1:['OI','BTC','SPOT','SPOT_PRICE'].includes(key)?2:4);
 }
 export function driverContext(rows){
  if(!rows?.length)return null;

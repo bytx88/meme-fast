@@ -1,5 +1,4 @@
 import {usable,driverContext} from './macro-analysis.mjs';
-import {assetPeriods} from './macro-series.mjs';
 import {fedPolicyMove} from './macro-desk.mjs';
 
 // Authored channels, not predictions or another scoring engine.
@@ -22,7 +21,35 @@ const signed=n=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}%`:'Window inco
 const dollars=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'Unavailable';
 const flow=n=>Number.isFinite(n)?`${n<0?'-':'+'}$${Math.abs(n).toFixed(1)}m`:'Unavailable';
 
-export function causalNodes(report,a){
+export function causalPath(id){
+ const vertices=new Set([id]),edges=new Set();
+ for(const direction of ['up','down']){
+  const pending=[id],seen=new Set([id]);
+  while(pending.length){const current=pending.pop();for(const [i,e] of causalEdges.entries()){
+   if((direction==='up'?e.to:e.from)!==current)continue;
+   const next=direction==='up'?e.from:e.to;edges.add(i);vertices.add(next);
+   if(!seen.has(next)){seen.add(next);pending.push(next);}
+  }}
+ }
+ return {vertices,edges};
+}
+export function marketResponse(report,count=5){
+ const keys=['QQQ','BTC','XAU'],maps=Object.fromEntries(keys.map(k=>[k,new Map((report.series?.[k]||[]).filter(r=>Number.isFinite(r.close)&&r.close>0).map(r=>[r.date,r.close]))]));
+ const dates=[...maps.QQQ.keys()].filter(d=>keys.every(k=>maps[k].has(d))).sort();
+ const date=dates.at(-1),start=dates.at(-count-1);
+ const values=Object.fromEntries(keys.map(k=>[k,{close:date?maps[k].get(date):null,change:start?100*(maps[k].get(date)/maps[k].get(start)-1):null}]));
+ return {date,start,count,values};
+}
+export function responseSummary(report,asOf,count=5){
+ const r=marketResponse(report,count),label=count===20?'1M / 20 shared sessions':count===1?'1D / 1 shared session':'5D / 5 shared sessions';
+ if(!r.start)return `${label}: insufficient matching BTC, QQQ and gold observations.`;
+ if(!['BTC','QQQ','XAU'].every(k=>usable(report,k,asOf))||(Date.parse(asOf)-Date.parse(r.date))/86400000>4)return `${label}: delayed / unavailable source; last comparable window ${r.start} → ${r.date}.`;
+ const b=r.values.BTC.change,q=r.values.QQQ.change,g=r.values.XAU.change;
+ const read=b<q&&b<g?'BTC underperforming QQQ and gold':b>q&&b>g?'BTC outperforming QQQ and gold':`BTC ${b===q?'matching':b>q?'outperforming':'underperforming'} QQQ; ${b===g?'matching':b>g?'outperforming':'underperforming'} gold`;
+ return `${read} · ${label} · ${r.start} → ${r.date}. Observed returns; no causal attribution.`;
+}
+
+export function causalNodes(report,a,count=5){
  const unknown=(id,label,note)=>({id,label,value:'Unmeasured',trend:'No dedicated live series',date:null,tone:'unmeasured',note,evidence:[]});
  const nodes=[
   unknown('WAR','War / geopolitics','Headlines are investigation leads. There is no verified event-severity or supply-disruption measure here.'),
@@ -30,6 +57,12 @@ export function causalNodes(report,a){
   unknown('QE','QE / QT','No central-bank balance-sheet series is collected. A rate hike or cut does not establish QE or QT.'),
   unknown('LIQUIDITY','Global liquidity','Broad liquidity is unmeasured. ETF flows, OKX open interest and funding are narrower channels and cannot establish the global total.')
  ];
+ const cpi=report.drivers?.CPI?.at(-1),balance=report.drivers?.H41?.at(-1);
+ if(cpi){const n=nodes.find(n=>n.id==='CPI'),fresh=usable(report,'CPI',a.asOf);Object.assign(n,{value:cpi.yoy.toFixed(1)+'% YoY',trend:fresh?`${signed(cpi.mom)} MoM / SA`:'Delayed / unavailable',date:cpi.date,displayDate:cpi.period+' / reference month',tone:fresh?'mixed':'unmeasured',note:`US headline CPI / reference month ${cpi.period}. YoY uses unadjusted indexes; MoM uses seasonally adjusted indexes. Consensus, surprises and core inflation are not measured.`,evidence:[{text:'BLS / all-items CPI; reference-period end, not release date',date:cpi.date,url:cpi.sourceUrl}]});}
+ if(balance){const fresh=usable(report,'H41',a.asOf),money=v=>'$'+(v/1e6).toFixed(3)+'tn',delta=v=>`${v>=0?'+':'−'}$${(Math.abs(v)/1000).toFixed(1)}bn / week`;
+  Object.assign(nodes.find(n=>n.id==='QE'),{label:'Fed securities / QE–QT',value:money(balance.securities),trend:fresh?delta(balance.securitiesChange):'Delayed / unavailable',date:balance.date,tone:fresh?'mixed':'unmeasured',note:'H.4.1 securities held outright, weekly average. The weekly balance change includes settlements and maturities; it does not establish an announced QE or QT regime.',evidence:[{text:'Fed H.4.1 / securities held outright; USD millions',date:balance.date,url:balance.sourceUrl}]});
+  Object.assign(nodes.find(n=>n.id==='LIQUIDITY'),{label:'US reserves / liquidity',value:money(balance.reserves),trend:fresh?delta(balance.reservesChange):'Delayed / unavailable',date:balance.date,tone:fresh?'mixed':'unmeasured',note:'US reserve balances, weekly average. A measured US component; global liquidity remains unmeasured. Treasury cash and reverse repos also affect reserves.',evidence:[{text:`Fed H.4.1 / reserve balances. TGA ${money(balance.tga)} (${delta(balance.tgaChange)}); total reverse repos ${money(balance.rrp)} (${delta(balance.rrpChange)}). All weekly averages; reverse repos include foreign official accounts.`,date:balance.date,url:balance.sourceUrl}]});
+ }
  for(const [key,label] of [['BRENT','Oil / Brent'],['YIELD','Treasury yields']]){
   const list=report.drivers?.[key]||[],c=driverContext(list),fresh=usable(report,key,a.asOf),ready=fresh&&c&&Number.isFinite(c.level);
   const pressure=ready&&(c.percentile>=80||c.significant&&c.change5>0),support=ready&&c.significant&&c.change5<0;
@@ -40,11 +73,12 @@ export function causalNodes(report,a){
  }
  const fed=report.drivers?.FED?.at(-1),move=fedPolicyMove(report.drivers?.FED),fedFresh=usable(report,'FED',a.asOf);
  nodes.push({id:'FED',label:'Fed policy',value:fed?`${fed.low.toFixed(2)}–${fed.high.toFixed(2)}%`:'Unavailable',date:fed?.date||null,tone:!fedFresh?'unmeasured':move?move.bp>0?'pressure':'support':'mixed',trend:!fedFresh?'Delayed / unavailable':move?move.label:'Change unmeasured',note:(move?`${move.context} · move dated ${move.date}. `:'')+'This is the observed target, not market pricing of the next decision. A single hike does not establish a sustained hiking cycle.',evidence:fed?[{text:'Federal Reserve / latest policy decision',date:fed.date,url:fed.sourceUrl}]:[]});
+ const response=marketResponse(report,count);
  for(const [key,label] of [['XAU','Gold / XAU'],['QQQ','Stocks / QQQ'],['BTC','Bitcoin / BTC']]){
-  const period=assetPeriods(report.series?.[key]||[],key==='BTC'||key==='XAU'?(report.series?.QQQ||[]).map(r=>r.date):null),fresh=usable(report,key,a.asOf),change=period?.returns[5];
-  nodes.push({id:key,label,value:dollars(period?.close),date:period?.date||null,trend:fresh?'5 sessions '+signed(change):'Delayed / unavailable',tone:!fresh?'unmeasured':key==='XAU'||!Number.isFinite(change)||change===0?'mixed':change>0?'support':'pressure',
+  const period={date:response.date,close:response.values[key].close},fresh=usable(report,key,a.asOf)&&response.date&&(Date.parse(a.asOf)-Date.parse(response.date))/86400000<=4,change=response.values[key].change;
+  nodes.push({id:key,label,value:dollars(period?.close),date:period?.date||null,trend:fresh?(count===20?'20 sessions ':count+' session'+(count===1?' ':'s '))+signed(change):'Delayed / unavailable',tone:!fresh?'unmeasured':key==='XAU'||!Number.isFinite(change)||change===0?'mixed':change>0?'support':'pressure',
    note:key==='XAU'?'Gold has competing safe-haven, real-yield and currency channels. A rising nominal yield or CPI print does not determine its direction.':'This is an observed price response over QQQ trading dates, not proof that any one incoming catalyst caused it.',
-   evidence:period?[{text:key==='XAU'?'GoldPrice.com / spot USD per ounce':'Yahoo / daily raw close',date:period.date,url:key==='XAU'?'https://goldprice.com/gold-price-history':'https://finance.yahoo.com/quote/'+(key==='BTC'?'BTC-USD':'QQQ')+'/'}]:[]});
+   evidence:response.date?[{text:key==='XAU'?'GoldPrice.com / spot USD per ounce':'Yahoo / daily raw close',date:period.date,url:key==='XAU'?'https://goldprice.com/gold-price-history':'https://finance.yahoo.com/quote/'+(key==='BTC'?'BTC-USD':'QQQ')+'/'}]:[]});
  }
  const liquidity=nodes.find(n=>n.id==='LIQUIDITY'),etf=report.positioning?.ETF?.at(-1);
  if(etf)liquidity.evidence.push({text:`US BTC ETFs: ${flow(etf.millionUsd)} latest; five-session total ${flow(a.flow5)} · ${a.etfFresh?'reported':'delayed / unavailable'}. ETF channel only.`,date:etf.date,url:etf.sourceUrl});
@@ -58,7 +92,7 @@ const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className
 const svgEl=(tag,attrs)=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attrs))n.setAttribute(key,value);return n;};
 export function mountCausalMap(root){
  if(!root)return {update(){}};
- let nodes=[],selected='FED';
+ let nodes=[],selected='FED',count=5,lastReport,lastAssessment;
  const stage=root.querySelector('.causal-stage'),detail=root.querySelector('.causal-detail');
  const svg=svgEl('svg',{viewBox:'0 0 870 570','aria-hidden':'true',class:'causal-wires'}),defs=svgEl('defs',{}),marker=svgEl('marker',{id:'causal-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
  marker.append(svgEl('path',{d:'M0 0L10 5L0 10Z',fill:'context-stroke'}));defs.append(marker);svg.append(defs);
@@ -69,8 +103,9 @@ export function mountCausalMap(root){
  }
  function select(id){
   selected=id;const node=nodes.find(n=>n.id===id);if(!node)return;
-  for(const [key,b] of buttons)b.setAttribute('aria-pressed',String(key===id));
-  for(const path of svg.querySelectorAll('.causal-wire')){const active=path.dataset.from===id||path.dataset.to===id;path.classList.toggle('active',active);path.classList.toggle('muted',!active);}
+  const pathway=causalPath(id);
+  for(const [key,b] of buttons){b.setAttribute('aria-pressed',String(key===id));b.classList.toggle('muted',!pathway.vertices.has(key));}
+  for(const [i,path] of [...svg.querySelectorAll('.causal-wire')].entries()){const active=pathway.edges.has(i);path.classList.toggle('active',active);path.classList.toggle('muted',!active);}
   detail.replaceChildren(el('small','causal-kicker','SELECTED CHANNEL'),el('h3','',node.label),el('strong','causal-detail-value',node.value),el('p','causal-note',node.note));
   for(const [heading,edges,direction] of [['Causes / inputs',causalEdges.filter(e=>e.to===id),'from'],['Effects / transmission',causalEdges.filter(e=>e.from===id),'to']]){
    detail.append(el('h4','',heading));if(!edges.length)detail.append(el('p','causal-empty',id==='WAR'||id==='QE'?'External policy / event input':'Observed outcome; confirm against dated prices'));
@@ -80,5 +115,8 @@ export function mountCausalMap(root){
   if(!node.evidence.length)detail.append(el('p','causal-empty','No dedicated observation. Conceptual arrows do not fill this gap.'));
   for(const row of node.evidence){const p=el('p','causal-evidence'),link=el('a','',row.text);if(/^https:\/\//.test(row.url||'')){link.href=row.url;link.target='_blank';link.rel='noopener noreferrer';}const date=row.date?.includes('T')?new Date(row.date).toLocaleString('en-GB',{timeZone:'Asia/Singapore'})+' SGT':row.date||'No source observation';p.append(link,el('time','',date));detail.append(p);}
  }
- return {update(report,a){nodes=causalNodes(report,a);for(const node of nodes){const b=buttons.get(node.id);b.className='causal-node '+node.tone;b.replaceChildren(el('b','',node.label),el('strong','',node.value),el('span','',node.trend),el('time','',node.date||'No source observation'));}select(selected);}};
+ root.querySelector('.causal-horizon')?.addEventListener('change',e=>{count=Number(e.target.value);if(lastReport)render(lastReport,lastAssessment);});
+ root.querySelector('.causal-compact')?.addEventListener('click',e=>{const compact=root.classList.toggle('compact');e.currentTarget.setAttribute('aria-pressed',String(compact));e.currentTarget.textContent=compact?'Detailed map':'Compact overview';});
+ function render(report,a){lastReport=report;lastAssessment=a;nodes=causalNodes(report,a,count);const response=root.querySelector('.causal-response');if(response)response.textContent=responseSummary(report,a.asOf,count);for(const node of nodes){const b=buttons.get(node.id);b.className='causal-node '+node.tone;b.replaceChildren(el('b','',node.label),el('strong','',node.value),el('span','',node.trend),el('time','',node.displayDate||node.date||'No source observation'));}select(selected);}
+ return {update:render};
 }

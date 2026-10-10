@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mountCausalMap,causalNodes,causalEdges,causalPositions} from '../dist/macro-causal.mjs';
+import {mountCausalMap,causalNodes,causalEdges,causalPositions,causalPath,marketResponse,responseSummary} from '../dist/macro-causal.mjs';
 const dates=['2026-10-02','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'];
 const report={series:Object.fromEntries(['QQQ','BTC','XAU'].map(k=>[k,dates.map((date,i)=>({date,close:100+i}))])),drivers:{FED:[{date:'2026-07-29',low:3.5,high:3.75},{date:'2026-09-16',low:3.75,high:4,sourceUrl:'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm'}],YIELD:dates.map((date,i)=>({date,close:5+i/100})),BRENT:dates.map((date,i)=>({date,close:100+i}))},positioning:{ETF:[{date:'2026-10-09',millionUsd:21,sourceUrl:'https://www.tftc.io/bitcoin-etf-flows'}]},feeds:Object.fromEntries(['QQQ','BTC','XAU','FED','YIELD','BRENT'].map(key=>[key,{status:'ok',latestDate:key==='FED'?'2026-09-16':'2026-10-09'}]))};
 const a={asOf:'2026-10-10',flow5:-681,etfFresh:true,oiFresh:false};
@@ -25,3 +25,23 @@ test('the authored graph separates asset responses and makes market-yield links 
  assert.ok(!causalEdges.some(e=>e.from==='QQQ'&&e.to==='BTC'));
  assert.match(causalEdges.find(e=>e.from==='YIELD'&&e.to==='XAU').effect,/real yields/);
 });
+
+test('Fed traces ancestors and descendants without unrelated liquidity branches',()=>{
+ const p=causalPath('FED');assert.deepEqual([...p.vertices].sort(),['BRENT','BTC','CPI','FED','QQQ','WAR','XAU','YIELD']);
+ assert.ok(!p.edges.has(causalEdges.findIndex(e=>e.from==='WAR'&&e.to==='XAU')));
+ assert.ok(p.edges.has(causalEdges.findIndex(e=>e.from==='YIELD'&&e.to==='XAU')));
+});
+test('asset responses align endpoints and do not bridge missing windows',()=>{
+ const r={...report,series:{...report.series,XAU:report.series.XAU.slice(0,-1)}};
+ const window=marketResponse(r,1);assert.equal(window.date,'2026-10-08');assert.equal(window.start,'2026-10-07');
+ assert.equal(window.values.BTC.close,104);assert.equal(marketResponse(r,5).start,undefined);
+ assert.match(responseSummary(r,a.asOf,20),/insufficient/);
+ assert.match(responseSummary({...r,feeds:{}},a.asOf,1),/delayed/);
+});
+test('monthly CPI and weekly US balances retain scope and independent freshness',()=>{
+ const r={...report,drivers:{...report.drivers,CPI:[{date:'2026-08-31',period:'2026-08',yoy:3.4,mom:.4}],H41:[{date:'2026-10-07',securities:6465328,securitiesChange:2581,reserves:3029659,reservesChange:81569,tga:880253,tgaChange:-68421,rrp:329526,rrpChange:266}]},feeds:{...report.feeds,CPI:{status:'ok',latestDate:'2026-08-31'},H41:{status:'ok',latestDate:'2026-10-07'}}};
+ const nodes=causalNodes(r,a);assert.equal(nodes.find(n=>n.id==='CPI').value,'3.4% YoY');assert.match(nodes.find(n=>n.id==='QE').note,/does not establish/);assert.match(nodes.find(n=>n.id==='LIQUIDITY').note,/global liquidity remains unmeasured/);
+ assert.equal(causalNodes(r,{...a,asOf:'2026-10-25'}).find(n=>n.id==='CPI').tone,'unmeasured');
+});
+
+test('equal aligned returns are described as matching',()=>assert.match(responseSummary(report,a.asOf,5),/matching QQQ; matching gold/));

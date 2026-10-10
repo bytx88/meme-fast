@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import unittest
 from pathlib import Path
-from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar, liquidation_rows, public_report
+from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar, liquidation_rows, public_report, cpi_rows, h41_rows
 
 NOW = dt.datetime(2026, 10, 10, tzinfo=dt.timezone.utc).timestamp()
 URL = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm'
@@ -19,6 +19,43 @@ class Response:
         return self.data
 
 class MacroTests(unittest.TestCase):
+    def test_cpi_uses_exact_month_lags_and_rejects_missing_year_or_future_period(self):
+        def payload(key, values):
+            return {'status':'REQUEST_SUCCEEDED','Results':{'series':[{'seriesID':key,'data':[{'year':str(y),'period':p,'value':str(v)} for y,p,v in values]}]}}
+        nsa=payload('CUUR0000SA0',[(2025,'M08',100),(2026,'M08',103.4),(2026,'M09',104),(2026,'M13',105)])
+        sa=payload('CUSR0000SA0',[(2026,'M07',100),(2026,'M08',100.4),(2026,'M09',101)])
+        rows=cpi_rows([nsa,sa],'2026-09-15')
+        self.assertEqual(len(rows),1);self.assertEqual(rows[0]['date'],'2026-08-31')
+        self.assertAlmostEqual(rows[0]['yoy'],3.4);self.assertAlmostEqual(rows[0]['mom'],.4)
+        sa['Results']['series'][0]['data'][0]['period']='M06'
+        self.assertRaises(ValueError,cpi_rows,[nsa,sa],'2026-09-15')
+    def test_h41_keeps_weekly_average_and_delta_separate_from_wednesday_column(self):
+        labels=['Securities held outright1','Reserve balances with Federal Reserve Banks','U.S. Treasury, General Account','Reverse repurchase agreements12']
+        text='<table><tr><th>Week endedOct 7, 2026</th></tr>'+''.join('<tr><td>'+label+'</td><td>1,000</td><td>+ 20</td><td>- 50</td><td>9,999</td></tr>' for label in labels)+'</table>'
+        row=h41_rows(text,'2026-10-11')[0]
+        self.assertEqual(row['securities'],1000);self.assertEqual(row['reservesChange'],20)
+        self.assertEqual(row['basis'],'weekly average');self.assertEqual(row['unit'],'USD millions')
+        self.assertRaises(ValueError,h41_rows,text,'2026-10-01')
+        self.assertRaises(ValueError,h41_rows,text.replace('1,000','n/a'),'2026-10-11')
+    def test_bls_cadence_preserves_real_attempt_time_and_retains_failed_observations(self):
+        async def run():
+            clock=[NOW];calls=[]
+            async def fetch(url):
+                calls.append(url)
+                raise RuntimeError('source unavailable')
+            with tempfile.TemporaryDirectory() as folder:
+                path=Path(folder)/'seed.mjs'
+                path.write_text('export default '+json.dumps({'collectedAt':'2026-10-08T00:00:00Z','series':{k:[{'date':'2026-10-08','close':100}] for k in ['QQQ','BTC','XAU']}})+';')
+                cache=MacroReview(fetch,path,lambda:clock[0])
+                cache.report['drivers']['CPI']=[{'date':'2026-08-31','period':'2026-08','yoy':3.4,'mom':.4}]
+                first=await cache.get();attempt=first['feeds']['CPI']['attemptedAt']
+                clock[0]+=1801;second=await cache.get()
+                self.assertEqual(second['feeds']['CPI']['attemptedAt'],attempt)
+                self.assertEqual(second['drivers']['CPI'],first['drivers']['CPI'])
+                self.assertEqual(len([u for u in calls if 'api.bls.gov' in u]),1)
+                clock[0]+=7200;await cache.get()
+                self.assertEqual(len([u for u in calls if 'api.bls.gov' in u]),2)
+        asyncio.run(run())
     def test_public_journal_does_not_repeat_raw_histories_or_mutate_the_stored_record(self):
         record={'date':'2026-10-09','observedAt':'2026-10-10T00:00:00Z','ruleVersion':3,'assessment':{'phase':'Range'},'series':{'BTC':[1,2,3]},'positioning':{'SPOT':[1,2]}}
         report={'series':{'BTC':[1,2,3]},'history':[record]};wire=public_report(report)
