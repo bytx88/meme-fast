@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {causalNodes,causalEdges,causalPositions} from '../dist/macro-causal.mjs';
+import {mountCausalMap,causalNodes,causalEdges,causalPositions} from '../dist/macro-causal.mjs';
 const dates=['2026-10-02','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'];
 const report={series:Object.fromEntries(['QQQ','BTC','XAU'].map(k=>[k,dates.map((date,i)=>({date,close:100+i}))])),drivers:{FED:[{date:'2026-07-29',low:3.5,high:3.75},{date:'2026-09-16',low:3.75,high:4,sourceUrl:'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm'}],YIELD:dates.map((date,i)=>({date,close:5+i/100})),BRENT:dates.map((date,i)=>({date,close:100+i}))},positioning:{ETF:[{date:'2026-10-09',millionUsd:21,sourceUrl:'https://www.tftc.io/bitcoin-etf-flows'}]},feeds:Object.fromEntries(['QQQ','BTC','XAU','FED','YIELD','BRENT'].map(key=>[key,{status:'ok',latestDate:key==='FED'?'2026-09-16':'2026-10-09'}]))};
 const a={asOf:'2026-10-10',flow5:-681,etfFresh:true,oiFresh:false};
+test('a cached page without the new section can still render the existing dashboard',()=>{
+ assert.doesNotThrow(()=>mountCausalMap(null).update(report,a));
+});
 test('unknown channels stay unmeasured despite measured ETF demand and policy change',()=>{
  const nodes=causalNodes(report,a);for(const id of ['WAR','CPI','QE','LIQUIDITY']){const n=nodes.find(n=>n.id===id);assert.equal(n.value,'Unmeasured');assert.equal(n.tone,'unmeasured');assert.equal(n.date,null);}
  const liq=nodes.find(n=>n.id==='LIQUIDITY');assert.match(liq.evidence[0].text,/\+\$21.0m.*-\$681.0m/);assert.match(liq.note,/cannot establish the global total/);

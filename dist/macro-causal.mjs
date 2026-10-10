@@ -57,6 +57,7 @@ export function causalNodes(report,a){
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
 const svgEl=(tag,attrs)=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attrs))n.setAttribute(key,value);return n;};
 export function mountCausalMap(root){
+ if(!root)return {update(){}};
  let nodes=[],selected='FED';
  const stage=root.querySelector('.causal-stage'),detail=root.querySelector('.causal-detail');
  const svg=svgEl('svg',{viewBox:'0 0 870 570','aria-hidden':'true',class:'causal-wires'}),defs=svgEl('defs',{}),marker=svgEl('marker',{id:'causal-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
