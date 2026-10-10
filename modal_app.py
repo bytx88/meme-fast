@@ -202,6 +202,15 @@ def web():
         async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
             return await client.get(target, headers={"accept": "application/json"})
     market_cache = MarketProxy(fetch_market)
+    from worker.macro_review import MacroReview
+    async def fetch_macro(target):
+        async with httpx.AsyncClient(timeout=18, follow_redirects=True) as client:
+            return await client.get(target, headers={"User-Agent": "Mozilla/5.0"})
+    macro_review_cache = MacroReview(fetch_macro, Path(REMOTE_DIST) / "macro-data.mjs")
+
+    @web_app.get("/api/macro-review")
+    async def macro_review():
+        return JSONResponse(await macro_review_cache.get(), headers={"cache-control": "no-store"})
 
     async def load_snapshot():
         async with history_lock:
