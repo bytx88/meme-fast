@@ -9,13 +9,13 @@ export const causalEdges=[
  {from:'CPI',to:'FED',kind:'conditional',path:'M614 83H660',effect:'Persistent inflation can shift policy expectations. The Fed also weighs employment, growth and expectations.'},
  {from:'FED',to:'YIELD',kind:'conditional',path:'M742 131V220',effect:'Policy expectations affect Treasury yields. Long yields also reflect inflation expectations, growth and term premium; a hike does not force them higher.'},
  {from:'QE',to:'LIQUIDITY',kind:'mechanism',path:'M194 268H240',effect:'Asset purchases and runoff affect reserves and portfolio duration. This is one component of liquidity, not a measurement of the global total.'},
- {from:'LIQUIDITY',to:'QQQ',kind:'conditional',path:'M404 246H480V430',effect:'Easier financing and risk appetite can support equities; earnings and valuation can offset that support.'},
- {from:'LIQUIDITY',to:'BTC',kind:'conditional',path:'M404 290H425V548H845V478H824',effect:'Financing conditions can support crypto risk-taking. ETF and venue spot flows are separate demand channels, not a global liquidity proxy.'},
- {from:'YIELD',to:'QQQ',kind:'conditional',path:'M704 316V350H564V430',effect:'Higher discount rates can pressure equity valuations, especially long-duration growth. What was already priced matters.'},
- {from:'YIELD',to:'BTC',kind:'conditional',path:'M784 316V430',effect:'Higher competing yields and funding costs can challenge crypto demand. Positioning and spot buying determine the actual response.'},
- {from:'YIELD',to:'XAU',kind:'conditional',path:'M660 268H620V380H380V430',effect:'Higher real yields tend to increase the opportunity cost of gold. Nominal 10Y alone does not measure real yields.'},
- {from:'WAR',to:'XAU',kind:'conditional',path:'M112 131V160H215V400H268V430',effect:'Geopolitical stress can support safe-haven demand for gold; the response competes with real yields and the dollar.'},
- {from:'LIQUIDITY',to:'XAU',kind:'conditional',path:'M322 316V430',effect:'Easing can support gold through lower real yields or a weaker dollar. Neither channel is measured by this node.'}
+ {from:'LIQUIDITY',to:'QQQ',kind:'conditional',path:'M322 316L492 430',effect:'Easier financing and risk appetite can support equities; earnings and valuation can offset that support.'},
+ {from:'LIQUIDITY',to:'BTC',kind:'conditional',path:'M362 316L702 430',effect:'Financing conditions can support crypto risk-taking. ETF and venue spot flows are separate demand channels, not a global liquidity proxy.'},
+ {from:'YIELD',to:'QQQ',kind:'conditional',path:'M742 316L572 430',effect:'Higher discount rates can pressure equity valuations, especially long-duration growth. What was already priced matters.'},
+ {from:'YIELD',to:'BTC',kind:'conditional',path:'M782 316L782 430',effect:'Higher competing yields and funding costs can challenge crypto demand. Positioning and spot buying determine the actual response.'},
+ {from:'YIELD',to:'XAU',kind:'conditional',path:'M702 316L362 430',effect:'Higher real yields tend to increase the opportunity cost of gold. Nominal 10Y alone does not measure real yields.'},
+ {from:'WAR',to:'XAU',kind:'conditional',path:'M194 131L268 430',effect:'Geopolitical stress can support safe-haven demand for gold; the response competes with real yields and the dollar.'},
+ {from:'LIQUIDITY',to:'XAU',kind:'conditional',path:'M282 316L282 430',effect:'Easing can support gold through lower real yields or a weaker dollar. Neither channel is measured by this node.'}
 ];
 const signed=n=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}%`:'Window incomplete';
 const dollars=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'Unavailable';
