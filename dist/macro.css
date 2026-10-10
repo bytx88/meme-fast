@@ -33,3 +33,5 @@ body{background:radial-gradient(ellipse at 85% 0,#102638 0,transparent 42%),#080
 .phase-overview{min-width:0}.phase-overview #phase-evidence{display:block;margin:7px 0 0;font-size:12px;line-height:1.4;color:#b9cede}@media(max-width:640px){.phase-overview #phase-evidence{font-size:11px}}
 
 #liquidity-readings{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:640px){#liquidity-readings{grid-template-columns:1fr}}
+
+.etf-window.pressure{color:var(--red)}.etf-window.support{color:var(--green)}
