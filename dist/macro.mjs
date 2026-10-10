@@ -1,4 +1,4 @@
-import {deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
+import {overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
 import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns} from './macro-series.mjs';
@@ -65,6 +65,7 @@ function showLiquidity(){
 function showDeskContext(){
  const a=assessment,h=document.getElementById('horizon-reads');h.replaceChildren();for(const r of horizonReads(a,report)){const n=el('article',r.tone);n.append(el('small','',r.label),el('strong','',r.state),el('span','',r.detail));h.append(n);}
  const previous=[...(report.history||[])].filter(r=>r.date<a.date&&r.assessment).sort((x,y)=>y.date.localeCompare(x.date))[0]?.assessment;const changes=reviewChanges(a,previous,report),panel=document.getElementById('desk-changes');panel.replaceChildren();panel.append(el('span','delta-baseline',changes.baseline?niceDate(changes.baseline)+' → '+niceDate(a.date):changes.message));for(const r of changes.items){const n=el('span','delta-item');n.append(el('b','',r.label),el('span','',r.value));panel.append(n);}if(changes.baseline&&!changes.items.length)panel.append(el('span','delta-empty',changes.message));
+ set('phase-evidence',overviewEvidence(a,report).join(' / '));
  const triggers=triggerReads(a);set('trigger-up',triggers.up);set('trigger-down',triggers.down);set('leadership-alignment',!usable(report,'QQQ',a.asOf)||!usable(report,'XAU',a.asOf)?'Leadership evidence incomplete · delayed / unavailable benchmark':a.aligned?'Leadership dates aligned':`Leadership dates differ · QQQ ${a.q?.date?niceDate(a.q.date):'unavailable'} / gold ${a.g?.date?niceDate(a.g.date):'unavailable'} · combined confirmation withheld`);
 }
 function showFactorMap(){

@@ -40,3 +40,10 @@ export function restoreDeskCache(raw){
  if(!finite(Date.parse(r.report.collectedAt)))return null;return r.report;
  }catch{return null;}
 }
+
+export function overviewEvidence(a,report){
+ const structure=!a.priceFresh?'Price unavailable':a.broken?'Range failed':a.accepted?'Range accepted':'Range intact';
+ const leader=a.priceFresh&&usable(report,'QQQ',a.asOf)&&Number.isFinite(a.q?.value)?a.q.value<0?'BTC lags QQQ':a.q.value>0?'BTC leads QQQ':'BTC / QQQ balanced':'Leadership unavailable';
+ const spot=a.spotFresh&&Number.isFinite(a.spotBuyShare5)?a.spotBuyShare5<50?'Spot sellers lead':a.spotBuyShare5>=55?'Spot buying confirms':'Spot demand mixed':'Spot demand unavailable';
+ return [structure,leader,spot];
+}

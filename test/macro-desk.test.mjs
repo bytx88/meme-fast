@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
+import {overviewEvidence,triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
 const report={collectedAt:'2026-10-10T12:00:00Z',feeds:Object.fromEntries(['BTC','QQQ','XAU','YIELD','BRENT','SPOT','FUNDING'].map(k=>[k,{status:'ok',latestDate:'2026-10-09'}])),drivers:{},positioning:{},series:Object.fromEntries(['BTC','QQQ','XAU'].map(s=>[s,[{date:'2026-10-09',close:100}]]))};
 const a={asOf:'2026-10-10',date:'2026-10-09',priceFresh:true,phase:'Range',referenceHigh:110,low:90,accepted:false,q:{value:-2},spotFresh:true,fundFresh:true};
 test('decision thresholds specify close-based triggers and switch at acceptance',()=>{
@@ -22,4 +22,9 @@ test('review comparison distinguishes first session and missing evidence from un
 test('cache restoration rejects corrupt inputs and preserves last-successful dates',()=>{
  assert.deepEqual(restoreDeskCache(JSON.stringify({version:1,report})),report);assert.equal(restoreDeskCache('{bad'),null);assert.equal(restoreDeskCache(JSON.stringify({version:1,report:{...report,series:{}}})),null);
  assert.equal(deskStamp(report,'QQQ').date,'2026-10-09');
+});
+
+test('first-screen evidence explains the phase without treating missing demand as support',()=>{
+ assert.deepEqual(overviewEvidence({...a,spotBuyShare5:48},report),['Range intact','BTC lags QQQ','Spot sellers lead']);
+ assert.deepEqual(overviewEvidence({...a,priceFresh:false,spotFresh:false},report),['Price unavailable','Leadership unavailable','Spot demand unavailable']);
 });
