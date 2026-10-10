@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {assess,rotationRows,driverContext,catalystSelection} from '../dist/macro-analysis.mjs';
+import {assess,rotationRows,driverContext,catalystSelection,ratioReturn} from '../dist/macro-analysis.mjs';
 const day=i=>new Date(Date.UTC(2026,8,1+i)).toISOString().slice(0,10);
 function fixture(){
  const btc=Array.from({length:35},(_,i)=>({date:day(i),open:100,high:105,low:95,close:100}));
@@ -61,6 +61,11 @@ test('a significant macro move depends on scale, not direction alone',()=>{
 test('leadership uses price ratios and starts at zero rather than an old cumulative baseline',()=>{
  const rows=[{date:day(0),prices:{BTC:100,QQQ:100,XAU:100}},{date:day(1),prices:{BTC:110,QQQ:120,XAU:100}}];
  const r=rotationRows(rows);assert.equal(r[0].returns.QQQ,0);assert.ok(Math.abs(r[1].returns.QQQ+8.3333333333)<1e-8);assert.ok(Math.abs(r[1].returns.XAU-10)<1e-8);
+});
+test('gold leadership excludes weekend observations and requires matching comparison endpoints',()=>{
+ const dates=['2026-10-01','2026-10-02','2026-10-03','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'];
+ const rows=dates.map((date,i)=>({date,close:100+i})),series={BTC:rows,QQQ:rows.filter(r=>r.date!=='2026-10-03'),XAU:rows.map(r=>({...r,close:r.date==='2026-10-03'?999:100}))};
+ const q=ratioReturn(series,'BTC','QQQ'),g=ratioReturn(series,'BTC','XAU',5,series.QQQ.map(r=>r.date));assert.equal(q.start,g.start);assert.equal(g.start,'2026-10-02');assert.ok(Math.abs(g.value-100*(107/101-1))<1e-10);
 });
 test('news avoids irrelevant crime stories and duplicate leads within a channel',()=>{
  const news=[{title:'Bitcoin operator sentenced',topic:'Price',publishedAt:'2026-10-09'},{title:'Iran pause',topic:'Energy',publishedAt:'2026-10-08'},{title:'Iran second headline',topic:'Energy',publishedAt:'2026-10-07'},{title:'ETF flows',topic:'Flows',publishedAt:'2026-10-06'}];

@@ -105,7 +105,7 @@ class MacroTests(unittest.TestCase):
                 cache = MacroReview(fetch,path,lambda:clock[0],store_path=store)
                 first = await cache.get()
                 self.assertEqual(first['history'][0]['assessment']['phase'],'Assessment withheld')
-                self.assertEqual(first['history'][0]['ruleVersion'],3)
+                self.assertEqual(first['history'][0]['ruleVersion'],4)
                 self.assertEqual(first['drivers']['FED'][-1]['high'],4)
                 count = len(calls)
                 await cache.get()

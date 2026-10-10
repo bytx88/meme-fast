@@ -20,16 +20,17 @@ export function driverContext(rows){
   significant:scale===null||fivePct===null?null:Math.abs(fivePct)>scale,
   scale,percentile:past.length>=20?100*past.filter(r=>r.close<=latest.close).length/past.length:null,sample:past.length};
 }
-export function ratioReturn(series,a,b,count=5){
+export function ratioReturn(series,a,b,count=5,calendar=null){
  const bm=new Map(series[b]?.map(r=>[r.date,r.close])||[]);
- const rows=(series[a]||[]).filter(r=>bm.has(r.date)).sort((x,y)=>x.date.localeCompare(y.date));
+ const dates=calendar?new Set(calendar):null;
+ const rows=(series[a]||[]).filter(r=>bm.has(r.date)&&(!dates||dates.has(r.date))).sort((x,y)=>x.date.localeCompare(y.date));
  if(rows.length<=count)return null;
  const end=last(rows),start=rows.at(-1-count);
  return {date:end.date,start:start.date,value:100*((end.close/bm.get(end.date))/(start.close/bm.get(start.date))-1)};
 }
 export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  const btc=(report.series.BTC||[]).filter(r=>r.date<=asOf), latest=last(btc);
- const q=ratioReturn(report.series,'BTC','QQQ'),g=ratioReturn(report.series,'BTC','XAU');
+ const q=ratioReturn(report.series,'BTC','QQQ'),g=ratioReturn(report.series,'BTC','XAU',5,(report.series.QQQ||[]).map(r=>r.date));
  const candles=btc.slice(-26);
  const priceFresh=usable(report,'BTC',asOf),ohlc=btc.length>=26&&candles.every((r,i)=>finite(r.high)&&finite(r.low)&&(!i||dateMs(r.date)-dateMs(candles[i-1].date)===86400000));
  const prior=btc.slice(-21,-1), base=btc.slice(-25,-5);
@@ -66,7 +67,7 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  const spotSellShare=latestSpot?100*latestSpot.sell/(latestSpot.buy+latestSpot.sell):null;
  const priceBar=spotPrice.find(r=>r.date===latestSpot?.date),beforeBar=spotPrice.find(r=>dateMs(r.date)===dateMs(latestSpot?.date)-86400000);
  const absorptionCandidate=spotFresh&&usable(report,'SPOT_PRICE',asOf)&&spotSellShare>=55&&priceBar&&beforeBar&&priceBar.low>=beforeBar.low&&priceBar.close>beforeBar.close;
- const aligned=q&&g&&q.date===g.date;
+ const aligned=q&&g&&q.date===g.date&&q.start===g.start;
  const dualStrength=aligned&&usable(report,'QQQ',asOf)&&usable(report,'XAU',asOf)&&q.value>0&&g.value>0;
  const etfDemand=etfFresh&&flow5!==null&&flow5>0,spotDemand=spotFresh&&spotBuyShare5!==null&&spotBuyShare5>=55;
  const demand=etfDemand||spotDemand,demandKnown=etfFresh&&flow5!==null||spotFresh&&spotBuyShare5!==null;

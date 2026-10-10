@@ -242,7 +242,7 @@ class MacroReview:
         self.store_path = Path(store_path) if store_path else None
         self.analysis_path=Path(seed_path).parent / 'macro-analysis.mjs'
         seed = json.loads(Path(seed_path).read_text(encoding='utf-8-sig').strip().removeprefix('export default ').removesuffix(';'))
-        self.report = {'version':2, 'analysisRuleVersion':3, 'start': START, 'series': seed['series'], 'drivers': {}, 'positioning': {}, 'calendar': [], 'history': [], 'news': [], 'feeds': {},
+        self.report = {'version':2, 'analysisRuleVersion':4, 'start': START, 'series': seed['series'], 'drivers': {}, 'positioning': {}, 'calendar': [], 'history': [], 'news': [], 'feeds': {},
                        'collectedAt': seed['collectedAt'], 'seedAt': seed['collectedAt']}
         for symbol in ('QQQ', 'BTC', 'XAU'):
             self.report['feeds'][symbol] = {'status': 'seed', 'lastSuccessAt': seed['collectedAt'],
@@ -252,7 +252,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==3 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==4 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -338,7 +338,7 @@ class MacroReview:
             self.report['collectedAt'] = attempted
             self.next_refresh = now + 1800
             self.report['nextRefreshAt'] = dt.datetime.fromtimestamp(self.next_refresh, dt.timezone.utc).isoformat()
-            self.report['analysisRuleVersion']=3
+            self.report['analysisRuleVersion']=4
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
@@ -349,7 +349,7 @@ class MacroReview:
                     program='import {assess} from '+json.dumps(self.analysis_path.resolve().as_uri())+';let s="";for await(const c of process.stdin)s+=c;const r=JSON.parse(s);process.stdout.write(JSON.stringify(assess(r,r.observedAt.slice(0,10))));'
                     value=subprocess.run(['node','--input-type=module','-e',program],input=json.dumps(entry),capture_output=True,text=True,timeout=8,check=True)
                     entry['assessment']=json.loads(value.stdout)
-                    entry['ruleVersion']=3
+                    entry['ruleVersion']=4
                 history={r['date']:r for r in self.report.get('history', [])}
                 if not history or entry['date']>=max(history):
                     history[entry['date']]=entry
