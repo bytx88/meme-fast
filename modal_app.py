@@ -44,7 +44,7 @@ history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_miss
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
 
 
-@app.function(schedule=modal.Period(minutes=30), timeout=100, max_containers=1,
+@app.function(timeout=100, max_containers=1,
               volumes={"/macro": macro_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_macro_review():
@@ -118,6 +118,12 @@ def collect_coins():
               volumes={"/history": history_volume})
 def collect_x_factor(target_limit=3):
     import subprocess
+    # Reuse the existing half-hour dispatch slot; the macro worker owns its own
+    # Volume and runs independently even when X-source collection later fails.
+    try:
+        collect_macro_review.spawn()
+    except Exception:
+        print("Macro review dispatch unavailable; on-visit collection remains available")
     history_volume.reload()
     result = subprocess.run(
         ["python", "/app/worker/x_rss_collector.py", "/history/coins.json",
