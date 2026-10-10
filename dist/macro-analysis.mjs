@@ -1,0 +1,91 @@
+// Evidence rules, not probabilities or claims about trader intent.
+export const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+const last=a=>a?.at(-1), change=(a,b)=>a&&b?100*(a/b-1):null;
+const finite=n=>typeof n==='number'&&Number.isFinite(n);
+const dateMs=d=>Date.parse(d+'T00:00:00Z');
+export function usable(report,key,asOf){
+ const feed=report.feeds?.[key];
+ if(feed?.status!=='ok'||!feed.latestDate)return false;
+ const age=(dateMs(asOf)-dateMs(feed.latestDate))/86400000;
+ return age>=0&&age<=(key==='FED'?90:key==='FUNDING'?1:key==='OI'||key==='BTC'?2:4);
+}
+export function driverContext(rows){
+ if(!rows?.length)return null;
+ const latest=last(rows), past=rows.slice(-61,-1), five=rows.at(-6);
+ const moves=rows.slice(-61).slice(1).map((r,i)=>r.close/rows.slice(-61)[i].close-1);
+ const avg=mean(moves), sd=moves.length>=20?Math.sqrt(mean(moves.map(n=>(n-avg)**2))):null;
+ const fivePct=five?change(latest.close,five.close):null;
+ const scale=sd===null?null:100*sd*Math.sqrt(5);
+ return {level:latest.close,date:latest.date,change5:fivePct,
+  significant:scale===null||fivePct===null?null:Math.abs(fivePct)>scale,
+  scale,percentile:past.length>=20?100*past.filter(r=>r.close<=latest.close).length/past.length:null,sample:past.length};
+}
+export function ratioReturn(series,a,b,count=5){
+ const bm=new Map(series[b]?.map(r=>[r.date,r.close])||[]);
+ const rows=(series[a]||[]).filter(r=>bm.has(r.date)).sort((x,y)=>x.date.localeCompare(y.date));
+ if(rows.length<=count)return null;
+ const end=last(rows),start=rows.at(-1-count);
+ return {date:end.date,start:start.date,value:100*((end.close/bm.get(end.date))/(start.close/bm.get(start.date))-1)};
+}
+export function assess(report,asOf=new Date().toISOString().slice(0,10)){
+ const btc=(report.series.BTC||[]).filter(r=>r.date<=asOf), latest=last(btc);
+ const q=ratioReturn(report.series,'BTC','QQQ'),g=ratioReturn(report.series,'BTC','XAU');
+ const candles=btc.slice(-26);
+ const priceFresh=usable(report,'BTC',asOf),ohlc=btc.length>=26&&candles.every((r,i)=>finite(r.high)&&finite(r.low)&&(!i||dateMs(r.date)-dateMs(candles[i-1].date)===86400000));
+ const prior=btc.slice(-21,-1), base=btc.slice(-25,-5);
+ const high=ohlc?Math.max(...prior.map(r=>r.high)):null,low=ohlc?Math.min(...prior.map(r=>r.low)):null;
+ const baseLow=ohlc?Math.min(...base.map(r=>r.low)):null;
+ const baseHigh=ohlc?Math.max(...btc.slice(-22,-2).map(r=>r.high)):null;
+ const swept=ohlc&&btc.slice(-5).some(r=>r.low<baseLow)&&latest.close>baseLow;
+ const reclaimed=ohlc&&latest.close>high;
+ const accepted=ohlc&&btc.slice(-2).every(r=>r.close>baseHigh);
+ const broken=ohlc&&latest.close<low;
+ const oi=report.positioning?.OI||[], funding=report.positioning?.FUNDING||[],flows=report.positioning?.ETF||[];
+ const oiFresh=usable(report,'OI',asOf),fundFresh=usable(report,'FUNDING',asOf),etfFresh=usable(report,'ETF',asOf);
+ const oi5=oi.length>=6?change(last(oi).btc,oi.at(-6).btc):null;
+ const oiPrice=oi.length>=6?change(btc.find(r=>r.date===last(oi).date)?.close,btc.find(r=>r.date===oi.at(-6).date)?.close):null;
+ const clearing=oiFresh&&oi5!==null&&oiPrice!==null&&oi5<0&&oiPrice<0;
+ const fundingRate=last(funding)?.rate??null;
+ const rank=funding.length>=20&&fundingRate!==null?100*(funding.filter(r=>r.rate<fundingRate).length+.5*funding.filter(r=>r.rate===fundingRate).length)/funding.length:null;
+ const crowded=fundFresh&&fundingRate>0&&rank>=90;
+ const flow5=flows.length>=5?flows.slice(-5).reduce((n,r)=>n+r.millionUsd,0):null;
+ const aligned=q&&g&&q.date===g.date;
+ const dualStrength=aligned&&usable(report,'QQQ',asOf)&&usable(report,'XAU',asOf)&&q.value>0&&g.value>0;
+ const demand=etfFresh&&flow5!==null&&flow5>0;
+ let phase='Range / reset unconfirmed',summary='The seasonal thesis has no confirmed transition into expansion.',next='Watch for a daily range reclaim, follow-through and improving BTC relative strength.';
+ if(!priceFresh||!ohlc){phase='Assessment withheld';summary=!priceFresh?'BTC observations are unavailable or delayed.':'Daily high / low history is incomplete; closes alone cannot identify a sweep.';next='Restore fresh daily OHLC before assessing the price sequence.';}
+ else if(broken){phase='Range failure';summary='BTC closed below the preceding 20-day low. The recovery sequence is challenged.';next='Require a recovery above the lost boundary, then a held retest before upgrading the phase.';}
+ else if(accepted&&dualStrength&&demand&&fundFresh&&rank!==null&&!crowded){phase='Expansion evidence';summary='Two closes above the earlier range, leadership versus equities and gold, and positive measured ETF flows support expansion.';next='Watch whether the prior range high holds on a retest; continued leadership and demand are required.';}
+ else if(accepted){phase='Price acceptance / confirmation incomplete';summary='Two consecutive closes above the range preceding those two sessions. This is price follow-through; full demand confirmation is still incomplete.';next='Check BTC leadership versus both benchmarks and measured spot demand; avoid treating price acceptance as proof of absorption.';}
+ else if(reclaimed){phase='Reclaim / acceptance pending';summary='BTC closed above the preceding 20-day high. One close is insufficient to establish a sustained advance.';next='Watch for a second close above the reclaimed range and a subsequent held retest.';}
+ else if(swept){phase='Sweep-and-recovery candidate';summary='A recent daily low breached the preceding range and price recovered above that boundary. This is a price pattern, not proof of buyer intent or absorption.';next='Require an upper-range reclaim; check whether OI reduction and spot demand corroborate the reset.';}
+ else if(clearing){phase='Position unwind / price still in range';summary='OKX contract OI and BTC price fell over aligned observation dates. Positions contracted; liquidation volume and absorption remain unmeasured.';next='Watch whether downside stops extending, then require a reclaim with improving relative strength.';}
+ if(phase==='Range / reset unconfirmed'&&q&&usable(report,'QQQ',asOf))summary=`BTC remains inside the daily range and ${q.value<0?'is losing':q.value>0?'is gaining':'has unchanged'} relative strength versus QQQ. A completed liquidity reset is not established.`;
+ const check=(label,status,detail)=>({label,status,detail});
+ const checks=[
+  check('Reset',!priceFresh||!ohlc?'unknown':swept||clearing?'observed':'pending',swept?'Daily sweep-and-recovery pattern observed.':clearing?'Falling price and falling OKX BTC-denominated OI.':'No measured sweep-and-recovery or joint price / OI contraction.'),
+  check('Reclaim',!priceFresh||!ohlc?'unknown':reclaimed||accepted?'observed':'pending',high===null?'Daily range unavailable.':`Upper daily range: $${high.toLocaleString('en-US',{maximumFractionDigits:0})}.`),
+  check('Acceptance',!priceFresh||!ohlc?'unknown':accepted?'observed':'pending','Two daily closes above the 20-day high preceding those two closes; a held retest is a separate test.'),
+  check('Participation',!aligned||!usable(report,'QQQ',asOf)||!usable(report,'XAU',asOf)||!etfFresh||flow5===null||!fundFresh||rank===null?'unknown':dualStrength&&demand&&!crowded?'observed':'pending','BTC leadership versus QQQ and XAU on the same date, positive five-report ETF flows, and measured funding below the positive upper-decile flag.')
+ ];
+ return {asOf,date:latest?.date,phase,summary,next,high,low,baseLow,accepted,reclaimed,swept,broken,checks,
+  invalidation:low===null?'Daily range unavailable.':`Daily close below $${low.toLocaleString('en-US',{maximumFractionDigits:0})} challenges this range. Reclaim acceptance is not a guaranteed held retest.`,
+  q,g,aligned,oi5,oiPrice,oiFresh,clearing,fundingRate,rank,crowded,fundFresh,flow5,etfFresh,
+  yield:driverContext(report.drivers?.YIELD),oil:driverContext(report.drivers?.BRENT),priceFresh};
+}
+export function rotationRows(rows){
+ if(!rows.length)return [];
+ const first=rows[0];
+ return rows.map(r=>({date:r.date,prices:r.prices,returns:{
+  QQQ:100*((r.prices.BTC/r.prices.QQQ)/(first.prices.BTC/first.prices.QQQ)-1),
+  XAU:100*((r.prices.BTC/r.prices.XAU)/(first.prices.BTC/first.prices.XAU)-1)
+ }}));
+}
+export function catalystSelection(news){
+ const counts=new Map();
+ return [...news].sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt)).filter(row=>{
+  const n=counts.get(row.topic)||0;
+  if(n>=1||/\b(sentenced|forfeits?|drug|dark web|hires|advisor|adviser)\b/i.test(row.title))return false;
+  counts.set(row.topic,n+1);return true;
+ }).slice(0,4);
+}

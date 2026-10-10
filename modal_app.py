@@ -41,6 +41,22 @@ app = modal.App(APP_NAME, image=image)
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
+macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
+
+
+@app.function(schedule=modal.Period(minutes=30), timeout=100, max_containers=1,
+              volumes={"/macro": macro_volume})
+@modal.concurrent(max_inputs=1)
+async def collect_macro_review():
+    import sys
+    import httpx
+    if "/app" not in sys.path: sys.path.insert(0, "/app")
+    from worker.macro_review import MacroReview
+    await macro_volume.reload.aio()
+    async with httpx.AsyncClient(timeout=18, follow_redirects=True, headers={"User-Agent":"Mozilla/5.0"}) as client:
+        report=await MacroReview(client.get, Path(REMOTE_DIST)/"macro-data.mjs", store_path="/macro/review.json").get()
+    await macro_volume.commit.aio()
+    return report
 
 
 @app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
@@ -202,15 +218,9 @@ def web():
         async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
             return await client.get(target, headers={"accept": "application/json"})
     market_cache = MarketProxy(fetch_market)
-    from worker.macro_review import MacroReview
-    async def fetch_macro(target):
-        async with httpx.AsyncClient(timeout=18, follow_redirects=True) as client:
-            return await client.get(target, headers={"User-Agent": "Mozilla/5.0"})
-    macro_review_cache = MacroReview(fetch_macro, Path(REMOTE_DIST) / "macro-data.mjs")
-
     @web_app.get("/api/macro-review")
     async def macro_review():
-        return JSONResponse(await macro_review_cache.get(), headers={"cache-control": "no-store"})
+        return JSONResponse(await collect_macro_review.remote.aio(), headers={"cache-control": "no-store"})
 
     async def load_snapshot():
         async with history_lock:

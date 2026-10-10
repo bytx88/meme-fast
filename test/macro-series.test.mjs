@@ -15,8 +15,8 @@ test('daily review separates period performance from the fixed reference and exc
 });
 test('seasonal frames cross the year boundary and partial-window returns remain observed',()=>{
  const frames=seasonalFrames('2025-10-01','2026-10-08');assert.equal(frames.length,4);assert.equal(frames[0].end,'2026-01-31');assert.equal(frames[0].complete,true);assert.equal(frames[3].end,'2027-01-31');assert.equal(frames[3].complete,false);
- const rows=[{date:'2026-09-30',prices:{BTC:1,QQQ:1,XAU:1}},{date:'2026-10-01',prices:{BTC:100,QQQ:100,XAU:100}},{date:'2026-10-08',prices:{BTC:90,QQQ:110,XAU:100}}];
- const value=frameReturns(rows,frames[3]);assert.equal(value.first,'2026-10-01');assert.equal(value.last,'2026-10-08');assert.ok(Math.abs(value.returns.BTC+10)<1e-10);assert.equal(value.returns.XAU,0);
+ const rows=[{date:'2026-09-30',prices:{BTC:120,QQQ:100,XAU:100}},{date:'2026-10-01',prices:{BTC:100,QQQ:100,XAU:100}},{date:'2026-10-08',prices:{BTC:90,QQQ:110,XAU:100}}];
+ const value=frameReturns(rows,frames[3]);assert.equal(value.first,'2026-10-01');assert.equal(value.anchor,'2026-09-30');assert.equal(value.last,'2026-10-08');assert.ok(Math.abs(value.returns.BTC+25)<1e-10);assert.equal(value.returns.XAU,0);
 });
 test('lagging gold does not suppress the newest BTC and equity review',()=>{
  const rows=Array.from({length:25},(_,i)=>({date:new Date(Date.UTC(2026,8,1+i)).toISOString().slice(0,10),close:100+i}));

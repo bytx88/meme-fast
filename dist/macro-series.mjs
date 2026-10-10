@@ -46,8 +46,9 @@ export function seasonalFrames(first,last){
 }
 export function frameReturns(rows,frame){
  const selected=rows.filter(r=>r.date>=frame.start&&r.date<=frame.end);
- if(selected.length<2)return null;
- return {first:selected[0].date,last:selected.at(-1).date,returns:Object.fromEntries(symbols.map(s=>[s,100*(selected.at(-1).prices[s]/selected[0].prices[s]-1)]))};
+ const anchor=rows.filter(r=>r.date<frame.start).at(-1);
+ if(!selected.length||!anchor)return null;
+ return {first:selected[0].date,anchor:anchor.date,last:selected.at(-1).date,returns:Object.fromEntries(symbols.map(s=>[s,100*(selected.at(-1).prices[s]/anchor.prices[s]-1)]))};
 }
 export function visibleRows(comparison,days){
  if(!days) return comparison.rows;

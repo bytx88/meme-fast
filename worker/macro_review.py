@@ -8,18 +8,22 @@ import json
 import math
 import re
 import time
+import subprocess
 import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from html import unescape
 
-START = '2025-11-01'
+START = '2025-10-01'
 NEWS = {'CoinDesk': 'https://www.coindesk.com/arc/outboundfeeds/rss/',
         'CNBC': 'https://www.cnbc.com/id/20910258/device/rss/rss.html'}
 TOPICS = re.compile(r'\b(bitcoin|fed|federal reserve|inflation|cpi|interest rates?|treasury|yields?|iran|oil|etf)\b', re.I)
 
 def headline_topic(title):
+    if re.search(r'\b(sentenced|forfeits?|drug|dark web|hires|advisor|adviser)\b', title, re.I):
+        return None
     if re.search(r'\b(iran|oil|brent|war)\b', title, re.I):
         return 'Energy / geopolitics'
     if re.search(r'\b(fed|federal reserve|inflation|cpi|interest rates?|treasury|yields?)\b', title, re.I):
@@ -37,17 +41,91 @@ def valid_rows(rows, today):
             date = dt.date.fromisoformat(row['date']).isoformat()
             close = float(row['close'])
             if '2025-09-01' <= date < today and math.isfinite(close) and close > 0:
-                found[date] = {'date': date, 'close': close}
+                value = {'date': date, 'close': close}
+                try:
+                    o, h, l = (float(row[k]) for k in ('open', 'high', 'low'))
+                    if all(math.isfinite(v) and v > 0 for v in (o, h, l)) and l <= min(o, close) <= max(o, close) <= h:
+                        value.update(open=o, high=h, low=l)
+                except (KeyError, TypeError, ValueError):
+                    pass
+                found[date] = value
         except (ValueError, TypeError, KeyError):
             continue
     if not found or not any(date < START for date in found):
-        raise ValueError('No valid history / November reference close')
+        raise ValueError('No valid history / October reference close')
     return [found[date] for date in sorted(found)]
 
 def yahoo_rows(payload, today):
     value = payload['chart']['result'][0]
-    return valid_rows([{'date': dt.datetime.fromtimestamp(t, dt.timezone.utc).date().isoformat(), 'close': close}
-                       for t, close in zip(value['timestamp'], value['indicators']['quote'][0]['close'])], today)
+    quote = value['indicators']['quote'][0]
+    return valid_rows([{'date': dt.datetime.fromtimestamp(t, dt.timezone.utc).date().isoformat(),
+                        **{key: values[i] if i < len(values) else None for key, values in quote.items() if key in ('open','high','low','close')}}
+                       for i, t in enumerate(value['timestamp'])], today)
+
+def okx_rows(payload, kind, now):
+    if payload.get('code') != '0':
+        raise ValueError('Exchange rejected request')
+    result = {}
+    for row in payload['data']:
+        try:
+            timestamp = float(row[0] if kind == 'OI' else row['fundingTime']) / 1000
+            # OI uses UTC daily bucket observations; discard the current incomplete bucket.
+            if timestamp > now or (kind == 'OI' and timestamp + 86400 > now):
+                continue
+            value = {'timestamp': dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat(),
+                     'date': dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).date().isoformat()}
+            if kind == 'OI':
+                value.update(btc=float(row[2]), usd=float(row[3]))
+                if not all(math.isfinite(value[k]) and value[k] > 0 for k in ('btc','usd')):
+                    continue
+            else:
+                value['rate'] = float(row.get('realizedRate') or row['fundingRate'])
+                if not math.isfinite(value['rate']) or abs(value['rate']) > 1:
+                    continue
+            result[timestamp] = value
+        except (KeyError, ValueError, TypeError, IndexError):
+            continue
+    if not result:
+        raise ValueError('No valid completed exchange observations')
+    return [result[t] for t in sorted(result)]
+
+class FlowTable(HTMLParser):
+    def __init__(self):
+        super().__init__(); self.rows=[]; self.row=None; self.cell=None
+    def handle_starttag(self, tag, attrs):
+        if tag == 'tr': self.row=[]
+        if tag in ('td','th') and self.row is not None: self.cell=[]
+    def handle_data(self, data):
+        if self.cell is not None: self.cell.append(data)
+    def handle_endtag(self, tag):
+        if tag in ('td','th') and self.cell is not None:
+            self.row.append(''.join(self.cell).strip()); self.cell=None
+        if tag == 'tr' and self.row is not None:
+            self.rows.append(self.row); self.row=None
+
+def etf_rows(text, today):
+    parser=FlowTable(); parser.feed(text)
+    totals=None; result={}
+    for row in parser.rows:
+        if row and row[0].lower() == 'date' and 'Total' in row:
+            totals=row.index('Total'); continue
+        if totals is None or len(row) <= totals:
+            continue
+        try:
+            date=dt.datetime.strptime(row[0], '%d %b %Y').date().isoformat()
+            # Missing constituent cells mean preliminary/incomplete, not zero.
+            cells=row[1:totals+1]
+            if date >= today or any(not cell or cell.strip() in ('-', '–', '—') for cell in cells):
+                continue
+            raw=row[totals].replace(',', '').replace('(', '-').replace(')', '')
+            total=float(raw)
+            parts=[float(cell.replace(',','').replace('(', '-').replace(')','')) for cell in cells[:-1]]
+            if math.isfinite(total) and all(math.isfinite(n) for n in parts) and abs(sum(parts)-total) <= max(.2,.1*len(parts)):
+                result[date]={'date':date,'millionUsd':total}
+        except (ValueError, TypeError):
+            continue
+    if not result: raise ValueError('No complete dated ETF totals')
+    return [result[d] for d in sorted(result)][-90:]
 
 def gold_rows(text, today):
     return valid_rows([{'date': row['date'], 'close': row.get('close_usd_per_troy_oz')}
@@ -87,6 +165,24 @@ def fed_statement_urls(text):
         raise ValueError('No current FOMC statements in official feed')
     return sorted(set(result), reverse=True)[:3]
 
+def fed_calendar(text, today):
+    headings=list(re.finditer(r'(\d{4}) FOMC Meetings', text))
+    result=[]
+    for i,heading in enumerate(headings):
+        section=text[heading.end():headings[i+1].start() if i+1<len(headings) else len(text)]
+        for match in re.finditer(r'fomc-meeting__month[^>]*>\s*<strong>([A-Za-z]+)</strong>.*?fomc-meeting__date[^>]*>([^<]+)<',section,re.S):
+            try:
+                month=dt.datetime.strptime(match[1],'%B').month
+                days=re.fullmatch(r'\s*(\d{1,2})-(\d{1,2})\*?\s*',unescape(match[2]))
+                if not days: continue
+                date=dt.date(int(heading[1]),month,int(days[2])).isoformat()
+                if today <= date and (dt.date.fromisoformat(date)-dt.date.fromisoformat(today)).days <= 120:
+                    result.append({'date':date,'title':'FOMC scheduled decision / meeting end','sourceUrl':'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm'})
+            except ValueError:
+                continue
+    if not result: raise ValueError('No upcoming official FOMC dates parsed')
+    return sorted(result,key=lambda r:r['date'])
+
 def news_rows(text, source, now):
     result = []
     root = ET.fromstring(text)
@@ -109,16 +205,26 @@ def news_rows(text, source, now):
     return sorted(result, key=lambda r: r['publishedAt'], reverse=True)[:8]
 
 class MacroReview:
-    def __init__(self, fetch, seed_path, clock=time.time):
+    def __init__(self, fetch, seed_path, clock=time.time, store_path=None):
         self.fetch, self.clock = fetch, clock
         self.lock = asyncio.Lock()
         self.next_refresh = 0
+        self.store_path = Path(store_path) if store_path else None
+        self.analysis_path=Path(seed_path).parent / 'macro-analysis.mjs'
         seed = json.loads(Path(seed_path).read_text(encoding='utf-8-sig').strip().removeprefix('export default ').removesuffix(';'))
-        self.report = {'start': START, 'series': seed['series'], 'drivers': {}, 'news': [], 'feeds': {},
+        self.report = {'version':2, 'start': START, 'series': seed['series'], 'drivers': {}, 'positioning': {}, 'calendar': [], 'history': [], 'news': [], 'feeds': {},
                        'collectedAt': seed['collectedAt'], 'seedAt': seed['collectedAt']}
         for symbol in ('QQQ', 'BTC', 'XAU'):
             self.report['feeds'][symbol] = {'status': 'seed', 'lastSuccessAt': seed['collectedAt'],
                                             'latestDate': seed['series'][symbol][-1]['date']}
+        if self.store_path and self.store_path.exists():
+            try:
+                saved=json.loads(self.store_path.read_text(encoding='utf-8'))
+                if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
+                    self.report=saved
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp()
+            except (ValueError, KeyError, TypeError):
+                pass
 
     async def get(self):
         async with self.lock:
@@ -132,7 +238,11 @@ class MacroReview:
                         'XAU': 'https://goldprice.com/gold-price-history.csv',
                         'YIELD': 'https://query2.finance.yahoo.com/v8/finance/chart/%5ETNX?period1=1756684800&interval=1d',
                         'BRENT': 'https://query2.finance.yahoo.com/v8/finance/chart/BZ%3DF?period1=1756684800&interval=1d',
-                        'FED': 'https://www.federalreserve.gov/feeds/press_monetary.xml', **NEWS}
+                        'FED': 'https://www.federalreserve.gov/feeds/press_monetary.xml',
+                        'FEDCAL': 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+                        'OI': 'https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=BTC-USDT-SWAP&period=1Dutc&limit=100',
+                        'FUNDING': 'https://www.okx.com/api/v5/public/funding-rate-history?instId=BTC-USDT-SWAP&limit=100',
+                        'ETF': 'https://farside.co.uk/bitcoin-etf-flow-all-data/', **NEWS}
             for key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
                 requests[key] += f'&period2={int(now)}'
             async def one(key, url):
@@ -143,6 +253,12 @@ class MacroReview:
                         rows = yahoo_rows(response.json(), today)
                     elif key == 'XAU':
                         rows = gold_rows(response.text, today)
+                    elif key in ('OI', 'FUNDING'):
+                        rows = okx_rows(response.json(), key, now)
+                    elif key == 'ETF':
+                        rows = etf_rows(response.text, today)
+                    elif key == 'FEDCAL':
+                        rows = fed_calendar(response.text,today)
                     elif key == 'FED':
                         async def statement(target):
                             value = await asyncio.wait_for(self.fetch(target), timeout=12)
@@ -172,6 +288,11 @@ class MacroReview:
                     elif key in ('YIELD', 'BRENT', 'FED'):
                         self.report['drivers'][key] = rows
                         status['latestDate'] = rows[-1]['date']
+                    elif key in ('OI', 'FUNDING', 'ETF'):
+                        self.report['positioning'][key] = rows
+                        status['latestDate'] = rows[-1]['date']
+                    elif key == 'FEDCAL':
+                        self.report['calendar']=rows
                     else:
                         self.report['news'] = [r for r in self.report['news'] if r['source'] != key] + rows
                 self.report['feeds'][key] = status
@@ -182,6 +303,26 @@ class MacroReview:
             self.report['collectedAt'] = attempted
             self.next_refresh = now + 1800
             self.report['nextRefreshAt'] = dt.datetime.fromtimestamp(self.next_refresh, dt.timezone.utc).isoformat()
+            common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
+            if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
+                entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
+                       'series':{s:rows[-65:] for s,rows in self.report['series'].items()},
+                       'drivers':{s:rows[-65:] for s,rows in self.report['drivers'].items()},
+                       'positioning':copy.deepcopy(self.report['positioning']), 'feeds':copy.deepcopy(self.report['feeds'])}
+                if self.analysis_path.exists():
+                    program='import {assess} from '+json.dumps(self.analysis_path.resolve().as_uri())+';let s="";for await(const c of process.stdin)s+=c;const r=JSON.parse(s);process.stdout.write(JSON.stringify(assess(r,r.observedAt.slice(0,10))));'
+                    value=subprocess.run(['node','--input-type=module','-e',program],input=json.dumps(entry),capture_output=True,text=True,timeout=8,check=True)
+                    entry['assessment']=json.loads(value.stdout)
+                    entry['ruleVersion']=1
+                history={r['date']:r for r in self.report.get('history', [])}
+                if not history or entry['date']>=max(history):
+                    history[entry['date']]=entry
+                self.report['history']=[history[d] for d in sorted(history)][-120:]
+            if self.store_path:
+                self.store_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary=self.store_path.with_suffix('.tmp')
+                temporary.write_text(json.dumps(self.report, separators=(',',':')), encoding='utf-8')
+                temporary.replace(self.store_path)
             return copy.deepcopy(self.report)
 
 if __name__ == '__main__':
@@ -193,7 +334,7 @@ if __name__ == '__main__':
     async def collect():
         async with httpx.AsyncClient(verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT), timeout=18,
                                      follow_redirects=True, headers={'User-Agent':'Mozilla/5.0'}) as client:
-            return await MacroReview(client.get, root / 'dist/macro-data.mjs').get()
+            return await MacroReview(client.get, root / 'dist/macro-data.mjs', store_path=destination).get()
     destination = Path(sys.argv[1]) if len(sys.argv) > 1 else root / '.data/macro-review.json'
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(asyncio.run(collect())), encoding='utf-8')
