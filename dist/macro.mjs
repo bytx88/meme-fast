@@ -1,8 +1,10 @@
 import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
+import {mountCausalMap} from './macro-causal.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
 import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns} from './macro-series.mjs';
 const host=document.getElementById('comparison-chart');
+const causalMap=mountCausalMap(document.getElementById('macro-causal-map'));
 const colours={QQQ:'#63a9ff',BTC:'#ffad55',XAU:'#6bdbb2'};
 const names={QQQ:'Equity risk',BTC:'Crypto risk',XAU:'Spot gold'};
 const pct=n=>n===null?'Unavailable':`${n>=0?'+':''}${n.toFixed(2)}%`;
@@ -160,6 +162,7 @@ function showReview(saveVisit=false){
  const checks=document.getElementById('phase-checks');checks.replaceChildren();
  for(const row of assessment.checks){const n=el('article',row.status);n.append(el('b','',row.label),el('span','',row.status==='unknown'?'UNMEASURED / INCOMPLETE':row.status.toUpperCase()),el('details','check-detail'));const d=n.lastElementChild;d.append(el('summary','',row.label==='Reclaim'&&assessment.referenceHigh!==null?'Above $'+price(assessment.referenceHigh):row.label==='Acceptance'?'Two closes + held level':row.label==='Participation'?'Leadership + spot demand':'Sweep / position unwind'),el('p','',row.detail));checks.append(n);}
  showFactorMap();showDeskContext();
+ causalMap.update(report,assessment);
  const stateRead=assessment.summary;
  const signals=document.getElementById('review-signals');signals.replaceChildren(
   card('BTC / QQQ · 5-SESSION RELATIVE RETURN',pct(r.relative),!assessment.priceFresh||!usable(report,'QQQ',assessment.asOf)?`Retained closes dated ${niceDate(r.date)}; current benchmark confirmation unavailable.`:r.relative===null?'Insufficient shared history.':r.relative>0?'Crypto is gaining relative strength.':r.relative<0?'Crypto is losing relative strength.':'No relative change.',!assessment.priceFresh||!usable(report,'QQQ',assessment.asOf)?'amber':r.relative>0?'positive':r.relative<0?'negative':''),
