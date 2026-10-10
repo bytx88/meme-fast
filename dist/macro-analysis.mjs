@@ -7,7 +7,7 @@ export function usable(report,key,asOf){
  const feed=report.feeds?.[key];
  if(feed?.status!=='ok'||!feed.latestDate)return false;
  const age=(dateMs(asOf)-dateMs(feed.latestDate))/86400000;
- return age>=0&&age<=(key==='FED'?90:key==='FUNDING'?1:key==='OI'||key==='BTC'?2:4);
+ return age>=0&&age<=(key==='FED'?90:key==='FUNDING'||key==='LIQ'?1:['OI','BTC','SPOT','SPOT_PRICE'].includes(key)?2:4);
 }
 export function driverContext(rows){
  if(!rows?.length)return null;
@@ -59,13 +59,21 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  const rank=funding.length>=20&&fundingRate!==null?100*(funding.filter(r=>r.rate<fundingRate).length+.5*funding.filter(r=>r.rate===fundingRate).length)/funding.length:null;
  const crowded=fundFresh&&fundingRate>0&&rank>=90;
  const flow5=flows.length>=5?flows.slice(-5).reduce((n,r)=>n+r.millionUsd,0):null;
+ const spot=report.positioning?.SPOT||[],spotPrice=report.positioning?.SPOT_PRICE||[],latestSpot=last(spot),spot5=spot.slice(-5);
+ const spotFresh=usable(report,'SPOT',asOf),spotFiveComplete=spot5.length===5&&dateMs(last(spot5).date)-dateMs(spot5[0].date)===4*86400000;
+ const buy5=spotFiveComplete?spot5.reduce((n,r)=>n+r.buy,0):null,sell5=spotFiveComplete?spot5.reduce((n,r)=>n+r.sell,0):null;
+ const spotBuyShare5=buy5===null||buy5+sell5<=0?null:100*buy5/(buy5+sell5);
+ const spotSellShare=latestSpot?100*latestSpot.sell/(latestSpot.buy+latestSpot.sell):null;
+ const priceBar=spotPrice.find(r=>r.date===latestSpot?.date),beforeBar=spotPrice.find(r=>dateMs(r.date)===dateMs(latestSpot?.date)-86400000);
+ const absorptionCandidate=spotFresh&&usable(report,'SPOT_PRICE',asOf)&&spotSellShare>=55&&priceBar&&beforeBar&&priceBar.low>=beforeBar.low&&priceBar.close>beforeBar.close;
  const aligned=q&&g&&q.date===g.date;
  const dualStrength=aligned&&usable(report,'QQQ',asOf)&&usable(report,'XAU',asOf)&&q.value>0&&g.value>0;
- const demand=etfFresh&&flow5!==null&&flow5>0;
+ const etfDemand=etfFresh&&flow5!==null&&flow5>0,spotDemand=spotFresh&&spotBuyShare5!==null&&spotBuyShare5>=55;
+ const demand=etfDemand||spotDemand,demandKnown=etfFresh&&flow5!==null||spotFresh&&spotBuyShare5!==null;
  let phase='Range / reset unconfirmed',summary='The seasonal thesis has no confirmed transition into expansion.',next='Watch for a daily range reclaim, follow-through and improving BTC relative strength.';
  if(!priceFresh||!ohlc){phase='Assessment withheld';summary=!priceFresh?'BTC observations are unavailable or delayed.':'Daily high / low history is incomplete; closes alone cannot identify a sweep.';next='Restore fresh daily OHLC before assessing the price sequence.';}
  else if(broken){phase='Range failure';summary='BTC closed below the preceding 20-day low. The recovery sequence is challenged.';next='Require a recovery above the lost boundary, then a held retest before upgrading the phase.';}
- else if(accepted&&dualStrength&&demand&&fundFresh&&rank!==null&&!crowded){phase='Expansion evidence';summary='Two closes above the earlier range, leadership versus equities and gold, and positive measured ETF flows support expansion.';next='Watch whether the prior range high holds on a retest; continued leadership and demand are required.';}
+ else if(accepted&&dualStrength&&demand&&fundFresh&&rank!==null&&!crowded){phase='Expansion evidence';summary=`Two closes above the earlier range, leadership versus equities and gold, and ${etfDemand?'positive measured ETF flows':'OKX spot taker-buy share above the 55% participation rule'} support expansion. Demand coverage is ${etfDemand?'US spot ETFs':'one exchange’s BTC spot activity'}.`;next='Watch whether the prior range high holds on a retest; continued leadership and demand are required.';}
  else if(accepted){phase='Price acceptance / confirmation incomplete';summary=`BTC remains above the range reclaimed with two closes on ${acceptance.date}.${acceptance.retest?' A later daily candle touched that level and closed above it.':''} Full demand confirmation remains incomplete.`;next='Check BTC leadership versus both benchmarks and measured spot demand; avoid treating price acceptance as proof of absorption.';}
  else if(failedAcceptance){phase='Reclaim acceptance lost';summary=`BTC is back at or below the range accepted on ${failedAcceptance.date}. The earlier reclaim has not held.`;next='Require a fresh reclaim and acceptance; a calendar window does not repair failed price structure.';}
  else if(reclaimed){phase='Reclaim / acceptance pending';summary='BTC closed above the preceding 20-day high. One close is insufficient to establish a sustained advance.';next='Watch for a second close above the reclaimed range and a subsequent held retest.';}
@@ -81,11 +89,11 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
   check('Reset',!priceFresh||!ohlc?'unknown':swept||clearing?'observed':'pending',swept?'Daily sweep-and-recovery pattern observed.':clearing?'Falling price and falling OKX BTC-denominated OI.':'No measured sweep-and-recovery or joint price / OI contraction.'),
   check('Reclaim',!priceFresh||!ohlc?'unknown':reclaimed||accepted?'observed':'pending',referenceHigh===null?'Daily range unavailable.':`Reference: $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})}. ${failedAcceptance?'Earlier acceptance lost.':accepted?'Accepted level retained.':'Prior 20-day high.'}`),
   check('Acceptance',!priceFresh||!ohlc?'unknown':accepted?'observed':'pending',accepted?`Two-close acceptance ${acceptance.date}; no subsequent close at / below the retained level.${acceptance.retest?' Daily retest-and-close candidate '+acceptance.retest+'.':' A subsequent daily retest is not observed.'}`:'Two closes above their preceding 20-day high, retained while subsequent closes stay above it. Breakout search covers the latest 40 daily sessions.'),
-  check('Participation',!aligned||!usable(report,'QQQ',asOf)||!usable(report,'XAU',asOf)||!etfFresh||flow5===null||!fundFresh||rank===null?'unknown':dualStrength&&demand&&!crowded?'observed':'pending','BTC leadership versus QQQ and XAU on the same date, positive five-report ETF flows, and measured funding below the positive upper-decile flag.')
+  check('Participation',!aligned||!usable(report,'QQQ',asOf)||!usable(report,'XAU',asOf)||!demandKnown||!fundFresh||rank===null?'unknown':dualStrength&&demand&&!crowded?'observed':'pending','Same-date BTC leadership versus QQQ / XAU; positive five-report ETF flows or ≥55% OKX five-day spot taker-buy share; measured funding below the positive upper-decile flag. Channels retain their different coverage scopes.')
  ];
  return {asOf,date:latest?.date,phase,summary,next,high,referenceHigh,low,baseLow,acceptance,failedAcceptance,accepted,reclaimed,swept,broken,checks,
   invalidation:low===null?'Daily range unavailable.':(accepted?`A close at / below $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})} cancels the retained acceptance. `:'')+`Daily close below $${low.toLocaleString('en-US',{maximumFractionDigits:0})} challenges the broader range. Daily retest patterns do not prove order-flow absorption.`,
-  q,g,aligned,oi5,oiPrice,oiFresh,clearing,fundingRate,rank,crowded,fundFresh,flow5,etfFresh,
+  q,g,aligned,oi5,oiPrice,oiFresh,clearing,fundingRate,rank,crowded,fundFresh,flow5,etfFresh,spotBuyShare5,spotSellShare,spotFresh,spotDate:latestSpot?.date,absorptionCandidate:!!absorptionCandidate,
   yield:driverContext(report.drivers?.YIELD),oil:driverContext(report.drivers?.BRENT),priceFresh};
 }
 export function rotationRows(rows){

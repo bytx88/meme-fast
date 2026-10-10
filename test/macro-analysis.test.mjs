@@ -22,6 +22,19 @@ test('missing funding or differently dated leadership cannot qualify full expans
  r.feeds.FUNDING.status='error';assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');
  r.feeds.FUNDING.status='ok';r.series.XAU.pop();assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');
 });
+test('spot participation is a scoped alternative channel, not an inferred ETF flow',()=>{
+ const r=fixture();r.feeds.ETF.status='error';r.feeds.SPOT={status:'ok',latestDate:day(34)};
+ r.positioning.SPOT=Array.from({length:5},(_,i)=>({date:day(30+i),buy:60,sell:40}));
+ r.series.BTC[33]={...r.series.BTC[33],high:111,close:110};r.series.BTC[34]={...r.series.BTC[34],high:113,close:112};
+ const a=assess(r,day(34));assert.equal(a.phase,'Expansion evidence');assert.equal(a.spotBuyShare5,60);assert.equal(a.etfFresh,false);assert.match(a.summary,/one exchange/);
+ r.positioning.SPOT.pop();assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');
+});
+test('daily absorption candidates require same-date sell imbalance and actual venue price response',()=>{
+ const r=fixture();r.feeds.SPOT=r.feeds.SPOT_PRICE={status:'ok',latestDate:day(34)};
+ r.positioning.SPOT=[{date:day(34),buy:40,sell:60}];r.positioning.SPOT_PRICE=[{date:day(33),low:90,close:95},{date:day(34),low:91,close:96}];
+ assert.equal(assess(r,day(34)).absorptionCandidate,true);
+ r.positioning.SPOT_PRICE[1].low=89;assert.equal(assess(r,day(34)).absorptionCandidate,false);
+});
 test('acceptance retains its original range through a held pullback and fails on a close back inside',()=>{
  const r=fixture();
  for(const [i,c] of [[29,110],[30,112],[31,109],[32,108],[33,107],[34,106]])r.series.BTC[i]={...r.series.BTC[i],close:c,high:c+1,low:i>30?104:95};

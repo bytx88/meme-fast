@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import unittest
 from pathlib import Path
-from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar
+from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar, liquidation_rows
 
 NOW = dt.datetime(2026, 10, 10, tzinfo=dt.timezone.utc).timestamp()
 URL = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm'
@@ -19,6 +19,16 @@ class Response:
         return self.data
 
 class MacroTests(unittest.TestCase):
+    def test_spot_and_liquidation_samples_keep_scopes_dates_and_completed_candles(self):
+        stamp=str(int((NOW-86400)*1000))
+        spot=okx_rows({'code':'0','data':[[stamp,'60','40']]},'SPOT',NOW)
+        self.assertEqual((spot[0]['sell'],spot[0]['buy']),(60,40))
+        candle=[stamp,'100','110','90','105','1000','1000','100000','1']
+        self.assertEqual(okx_rows({'code':'0','data':[candle]},'SPOT_PRICE',NOW)[0]['low'],90)
+        candle[-1]='0';self.assertRaises(ValueError,okx_rows,{'code':'0','data':[candle]},'SPOT_PRICE',NOW)
+        details=[{'ts':stamp,'sz':'2','posSide':'long'},{'ts':str(int((NOW+60)*1000)),'sz':'9','posSide':'short'}]
+        rows=liquidation_rows({'code':'0','data':[{'instId':'ETH-USDT-SWAP','details':details},{'instId':'BTC-USDT-SWAP','details':details}]},NOW)
+        self.assertEqual(len(rows),1);self.assertEqual(rows[0]['contracts'],2);self.assertEqual(rows[0]['side'],'long')
     def test_policy_calendar_uses_meeting_end_and_correct_year(self):
         def row(month,days):return f'<div class="fomc-meeting__month"><strong>{month}</strong></div><div class="fomc-meeting__date">{days}</div>'
         text='2026 FOMC Meetings'+row('September','15-16')+row('October','27-28')+'2027 FOMC Meetings'+row('January','26-27*')
@@ -91,7 +101,7 @@ class MacroTests(unittest.TestCase):
                 cache = MacroReview(fetch,path,lambda:clock[0],store_path=store)
                 first = await cache.get()
                 self.assertEqual(first['history'][0]['assessment']['phase'],'Assessment withheld')
-                self.assertEqual(first['history'][0]['ruleVersion'],2)
+                self.assertEqual(first['history'][0]['ruleVersion'],3)
                 self.assertEqual(first['drivers']['FED'][-1]['high'],4)
                 count = len(calls)
                 await cache.get()
