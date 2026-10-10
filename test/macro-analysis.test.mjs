@@ -22,6 +22,12 @@ test('missing funding or differently dated leadership cannot qualify full expans
  r.feeds.FUNDING.status='error';assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');
  r.feeds.FUNDING.status='ok';r.series.XAU.pop();assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');
 });
+test('acceptance retains its original range through a held pullback and fails on a close back inside',()=>{
+ const r=fixture();
+ for(const [i,c] of [[29,110],[30,112],[31,109],[32,108],[33,107],[34,106]])r.series.BTC[i]={...r.series.BTC[i],close:c,high:c+1,low:i>30?104:95};
+ const a=assess(r,day(34));assert.equal(a.accepted,true);assert.equal(a.referenceHigh,105);assert.equal(a.acceptance.retest,day(31));assert.equal(a.phase,'Price acceptance / confirmation incomplete');
+ r.series.BTC.at(-1).close=104;const b=assess(r,day(34));assert.equal(b.accepted,false);assert.equal(b.phase,'Reclaim acceptance lost');
+});
 test('a wick recovery is a candidate; insufficient OHLC cannot establish a sweep',()=>{
  const r=fixture();r.series.BTC[32].low=90;
  assert.equal(assess(r,day(34)).phase,'Sweep-and-recovery candidate');

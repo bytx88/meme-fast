@@ -87,7 +87,7 @@ function showReview(saveVisit=false){
  set('review-freshness',`BTC daily candle ${niceDate(assessment.date)} · benchmark close ${niceDate(r.date)}${failures.length?' · unavailable: '+failures.join(', '):''}${!assessment.priceFresh?' · assessment withheld':''}`);
  set('review-headline',assessment.phase);
  set('review-verdict',`BTC $${price(report.series.BTC.at(-1).close)} · ${niceDate(assessment.date)}. ${assessment.summary}`);
- set('phase-next',assessment.next);set('phase-fail',assessment.invalidation);
+ set('phase-next',assessment.next);set('phase-fail',assessment.invalidation);set('phase-next-level',assessment.referenceHigh===null?'Unavailable':`$${price(assessment.referenceHigh)}`);set('phase-fail-level',assessment.accepted?`$${price(assessment.referenceHigh)}`:assessment.low===null?'Unavailable':`$${price(assessment.low)}`);
  const support=[],pressure=[];
  if(assessment.priceFresh&&usable(report,'QQQ',assessment.asOf)&&r.metrics.BTC[20]>0)support.push(`BTC ${pct(r.metrics.BTC[20])} over 20 shared QQQ sessions; the five-session move is ${pct(r.metrics.BTC[5])}. Longer and shorter horizons differ.`);
  if(assessment.priceFresh&&assessment.high!==null&&!assessment.broken)support.push(assessment.accepted?'Price acceptance above the earlier daily range.':assessment.reclaimed?'One daily upper-range reclaim.':`Daily range remains intact above $${price(assessment.low)}; expansion is not established.`);
@@ -109,7 +109,7 @@ function showReview(saveVisit=false){
  const stateRead=assessment.summary;
  const signals=document.getElementById('review-signals');signals.replaceChildren(
   card('BTC / QQQ · 5-SESSION RELATIVE RETURN',pct(r.relative),r.relative===null?'Insufficient shared history.':r.relative>0?'Crypto is gaining relative strength.':r.relative<0?'Crypto is losing relative strength.':'No relative change.',r.relative>0?'positive':r.relative<0?'negative':''),
-  card('BTC · DAILY RANGE HIGH',assessment.high===null?'Unavailable':`$${price(assessment.high)}`,'Highest daily high of the preceding 20 BTC days. Current candle excluded.'),
+  card('BTC · RECLAIM REFERENCE',assessment.referenceHigh===null?'Unavailable':`$${price(assessment.referenceHigh)}`,assessment.accepted?'Retained high of the 20-day range preceding two-close acceptance.':assessment.failedAcceptance?'Earlier accepted range high; acceptance has been lost.':'Highest daily high of the preceding 20 BTC days. Current candle excluded.'),
   card('BTC · DAILY RANGE LOW',assessment.low===null?'Unavailable':`$${price(assessment.low)}`,'Lowest daily low of the preceding 20 BTC days. A close below challenges the range.')
  );
  const body=document.getElementById('return-body');body.replaceChildren();

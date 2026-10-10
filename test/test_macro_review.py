@@ -91,7 +91,7 @@ class MacroTests(unittest.TestCase):
                 cache = MacroReview(fetch,path,lambda:clock[0],store_path=store)
                 first = await cache.get()
                 self.assertEqual(first['history'][0]['assessment']['phase'],'Assessment withheld')
-                self.assertEqual(first['history'][0]['ruleVersion'],1)
+                self.assertEqual(first['history'][0]['ruleVersion'],2)
                 self.assertEqual(first['drivers']['FED'][-1]['high'],4)
                 count = len(calls)
                 await cache.get()
@@ -100,6 +100,9 @@ class MacroTests(unittest.TestCase):
                 self.assertEqual((await cold.get())['history'][0]['date'],'2026-10-09')
                 self.assertEqual(cold.report['history'][0]['assessment'],first['history'][0]['assessment'])
                 self.assertEqual(len(calls),count)
+                legacy=json.loads(store.read_text());legacy['analysisRuleVersion']=1;store.write_text(json.dumps(legacy))
+                self.assertEqual(MacroReview(fetch,path,lambda:clock[0],store_path=store).next_refresh,0)
+                store.write_text(json.dumps(first))
                 failure[0] = True;clock[0] += 1801
                 second = await cold.get()
                 self.assertEqual(second['feeds']['XAU']['status'],'error')

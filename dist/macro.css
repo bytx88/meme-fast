@@ -14,3 +14,5 @@
 .thesis-balance{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:18px 0}.thesis-balance article{padding:12px 16px;background:#15212a;border-left:3px solid #72958d}.thesis-balance article.pressure{border-left-color:#c28d80}.thesis-balance b{font:10px monospace;letter-spacing:.7px;color:#bbccd8}.thesis-balance p{font-size:13px;line-height:1.6;margin:9px 0}.thesis-balance p:last-child{margin-bottom:0}@media(max-width:640px){.thesis-balance{grid-template-columns:1fr;gap:10px}.thesis-balance p{font-size:12px}}
 
 .chart-legend{display:flex;gap:18px;font:13px monospace}.chart-date-badge{top:30px;bottom:auto}.season-scorecard[hidden]{display:none}.chart-controls .chart-legend{font-size:13px}.chart-controls .chart-legend b{font-weight:500}
+
+.decision-pair strong{display:block;font:24px monospace;color:#dbe7f0;margin-top:8px}.decision-pair p{margin-top:8px}

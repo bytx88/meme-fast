@@ -35,10 +35,20 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  const prior=btc.slice(-21,-1), base=btc.slice(-25,-5);
  const high=ohlc?Math.max(...prior.map(r=>r.high)):null,low=ohlc?Math.min(...prior.map(r=>r.low)):null;
  const baseLow=ohlc?Math.min(...base.map(r=>r.low)):null;
- const baseHigh=ohlc?Math.max(...btc.slice(-22,-2).map(r=>r.high)):null;
+ let acceptance=null,failedAcceptance=null;
+ if(ohlc)for(let i=Math.max(21,btc.length-40);i<btc.length;i++){
+  const base=btc.slice(i-21,i-1),rangeHigh=Math.max(...base.map(r=>r.high));
+  if(!base.every(r=>finite(r.high))||!(btc[i-1].close>rangeHigh&&btc[i].close>rangeHigh))continue;
+  const remaining=btc.slice(i+1);
+  if(remaining.every(r=>r.close>rangeHigh)){
+   acceptance={level:rangeHigh,date:btc[i].date,retest:remaining.find(r=>r.low<=rangeHigh&&r.close>rangeHigh)?.date||null};failedAcceptance=null;break;
+  }
+  if(latest.close<=rangeHigh)failedAcceptance={level:rangeHigh,date:btc[i].date};
+ }
  const swept=ohlc&&btc.slice(-5).some(r=>r.low<baseLow)&&latest.close>baseLow;
  const reclaimed=ohlc&&latest.close>high;
- const accepted=ohlc&&btc.slice(-2).every(r=>r.close>baseHigh);
+ const accepted=!!acceptance;
+ const referenceHigh=acceptance?.level??failedAcceptance?.level??high;
  const broken=ohlc&&latest.close<low;
  const oi=report.positioning?.OI||[], funding=report.positioning?.FUNDING||[],flows=report.positioning?.ETF||[];
  const oiFresh=usable(report,'OI',asOf),fundFresh=usable(report,'FUNDING',asOf),etfFresh=usable(report,'ETF',asOf);
@@ -56,20 +66,25 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  if(!priceFresh||!ohlc){phase='Assessment withheld';summary=!priceFresh?'BTC observations are unavailable or delayed.':'Daily high / low history is incomplete; closes alone cannot identify a sweep.';next='Restore fresh daily OHLC before assessing the price sequence.';}
  else if(broken){phase='Range failure';summary='BTC closed below the preceding 20-day low. The recovery sequence is challenged.';next='Require a recovery above the lost boundary, then a held retest before upgrading the phase.';}
  else if(accepted&&dualStrength&&demand&&fundFresh&&rank!==null&&!crowded){phase='Expansion evidence';summary='Two closes above the earlier range, leadership versus equities and gold, and positive measured ETF flows support expansion.';next='Watch whether the prior range high holds on a retest; continued leadership and demand are required.';}
- else if(accepted){phase='Price acceptance / confirmation incomplete';summary='Two consecutive closes above the range preceding those two sessions. This is price follow-through; full demand confirmation is still incomplete.';next='Check BTC leadership versus both benchmarks and measured spot demand; avoid treating price acceptance as proof of absorption.';}
+ else if(accepted){phase='Price acceptance / confirmation incomplete';summary=`BTC remains above the range reclaimed with two closes on ${acceptance.date}.${acceptance.retest?' A later daily candle touched that level and closed above it.':''} Full demand confirmation remains incomplete.`;next='Check BTC leadership versus both benchmarks and measured spot demand; avoid treating price acceptance as proof of absorption.';}
+ else if(failedAcceptance){phase='Reclaim acceptance lost';summary=`BTC is back at or below the range accepted on ${failedAcceptance.date}. The earlier reclaim has not held.`;next='Require a fresh reclaim and acceptance; a calendar window does not repair failed price structure.';}
  else if(reclaimed){phase='Reclaim / acceptance pending';summary='BTC closed above the preceding 20-day high. One close is insufficient to establish a sustained advance.';next='Watch for a second close above the reclaimed range and a subsequent held retest.';}
  else if(swept){phase='Sweep-and-recovery candidate';summary='A recent daily low breached the preceding range and price recovered above that boundary. This is a price pattern, not proof of buyer intent or absorption.';next='Require an upper-range reclaim; check whether OI reduction and spot demand corroborate the reset.';}
  else if(clearing){phase='Position unwind / price still in range';summary='OKX contract OI and BTC price fell over aligned observation dates. Positions contracted; liquidation volume and absorption remain unmeasured.';next='Watch whether downside stops extending, then require a reclaim with improving relative strength.';}
  if(phase==='Range / reset unconfirmed'&&q&&usable(report,'QQQ',asOf))summary=`BTC remains inside the daily range and ${q.value<0?'is losing':q.value>0?'is gaining':'has unchanged'} relative strength versus QQQ. A completed liquidity reset is not established.`;
+ if(priceFresh&&ohlc){
+  if(accepted)next+=` The retained reclaim reference is $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})}.`;
+  else if(!broken)next+=` Upper reference: $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})}.`;
+ }
  const check=(label,status,detail)=>({label,status,detail});
  const checks=[
   check('Reset',!priceFresh||!ohlc?'unknown':swept||clearing?'observed':'pending',swept?'Daily sweep-and-recovery pattern observed.':clearing?'Falling price and falling OKX BTC-denominated OI.':'No measured sweep-and-recovery or joint price / OI contraction.'),
-  check('Reclaim',!priceFresh||!ohlc?'unknown':reclaimed||accepted?'observed':'pending',high===null?'Daily range unavailable.':`Upper daily range: $${high.toLocaleString('en-US',{maximumFractionDigits:0})}.`),
-  check('Acceptance',!priceFresh||!ohlc?'unknown':accepted?'observed':'pending','Two daily closes above the 20-day high preceding those two closes; a held retest is a separate test.'),
+  check('Reclaim',!priceFresh||!ohlc?'unknown':reclaimed||accepted?'observed':'pending',referenceHigh===null?'Daily range unavailable.':`Reference: $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})}. ${failedAcceptance?'Earlier acceptance lost.':accepted?'Accepted level retained.':'Prior 20-day high.'}`),
+  check('Acceptance',!priceFresh||!ohlc?'unknown':accepted?'observed':'pending',accepted?`Two-close acceptance ${acceptance.date}; no subsequent close at / below the retained level.${acceptance.retest?' Daily retest-and-close candidate '+acceptance.retest+'.':' A subsequent daily retest is not observed.'}`:'Two closes above their preceding 20-day high, retained while subsequent closes stay above it. Breakout search covers the latest 40 daily sessions.'),
   check('Participation',!aligned||!usable(report,'QQQ',asOf)||!usable(report,'XAU',asOf)||!etfFresh||flow5===null||!fundFresh||rank===null?'unknown':dualStrength&&demand&&!crowded?'observed':'pending','BTC leadership versus QQQ and XAU on the same date, positive five-report ETF flows, and measured funding below the positive upper-decile flag.')
  ];
- return {asOf,date:latest?.date,phase,summary,next,high,low,baseLow,accepted,reclaimed,swept,broken,checks,
-  invalidation:low===null?'Daily range unavailable.':`Daily close below $${low.toLocaleString('en-US',{maximumFractionDigits:0})} challenges this range. Reclaim acceptance is not a guaranteed held retest.`,
+ return {asOf,date:latest?.date,phase,summary,next,high,referenceHigh,low,baseLow,acceptance,failedAcceptance,accepted,reclaimed,swept,broken,checks,
+  invalidation:low===null?'Daily range unavailable.':(accepted?`A close at / below $${referenceHigh.toLocaleString('en-US',{maximumFractionDigits:0})} cancels the retained acceptance. `:'')+`Daily close below $${low.toLocaleString('en-US',{maximumFractionDigits:0})} challenges the broader range. Daily retest patterns do not prove order-flow absorption.`,
   q,g,aligned,oi5,oiPrice,oiFresh,clearing,fundingRate,rank,crowded,fundFresh,flow5,etfFresh,
   yield:driverContext(report.drivers?.YIELD),oil:driverContext(report.drivers?.BRENT),priceFresh};
 }
