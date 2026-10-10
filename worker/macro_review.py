@@ -15,6 +15,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from html import unescape
+from worker.etf_flows import tftc_rows, TFTC_URL
 
 START = '2025-10-01'
 NEWS = {'CoinDesk': 'https://www.coindesk.com/arc/outboundfeeds/rss/',
@@ -242,7 +243,7 @@ class MacroReview:
         self.store_path = Path(store_path) if store_path else None
         self.analysis_path=Path(seed_path).parent / 'macro-analysis.mjs'
         seed = json.loads(Path(seed_path).read_text(encoding='utf-8-sig').strip().removeprefix('export default ').removesuffix(';'))
-        self.report = {'version':2, 'analysisRuleVersion':4, 'start': START, 'series': seed['series'], 'drivers': {}, 'positioning': {}, 'calendar': [], 'history': [], 'news': [], 'feeds': {},
+        self.report = {'version':2, 'analysisRuleVersion':5, 'start': START, 'series': seed['series'], 'drivers': {}, 'positioning': {}, 'calendar': [], 'history': [], 'news': [], 'feeds': {},
                        'collectedAt': seed['collectedAt'], 'seedAt': seed['collectedAt']}
         for symbol in ('QQQ', 'BTC', 'XAU'):
             self.report['feeds'][symbol] = {'status': 'seed', 'lastSuccessAt': seed['collectedAt'],
@@ -252,7 +253,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==4 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -275,11 +276,22 @@ class MacroReview:
                         'SPOT': 'https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=SPOT&period=1D',
                         'SPOT_PRICE': 'https://www.okx.com/api/v5/market/history-candles?instId=BTC-USDT&bar=1Dutc&limit=35',
                         'LIQ': 'https://www.okx.com/api/v5/public/liquidation-orders?instType=SWAP&instFamily=BTC-USDT&state=filled&limit=100',
-                        'ETF': 'https://farside.co.uk/bitcoin-etf-flow-all-data/', **NEWS}
+                        'ETF': TFTC_URL, **NEWS}
             for key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
                 requests[key] += f'&period2={int(now)}'
             async def one(key, url):
                 try:
+                    if key == 'ETF':
+                        try:
+                            response = await asyncio.wait_for(self.fetch(url), timeout=10)
+                            response.raise_for_status()
+                            rows = tftc_rows(response.json(), today)
+                        except Exception:
+                            fallback = 'https://farside.co.uk/bitcoin-etf-flow-all-data/'
+                            response = await asyncio.wait_for(self.fetch(fallback), timeout=10)
+                            response.raise_for_status()
+                            rows = [{**r, 'provider':'Farside', 'sourceUrl':fallback} for r in etf_rows(response.text,today)]
+                        return key, rows, None
                     response = await asyncio.wait_for(self.fetch(url), timeout=20)
                     response.raise_for_status()
                     if key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
@@ -326,6 +338,8 @@ class MacroReview:
                     elif key in ('OI', 'FUNDING', 'ETF','SPOT','SPOT_PRICE','LIQ'):
                         self.report['positioning'][key] = rows
                         status['latestDate'] = rows[-1]['date']
+                        if key == 'ETF':
+                            status.update(provider=rows[-1]['provider'], sourceUrl=rows[-1]['sourceUrl'])
                     elif key == 'FEDCAL':
                         self.report['calendar']=rows
                     else:
@@ -338,7 +352,8 @@ class MacroReview:
             self.report['collectedAt'] = attempted
             self.next_refresh = now + 1800
             self.report['nextRefreshAt'] = dt.datetime.fromtimestamp(self.next_refresh, dt.timezone.utc).isoformat()
-            self.report['analysisRuleVersion']=4
+            self.report['analysisRuleVersion']=5
+            self.report['etfFeedVersion']=1
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
@@ -349,7 +364,7 @@ class MacroReview:
                     program='import {assess} from '+json.dumps(self.analysis_path.resolve().as_uri())+';let s="";for await(const c of process.stdin)s+=c;const r=JSON.parse(s);process.stdout.write(JSON.stringify(assess(r,r.observedAt.slice(0,10))));'
                     value=subprocess.run(['node','--input-type=module','-e',program],input=json.dumps(entry),capture_output=True,text=True,timeout=8,check=True)
                     entry['assessment']=json.loads(value.stdout)
-                    entry['ruleVersion']=4
+                    entry['ruleVersion']=5
                 history={r['date']:r for r in self.report.get('history', [])}
                 if not history or entry['date']>=max(history):
                     history[entry['date']]=entry

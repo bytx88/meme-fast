@@ -17,6 +17,14 @@ test('price acceptance cannot substitute for missing ETF evidence or a failed so
  const a=assess(r,day(34));assert.equal(a.phase,'Price acceptance / confirmation incomplete');assert.equal(a.checks[3].status,'unknown');
  r.feeds.BTC.latestDate=day(28);assert.equal(assess(r,day(34)).phase,'Assessment withheld');
 });
+
+test('ETF five-session totals require all five dated QQQ trading sessions',()=>{
+ const r=fixture();assert.equal(assess(r,day(34)).flow5,50);
+ r.positioning.ETF.splice(2,1);r.positioning.ETF.unshift({date:day(29),millionUsd:1000});
+ assert.equal(assess(r,day(34)).flow5,null);
+ r.positioning.ETF=fixture().positioning.ETF;r.positioning.ETF.at(-1).millionUsd=-100;
+ assert.equal(assess(r,day(34)).flow5,-60);
+});
 test('missing funding or differently dated leadership cannot qualify full expansion',()=>{
  const r=fixture();r.series.BTC[33]={...r.series.BTC[33],high:111,close:110};r.series.BTC[34]={...r.series.BTC[34],high:113,close:112};
  r.feeds.FUNDING.status='error';assert.equal(assess(r,day(34)).phase,'Price acceptance / confirmation incomplete');

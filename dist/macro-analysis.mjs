@@ -59,7 +59,8 @@ export function assess(report,asOf=new Date().toISOString().slice(0,10)){
  const fundingRate=last(funding)?.rate??null;
  const rank=funding.length>=20&&fundingRate!==null?100*(funding.filter(r=>r.rate<fundingRate).length+.5*funding.filter(r=>r.rate===fundingRate).length)/funding.length:null;
  const crowded=fundFresh&&fundingRate>0&&rank>=90;
- const flow5=flows.length>=5?flows.slice(-5).reduce((n,r)=>n+r.millionUsd,0):null;
+ const flowDates=(report.series.QQQ||[]).filter(r=>r.date<=last(flows)?.date).slice(-5).map(r=>r.date),flowMap=new Map(flows.map(r=>[r.date,r.millionUsd]));
+ const flow5=flowDates.length===5&&flowDates.at(-1)===last(flows)?.date&&flowDates.every(d=>finite(flowMap.get(d)))?flowDates.reduce((n,d)=>n+flowMap.get(d),0):null;
  const spot=report.positioning?.SPOT||[],spotPrice=report.positioning?.SPOT_PRICE||[],latestSpot=last(spot),spot5=spot.slice(-5);
  const spotFresh=usable(report,'SPOT',asOf),spotFiveComplete=spot5.length===5&&dateMs(last(spot5).date)-dateMs(spot5[0].date)===4*86400000;
  const buy5=spotFiveComplete?spot5.reduce((n,r)=>n+r.buy,0):null,sell5=spotFiveComplete?spot5.reduce((n,r)=>n+r.sell,0):null;
