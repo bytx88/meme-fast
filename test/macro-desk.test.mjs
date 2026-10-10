@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {factorChanges,overviewEvidence,triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
+import {fedPolicyMove,factorChanges,overviewEvidence,triggerReads,horizonReads,reviewChanges,restoreDeskCache,deskStamp} from '../dist/macro-desk.mjs';
 const report={collectedAt:'2026-10-10T12:00:00Z',feeds:Object.fromEntries(['BTC','QQQ','XAU','YIELD','BRENT','SPOT','FUNDING'].map(k=>[k,{status:'ok',latestDate:'2026-10-09'}])),drivers:{},positioning:{},series:Object.fromEntries(['BTC','QQQ','XAU'].map(s=>[s,[{date:'2026-10-09',close:100}]]))};
 const a={asOf:'2026-10-10',date:'2026-10-09',priceFresh:true,phase:'Range',referenceHigh:110,low:90,accepted:false,q:{value:-2},spotFresh:true,fundFresh:true};
+test('Fed reversal context applies only to the verified September hike and retains its date through holds',()=>{
+ const rows=[{date:'2026-07-29',low:3.5,high:3.75},{date:'2026-09-16',low:3.75,high:4}];
+ assert.equal(fedPolicyMove(rows).label,'+25 bp hike');assert.equal(fedPolicyMove(rows).context,'First hike since 2023');
+ rows.push({date:'2026-10-28',low:3.75,high:4});assert.equal(fedPolicyMove(rows).date,'2026-09-16');
+ rows.push({date:'2026-12-09',low:4,high:4.25});assert.equal(fedPolicyMove(rows).context,'Last observed policy change');
+ assert.equal(fedPolicyMove([rows[0]]),null);
+});
 test('factor comparisons require matching fresh scopes and distinct source dates',()=>{
  const old={observations:{ETF:{date:'2026-10-08',value:-10,fresh:true,scope:'TFTC'},OI:{date:'2026-10-08',value:100,fresh:true,scope:'OKX'}}};
  const next={oi5:-2,oiPrice:-3,observations:{ETF:{date:'2026-10-09',value:20,fresh:true,scope:'TFTC'},OI:{date:'2026-10-09',value:95,fresh:true,scope:'OKX'}}};

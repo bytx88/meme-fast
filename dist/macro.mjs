@@ -1,4 +1,4 @@
-import {factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
+import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
 import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns} from './macro-series.mjs';
@@ -27,10 +27,9 @@ function driverRead(key){
  if(!latest)return {value:'Unavailable',detail:'No current observation; this channel cannot confirm the thesis.',tone:'amber',date:null};
  const retained=!fresh?' · unavailable / delayed; retained level':'';
  if(key==='FED'){
-  let change=null;
-  for(let i=list.length-1;i>0;i--)if(list[i].high!==list[i-1].high||list[i].low!==list[i-1].low){change={date:list[i].date,bp:(list[i].high-list[i-1].high)*100};break;}
+  const change=fedPolicyMove(list);
   const next=report.feeds?.FEDCAL?.status==='ok'&&report.calendar?.find(row=>row.date>=assessment.asOf);
-  return {value:`${latest.low.toFixed(2)}–${latest.high.toFixed(2)}%`,detail:(change?`Last rate change ${change.bp>0?'+':''}${change.bp.toFixed(0)} bp (${niceDate(change.date)}). `:'No change within the available statements. ')+(fresh?(next?`Next scheduled meeting end: ${niceDate(next.date)}. `:'Upcoming policy calendar unavailable. ')+'Market-implied path and policy surprise are unmeasured.':'Policy source unavailable or delayed; current interpretation withheld.'),tone:!fresh?'amber':'',date:latest.date,retained};
+  return {value:`${latest.low.toFixed(2)}–${latest.high.toFixed(2)}%`,detail:(change?`Last rate change ${change.bp>0?'+':''}${change.bp.toFixed(0)} bp (${niceDate(change.date)}) · ${change.context}. `:'No change within the available statements. ')+(fresh?(next?`Next scheduled meeting end: ${niceDate(next.date)}. `:'Upcoming policy calendar unavailable. ')+'Market-implied path and policy surprise are unmeasured.':'Policy source unavailable or delayed; current interpretation withheld.'),tone:!fresh?'amber':'',date:latest.date,retained};
  }
  const context=driverContext(list),prior=list.at(-2),week=list.at(-6),day=prior?(key==='YIELD'?(latest.close-prior.close)*100:100*(latest.close/prior.close-1)):null;
  const five=week?(key==='YIELD'?(latest.close-week.close)*100:100*(latest.close/week.close-1)):null;
@@ -79,7 +78,7 @@ function showDeskContext(){
 }
 function showFactorMap(){
  const a=assessment,etf=report.positioning?.ETF?.at(-1),latest=report.series.BTC.at(-1),tape=document.getElementById('market-tape');tape.replaceChildren();
- const cells=[['FED TARGET',driverRead('FED').value,'Last decision · Fed target'],['US 10Y',driverRead('YIELD').value,report.drivers?.YIELD?.length>=6?`5 sessions ${((report.drivers.YIELD.at(-1).close-report.drivers.YIELD.at(-6).close)*100).toFixed(1)} bp`:'Unavailable'],['BRENT',driverRead('BRENT').value,a.oil?`5 sessions ${pct(a.oil.change5)}`:'Unavailable'],['OPEN INTEREST',a.oiFresh?pct(a.oi5):'Unavailable','5 observations · OKX BTC units'],['FUNDING',a.fundFresh?`${(a.fundingRate*100).toFixed(4)}%`:'Unavailable','Per payment · OKX'],['SPOT BUY SHARE',a.spotFresh&&a.spotBuyShare5!==null?`${a.spotBuyShare5.toFixed(1)}%`:'Unavailable','5 daily buckets · OKX']];
+ const cells=[['FED TARGET',driverRead('FED').value,(()=>{const move=fedPolicyMove(report.drivers?.FED);return move?move.label+' · '+move.context:'Change unmeasured · Fed target';})()],['US 10Y',driverRead('YIELD').value,report.drivers?.YIELD?.length>=6?`5 sessions ${((report.drivers.YIELD.at(-1).close-report.drivers.YIELD.at(-6).close)*100).toFixed(1)} bp`:'Unavailable'],['BRENT',driverRead('BRENT').value,a.oil?`5 sessions ${pct(a.oil.change5)}`:'Unavailable'],['OPEN INTEREST',a.oiFresh?pct(a.oi5):'Unavailable','5 observations · OKX BTC units'],['FUNDING',a.fundFresh?`${(a.fundingRate*100).toFixed(4)}%`:'Unavailable','Per payment · OKX'],['SPOT BUY SHARE',a.spotFresh&&a.spotBuyShare5!==null?`${a.spotBuyShare5.toFixed(1)}%`:'Unavailable','5 daily buckets · OKX']];
  for(const [i,[label,value,change]] of cells.entries()){const key=['FED','YIELD','BRENT','OI','FUNDING','SPOT'][i],fresh=usable(report,key,a.asOf),n=el('div','tape-cell');n.append(el('small','',label),el('strong','',value),el('span','',fresh?change:'DELAYED / UNAVAILABLE'));const stamp=deskStamp(report,key),time=el('time','observation-date',stamp.date?niceDate(stamp.date):'No observation date');if(stamp.date)time.dateTime=stamp.date;if(key==='FUNDING'&&stamp.timestamp){time.textContent=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Singapore'}).format(new Date(stamp.timestamp))+' SGT';}n.append(time);if(!fresh)n.classList.add('unavailable');tape.append(n);}
  const freshMacro=usable(report,'YIELD',a.asOf)&&usable(report,'BRENT',a.asOf);
  const macroHelp=freshMacro&&((a.yield?.significant&&a.yield.change5<0)||(a.oil?.significant&&a.oil.change5<0));

@@ -1,6 +1,17 @@
 // Presentation rules: dated observations, conditional paths, no probability score.
 import {usable} from './macro-analysis.mjs';
 const finite=Number.isFinite;
+export function fedPolicyMove(rows=[]){
+ for(let i=rows.length-1;i>0;i--){
+  const row=rows[i],prior=rows[i-1];
+  if(![row.high,row.low,prior.high,prior.low].every(finite))continue;
+  const bp=Math.round((row.high-prior.high)*100);
+  if(bp===0&&row.low===prior.low)continue;
+  const firstSince2023=row.date==='2026-09-16'&&row.low===3.75&&row.high===4&&prior.low===3.5&&prior.high===3.75;
+  return {date:row.date,bp,label:`${bp>0?'+':''}${bp} bp ${bp>0?'hike':'cut'}`,context:firstSince2023?'First hike since 2023':'Last observed policy change',sourceUrl:row.sourceUrl};
+ }
+ return null;
+}
 export function factorChanges(a,previous){
  const names={QQQ:'BTC / QQQ',XAU:'BTC / gold',YIELD:'10Y yield',BRENT:'Brent',ETF:'ETF daily flow',OI:'Open interest',FUNDING:'Funding / payment',SPOT:'Spot buy share',STRUCTURE:'Market structure'};
  return Object.entries(names).map(([key,label])=>{
