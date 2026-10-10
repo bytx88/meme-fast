@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import unittest
 from pathlib import Path
-from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar, liquidation_rows
+from worker.macro_review import MacroReview, fed_statement, fed_statement_urls, gold_rows, news_rows, valid_rows, okx_rows, etf_rows, yahoo_rows, fed_calendar, liquidation_rows, public_report
 
 NOW = dt.datetime(2026, 10, 10, tzinfo=dt.timezone.utc).timestamp()
 URL = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm'
@@ -19,6 +19,10 @@ class Response:
         return self.data
 
 class MacroTests(unittest.TestCase):
+    def test_public_journal_does_not_repeat_raw_histories_or_mutate_the_stored_record(self):
+        record={'date':'2026-10-09','observedAt':'2026-10-10T00:00:00Z','ruleVersion':3,'assessment':{'phase':'Range'},'series':{'BTC':[1,2,3]},'positioning':{'SPOT':[1,2]}}
+        report={'series':{'BTC':[1,2,3]},'history':[record]};wire=public_report(report)
+        self.assertEqual(wire['history'][0]['assessment']['phase'],'Range');self.assertNotIn('series',wire['history'][0]);self.assertIn('series',report['history'][0])
     def test_spot_and_liquidation_samples_keep_scopes_dates_and_completed_candles(self):
         stamp=str(int((NOW-86400)*1000))
         spot=okx_rows({'code':'0','data':[[stamp,'60','40']]},'SPOT',NOW)

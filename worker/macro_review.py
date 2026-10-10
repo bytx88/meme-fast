@@ -226,6 +226,14 @@ def news_rows(text, source, now):
                        'publishedAt': dt.datetime.fromtimestamp(published, dt.timezone.utc).isoformat()})
     return sorted(result, key=lambda r: r['publishedAt'], reverse=True)[:8]
 
+def public_report(report):
+    # Raw historical inputs remain on the Volume; the browser needs the saved
+    # assessment, not 120 repeated copies of exchange and price histories.
+    result={**report}
+    result['history']=[{key:row[key] for key in ('date','observedAt','ruleVersion','assessment') if key in row}
+                       if row.get('assessment') else row for row in report.get('history',[])]
+    return result
+
 class MacroReview:
     def __init__(self, fetch, seed_path, clock=time.time, store_path=None):
         self.fetch, self.clock = fetch, clock

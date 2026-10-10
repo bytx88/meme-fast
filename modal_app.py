@@ -51,12 +51,12 @@ async def collect_macro_review():
     import sys
     import httpx
     if "/app" not in sys.path: sys.path.insert(0, "/app")
-    from worker.macro_review import MacroReview
+    from worker.macro_review import MacroReview, public_report
     await macro_volume.reload.aio()
     async with httpx.AsyncClient(timeout=18, follow_redirects=True, headers={"User-Agent":"Mozilla/5.0"}) as client:
         report=await MacroReview(client.get, Path(REMOTE_DIST)/"macro-data.mjs", store_path="/macro/review.json").get()
     await macro_volume.commit.aio()
-    return report
+    return public_report(report)
 
 
 @app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
