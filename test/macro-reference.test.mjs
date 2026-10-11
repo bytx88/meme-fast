@@ -31,3 +31,13 @@ test('previous year follows the chart start and merges available history without
  const rows=referenceOverlay(r,'2026-10-01',false,'2026-10-01');
  assert.equal(rows[0].return,1.0000000000000009);assert.equal(rows.at(-1).sourceDate,'2026-10-30');
 });
+
+test('2015 and 2010 standards preserve their source periods when aligned to future years',()=>{
+ for(const year of ['2015','2010']){
+  const reference=referenceSelection(year,templates,[],'2027-10-01');
+  assert.equal(reference.start,`${year}-10-01`);
+  const rows=referenceOverlay(reference,'2027-10-01',false,'2027-10-01');
+  assert.equal(rows[0].sourceDate,`${year}-10-01`);assert.equal(rows[0].date,'2027-10-01');
+  assert.equal(rows.at(-1).date,'2028-10-31');assert.ok(rows.every(r=>Number.isFinite(r.return)));
+ }
+});
