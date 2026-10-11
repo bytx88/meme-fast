@@ -63,4 +63,4 @@ body.chart-fullscreen-open{overflow:hidden}
 
 .reference-picker{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;color:#c5d3df}.reference-picker select{padding:4px 6px;color:#fff;background:#172b3a;border:1px solid #375165;border-radius:3px}
 
-.btc-annotation{cursor:help}.btc-annotation:focus{outline:none;stroke-width:2.5}.annotation-tooltip{pointer-events:none}.annotation-tooltip p{margin:8px 0 0;line-height:1.45;font-size:12px}
+.btc-annotation{pointer-events:none}
