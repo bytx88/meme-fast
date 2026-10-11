@@ -1,10 +1,10 @@
-import qqqReference from './macro-qqq-reference.mjs';
+import {templates as qqqTemplates} from './macro-qqq-reference.mjs';
 import {mountDailyRead} from './macro-daily.mjs';
 import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import {mountCausalMap} from './macro-causal.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
-import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange,referenceOverlay} from './macro-series.mjs';
+import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange,referenceOverlay,chartSeasonStart,referenceSelection} from './macro-series.mjs';
 const host=document.getElementById('comparison-chart');
 const dailyReadPanel=mountDailyRead(document.getElementById('daily-market-read'));
 const causalMap=mountCausalMap(document.getElementById('macro-causal-map'));
@@ -24,7 +24,7 @@ let cachedReport=null;try{cachedReport=restoreDeskCache(localStorage.getItem('me
 const sharedReport=restoreDeskCache(document.getElementById('macro-bootstrap')?.textContent);
 const initialReport=[cachedReport,sharedReport].filter(Boolean).sort((a,b)=>Date.parse(b.collectedAt)-Date.parse(a.collectedAt))[0];
 let hasLiveReport=!!initialReport;
-let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[];
+let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[],referenceChoice='2024',activeReference=qqqTemplates['2024'];
 const slider=document.getElementById('chart-date'),readout=document.getElementById('chart-readout');
 function card(label,value,detail,tone=''){const n=el('article',tone);n.append(el('span','metric-label',label),el('strong','',value),el('p','',detail));return n;}
 function driverRead(key){
@@ -136,7 +136,7 @@ function showNews(previousVisit){
 }
 function showReview(saveVisit=false){
  review=executionReview(report.series);assessment=assess(report);
- try{c=compareSeries(report.series,'2025-10-01','2025-09-01');c.rows=c.rows.filter(r=>r.date>=c.anchor);}catch{c=null;host.replaceChildren(el('p','chart-loading','Three-asset comparison unavailable; the BTC / QQQ review continues independently.'));}
+ try{const start=chartSeasonStart(report.series);c=compareSeries(report.series,start,start);c.rows=c.rows.filter(r=>r.date>=c.anchor);}catch{c=null;host.replaceChildren(el('p','chart-loading','Three-asset comparison unavailable; the BTC / QQQ review continues independently.'));}
  const last=c?.rows.at(-1),r=review,feeds=report.feeds||{},failures=Object.entries(feeds).filter(([,v])=>v.status==='error').map(([k])=>k);
  set('review-date',niceDate(assessment.date||r.date).toUpperCase());
  set('review-freshness',`BTC daily candle ${niceDate(assessment.date)} · benchmark close ${niceDate(r.date)}${failures.length?' · unavailable: '+failures.join(', '):''}${!assessment.priceFresh?' · assessment withheld':''}`);
@@ -196,7 +196,7 @@ function showReview(saveVisit=false){
  const summary=document.getElementById('comparison-summary');summary.replaceChildren();
  const headlinePeriod=seasonalChange(report.series);
  for(const s of symbols){const n=el('article'),change=headlinePeriod?.returns[s]??null;n.style.setProperty('--series',colours[s]);const values=el('div','series-values');values.append(el('strong','series-price',`$${price(last.prices[s])}`),el('strong','series-change '+(change>0?'positive':change<0?'negative':''),pct(change)));n.append(el('span','series-name',`${s} / ${names[s]}`),values,el('small','',headlinePeriod?`${headlinePeriod.label} · baseline ${niceDate(headlinePeriod.anchor)} → ${niceDate(headlinePeriod.date)}`:'Seasonal starting baseline unavailable'));summary.append(n);}
- const frames=seasonalFrames('2025-10-01',last.date),scores=document.getElementById('season-scorecard');scores.replaceChildren();
+ const frames=seasonalFrames(c.start,last.date),scores=document.getElementById('season-scorecard');scores.replaceChildren();
  for(const frame of frames){const actual=frameReturns(c.rows,frame),n=el('article',frame.complete?'':'current-season');n.append(el('b','',`${frame.label} ${frame.start.slice(0,4)}${frame.end.slice(0,4)!==frame.start.slice(0,4)?'–'+frame.end.slice(2,4):''}`),el('small','',frame.complete?'COMPLETED WINDOW':'CURRENT WINDOW / IN PROGRESS'));
   if(actual){for(const s of symbols){const line=el('span','',`${s} ${pct(actual.returns[s])}`);line.style.color=colours[s];n.append(line);}n.append(el('small','',`Baseline ${niceDate(actual.anchor)} → ${niceDate(actual.last)}`));}else n.append(el('span','','Awaiting enough closes'));scores.append(n);}
  const completed=frames.filter(f=>f.complete&&f.label==='Oct–Jan').map(f=>frameReturns(c.rows,f)).filter(Boolean);
@@ -208,7 +208,7 @@ function showReview(saveVisit=false){
 function appendReference(date){
  const r=referenceRows.filter(r=>r.date<=date).at(-1);
  if(!r||(Date.parse(date)-Date.parse(r.date))/86400000>4)return;
- const line=el('div','tooltip-line');line.style.color='#fff';line.append(el('b','','QQQ prior year'),el('span','',pct(r.return)),el('span','',niceDate(r.sourceDate)));tip.append(line);
+ const line=el('div','tooltip-line');line.style.color='#fff';line.append(el('b','',activeReference.label),el('span','',pct(r.return)),el('span','',niceDate(r.sourceDate)));tip.append(line);
 }
 function inspect(index,point){
  index=Math.max(0,Math.min(rows.length-1,index));slider.value=index;const r=rows[index];
@@ -223,12 +223,14 @@ function inspect(index,point){
  if(point){tip.hidden=false;const width=host.clientWidth,tipWidth=Math.min(330,width-16);tip.style.width=tipWidth+'px';tip.style.left=Math.max(8,Math.min(width-tipWidth-8,point.x+18))+'px';tip.style.top=Math.max(8,Math.min(host.clientHeight-150,point.y-90))+'px';}
 }
 function render(){
- rows=visibleRows(c,windowDays).filter(r=>r.date>='2025-10-01');document.getElementById('season-scorecard').hidden=!!windowDays;chartSymbols=chartMode==='rotation'?['QQQ','XAU']:symbols;if(chartMode==='rotation')rows=rotationRows(rows);else if(windowDays){const first=rows[0];rows=rows.map(r=>({...r,returns:Object.fromEntries(symbols.map(s=>[s,100*(r.prices[s]/first.prices[s]-1)]))}));}set('chart-reference',`${chartMode==='rotation'?'BTC / QQQ · BTC / XAU ratios':'QQQ · BTC · XAU performance'} · zero reference ${niceDate(chartMode==='rotation'||windowDays?rows[0].date:c.anchor)}`);const last=c.rows.at(-1),frames=seasonalFrames('2025-10-01',last.date);
+ rows=visibleRows(c,windowDays).filter(r=>r.date>=c.start);document.getElementById('season-scorecard').hidden=!!windowDays;chartSymbols=chartMode==='rotation'?['QQQ','XAU']:symbols;if(chartMode==='rotation')rows=rotationRows(rows);else if(windowDays){const first=rows[0];rows=rows.map(r=>({...r,returns:Object.fromEntries(symbols.map(s=>[s,100*(r.prices[s]/first.prices[s]-1)]))}));}set('chart-reference',`${chartMode==='rotation'?'BTC / QQQ · BTC / XAU ratios':'QQQ · BTC · XAU performance'} · zero reference ${niceDate(chartMode==='rotation'||windowDays?rows[0].date:c.anchor)}`);const last=c.rows.at(-1),frames=seasonalFrames(c.start,last.date);
  const w=Math.max(360,host.clientWidth),h=host.closest('.comparison').classList.contains('chart-expanded')?Math.max(300,host.clientHeight):w<600?300:370,left=w<600?44:64,right=24,top=44,bottom=50;
- from=Date.parse(windowDays?rows[0].date:'2025-10-01');to=Date.parse(windowDays?last.date:frames.at(-1).end);if(to<=from)to=from+86400000;
+ from=Date.parse(windowDays?rows[0].date:c.start);to=Date.parse(windowDays?last.date:frames.at(-1).end);if(to<=from)to=from+86400000;
  const legend=document.getElementById('chart-legend');legend.replaceChildren();for(const s of chartSymbols){const label=el('b','',chartMode==='rotation'?`BTC / ${s}`:s);label.style.color=colours[s];legend.append(label);}
- referenceRows=chartMode==='performance'?referenceOverlay(qqqReference,windowDays?rows[0].date:'2025-10-01',!!windowDays).filter(r=>Date.parse(r.date)<=to):[];
- if(referenceRows.length){const label=el('b','reference-legend','⋯ QQQ Oct 2024–Oct 2025');label.style.color='#fff';legend.append(label);}
+ activeReference=referenceSelection(referenceChoice,qqqTemplates,report.series.QQQ,c.start);
+ const previousYear=Number(c.start.slice(0,4))-1;document.querySelector('#chart-template option[value="previous"]').textContent=`Previous year · ${previousYear}-Oct`;
+ referenceRows=chartMode==='performance'?referenceOverlay(activeReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
+ if(referenceRows.length){const label=el('b','reference-legend','⋯ '+activeReference.label);label.style.color='#fff';legend.append(label);}
  const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
  x=t=>left+(t-from)/(to-from)*(w-left-right);y=v=>top+(high-v)/(high-low)*(h-top-bottom);
  svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':`${chartMode==='rotation'?'BTC leadership versus QQQ and gold':'QQQ, BTC and gold performance'} through ${niceDate(last.date)}`});
@@ -242,7 +244,7 @@ function render(){
  let tick=new Date(from);tick.setUTCDate(1);if(tick.getTime()<from)tick.setUTCMonth(tick.getUTCMonth()+1);
  const tickStep=w<600&&!windowDays?3:!windowDays?2:1;
  while(tick.getTime()<=to){const t=tick.getTime();svg.append(svgEl('text',{x:x(t),y:h-20,'text-anchor':'middle',fill:'#c5d3df','font-size':w<600?12:14},new Intl.DateTimeFormat('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}).format(tick)));tick.setUTCMonth(tick.getUTCMonth()+tickStep);}
- for(const date of ['2025-10-20','2026-04-01','2026-10-20']){
+ for(const date of [`${c.start.slice(0,4)}-10-20`,`${Number(c.start.slice(0,4))+1}-04-01`,`${Number(c.start.slice(0,4))+1}-10-20`]){
   const t=Date.parse(date);if(t<from||t>to)continue;
   const marker=svgEl('line',{x1:x(t),x2:x(t),y1:top,y2:h-bottom,stroke:'#ff4d5e','stroke-width':1,'vector-effect':'non-scaling-stroke',class:'chart-date-marker','data-date':date});
   marker.append(svgEl('title',{},niceDate(date)));svg.append(marker);
@@ -257,6 +259,8 @@ function render(){
  svg.addEventListener('pointerleave',()=>{tip.hidden=true;selectedPoint=null;});
  host.replaceChildren(svg,tip,badge);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
 }
+document.getElementById('chart-template').addEventListener('change',event=>{referenceChoice=event.target.value;if(c)render();});
+
 const fullscreenButton=document.getElementById('chart-fullscreen'),comparisonPanel=host.closest('.comparison');
 const setExpanded=expanded=>{
  comparisonPanel.classList.toggle('chart-expanded',expanded);

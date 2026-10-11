@@ -60,3 +60,5 @@ body.chart-fullscreen-open{overflow:hidden}
 .comparison.chart-expanded .chart-host>svg{height:100%;width:100%}
 .comparison.chart-expanded .season-scorecard,.comparison.chart-expanded .chart-sources,.comparison.chart-expanded .chart-foot{display:none}
 @media(max-width:700px){.comparison.chart-expanded .chart-host{height:calc(100dvh - 330px)}}
+
+.reference-picker{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;color:#c5d3df}.reference-picker select{padding:4px 6px;color:#fff;background:#172b3a;border:1px solid #375165;border-radius:3px}

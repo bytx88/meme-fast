@@ -71,10 +71,24 @@ export function visibleRows(comparison,days){
 }
 
 // Align prior-year calendar dates with the current seasonal chart, preserving source dates.
-export function referenceOverlay(reference,displayStart='2025-10-01',rebaseFirst=false){
- const mapped=(reference.rows||[]).filter(r=>Number.isFinite(r.close)&&r.close>0).map(r=>({...r,sourceDate:r.date,date:`${Number(r.date.slice(0,4))+1}${r.date.slice(4)}`})).sort((a,b)=>a.date.localeCompare(b.date));
+export function referenceOverlay(reference,displayStart='2025-10-01',rebaseFirst=false,chartStart='2025-10-01'){
+ const shift=Number(chartStart.slice(0,4))-Number(reference.start.slice(0,4));
+ const mapped=(reference.rows||[]).filter(r=>Number.isFinite(r.close)&&r.close>0).map(r=>({...r,sourceDate:r.date,date:`${Number(r.date.slice(0,4))+shift}${r.date.slice(4)}`})).sort((a,b)=>a.date.localeCompare(b.date));
  const selected=mapped.filter(r=>r.sourceDate>=reference.start&&r.sourceDate<=reference.end&&r.date>=displayStart);
  const base=rebaseFirst?selected[0]:mapped.filter(r=>r.date<displayStart).at(-1);
  if(!base||!selected.length)return [];
  return selected.map(r=>({...r,return:100*(r.close/base.close-1),anchor:base.sourceDate}));
+}
+
+export function chartSeasonStart(series){
+ const dates=['QQQ','BTC','XAU'].map(s=>new Set((series[s]||[]).map(r=>r.date)));
+ const date=[...dates[0]].filter(d=>dates.every(set=>set.has(d))).sort().at(-1);
+ return date?`${Number(date.slice(0,4))-1}-10-01`:'2025-10-01';
+}
+export function referenceSelection(choice,templates,qqq,chartStart){
+ if(choice!=='previous')return templates[choice]||templates['2024'];
+ const year=Number(chartStart.slice(0,4))-1;
+ const dated=new Map([...(templates[String(year)]?.rows||[]),...(qqq||[])].map(r=>[r.date,r]));
+ const rows=[...dated.values()];
+ return {start:`${year}-10-01`,end:`${year+1}-10-31`,rows,label:`QQQ Oct ${year}–Oct ${year+1}`};
 }

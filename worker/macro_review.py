@@ -35,13 +35,13 @@ def headline_topic(title):
         return 'Price / positioning'
     return None
 
-def valid_rows(rows, today):
+def valid_rows(rows, today, earliest='2025-09-01'):
     found = {}
     for row in rows:
         try:
             date = dt.date.fromisoformat(row['date']).isoformat()
             close = float(row['close'])
-            if '2025-09-01' <= date < today and math.isfinite(close) and close > 0:
+            if earliest <= date < today and math.isfinite(close) and close > 0:
                 value = {'date': date, 'close': close}
                 try:
                     o, h, l = (float(row[k]) for k in ('open', 'high', 'low'))
@@ -56,12 +56,12 @@ def valid_rows(rows, today):
         raise ValueError('No valid history / October reference close')
     return [found[date] for date in sorted(found)]
 
-def yahoo_rows(payload, today):
+def yahoo_rows(payload, today, earliest='2025-09-01'):
     value = payload['chart']['result'][0]
     quote = value['indicators']['quote'][0]
     return valid_rows([{'date': dt.datetime.fromtimestamp(t, dt.timezone.utc).date().isoformat(),
                         **{key: values[i] if i < len(values) else None for key, values in quote.items() if key in ('open','high','low','close')}}
-                       for i, t in enumerate(value['timestamp'])], today)
+                       for i, t in enumerate(value['timestamp'])], today, earliest)
 
 def okx_rows(payload, kind, now):
     if payload.get('code') != '0':
@@ -301,7 +301,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==5 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==5 and saved.get('referenceFeedVersion')==1 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -312,7 +312,7 @@ class MacroReview:
                 return copy.deepcopy(self.report)
             today = dt.datetime.fromtimestamp(now, dt.timezone.utc).date().isoformat()
             attempted = dt.datetime.fromtimestamp(now, dt.timezone.utc).isoformat()
-            requests = {'QQQ': 'https://query2.finance.yahoo.com/v8/finance/chart/QQQ?period1=1756684800&interval=1d',
+            requests = {'QQQ': 'https://query2.finance.yahoo.com/v8/finance/chart/QQQ?period1=1693526400&interval=1d',
                         'BTC': 'https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD?period1=1756684800&interval=1d',
                         'XAU': 'https://goldprice.com/gold-price-history.csv',
                         'YIELD': 'https://query2.finance.yahoo.com/v8/finance/chart/%5ETNX?period1=1756684800&interval=1d',
@@ -349,7 +349,7 @@ class MacroReview:
                     response = await asyncio.wait_for(self.fetch(url), timeout=20)
                     response.raise_for_status()
                     if key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
-                        rows = yahoo_rows(response.json(), today)
+                        rows = yahoo_rows(response.json(), today, '2023-09-01' if key == 'QQQ' else '2025-09-01')
                     elif key == 'CPI':
                         sa_url=url.replace('CUUR0000SA0','CUSR0000SA0')
                         sa=await asyncio.wait_for(self.fetch(sa_url),timeout=12);sa.raise_for_status()
@@ -421,6 +421,7 @@ class MacroReview:
             self.report['deskEvidenceVersion']=1
             self.report['causalFeedVersion']=1
             self.report['dailyReadVersion']=5
+            self.report['referenceFeedVersion']=1
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
