@@ -242,6 +242,11 @@ function render(){
  let tick=new Date(from);tick.setUTCDate(1);if(tick.getTime()<from)tick.setUTCMonth(tick.getUTCMonth()+1);
  const tickStep=w<600&&!windowDays?3:!windowDays?2:1;
  while(tick.getTime()<=to){const t=tick.getTime();svg.append(svgEl('text',{x:x(t),y:h-20,'text-anchor':'middle',fill:'#c5d3df','font-size':w<600?12:14},new Intl.DateTimeFormat('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}).format(tick)));tick.setUTCMonth(tick.getUTCMonth()+tickStep);}
+ for(const date of ['2026-04-01','2026-10-20']){
+  const t=Date.parse(date);if(t<from||t>to)continue;
+  const marker=svgEl('line',{x1:x(t),x2:x(t),y1:top,y2:h-bottom,stroke:'#ff4d5e','stroke-width':1,'vector-effect':'non-scaling-stroke',class:'chart-date-marker','data-date':date});
+  marker.append(svgEl('title',{},niceDate(date)));svg.append(marker);
+ }
  for(const s of chartSymbols){svg.append(svgEl('polyline',{points:rows.map(r=>`${x(Date.parse(r.date))},${y(r.returns[s])}`).join(' '),fill:'none',stroke:colours[s],'stroke-width':2.2,'stroke-linejoin':'round','vector-effect':'non-scaling-stroke'}));}
  if(referenceRows.length)svg.append(svgEl('polyline',{points:referenceRows.map(r=>`${x(Date.parse(r.date))},${y(r.return)}`).join(' '),fill:'none',stroke:'#ffffff','stroke-width':2,'stroke-dasharray':'2 6','stroke-linecap':'round','stroke-linejoin':'round','vector-effect':'non-scaling-stroke',class:'qqq-reference-path'}));
  if(!windowDays){const current=x(Date.parse(last.date));svg.append(svgEl('line',{x1:current,x2:current,y1:top,y2:h-bottom,stroke:'#cfb782','stroke-dasharray':'4 4'}));if(w-right-current>95)svg.append(svgEl('text',{x:current+(w-right-current)/2,y:h/2,fill:'#9daeba','text-anchor':'middle','font-size':w<600?10:12},referenceRows.length?'Historical reference only':'No shared data yet'));}
