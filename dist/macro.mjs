@@ -193,7 +193,7 @@ function showReview(saveVisit=false){
  document.getElementById('download-comparison').disabled=!c;
  if(!c)return;
  const summary=document.getElementById('comparison-summary');summary.replaceChildren();
- for(const s of symbols){const n=el('article');n.style.setProperty('--series',colours[s]);n.append(el('span','series-name',`${s} / ${names[s]}`),el('strong','',`$${price(last.prices[s])}`),el('small','',`5 shared sessions ${pct(periodReturn(c.rows,s,5))} · ${niceDate(last.date)}`));summary.append(n);}
+ for(const s of symbols){const n=el('article'),change=periodReturn(c.rows,s,5);n.style.setProperty('--series',colours[s]);const values=el('div','series-values');values.append(el('strong','series-price',`$${price(last.prices[s])}`),el('strong','series-change '+(change>0?'positive':change<0?'negative':''),pct(change)));n.append(el('span','series-name',`${s} / ${names[s]}`),values,el('small','',`5 shared sessions · ${niceDate(last.date)}`));summary.append(n);}
  const frames=seasonalFrames('2025-10-01',last.date),scores=document.getElementById('season-scorecard');scores.replaceChildren();
  for(const frame of frames){const actual=frameReturns(c.rows,frame),n=el('article',frame.complete?'':'current-season');n.append(el('b','',`${frame.label} ${frame.start.slice(0,4)}${frame.end.slice(0,4)!==frame.start.slice(0,4)?'–'+frame.end.slice(2,4):''}`),el('small','',frame.complete?'COMPLETED WINDOW':'CURRENT WINDOW / IN PROGRESS'));
   if(actual){for(const s of symbols){const line=el('span','',`${s} ${pct(actual.returns[s])}`);line.style.color=colours[s];n.append(line);}n.append(el('small','',`Baseline ${niceDate(actual.anchor)} → ${niceDate(actual.last)}`));}else n.append(el('span','','Awaiting enough closes'));scores.append(n);}
