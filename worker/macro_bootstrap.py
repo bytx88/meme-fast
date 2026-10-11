@@ -15,8 +15,10 @@ def render_macro_bootstrap(source, report):
         cards = []
         for row in a.get('dailyRead', []):
             tone = row.get('tone') if row.get('tone') in ('support', 'pressure', 'neutral', 'unavailable') else 'unavailable'
-            contents = ''.join(f'<{tag} class="{cls}">{html.escape(str(row.get(key, "")))}</{tag}>' for tag, cls, key in (
-                ('h3', '', 'label'), ('strong', 'daily-read-value', 'value'),
+            contents = '<h3>' + html.escape(str(row.get('label', ''))) + '</h3>'
+            contents += ''.join('<strong class="daily-read-value">' + html.escape(str(value)) + '</strong>'
+                                for value in (row.get('readings') or [row.get('value', '')]))
+            contents += ''.join(f'<{tag} class="{cls}">{html.escape(str(row.get(key, "")))}</{tag}>' for tag, cls, key in (
                 ('p', 'daily-read-detail', 'detail'), ('span', 'daily-read-context', 'context'),
                 ('time', 'daily-read-date', 'date')))
             cards.append(f'<article class="daily-read-card {tone}">{contents}</article>')

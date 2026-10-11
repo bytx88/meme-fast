@@ -7,6 +7,8 @@ const a={asOf:'2026-10-10',yield:{percentile:90,change5:0},oil:{percentile:80,ch
 test('macro hurdle coexists with different observed asset responses',()=>{
  const [macro,btc,gold]=dailyRead(report,a);
  assert.equal(macro.tone,'pressure');assert.equal(btc.value,'-5.00%');assert.equal(gold.value,'+5.00%');
+ assert.equal(btc.readings[0],'$95.00 (-5.00%)');assert.equal(gold.readings[0],'$105.00 (+5.00%)');
+ assert.match(macro.readings[0],/10Y 5.000% \(\+0.0 bp\)/);
  assert.match(btc.detail,/underperforming/);assert.match(gold.detail,/ahead of BTC/);
  assert.equal(gold.date,'2026-10-02 → 2026-10-09');
 });
@@ -20,6 +22,7 @@ test('missing, failed or stale coverage cannot assign bearish interpretation',()
 test('asset comparison withholds an incomplete aligned window',()=>{
  const r={...report,series:{...report.series,XAU:report.series.XAU.slice(0,-1)}};
  assert.equal(dailyRead(r,a)[1].value,'Response unavailable');
+ assert.deepEqual(dailyRead(r,a)[1].readings,[]);
 });
 test('competing macro moves are mixed and preserve independent source dates',()=>{
  const rows=dailyRead(report,{...a,yield:{percentile:50,significant:true,change5:-.1},oil:{percentile:50,significant:true,change5:2}});

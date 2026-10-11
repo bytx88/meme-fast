@@ -11,11 +11,12 @@ export function dailyRead(report,a){
   detail:ready?`10Y ${yieldRow.close.toFixed(3)}% · Brent $${oilRow.close.toFixed(2)}`:'Fresh yield and oil observations required; pressure assessment withheld.',
   context:ready?`5 sessions: yield ${signed(report.drivers.YIELD.length>=6?(yieldRow.close-report.drivers.YIELD.at(-6).close)*100:null,' bp')} · oil ${signed(a.oil?.change5)}`:'Missing data does not establish a bearish macro condition.',
   date:`Yield ${yieldRow?.date||'unavailable'} · Oil ${oilRow?.date||'unavailable'}`};
+ if(ready){macro.readings=[`10Y ${yieldRow.close.toFixed(3)}% (${signed(report.drivers.YIELD.length>=6?(yieldRow.close-report.drivers.YIELD.at(-6).close)*100:null,' bp')})`,`Brent $${oilRow.close.toFixed(2)} (${signed(a.oil?.change5)})`];macro.detail=macro.value;macro.context='5 sessions · yield change in basis points / oil in percent';}
  const r=marketResponse(report,5),aligned=r.start&&r.date&&(Date.parse(a.asOf)-Date.parse(r.date))/86400000<=4;
  const assets=['BTC','XAU'].map(key=>{
   const fresh=aligned&&['BTC','QQQ','XAU'].every(s=>usable(report,s,a.asOf)),change=r.values[key].change;
   const read=responseSummary(report,a.asOf,5).split(' · ')[0];
-  return {key,label:key==='BTC'?'BTC response':'Gold response',value:fresh?signed(change):'Response unavailable',tone:!fresh?'unavailable':change>0?'support':change<0?'pressure':'neutral',
+  return {key,label:key==='BTC'?'BTC response':'Gold response',value:fresh?signed(change):'Response unavailable',readings:fresh?[`$${r.values[key].close.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} (${signed(change)})`]:[],tone:!fresh?'unavailable':change>0?'support':change<0?'pressure':'neutral',
    detail:fresh?key==='BTC'?read:`Gold ${change>0?'rising':change<0?'falling':'unchanged'} · ${r.values.XAU.change>r.values.BTC.change?'ahead of':r.values.XAU.change<r.values.BTC.change?'behind':'matching'} BTC`:'Aligned, fresh BTC / QQQ / gold closes required.',
    context:fresh?'5 shared sessions · observed price response':'Last comparable window shown; interpretation withheld.',date:r.start?`${r.start} → ${r.date}`:'No complete matching window'};
  });
@@ -24,5 +25,5 @@ export function dailyRead(report,a){
 export function mountDailyRead(root){
  if(!root)return {update(){}};
  const el=(tag,cls,text)=>{const e=document.createElement(tag);e.className=cls;e.textContent=text;return e;};
- return {update(report,a){root.replaceChildren(...dailyRead(report,a).map(row=>{const card=el('article','daily-read-card '+row.tone,'');card.append(el('h3','',row.label),el('strong','daily-read-value',row.value),el('p','daily-read-detail',row.detail),el('span','daily-read-context',row.context),el('time','daily-read-date',row.date));return card;}));}};
+ return {update(report,a){root.replaceChildren(...dailyRead(report,a).map(row=>{const card=el('article','daily-read-card '+row.tone,'');card.append(el('h3','',row.label),...(row.readings?.length?row.readings:[row.value]).map(value=>el('strong','daily-read-value',value)),el('p','daily-read-detail',row.detail),el('span','daily-read-context',row.context),el('time','daily-read-date',row.date));return card;}));}};
 }
