@@ -5,10 +5,10 @@ const dates=['2026-05-29','2026-10-02','2026-10-05','2026-10-06','2026-10-07','2
 const report={series:Object.fromEntries(['QQQ','BTC','XAU'].map((k,j)=>[k,dates.map((date,i)=>({date,close:100+i*(j===1?-1:1)}))])),drivers:{YIELD:dates.map(date=>({date,close:5})),BRENT:dates.map(date=>({date,close:100}))},feeds:Object.fromEntries(['QQQ','BTC','XAU','YIELD','BRENT'].map(k=>[k,{status:'ok',latestDate:dates.at(-1)}]))};
 const a={asOf:'2026-10-10',yield:{percentile:90,change5:0},oil:{percentile:80,change5:0}};
 test('macro hurdle coexists with different observed asset responses',()=>{
- const [macro,btc,gold]=dailyRead(report,a);
+ const [macro,oil,btc,gold]=dailyRead(report,a);
  assert.equal(macro.tone,'pressure');assert.equal(btc.value,'-6.00%');assert.equal(gold.value,'+6.00%');
  assert.equal(btc.readings[0],'$94.00 (-6.00%)');assert.equal(gold.readings[0],'$106.00 (+6.00%)');
- assert.match(macro.readings[0],/10Y 5.000% \(\+0.0 bp\)/);
+ assert.match(macro.readings[0],/5.000% \(\+0.0 bp\)/);
  assert.match(btc.detail,/behind QQQ/);assert.match(gold.detail,/ahead of BTC/);
  assert.equal(gold.date,'Baseline 2026-05-29 → 2026-10-09');
 });
@@ -21,11 +21,14 @@ test('missing, failed or stale coverage cannot assign bearish interpretation',()
 });
 test('asset comparison withholds an incomplete aligned window',()=>{
  const r={...report,series:{...report.series,XAU:report.series.XAU.slice(1)}};
- assert.equal(dailyRead(r,a)[1].value,'Response unavailable');
- assert.deepEqual(dailyRead(r,a)[1].readings,[]);
+ assert.equal(dailyRead(r,a)[2].value,'Response unavailable');
+ assert.deepEqual(dailyRead(r,a)[2].readings,[]);
 });
-test('competing macro moves are mixed and preserve independent source dates',()=>{
+test('separate macro cards preserve independent directions and coverage',()=>{
  const rows=dailyRead(report,{...a,yield:{percentile:50,significant:true,change5:-.1},oil:{percentile:50,significant:true,change5:2}});
- assert.equal(rows[0].value,'Mixed directions');assert.equal(rows[0].tone,'neutral');
- assert.match(rows[0].date,/Yield 2026-10-09 · Oil 2026-10-09/);
+ assert.equal(rows[0].detail,'Yields easing');assert.equal(rows[0].tone,'support');
+ assert.equal(rows[1].detail,'Oil rising');assert.equal(rows[1].tone,'pressure');
+ assert.equal(rows[0].date,'2026-10-09');assert.equal(rows[1].date,'2026-10-09');
+ const partial=dailyRead({...report,feeds:{...report.feeds,BRENT:{status:'failed'}}},a);
+ assert.equal(partial[0].tone,'pressure');assert.equal(partial[1].tone,'unavailable');
 });

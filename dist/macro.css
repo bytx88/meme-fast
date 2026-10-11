@@ -47,3 +47,8 @@ body{background:radial-gradient(ellipse at 85% 0,#102638 0,transparent 42%),#080
 
 /* Asset colours identify instruments; signs identify return direction. */
 .daily-read-card.asset-btc:not(.unavailable) .daily-read-value{color:#ffad55}.daily-read-card.asset-xau:not(.unavailable) .daily-read-value{color:#6bdbb2}
+
+/* Give rates and energy their own observation cards. */
+.daily-review .daily-market-read{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1100px){.daily-review .daily-market-read{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-read-card:first-child{grid-column:auto}}
+@media(max-width:480px){.daily-review .daily-market-read{grid-template-columns:1fr}}
