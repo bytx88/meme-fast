@@ -91,7 +91,8 @@ def collect_x_factor(target_limit=3):
     print(result.stdout)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=120, max_containers=1,
+# Automatic Jean Phil monitoring is disabled; retain manual invocation and history.
+@app.function(timeout=120, max_containers=1,
               volumes={"/history": history_volume})
 def collect_jeanphil_monitor():
     import subprocess

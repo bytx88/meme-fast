@@ -38,7 +38,7 @@ Inspect's **5D** view fetches historical 15-minute OHLCV candles for one listing
 
 ## Jean Phil monitor
 
-`/jeanphil.html` follows the exact Solana contract `GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump`. A dedicated Modal function samples the most liquid exact-contract DexScreener pool every five minutes and Google News RSS indexed X posts every 30 minutes. The 14-day monitor history is stored separately on the persistent Volume, so it continues collecting without page visits. Local preview stores the same report at `.data/jeanphil-monitor.json`. History begins when the collector first runs; it cannot reconstruct earlier social engagement.
+`/jeanphil.html` follows the exact Solana contract `GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump`. Automatic Modal collection is disabled. The dedicated `collect_jeanphil_monitor` function remains available for manual runs, sampling the most liquid exact-contract DexScreener pool and Google News RSS indexed X posts. The existing 14-day monitor history is retained separately on the persistent Volume. Local preview stores the same report at `.data/jeanphil-monitor.json`. History begins when the collector first runs; it cannot reconstruct earlier social engagement.
 
 Warmth is a provisional 0–100 saturation curve of indexed posts whose visible titles explicitly mention Jean Phil or Jean Philanthrope in the preceding two hours. Coin-only mentions are counted separately. The page shows the underlying posts and sample times. RSS coverage is incomplete and may lag; there are no X likes, reposts, views, unique-account measures, or Instagram engagement in this score. Failed feeds preserve earlier samples and report collection issues rather than recording false zeroes.
 
