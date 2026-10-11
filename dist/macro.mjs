@@ -1,11 +1,10 @@
-import {templates as btcTemplates} from './macro-btc-reference.mjs';
 import {templates as qqqTemplates} from './macro-qqq-reference.mjs';
 import {mountDailyRead} from './macro-daily.mjs';
 import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import {mountCausalMap} from './macro-causal.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
-import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange,referenceOverlay,chartSeasonStart,referenceSelection} from './macro-series.mjs';
+import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange,referenceOverlay,chartSeasonStart,referenceSelection,btcReferenceSelection} from './macro-series.mjs';
 const host=document.getElementById('comparison-chart');
 const dailyReadPanel=mountDailyRead(document.getElementById('daily-market-read'));
 const causalMap=mountCausalMap(document.getElementById('macro-causal-map'));
@@ -25,7 +24,7 @@ let cachedReport=null;try{cachedReport=restoreDeskCache(localStorage.getItem('me
 const sharedReport=restoreDeskCache(document.getElementById('macro-bootstrap')?.textContent);
 const initialReport=[cachedReport,sharedReport].filter(Boolean).sort((a,b)=>Date.parse(b.collectedAt)-Date.parse(a.collectedAt))[0];
 let hasLiveReport=!!initialReport;
-let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[],referenceChoice='2024',activeReference=qqqTemplates['2024'],btcReferenceChoice='2024',btcReferenceRows=[],activeBtcReference=btcTemplates['2024'];
+let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[],referenceChoice='2024',activeReference=qqqTemplates['2024'],btcReferenceChoice='none',btcReferenceRows=[],activeBtcReference=null;
 const slider=document.getElementById('chart-date'),readout=document.getElementById('chart-readout');
 function card(label,value,detail,tone=''){const n=el('article',tone);n.append(el('span','metric-label',label),el('strong','',value),el('p','',detail));return n;}
 function driverRead(key){
@@ -234,8 +233,8 @@ function render(){
  const previousYear=Number(c.start.slice(0,4))-1;document.querySelector('#chart-template option[value="previous"]').textContent=`Previous year · ${previousYear}-Oct`;
  referenceRows=chartMode==='performance'?referenceOverlay(activeReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
  if(referenceRows.length){const label=el('b','reference-legend','⋯ QQQ Ref.');label.style.color='#fff';legend.append(label);}
- activeBtcReference=btcTemplates[btcReferenceChoice];
- btcReferenceRows=chartMode==='performance'?referenceOverlay(activeBtcReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
+ activeBtcReference=btcReferenceSelection(btcReferenceChoice,report.series.BTC,c.start);
+ btcReferenceRows=chartMode==='performance'&&activeBtcReference?referenceOverlay(activeBtcReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
  if(btcReferenceRows.length){const label=el('b','btc-reference-legend','⋯ BTC Ref.');label.style.color='#ffd29b';legend.append(label);}
  const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return),btcReferenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
  x=t=>left+(t-from)/(to-from)*(w-left-right);y=v=>top+(high-v)/(high-low)*(h-top-bottom);

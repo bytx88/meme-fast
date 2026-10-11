@@ -301,7 +301,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==5 and saved.get('referenceFeedVersion')==1 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==5 and saved.get('referenceFeedVersion')==2 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -313,7 +313,7 @@ class MacroReview:
             today = dt.datetime.fromtimestamp(now, dt.timezone.utc).date().isoformat()
             attempted = dt.datetime.fromtimestamp(now, dt.timezone.utc).isoformat()
             requests = {'QQQ': 'https://query2.finance.yahoo.com/v8/finance/chart/QQQ?period1=1693526400&interval=1d',
-                        'BTC': 'https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD?period1=1756684800&interval=1d',
+                        'BTC': 'https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD?period1=1598918400&interval=1d',
                         'XAU': 'https://goldprice.com/gold-price-history.csv',
                         'YIELD': 'https://query2.finance.yahoo.com/v8/finance/chart/%5ETNX?period1=1756684800&interval=1d',
                         'BRENT': 'https://query2.finance.yahoo.com/v8/finance/chart/BZ%3DF?period1=1756684800&interval=1d',
@@ -349,7 +349,7 @@ class MacroReview:
                     response = await asyncio.wait_for(self.fetch(url), timeout=20)
                     response.raise_for_status()
                     if key in ('QQQ', 'BTC', 'YIELD', 'BRENT'):
-                        rows = yahoo_rows(response.json(), today, '2023-09-01' if key == 'QQQ' else '2025-09-01')
+                        rows = yahoo_rows(response.json(), today, '2023-09-01' if key == 'QQQ' else '2020-09-01' if key == 'BTC' else '2025-09-01')
                     elif key == 'CPI':
                         sa_url=url.replace('CUUR0000SA0','CUSR0000SA0')
                         sa=await asyncio.wait_for(self.fetch(sa_url),timeout=12);sa.raise_for_status()
@@ -421,7 +421,7 @@ class MacroReview:
             self.report['deskEvidenceVersion']=1
             self.report['causalFeedVersion']=1
             self.report['dailyReadVersion']=5
-            self.report['referenceFeedVersion']=1
+            self.report['referenceFeedVersion']=2
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
