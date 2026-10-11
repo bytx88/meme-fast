@@ -1,3 +1,4 @@
+import {templates as btcTemplates} from '../dist/macro-btc-reference.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import reference,{templates} from '../dist/macro-qqq-reference.mjs';
@@ -39,5 +40,15 @@ test('2015 and 2010 standards preserve their source periods when aligned to futu
   const rows=referenceOverlay(reference,'2027-10-01',false,'2027-10-01');
   assert.equal(rows[0].sourceDate,`${year}-10-01`);assert.equal(rows[0].date,'2027-10-01');
   assert.equal(rows.at(-1).date,'2028-10-31');assert.ok(rows.every(r=>Number.isFinite(r.return)));
+ }
+});
+
+test('BTC standards use their own daily USD prices and preserve their historical dates',()=>{
+ for(const year of ['2024','2015','2010']){
+  const ref=btcTemplates[year],rows=referenceOverlay(ref,'2025-10-01',false,'2025-10-01');
+  assert.equal(rows[0].sourceDate,`${year}-10-01`);assert.equal(rows[0].date,'2025-10-01');
+  assert.equal(rows.at(-1).sourceDate,`${Number(year)+1}-10-31`);
+  assert.equal(rows[0].anchor,`${year}-09-30`);assert.ok(rows.every(r=>Number.isFinite(r.return)));
+  assert.notEqual(rows[0].close,templates[year].rows.find(r=>r.date===`${year}-10-01`)?.close);
  }
 });

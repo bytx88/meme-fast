@@ -1,3 +1,4 @@
+import {templates as btcTemplates} from './macro-btc-reference.mjs';
 import {templates as qqqTemplates} from './macro-qqq-reference.mjs';
 import {mountDailyRead} from './macro-daily.mjs';
 import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
@@ -24,7 +25,7 @@ let cachedReport=null;try{cachedReport=restoreDeskCache(localStorage.getItem('me
 const sharedReport=restoreDeskCache(document.getElementById('macro-bootstrap')?.textContent);
 const initialReport=[cachedReport,sharedReport].filter(Boolean).sort((a,b)=>Date.parse(b.collectedAt)-Date.parse(a.collectedAt))[0];
 let hasLiveReport=!!initialReport;
-let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[],referenceChoice='2024',activeReference=qqqTemplates['2024'];
+let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[],referenceChoice='2024',activeReference=qqqTemplates['2024'],btcReferenceChoice='2024',btcReferenceRows=[],activeBtcReference=btcTemplates['2024'];
 const slider=document.getElementById('chart-date'),readout=document.getElementById('chart-readout');
 function card(label,value,detail,tone=''){const n=el('article',tone);n.append(el('span','metric-label',label),el('strong','',value),el('p','',detail));return n;}
 function driverRead(key){
@@ -206,9 +207,11 @@ function showReview(saveVisit=false){
  render();
 }
 function appendReference(date){
- const r=referenceRows.filter(r=>r.date<=date).at(-1);
- if(!r||(Date.parse(date)-Date.parse(r.date))/86400000>4)return;
- const line=el('div','tooltip-line');line.style.color='#fff';line.append(el('b','',activeReference.label),el('span','',pct(r.return)),el('span','',niceDate(r.sourceDate)));tip.append(line);
+ for(const [points,reference,colour] of [[referenceRows,activeReference,'#fff'],[btcReferenceRows,activeBtcReference,'#ffd29b']]){
+  const r=points.filter(r=>r.date<=date).at(-1);
+  if(!r||(Date.parse(date)-Date.parse(r.date))/86400000>4)continue;
+  const line=el('div','tooltip-line');line.style.color=colour;line.append(el('b','',reference.label),el('span','',pct(r.return)),el('span','',niceDate(r.sourceDate)));tip.append(line);
+ }
 }
 function inspect(index,point){
  index=Math.max(0,Math.min(rows.length-1,index));slider.value=index;const r=rows[index];
@@ -223,7 +226,7 @@ function inspect(index,point){
  if(point){tip.hidden=false;const width=host.clientWidth,tipWidth=Math.min(330,width-16);tip.style.width=tipWidth+'px';tip.style.left=Math.max(8,Math.min(width-tipWidth-8,point.x+18))+'px';tip.style.top=Math.max(8,Math.min(host.clientHeight-150,point.y-90))+'px';}
 }
 function render(){
- rows=visibleRows(c,windowDays).filter(r=>r.date>=c.start);document.getElementById('season-scorecard').hidden=!!windowDays;chartSymbols=chartMode==='rotation'?['QQQ','XAU']:symbols;if(chartMode==='rotation')rows=rotationRows(rows);else if(windowDays){const first=rows[0];rows=rows.map(r=>({...r,returns:Object.fromEntries(symbols.map(s=>[s,100*(r.prices[s]/first.prices[s]-1)]))}));}set('chart-reference',`${chartMode==='rotation'?'BTC / QQQ · BTC / XAU ratios':'QQQ · BTC · XAU performance'} · zero reference ${niceDate(chartMode==='rotation'||windowDays?rows[0].date:c.anchor)}`);const last=c.rows.at(-1),frames=seasonalFrames(c.start,last.date);
+ rows=visibleRows(c,windowDays).filter(r=>r.date>=c.start);document.getElementById('season-scorecard').hidden=!!windowDays;chartSymbols=chartMode==='rotation'?['QQQ','XAU']:symbols;if(chartMode==='rotation')rows=rotationRows(rows);else if(windowDays){const first=rows[0];rows=rows.map(r=>({...r,returns:Object.fromEntries(symbols.map(s=>[s,100*(r.prices[s]/first.prices[s]-1)]))}));}const last=c.rows.at(-1),frames=seasonalFrames(c.start,last.date);
  const w=Math.max(360,host.clientWidth),h=host.closest('.comparison').classList.contains('chart-expanded')?Math.max(300,host.clientHeight):w<600?300:370,left=w<600?44:64,right=24,top=44,bottom=50;
  from=Date.parse(windowDays?rows[0].date:c.start);to=Date.parse(windowDays?last.date:frames.at(-1).end);if(to<=from)to=from+86400000;
  const legend=document.getElementById('chart-legend');legend.replaceChildren();for(const s of chartSymbols){const label=el('b','',chartMode==='rotation'?`BTC / ${s}`:s);label.style.color=colours[s];legend.append(label);}
@@ -231,7 +234,10 @@ function render(){
  const previousYear=Number(c.start.slice(0,4))-1;document.querySelector('#chart-template option[value="previous"]').textContent=`Previous year · ${previousYear}-Oct`;
  referenceRows=chartMode==='performance'?referenceOverlay(activeReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
  if(referenceRows.length){const label=el('b','reference-legend','⋯ QQQ Ref.');label.style.color='#fff';legend.append(label);}
- const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
+ activeBtcReference=btcTemplates[btcReferenceChoice];
+ btcReferenceRows=chartMode==='performance'?referenceOverlay(activeBtcReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
+ if(btcReferenceRows.length){const label=el('b','btc-reference-legend','⋯ BTC Ref.');label.style.color='#ffd29b';legend.append(label);}
+ const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return),btcReferenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
  x=t=>left+(t-from)/(to-from)*(w-left-right);y=v=>top+(high-v)/(high-low)*(h-top-bottom);
  svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':`${chartMode==='rotation'?'BTC leadership versus QQQ and gold':'QQQ, BTC and gold performance'} through ${niceDate(last.date)}`});
  for(let i=0;i<frames.length;i++){
@@ -251,6 +257,7 @@ function render(){
  }
  for(const s of chartSymbols){svg.append(svgEl('polyline',{points:rows.map(r=>`${x(Date.parse(r.date))},${y(r.returns[s])}`).join(' '),fill:'none',stroke:colours[s],'stroke-width':2.2,'stroke-linejoin':'round','vector-effect':'non-scaling-stroke'}));}
  if(referenceRows.length)svg.append(svgEl('polyline',{points:referenceRows.map(r=>`${x(Date.parse(r.date))},${y(r.return)}`).join(' '),fill:'none',stroke:'#ffffff','stroke-width':2,'stroke-dasharray':'2 6','stroke-linecap':'round','stroke-linejoin':'round','vector-effect':'non-scaling-stroke',class:'qqq-reference-path'}));
+ if(btcReferenceRows.length)svg.append(svgEl('polyline',{points:btcReferenceRows.map(r=>`${x(Date.parse(r.date))},${y(r.return)}`).join(' '),fill:'none',stroke:'#ffd29b','stroke-width':2,'stroke-dasharray':'2 6','stroke-linecap':'round','stroke-linejoin':'round','vector-effect':'non-scaling-stroke',class:'btc-reference-path'}));
  if(!windowDays){const current=x(Date.parse(last.date));svg.append(svgEl('line',{x1:current,x2:current,y1:top,y2:h-bottom,stroke:'#cfb782','stroke-dasharray':'4 4'}));if(w-right-current>95)svg.append(svgEl('text',{x:current+(w-right-current)/2,y:h/2,fill:'#9daeba','text-anchor':'middle','font-size':w<600?10:12},referenceRows.length?'Historical reference only':'No shared data yet'));}
  cursor=svgEl('line',{y1:top,y2:h-bottom,stroke:'#dae1e7','stroke-dasharray':'3 3'});svg.append(cursor);dots={};
  for(const s of chartSymbols){dots[s]=svgEl('circle',{r:4,fill:colours[s]});svg.append(dots[s]);}
@@ -272,6 +279,8 @@ function render(){
  svg.addEventListener('pointerleave',()=>{tip.hidden=true;selectedPoint=null;});
  host.replaceChildren(svg,tip,badge);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
 }
+document.getElementById('btc-chart-template').addEventListener('change',event=>{btcReferenceChoice=event.target.value;if(c)render();});
+
 document.getElementById('chart-template').addEventListener('change',event=>{referenceChoice=event.target.value;if(c)render();});
 
 const fullscreenButton=document.getElementById('chart-fullscreen'),comparisonPanel=host.closest('.comparison');
