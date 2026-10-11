@@ -230,7 +230,7 @@ function render(){
  activeReference=referenceSelection(referenceChoice,qqqTemplates,report.series.QQQ,c.start);
  const previousYear=Number(c.start.slice(0,4))-1;document.querySelector('#chart-template option[value="previous"]').textContent=`Previous year · ${previousYear}-Oct`;
  referenceRows=chartMode==='performance'?referenceOverlay(activeReference,windowDays?rows[0].date:c.start,!!windowDays,c.start).filter(r=>Date.parse(r.date)<=to):[];
- if(referenceRows.length){const label=el('b','reference-legend','⋯ '+activeReference.label);label.style.color='#fff';legend.append(label);}
+ if(referenceRows.length){const label=el('b','reference-legend','⋯ QQQ Ref.');label.style.color='#fff';legend.append(label);}
  const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
  x=t=>left+(t-from)/(to-from)*(w-left-right);y=v=>top+(high-v)/(high-low)*(h-top-bottom);
  svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':`${chartMode==='rotation'?'BTC leadership versus QQQ and gold':'QQQ, BTC and gold performance'} through ${niceDate(last.date)}`});
