@@ -136,7 +136,7 @@ function showNews(previousVisit){
 }
 function showReview(saveVisit=false){
  review=executionReview(report.series);assessment=assess(report);
- try{const start=chartSeasonStart(report.series);c=compareSeries(report.series,start,start);c.rows=c.rows.filter(r=>r.date>=c.anchor);}catch{c=null;host.replaceChildren(el('p','chart-loading','Three-asset comparison unavailable; the BTC / QQQ review continues independently.'));}
+ try{const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Singapore',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const start=chartSeasonStart(report.series,today);c=compareSeries(report.series,start,start);c.rows=c.rows.filter(r=>r.date>=c.anchor);}catch{c=null;host.replaceChildren(el('p','chart-loading','Three-asset comparison unavailable; the BTC / QQQ review continues independently.'));}
  const last=c?.rows.at(-1),r=review,feeds=report.feeds||{},failures=Object.entries(feeds).filter(([,v])=>v.status==='error').map(([k])=>k);
  set('review-date',niceDate(assessment.date||r.date).toUpperCase());
  set('review-freshness',`BTC daily candle ${niceDate(assessment.date)} · benchmark close ${niceDate(r.date)}${failures.length?' · unavailable: '+failures.join(', '):''}${!assessment.priceFresh?' · assessment withheld':''}`);

@@ -55,3 +55,10 @@ test('BTC defaults to None and selects prior-year offsets as chart years advance
  assert.equal(btcReferenceSelection('previous',[],'2025-10-01'),null);
  assert.equal(btcReferenceSelection('previous',[{date:'2024-09-01',close:100},{date:'2024-10-01',close:110}],'2025-10-01'),null);
 });
+
+test('whole chart rolls on June 1, preserving October start through January and May',()=>{
+ const series=Object.fromEntries(['QQQ','BTC','XAU'].map(s=>[s,[{date:'2027-05-31',close:100}]]));
+ for(const [date,start] of [['2026-10-11','2025-10-01'],['2027-01-01','2025-10-01'],['2027-05-31','2025-10-01'],['2027-06-01','2026-10-01'],['2027-10-01','2026-10-01'],['2028-05-31','2026-10-01'],['2028-06-01','2027-10-01']])assert.equal(chartSeasonStart(series,date),start);
+ // June 1 rollover does not wait for the first June source close.
+ assert.equal(chartSeasonStart(series,'2027-06-01'),'2026-10-01');
+});

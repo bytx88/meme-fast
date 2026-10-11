@@ -80,10 +80,12 @@ export function referenceOverlay(reference,displayStart='2025-10-01',rebaseFirst
  return selected.map(r=>({...r,return:100*(r.close/base.close-1),anchor:base.sourceDate}));
 }
 
-export function chartSeasonStart(series){
+export function chartSeasonStart(series,asOf=null){
  const dates=['QQQ','BTC','XAU'].map(s=>new Set((series[s]||[]).map(r=>r.date)));
- const date=[...dates[0]].filter(d=>dates.every(set=>set.has(d))).sort().at(-1);
- return date?`${Number(date.slice(0,4))-1}-10-01`:'2025-10-01';
+ const date=asOf||[...dates[0]].filter(d=>dates.every(set=>set.has(d))).sort().at(-1);
+ if(!date)return '2025-10-01';
+ const year=Number(date.slice(0,4)),month=Number(date.slice(5,7));
+ return `${year-(month>=6?1:2)}-10-01`;
 }
 export function referenceSelection(choice,templates,qqq,chartStart){
  if(choice!=='previous')return templates[choice]||templates['2024'];
