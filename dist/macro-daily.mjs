@@ -25,5 +25,6 @@ export function dailyRead(report,a){
 export function mountDailyRead(root){
  if(!root)return {update(){}};
  const el=(tag,cls,text)=>{const e=document.createElement(tag);e.className=cls;e.textContent=text;return e;};
- return {update(report,a){root.replaceChildren(...dailyRead(report,a).map(row=>{const card=el('article','daily-read-card '+row.tone,'');card.append(el('h3','',row.label),...(row.readings?.length?row.readings:[row.value]).map(value=>el('strong','daily-read-value',value)),el('p','daily-read-detail',row.detail),el('span','daily-read-context',row.context),el('time','daily-read-date',row.date));return card;}));}};
+ return {update(report,a){root.replaceChildren(...dailyRead(report,a).map(row=>{const asset=row.key==='BTC'?' asset-btc':row.key==='XAU'?' asset-xau':'';
+   const card=el('article','daily-read-card '+row.tone+asset,'');card.append(el('h3','',row.label),...(row.readings?.length?row.readings:[row.value]).map(value=>el('strong','daily-read-value',value)),el('p','daily-read-detail',row.detail),el('span','daily-read-context',row.context),el('time','daily-read-date',row.date));return card;}));}};
 }

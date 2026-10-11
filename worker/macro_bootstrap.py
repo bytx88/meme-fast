@@ -21,7 +21,8 @@ def render_macro_bootstrap(source, report):
             contents += ''.join(f'<{tag} class="{cls}">{html.escape(str(row.get(key, "")))}</{tag}>' for tag, cls, key in (
                 ('p', 'daily-read-detail', 'detail'), ('span', 'daily-read-context', 'context'),
                 ('time', 'daily-read-date', 'date')))
-            cards.append(f'<article class="daily-read-card {tone}">{contents}</article>')
+            asset = {'BTC': ' asset-btc', 'XAU': ' asset-xau'}.get(row.get('key'), '')
+            cards.append(f'<article class="daily-read-card {tone}{asset}">{contents}</article>')
         if cards:
             source = re.sub(r'(<div\b[^>]*\bid="daily-market-read"[^>]*>).*?(</div>)',
                             lambda m: m[1] + ''.join(cards) + m[2], source, count=1, flags=re.S)
