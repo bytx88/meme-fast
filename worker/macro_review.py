@@ -301,7 +301,7 @@ class MacroReview:
                 saved=json.loads(self.store_path.read_text(encoding='utf-8'))
                 if saved.get('version') == 2 and all(saved['series'].get(s) for s in ('QQQ','BTC','XAU')):
                     self.report=saved
-                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==2 else 0
+                    self.next_refresh=dt.datetime.fromisoformat(saved['nextRefreshAt']).timestamp() if saved.get('analysisRuleVersion')==5 and saved.get('etfFeedVersion')==1 and saved.get('deskEvidenceVersion')==1 and saved.get('causalFeedVersion')==1 and saved.get('dailyReadVersion')==3 else 0
             except (ValueError, KeyError, TypeError):
                 pass
 
@@ -420,11 +420,11 @@ class MacroReview:
             self.report['etfFeedVersion']=1
             self.report['deskEvidenceVersion']=1
             self.report['causalFeedVersion']=1
-            self.report['dailyReadVersion']=2
+            self.report['dailyReadVersion']=3
             common=sorted(set(r['date'] for r in self.report['series']['QQQ']) & set(r['date'] for r in self.report['series']['BTC']))
             if common and all(self.report['feeds'][s]['status']=='ok' for s in ('QQQ','BTC')) and (dt.date.fromisoformat(today)-dt.date.fromisoformat(common[-1])).days <= 4:
                 entry={'date':self.report['series']['BTC'][-1]['date'], 'observedAt':attempted,
-                       'series':{s:rows[-65:] for s,rows in self.report['series'].items()},
+                       'series':{s:rows[-260:] for s,rows in self.report['series'].items()},
                        'drivers':{s:rows[-65:] for s,rows in self.report['drivers'].items()},
                        'positioning':copy.deepcopy(self.report['positioning']), 'feeds':copy.deepcopy(self.report['feeds'])}
                 if self.analysis_path.exists():

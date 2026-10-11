@@ -13,6 +13,20 @@ export function periodReturn(rows,symbol,count){
  if(rows.length<=count||!Number.isFinite(rows.at(-1).prices[symbol])||!Number.isFinite(rows.at(-1-count).prices[symbol])) return null;
  return 100*(rows.at(-1).prices[symbol]/rows.at(-1-count).prices[symbol]-1);
 }
+// Headline return starts at the preceding seasonal frame, not the short current frame.
+export function seasonalChange(series){
+ try{
+  const dates=symbols.map(s=>new Set((series[s]||[]).filter(r=>Number.isFinite(r.close)&&r.close>0).map(r=>r.date)));
+  const date=[...dates[0]].filter(d=>dates.every(set=>set.has(d))).sort().at(-1);
+  if(!date)return null;
+  const year=Number(date.slice(0,4)),month=Number(date.slice(5,7));
+  const start=month>=10?`${year}-06-01`:month>=6?`${year}-02-01`:month>=2?`${year-1}-10-01`:`${year-1}-06-01`;
+  const c=compareSeries(series,start,start),last=c.rows.at(-1);
+  if((Date.parse(start)-Date.parse(c.anchor))/86400000>7)return null;
+  const label='Since '+new Intl.DateTimeFormat('en-GB',{month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(start));
+  return {start,anchor:c.anchor,date:last.date,prices:last.prices,returns:last.returns,label};
+ }catch{return null;}
+}
 export function dailyReview(c){
  const rows=c.rows,last=rows.at(-1),metrics=Object.fromEntries(symbols.map(s=>[s,Object.fromEntries([1,5,20].map(n=>[n,periodReturn(rows,s,n)]))]));
  const prior=rows.slice(-21,-1),low=prior.length===20?Math.min(...prior.map(r=>r.prices.BTC)):null,high=prior.length===20?Math.max(...prior.map(r=>r.prices.BTC)):null;

@@ -136,7 +136,7 @@ class MacroTests(unittest.TestCase):
                 return Response('<rss><channel></channel></rss>')
             with tempfile.TemporaryDirectory() as folder:
                 path = Path(folder)/'seed.mjs'
-                for module in ('macro-analysis.mjs', 'macro-daily.mjs', 'macro-causal.mjs', 'macro-desk.mjs'):
+                for module in ('macro-analysis.mjs', 'macro-daily.mjs', 'macro-causal.mjs', 'macro-desk.mjs', 'macro-series.mjs'):
                     shutil.copyfile(Path(__file__).resolve().parents[1]/'dist'/module, Path(folder)/module)
                 path.write_text('export default '+json.dumps({'collectedAt':'2026-10-08T00:00:00Z','series':{s:[{'date':'2025-09-30','close':90},{'date':'2026-10-08','close':95}] for s in ['QQQ','BTC','XAU']}})+';')
                 store=Path(folder)/'review.json'
@@ -145,7 +145,7 @@ class MacroTests(unittest.TestCase):
                 self.assertEqual(first['history'][0]['assessment']['phase'],'Assessment withheld')
                 self.assertEqual(first['history'][0]['ruleVersion'],5)
                 self.assertEqual(len(first['history'][0]['assessment']['dailyRead']), 3)
-                self.assertEqual(first['dailyReadVersion'], 2)
+                self.assertEqual(first['dailyReadVersion'], 3)
                 self.assertEqual(first['drivers']['FED'][-1]['high'],4)
                 count = len(calls)
                 await cache.get()
