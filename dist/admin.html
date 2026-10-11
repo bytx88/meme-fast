@@ -11,7 +11,7 @@
 </head>
 <body>
 <main class="admin-page">
-  <header class="admin-header"><div><span class="admin-brand">MEME FAST / ADMIN</span><h1>Tracked wallets</h1><p>Wallet names and classes used by the Snipe and Swing tags.</p></div><button id="refresh" type="button">Refresh status ↻</button></header>
+  <header class="admin-header"><div><span class="admin-brand">MEME FAST / ADMIN</span><h1>Tracked wallets</h1><p>Wallet names and classes used by the Snipe and Swing tags.</p></div><nav class="admin-header-actions" aria-label="Admin navigation"><a class="admin-sources-link" href="./sources.html">Sources / X accounts</a><button id="refresh" type="button">Refresh status ↻</button></nav></header>
   <p id="status" role="status" aria-live="polite">Loading tracked wallets…</p>
   <section class="admin-controls" aria-label="Wallet filters"><label>Find wallet<input id="query" type="search" placeholder="Name or address" autocomplete="off"></label><label>Class<select id="class-filter"><option value="">All classes</option></select></label><span id="count"></span><button id="add-wallet" type="button">Add wallet +</button></section>
   <section class="admin-table-wrap" aria-label="Tracked wallets"><table><thead><tr><th scope="col">Wallet</th><th scope="col">Class</th><th scope="col">Solana address</th><th scope="col">Status</th><th scope="col">Last checked</th><th scope="col">Last attempt</th><th scope="col">Token balances</th></tr></thead><tbody id="wallets"></tbody></table></section>
