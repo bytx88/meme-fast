@@ -265,17 +265,14 @@ const setExpanded=expanded=>{
  fullscreenButton.setAttribute('aria-pressed',String(expanded));
  requestAnimationFrame(()=>{if(c)render();});
 };
-const exitChart=async()=>{
+const exitChart=()=>{
  setExpanded(false);
- if(document.fullscreenElement===comparisonPanel)await document.exitFullscreen().catch(()=>{});
  fullscreenButton.focus({preventScroll:true});
 };
-fullscreenButton.addEventListener('click',async()=>{
- if(comparisonPanel.classList.contains('chart-expanded')){await exitChart();return;}
+fullscreenButton.addEventListener('click',()=>{
+ if(comparisonPanel.classList.contains('chart-expanded')){exitChart();return;}
  setExpanded(true);
- if(comparisonPanel.requestFullscreen)await comparisonPanel.requestFullscreen().catch(()=>{});
 });
-document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&comparisonPanel.classList.contains('chart-expanded'))setExpanded(false);});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&comparisonPanel.classList.contains('chart-expanded')){event.preventDefault();exitChart();}});
 
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));chartMode=button.dataset.mode;render();}));
