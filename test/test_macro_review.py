@@ -145,7 +145,7 @@ class MacroTests(unittest.TestCase):
                 self.assertEqual(first['history'][0]['assessment']['phase'],'Assessment withheld')
                 self.assertEqual(first['history'][0]['ruleVersion'],5)
                 self.assertEqual(len(first['history'][0]['assessment']['dailyRead']), 4)
-                self.assertEqual(first['dailyReadVersion'], 4)
+                self.assertEqual(first['dailyReadVersion'], 5)
                 self.assertEqual(first['drivers']['FED'][-1]['high'],4)
                 count = len(calls)
                 await cache.get()
