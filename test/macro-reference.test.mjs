@@ -42,14 +42,14 @@ test('2015 and 2010 standards preserve their source periods when aligned to futu
  }
 });
 
-test('BTC defaults to None and selects prior-year offsets as chart years advance',()=>{
+test('BTC defaults to None, keeps standards fixed and rolls Previous Year',()=>{
  const series=[];
  for(let year=2020;year<=2027;year++)series.push({date:`${year}-09-30`,close:100},{date:`${year}-10-01`,close:110},{date:`${year}-10-31`,close:120});
  assert.equal(btcReferenceSelection('none',series,'2025-10-01'),null);
- for(const chartYear of [2025,2026,2027])for(const [choice,offset] of [['previous',1],['previous-1',2],['previous-2',3],['previous-3',4]]){
+ for(const chartYear of [2025,2026,2027])for(const [choice,year] of [['previous',chartYear-1],['2022',2022],['2021',2021]]){
   const ref=btcReferenceSelection(choice,series,`${chartYear}-10-01`);
-  assert.equal(ref.start,`${chartYear-offset}-10-01`);
-  assert.equal(ref.end,`${chartYear-offset+1}-10-31`);
+  assert.equal(ref.start,`${year}-10-01`);
+  assert.equal(ref.end,`${year+1}-10-31`);
   assert.equal(referenceOverlay(ref,`${chartYear}-10-01`,false,`${chartYear}-10-01`)[0].sourceDate,ref.start);
  }
  assert.equal(btcReferenceSelection('previous',[],'2025-10-01'),null);

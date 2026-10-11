@@ -96,9 +96,9 @@ export function referenceSelection(choice,templates,qqq,chartStart){
 }
 
 export function btcReferenceSelection(choice,series,chartStart){
- const offset={'previous':1,'previous-1':2,'previous-2':3,'previous-3':4}[choice];
- if(!offset)return null;
- const year=Number(chartStart.slice(0,4))-offset,start=`${year}-10-01`,end=`${year+1}-10-31`;
+ const year=choice==='previous'?Number(chartStart.slice(0,4))-1:({'2022':2022,'2021':2021}[choice]);
+ if(!year)return null;
+ const start=`${year}-10-01`,end=`${year+1}-10-31`;
  const rows=(series||[]).filter(r=>r.date<=end&&Number.isFinite(r.close)&&r.close>0).sort((a,b)=>a.date.localeCompare(b.date));
  const anchor=rows.filter(r=>r.date<start).at(-1);
  if(!anchor||(Date.parse(start)-Date.parse(anchor.date))/86400000>7)return null;
