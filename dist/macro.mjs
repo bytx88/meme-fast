@@ -255,9 +255,34 @@ function render(){
  cursor=svgEl('line',{y1:top,y2:h-bottom,stroke:'#dae1e7','stroke-dasharray':'3 3'});svg.append(cursor);dots={};
  for(const s of chartSymbols){dots[s]=svgEl('circle',{r:4,fill:colours[s]});svg.append(dots[s]);}
  tip=el('div','chart-tooltip');tip.hidden=true;badge=el('div','chart-date-badge');
+ const annotationTip=el('div','chart-tooltip annotation-tooltip');annotationTip.hidden=true;
+ const annotations=[
+  {name:'Liquid shock',start:'2026-01-28',end:'2026-02-09',colour:'#ff8b32',hint:'Sharp BTC drawdown into early February, followed by a rebound. Watch the reset, reclaim and retest.'},
+  {name:'Genius Initial',start:'2026-08-12',end:'2026-08-26',colour:'#168552',hint:'Initial BTC advance out of the August base. Watch sustained follow-through and whether the retest holds.'}
+ ];
+ if(chartMode==='performance')for(const annotation of annotations){
+  const points=rows.filter(r=>r.date>=annotation.start&&r.date<=annotation.end);
+  if(points.length<2)continue;
+  const a=Math.max(from,Date.parse(annotation.start)),b=Math.min(to,Date.parse(annotation.end));if(a>=b)continue;
+  const values=points.map(r=>r.returns.BTC),upper=Math.min(high,Math.max(...values)+2),lower=Math.max(low,Math.min(...values)-2);
+  const box=svgEl('rect',{x:x(a),y:y(upper),width:Math.max(8,x(b)-x(a)),height:y(lower)-y(upper),rx:2,fill:annotation.colour,'fill-opacity':.09,stroke:annotation.colour,'stroke-width':1.5,'vector-effect':'non-scaling-stroke',class:'btc-annotation',tabindex:0,role:'button','aria-label':annotation.name,'data-start':annotation.start,'data-end':annotation.end});
+  box.append(svgEl('title',{},annotation.name+' — '+annotation.hint));
+  const showAnnotation=event=>{
+   event.stopPropagation();tip.hidden=true;
+   const heading=el('strong','',annotation.name);heading.style.color=annotation.colour;
+   annotationTip.replaceChildren(heading,el('small','',niceDate(annotation.start)+' → '+niceDate(annotation.end)),el('p','',annotation.hint));
+   const rect=box.getBoundingClientRect(),chart=host.getBoundingClientRect(),width=Math.min(330,host.clientWidth-16);
+   annotationTip.style.width=width+'px';annotationTip.style.left=Math.max(8,Math.min(host.clientWidth-width-8,rect.right-chart.left+12))+'px';
+   annotationTip.hidden=false;annotationTip.style.top=Math.max(8,Math.min(host.clientHeight-annotationTip.offsetHeight-8,rect.top-chart.top-20))+'px';
+  };
+  for(const event of ['pointermove','focus','click'])box.addEventListener(event,showAnnotation);
+  for(const event of ['pointerleave','blur'])box.addEventListener(event,()=>{annotationTip.hidden=true;});
+  svg.append(box);
+ }
+
  svg.addEventListener('pointermove',event=>{const rect=svg.getBoundingClientRect(),t=from+((event.clientX-rect.left)/rect.width*w-left)/(w-left-right)*(to-from);let nearest=0;rows.forEach((r,i)=>{if(Math.abs(Date.parse(r.date)-t)<Math.abs(Date.parse(rows[nearest].date)-t))nearest=i;});inspect(nearest,{x:event.clientX-rect.left,y:event.clientY-rect.top});if(t>Date.parse(last.date)+86400000){const date=niceDate(new Date(Math.min(to,t)));badge.textContent=date;cursor.setAttribute('x1',x(Math.min(to,t)));cursor.setAttribute('x2',x(Math.min(to,t)));tip.replaceChildren(el('strong','',date),el('p','','No shared closing observation for this date. Last plotted close: '+niceDate(last.date)+'. No projected price path.'));appendReference(new Date(Math.min(to,t)).toISOString().slice(0,10));}});
- svg.addEventListener('pointerleave',()=>{tip.hidden=true;selectedPoint=null;});
- host.replaceChildren(svg,tip,badge);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
+ svg.addEventListener('pointerleave',()=>{tip.hidden=true;annotationTip.hidden=true;selectedPoint=null;});
+ host.replaceChildren(svg,tip,badge,annotationTip);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
 }
 document.getElementById('chart-template').addEventListener('change',event=>{referenceChoice=event.target.value;if(c)render();});
 
