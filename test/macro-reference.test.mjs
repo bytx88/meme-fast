@@ -20,8 +20,8 @@ test('fixed templates remain fixed and align to future chart years',()=>{
   assert.equal(r.start,'2024-10-01');assert.equal(rows[0].date,start);assert.equal(rows[0].sourceDate,'2024-10-01');
   assert.equal(rows.at(-1).date,`${year+1}-10-31`);
  }
- const r=referenceSelection('2021',templates,[],'2026-10-01');
- assert.equal(r.start,'2021-10-01');assert.equal(referenceOverlay(r,'2026-10-01',false,'2026-10-01')[0].sourceDate,'2021-10-01');
+ const r=referenceSelection('2022',templates,[],'2026-10-01');
+ assert.equal(r.start,'2022-10-01');assert.equal(referenceOverlay(r,'2026-10-01',false,'2026-10-01')[0].sourceDate,'2022-10-03');
 });
 test('previous year follows the chart start and merges available history without duplicate dates',()=>{
  const series=Object.fromEntries(['QQQ','BTC','XAU'].map(s=>[s,[{date:'2027-10-08',close:100}]]));
