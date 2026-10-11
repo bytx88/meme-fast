@@ -1,9 +1,10 @@
+import qqqReference from './macro-qqq-reference.mjs';
 import {mountDailyRead} from './macro-daily.mjs';
 import {fedPolicyMove,factorChanges,overviewEvidence,deskStamp,reviewChanges,horizonReads,triggerReads,restoreDeskCache} from './macro-desk.mjs';
 import {mountCausalMap} from './macro-causal.mjs';
 import snapshot from './macro-data.mjs';
 import {assess,driverContext,usable,rotationRows,catalystSelection} from './macro-analysis.mjs';
-import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange} from './macro-series.mjs';
+import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeriods,seasonalFrames,frameReturns,seasonalChange,referenceOverlay} from './macro-series.mjs';
 const host=document.getElementById('comparison-chart');
 const dailyReadPanel=mountDailyRead(document.getElementById('daily-market-read'));
 const causalMap=mountCausalMap(document.getElementById('macro-causal-map'));
@@ -23,7 +24,7 @@ let cachedReport=null;try{cachedReport=restoreDeskCache(localStorage.getItem('me
 const sharedReport=restoreDeskCache(document.getElementById('macro-bootstrap')?.textContent);
 const initialReport=[cachedReport,sharedReport].filter(Boolean).sort((a,b)=>Date.parse(b.collectedAt)-Date.parse(a.collectedAt))[0];
 let hasLiveReport=!!initialReport;
-let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null;
+let report=initialReport||{...snapshot,drivers:{},news:[],feeds:{}},c,review,rows,svg,cursor,dots,x,y,from,to,tip,badge,windowDays=0,chartMode='performance',chartSymbols=symbols,assessment,renderTimer,selectedDate=null,selectedPoint=null,referenceRows=[];
 const slider=document.getElementById('chart-date'),readout=document.getElementById('chart-readout');
 function card(label,value,detail,tone=''){const n=el('article',tone);n.append(el('span','metric-label',label),el('strong','',value),el('p','',detail));return n;}
 function driverRead(key){
@@ -204,6 +205,11 @@ function showReview(saveVisit=false){
  set('chart-freshness',`Observed through ${niceDate(last.date)}. Shading marks seasonal windows; the future portion has no price path.`);
  render();
 }
+function appendReference(date){
+ const r=referenceRows.filter(r=>r.date<=date).at(-1);
+ if(!r||(Date.parse(date)-Date.parse(r.date))/86400000>4)return;
+ const line=el('div','tooltip-line');line.style.color='#fff';line.append(el('b','','QQQ prior year'),el('span','',pct(r.return)),el('span','',niceDate(r.sourceDate)));tip.append(line);
+}
 function inspect(index,point){
  index=Math.max(0,Math.min(rows.length-1,index));slider.value=index;const r=rows[index];
  if(point){selectedDate=r.date;selectedPoint=point;}
@@ -213,6 +219,7 @@ function inspect(index,point){
  badge.textContent=date;
  tip.replaceChildren(el('strong','',date),el('small','',chartMode==='rotation'?'BTC relative performance / current view reference':'Price / change from current view reference'));
  for(const s of chartSymbols){const line=el('div','tooltip-line'+(chartMode==='rotation'?' ratio-line':''));line.style.color=colours[s];if(chartMode==='rotation')line.append(el('b','',`BTC / ${s}`),el('span','',pct(r.returns[s])));else line.append(el('b','',s),el('span','',`$${price(r.prices[s])}`),el('span','',pct(r.returns[s])));tip.append(line);}
+ appendReference(r.date);
  if(point){tip.hidden=false;const width=host.clientWidth,tipWidth=Math.min(330,width-16);tip.style.width=tipWidth+'px';tip.style.left=Math.max(8,Math.min(width-tipWidth-8,point.x+18))+'px';tip.style.top=Math.max(8,Math.min(host.clientHeight-150,point.y-90))+'px';}
 }
 function render(){
@@ -220,7 +227,9 @@ function render(){
  const w=Math.max(360,host.clientWidth),h=w<600?300:370,left=w<600?44:64,right=24,top=44,bottom=50;
  from=Date.parse(windowDays?rows[0].date:'2025-10-01');to=Date.parse(windowDays?last.date:frames.at(-1).end);if(to<=from)to=from+86400000;
  const legend=document.getElementById('chart-legend');legend.replaceChildren();for(const s of chartSymbols){const label=el('b','',chartMode==='rotation'?`BTC / ${s}`:s);label.style.color=colours[s];legend.append(label);}
- const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s]));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
+ referenceRows=chartMode==='performance'?referenceOverlay(qqqReference,windowDays?rows[0].date:'2025-10-01',!!windowDays).filter(r=>Date.parse(r.date)<=to):[];
+ if(referenceRows.length){const label=el('b','reference-legend','⋯ QQQ Oct 2024–Oct 2025');label.style.color='#fff';legend.append(label);}
+ const values=rows.flatMap(r=>chartSymbols.map(s=>r.returns[s])).concat(referenceRows.map(r=>r.return));let low=Math.floor(Math.min(0,...values)/10)*10-5,high=Math.ceil(Math.max(0,...values)/10)*10+5;
  x=t=>left+(t-from)/(to-from)*(w-left-right);y=v=>top+(high-v)/(high-low)*(h-top-bottom);
  svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':`${chartMode==='rotation'?'BTC leadership versus QQQ and gold':'QQQ, BTC and gold performance'} through ${niceDate(last.date)}`});
  for(let i=0;i<frames.length;i++){
@@ -234,11 +243,12 @@ function render(){
  const tickStep=w<600&&!windowDays?3:!windowDays?2:1;
  while(tick.getTime()<=to){const t=tick.getTime();svg.append(svgEl('text',{x:x(t),y:h-20,'text-anchor':'middle',fill:'#c5d3df','font-size':w<600?12:14},new Intl.DateTimeFormat('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}).format(tick)));tick.setUTCMonth(tick.getUTCMonth()+tickStep);}
  for(const s of chartSymbols){svg.append(svgEl('polyline',{points:rows.map(r=>`${x(Date.parse(r.date))},${y(r.returns[s])}`).join(' '),fill:'none',stroke:colours[s],'stroke-width':2.2,'stroke-linejoin':'round','vector-effect':'non-scaling-stroke'}));}
- if(!windowDays){const current=x(Date.parse(last.date));svg.append(svgEl('line',{x1:current,x2:current,y1:top,y2:h-bottom,stroke:'#cfb782','stroke-dasharray':'4 4'}));if(w-right-current>95)svg.append(svgEl('text',{x:current+(w-right-current)/2,y:h/2,fill:'#9daeba','text-anchor':'middle','font-size':w<600?10:12},'No shared data yet'));}
+ if(referenceRows.length)svg.append(svgEl('polyline',{points:referenceRows.map(r=>`${x(Date.parse(r.date))},${y(r.return)}`).join(' '),fill:'none',stroke:'#ffffff','stroke-width':2,'stroke-dasharray':'2 6','stroke-linecap':'round','stroke-linejoin':'round','vector-effect':'non-scaling-stroke',class:'qqq-reference-path'}));
+ if(!windowDays){const current=x(Date.parse(last.date));svg.append(svgEl('line',{x1:current,x2:current,y1:top,y2:h-bottom,stroke:'#cfb782','stroke-dasharray':'4 4'}));if(w-right-current>95)svg.append(svgEl('text',{x:current+(w-right-current)/2,y:h/2,fill:'#9daeba','text-anchor':'middle','font-size':w<600?10:12},referenceRows.length?'Historical reference only':'No shared data yet'));}
  cursor=svgEl('line',{y1:top,y2:h-bottom,stroke:'#dae1e7','stroke-dasharray':'3 3'});svg.append(cursor);dots={};
  for(const s of chartSymbols){dots[s]=svgEl('circle',{r:4,fill:colours[s]});svg.append(dots[s]);}
  tip=el('div','chart-tooltip');tip.hidden=true;badge=el('div','chart-date-badge');
- svg.addEventListener('pointermove',event=>{const rect=svg.getBoundingClientRect(),t=from+((event.clientX-rect.left)/rect.width*w-left)/(w-left-right)*(to-from);let nearest=0;rows.forEach((r,i)=>{if(Math.abs(Date.parse(r.date)-t)<Math.abs(Date.parse(rows[nearest].date)-t))nearest=i;});inspect(nearest,{x:event.clientX-rect.left,y:event.clientY-rect.top});if(t>Date.parse(last.date)+86400000){const date=niceDate(new Date(Math.min(to,t)));badge.textContent=date;cursor.setAttribute('x1',x(Math.min(to,t)));cursor.setAttribute('x2',x(Math.min(to,t)));tip.replaceChildren(el('strong','',date),el('p','','No shared closing observation for this date. Last plotted close: '+niceDate(last.date)+'. No projected price path.'));}});
+ svg.addEventListener('pointermove',event=>{const rect=svg.getBoundingClientRect(),t=from+((event.clientX-rect.left)/rect.width*w-left)/(w-left-right)*(to-from);let nearest=0;rows.forEach((r,i)=>{if(Math.abs(Date.parse(r.date)-t)<Math.abs(Date.parse(rows[nearest].date)-t))nearest=i;});inspect(nearest,{x:event.clientX-rect.left,y:event.clientY-rect.top});if(t>Date.parse(last.date)+86400000){const date=niceDate(new Date(Math.min(to,t)));badge.textContent=date;cursor.setAttribute('x1',x(Math.min(to,t)));cursor.setAttribute('x2',x(Math.min(to,t)));tip.replaceChildren(el('strong','',date),el('p','','No shared closing observation for this date. Last plotted close: '+niceDate(last.date)+'. No projected price path.'));appendReference(new Date(Math.min(to,t)).toISOString().slice(0,10));}});
  svg.addEventListener('pointerleave',()=>{tip.hidden=true;selectedPoint=null;});
  host.replaceChildren(svg,tip,badge);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
 }

@@ -69,3 +69,12 @@ export function visibleRows(comparison,days){
  const cutoff=new Date(comparison.rows.at(-1).date+'T00:00:00Z');cutoff.setUTCDate(cutoff.getUTCDate()-days);
  return comparison.rows.filter(r=>r.date>=cutoff.toISOString().slice(0,10));
 }
+
+// Align prior-year calendar dates with the current seasonal chart, preserving source dates.
+export function referenceOverlay(reference,displayStart='2025-10-01',rebaseFirst=false){
+ const mapped=(reference.rows||[]).filter(r=>Number.isFinite(r.close)&&r.close>0).map(r=>({...r,sourceDate:r.date,date:`${Number(r.date.slice(0,4))+1}${r.date.slice(4)}`})).sort((a,b)=>a.date.localeCompare(b.date));
+ const selected=mapped.filter(r=>r.sourceDate>=reference.start&&r.sourceDate<=reference.end&&r.date>=displayStart);
+ const base=rebaseFirst?selected[0]:mapped.filter(r=>r.date<displayStart).at(-1);
+ if(!base||!selected.length)return [];
+ return selected.map(r=>({...r,return:100*(r.close/base.close-1),anchor:base.sourceDate}));
+}
