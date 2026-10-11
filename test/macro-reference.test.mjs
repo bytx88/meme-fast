@@ -46,7 +46,7 @@ test('BTC defaults to None and selects prior-year offsets as chart years advance
  const series=[];
  for(let year=2020;year<=2027;year++)series.push({date:`${year}-09-30`,close:100},{date:`${year}-10-01`,close:110},{date:`${year}-10-31`,close:120});
  assert.equal(btcReferenceSelection('none',series,'2025-10-01'),null);
- for(const chartYear of [2025,2026,2027])for(const [choice,offset] of [['previous',1],['previous-1',2],['previous-3',4]]){
+ for(const chartYear of [2025,2026,2027])for(const [choice,offset] of [['previous',1],['previous-1',2],['previous-2',3],['previous-3',4]]){
   const ref=btcReferenceSelection(choice,series,`${chartYear}-10-01`);
   assert.equal(ref.start,`${chartYear-offset}-10-01`);
   assert.equal(ref.end,`${chartYear-offset+1}-10-31`);
