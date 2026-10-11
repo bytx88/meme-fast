@@ -9,7 +9,7 @@ import {compareSeries,visibleRows,symbols,periodReturn,executionReview,assetPeri
 const host=document.getElementById('comparison-chart');
 const dailyReadPanel=mountDailyRead(document.getElementById('daily-market-read'));
 const causalMap=mountCausalMap(document.getElementById('macro-causal-map'));
-const colours={QQQ:'#b18cff',BTC:'#ffad55',XAU:'#6bdbb2'};
+const colours={QQQ:'#58a6ff',BTC:'#ffad55',XAU:'#b18cff'};
 const names={QQQ:'Equity risk',BTC:'Crypto risk',XAU:'Spot gold'};
 const pct=n=>n===null?'Unavailable':`${n>=0?'+':''}${n.toFixed(2)}%`;
 const flowUsd=n=>n===null?'Unavailable':`${n>=0?'+':'-'}$${Math.abs(n).toFixed(1)}m`;
