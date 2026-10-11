@@ -224,7 +224,7 @@ function inspect(index,point){
 }
 function render(){
  rows=visibleRows(c,windowDays).filter(r=>r.date>='2025-10-01');document.getElementById('season-scorecard').hidden=!!windowDays;chartSymbols=chartMode==='rotation'?['QQQ','XAU']:symbols;if(chartMode==='rotation')rows=rotationRows(rows);else if(windowDays){const first=rows[0];rows=rows.map(r=>({...r,returns:Object.fromEntries(symbols.map(s=>[s,100*(r.prices[s]/first.prices[s]-1)]))}));}set('chart-reference',`${chartMode==='rotation'?'BTC / QQQ · BTC / XAU ratios':'QQQ · BTC · XAU performance'} · zero reference ${niceDate(chartMode==='rotation'||windowDays?rows[0].date:c.anchor)}`);const last=c.rows.at(-1),frames=seasonalFrames('2025-10-01',last.date);
- const w=Math.max(360,host.clientWidth),h=w<600?300:370,left=w<600?44:64,right=24,top=44,bottom=50;
+ const w=Math.max(360,host.clientWidth),h=host.closest('.comparison').classList.contains('chart-expanded')?Math.max(300,host.clientHeight):w<600?300:370,left=w<600?44:64,right=24,top=44,bottom=50;
  from=Date.parse(windowDays?rows[0].date:'2025-10-01');to=Date.parse(windowDays?last.date:frames.at(-1).end);if(to<=from)to=from+86400000;
  const legend=document.getElementById('chart-legend');legend.replaceChildren();for(const s of chartSymbols){const label=el('b','',chartMode==='rotation'?`BTC / ${s}`:s);label.style.color=colours[s];legend.append(label);}
  referenceRows=chartMode==='performance'?referenceOverlay(qqqReference,windowDays?rows[0].date:'2025-10-01',!!windowDays).filter(r=>Date.parse(r.date)<=to):[];
@@ -257,6 +257,27 @@ function render(){
  svg.addEventListener('pointerleave',()=>{tip.hidden=true;selectedPoint=null;});
  host.replaceChildren(svg,tip,badge);slider.max=rows.length-1;inspect(selectedDate&&rows.some(r=>r.date===selectedDate)?rows.findIndex(r=>r.date===selectedDate):rows.length-1,selectedPoint);
 }
+const fullscreenButton=document.getElementById('chart-fullscreen'),comparisonPanel=host.closest('.comparison');
+const setExpanded=expanded=>{
+ comparisonPanel.classList.toggle('chart-expanded',expanded);
+ document.body.classList.toggle('chart-fullscreen-open',expanded);
+ fullscreenButton.textContent=expanded?'Exit full screen':'Full screen';
+ fullscreenButton.setAttribute('aria-pressed',String(expanded));
+ requestAnimationFrame(()=>{if(c)render();});
+};
+const exitChart=async()=>{
+ setExpanded(false);
+ if(document.fullscreenElement===comparisonPanel)await document.exitFullscreen().catch(()=>{});
+ fullscreenButton.focus({preventScroll:true});
+};
+fullscreenButton.addEventListener('click',async()=>{
+ if(comparisonPanel.classList.contains('chart-expanded')){await exitChart();return;}
+ setExpanded(true);
+ if(comparisonPanel.requestFullscreen)await comparisonPanel.requestFullscreen().catch(()=>{});
+});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&comparisonPanel.classList.contains('chart-expanded'))setExpanded(false);});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&comparisonPanel.classList.contains('chart-expanded')){event.preventDefault();exitChart();}});
+
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));chartMode=button.dataset.mode;render();}));
 slider.addEventListener('input',()=>inspect(Number(slider.value),{x:host.clientWidth/2,y:80}));
 document.querySelectorAll('[data-window]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));windowDays=Number(button.dataset.window);render();}));
