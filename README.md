@@ -138,6 +138,8 @@ The chart begins 1 October 2025, with Oct–Jan / Feb–May / Jun–Sep frames. 
 
 For preview data, run `py worker/macro_review.py .data/macro-review.json`; preview reads that report, which also acts as the local persistent cache. The bundled fallback contains dated prices, not live source confirmation. The user cycle scenario, original screenshot and October 2026 research checkpoints remain expandable references.
 
+The gold daily-close card uses the latest two weekday GoldPrice.com observations, excluding weekend rows from its response window. It names the source, USD-per-ounce unit and actual dates; it is not a live XAUUSDT quote. BTC comparisons use those same start/end dates. Freshness also checks the selected weekday close, so recent weekend rows cannot make old gold data appear current. Equal weekday observations are described as unchanged reported closes, without claiming that live gold is unchanged.
+
 ### Scheduled collector reliability
 
 `collect_coins` accepts one input at a time, with a 480-second overall deadline below Modal's 600-second execution limit. Reload, priority lookup, collection, projections, shutdown and commit have separate budgets. Cancellation does not wait indefinitely for an RPC to acknowledge it. Subprocess output goes to temporary files instead of pipes; Linux process groups are killed during bounded cleanup, including descendants whose parent has already exited. Every writer must stop before the Volume is committed.

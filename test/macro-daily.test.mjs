@@ -42,3 +42,42 @@ test('daily BTC follows its own calendar without comparing a different asset win
  assert.equal(btc.value,'+1.06%');assert.equal(btc.date,'2026-10-09 → 2026-10-10');
  assert.match(btc.detail,/comparison with QQQ pending/);assert.match(btc.context,/1D/);
 });
+
+test('weekend gold observations cannot create a zero-return Sunday close',()=>{
+ const r={...report,series:{...report.series,
+  BTC:[...report.series.BTC,{date:'2026-10-10',close:95},{date:'2026-10-11',close:96}],
+  XAU:[...report.series.XAU,{date:'2026-10-10',close:106},{date:'2026-10-11',close:106}]},
+  feeds:{...report.feeds,BTC:{status:'ok',latestDate:'2026-10-11'},XAU:{status:'ok',latestDate:'2026-10-11'}}};
+ const rows=dailyRead(r,{...a,asOf:'2026-10-12'}),gold=rows[3];
+ assert.equal(gold.readings[0],'$106.00 (+0.95%)');
+ assert.equal(gold.date,'2026-10-08 → 2026-10-09');
+ assert.match(gold.detail,/ahead of BTC over these dates/);
+ assert.match(gold.detail,/weekend observations excluded/);
+ assert.match(gold.context,/GoldPrice.com.*USD\/oz.*not live/);
+ assert.match(rows[2].detail,/comparison with gold pending/);
+});
+
+test('Monday gold compares Friday to Monday with matching BTC endpoints',()=>{
+ const r={...report,series:{...report.series,
+  BTC:[...report.series.BTC,{date:'2026-10-11',close:110},{date:'2026-10-12',close:95}],
+  XAU:[...report.series.XAU,{date:'2026-10-11',close:106},{date:'2026-10-12',close:107}]},
+  feeds:{...report.feeds,BTC:{status:'ok',latestDate:'2026-10-12'},XAU:{status:'ok',latestDate:'2026-10-12'}}};
+ const gold=dailyRead(r,{...a,asOf:'2026-10-13'})[3];
+ assert.equal(gold.date,'2026-10-09 → 2026-10-12');
+ assert.match(gold.detail,/behind BTC over these dates/);
+ assert.doesNotMatch(gold.detail,/weekend observations excluded/);
+});
+
+test('new weekend source dates do not make an old weekday gold close fresh',()=>{
+ const r={...report,series:{...report.series,XAU:[...report.series.XAU,{date:'2026-10-17',close:106},{date:'2026-10-18',close:106}]},
+  feeds:{...report.feeds,XAU:{status:'ok',latestDate:'2026-10-18'}}};
+ const gold=dailyRead(r,{...a,asOf:'2026-10-19'})[3];
+ assert.equal(gold.value,'Response unavailable');assert.deepEqual(gold.readings,[]);
+});
+
+test('equal weekday gold closes describe the reported observation',()=>{
+ const r={...report,series:{...report.series,XAU:report.series.XAU.map(row=>({...row,close:106}))}};
+ const gold=dailyRead(r,a)[3];
+ assert.equal(gold.value,'+0.00%');assert.match(gold.detail,/No change in reported closes/);
+ assert.doesNotMatch(gold.detail,/Gold unchanged/);
+});
