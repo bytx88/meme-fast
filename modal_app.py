@@ -60,6 +60,7 @@ async def collect_macro_review():
 
 
 @app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
+@modal.concurrent(max_inputs=1)
 async def collect_coins():
     import sys
     if "/app" not in sys.path:
@@ -190,6 +191,24 @@ def web():
                 return json.loads(Path("/history/coins.json").read_text())
             except FileNotFoundError:
                 return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+
+    @web_app.get("/api/collector-health")
+    async def collector_health():
+        from worker.coin_job import public_job_health, bounded
+        async with history_lock:
+            try:
+                await bounded(history_volume.reload.aio(), 15, 'health reload')
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail="Collector health storage is unavailable") from exc
+            try:
+                report = json.loads(Path("/history/coin-job-health.json").read_text())
+            except FileNotFoundError:
+                report = {"version": 2, "status": "awaiting-first-run"}
+            except (OSError, ValueError) as exc:
+                raise HTTPException(status_code=503, detail="Collector health report is unreadable") from exc
+        health = public_job_health(report)
+        return JSONResponse(health, status_code=503 if health['stale'] or health['status'] == 'failed' else 200,
+                            headers={"cache-control": "no-store"})
 
     @web_app.post("/api/refresh-priority")
     async def refresh_priority(request: Request):
