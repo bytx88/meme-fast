@@ -130,13 +130,16 @@ def collect_followed_wallets():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.followed_wallets import collect, registry_wallets
-    registry = registry_wallets(value for _, value in tracked_wallet_registry.items())
+    from modal.exception import ResourceExhaustedError
+    from worker.followed_wallets import collect, registry_wallets_with_retry
+    registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
     history_volume.reload()
     report = collect("/history/followed-wallets.json", registry=registry)
     history_volume.commit()
-    return {"wallets": len(report["wallets"]),
-            "available": sum(row["status"] == "ok" for row in report["wallets"])}
+    summary = {"wallets": len(report["wallets"]),
+               "available": sum(row["status"] == "ok" for row in report["wallets"])}
+    print(f'Followed wallets: sampled {summary["wallets"]}; available {summary["available"]}')
+    return summary
 
 
 @app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})

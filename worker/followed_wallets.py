@@ -1,5 +1,6 @@
 """Bounded Solana holdings sampling for the user-assigned wallet classes."""
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -44,6 +45,21 @@ def registry_wallets(extra=()):
             rows.append(row)
             seen.add(row['address'])
     return rows
+
+
+def registry_wallets_with_retry(read_items, transient_errors, sleep=time.sleep):
+    """Retry an overloaded registry without collecting from a partial snapshot."""
+    waits = (1, 2, 4)
+    for attempt in range(len(waits) + 1):
+        try:
+            values = [value for _, value in read_items()]
+        except transient_errors:
+            if attempt == len(waits):
+                raise
+            logging.warning('Wallet registry overloaded; retrying full read in %s seconds', waits[attempt])
+            sleep(waits[attempt])
+        else:
+            return registry_wallets(values)
 
 
 def merge_report(report, registry):

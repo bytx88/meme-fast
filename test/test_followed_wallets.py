@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from worker.followed_wallets import collect, positive_mints, awaiting, PROGRAMS, registry_wallets, validate_wallet
+from worker.followed_wallets import collect, positive_mints, awaiting, PROGRAMS, registry_wallets, validate_wallet, registry_wallets_with_retry
 
 
 def payload(owner, amounts):
@@ -12,6 +12,47 @@ def payload(owner, amounts):
 
 
 class WalletTests(unittest.TestCase):
+    def test_overloaded_registry_restarts_the_entire_snapshot(self):
+        calls, waits = [], []
+        partial = dict(name='Partial', address='11111111111111111111111111111111', code='F1')
+        complete = dict(partial, name='Complete')
+        def read_items():
+            calls.append(1)
+            if len(calls) == 1:
+                yield partial['address'], partial
+                raise RuntimeError('overloaded')
+            yield complete['address'], complete
+        with self.assertLogs(level='WARNING'):
+            rows = registry_wallets_with_retry(read_items, (RuntimeError,), sleep=waits.append)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(waits, [1])
+        self.assertEqual([row['name'] for row in rows if row['address'] == partial['address']], ['Complete'])
+
+    def test_registry_retry_exhaustion_and_other_errors_still_fail(self):
+        calls, waits = [], []
+        def overloaded():
+            calls.append(1)
+            raise RuntimeError('overloaded')
+        with self.assertLogs(level='WARNING'), self.assertRaisesRegex(RuntimeError, 'overloaded'):
+            registry_wallets_with_retry(overloaded, (RuntimeError,), sleep=waits.append)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(waits, [1, 2, 4])
+        def unavailable():
+            raise PermissionError('access denied')
+        with self.assertRaises(PermissionError):
+            registry_wallets_with_retry(unavailable, (RuntimeError,), sleep=waits.append)
+        self.assertEqual(waits, [1, 2, 4])
+
+    def test_registry_validation_errors_are_not_retried(self):
+        calls, waits = [], []
+        def invalid():
+            calls.append(1)
+            return [('invalid', {'name': 'Invalid'})]
+        with self.assertRaises(ValueError):
+            registry_wallets_with_retry(invalid, (RuntimeError,), sleep=waits.append)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(waits, [])
+
     def test_balances(self):
         self.assertEqual(positive_mints(payload('owner', [('A', '0'), ('B', '1'), ('B', '99')]), 'owner'), {'B'})
         with self.assertRaises(ValueError):

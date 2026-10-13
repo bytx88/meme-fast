@@ -92,6 +92,8 @@ Watchlist fetches saved Ethereum contracts through the existing GeckoTerminal pr
 
 ## Followed wallets
 
+The scheduled collector retries a Modal registry-overload error up to three times after 1, 2 and 4 seconds. Every attempt reads a complete new registry snapshot before holdings collection begins. A persistent overload still fails visibly; unrelated errors are not retried. Successful runs log sampled and available wallet counts.
+
 `/admin.html` shows the tracked-wallet registry, class legend, check status, check/attempt times, and last observed positive token-balance count, with name/address search and class filtering. An invisible footer link after Terms opens it; the link has no visible text or hover effect. It has no sitemap entry and requests no indexing. It is an unlisted page without login protection. Add wallet saves a name, validated Solana address and class to the durable Modal tracked-wallet registry; duplicate addresses are rejected. Added wallets survive deployments and join the next scheduled holdings collection. Refresh status reads the shared report; scheduled holdings collection still runs every five minutes.
 
 Tweet coin cards, Snipe cards and Swing’s holder column show compact class icons for positive Solana token balances held by the addresses in `worker/followed-wallets.json`. F1/F2 mean Finder class 1/2, C1/C2 Clipper fast/slow, N1/N2 Nurture slow/fast, L1 Long holder, and Dev Developer. Names and classes are user-assigned; they do not establish identity or prove token creation. Hover or tap a badge to see matching wallets and check times. The expandable Followed wallets line lists coverage and the class legend.
