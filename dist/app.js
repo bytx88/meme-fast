@@ -19,6 +19,7 @@ import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 import {createCandleHistory} from './candle-history.mjs';
 import {renderCandleHistory} from './candle-view.mjs';
 import {readFlowWindow,saveFlowWindow} from './flow-preferences.mjs';
+import {SMART_WALLETS,hasSmartGroup,smartWalletTrades} from './smart-wallets.mjs';
 const flowCache=createFlowCache();
 const flowHistory=createFlowHistory();
 const renderTape=setupTape();
@@ -44,6 +45,7 @@ function renderRecentContracts(){
 }
 const state={token:{address:'',network:'',symbol:DEFAULT_INSPECT_QUERY,name:'Bitcoin / US Dollar'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.historyTrades=[];
+state.smart=false;
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
@@ -79,7 +81,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades;return {tokens,pools,listings,trades:scopeTrades(trades,tokens,state.scope),loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=hasSmartGroup(tokens),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -121,9 +123,17 @@ async function load(){
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=false;$('charts').setAttribute('aria-busy','false')}}
 }
 function emptyRow(text){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.className='table-empty';td.textContent=text;tr.append(td);return tr}
-function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
+function currentSummary(){if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,walletMode:view.smartActive?"smart":"all",selectedWallets:view.smartActive?SMART_WALLETS:[],windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`${view.smartActive?"Smart*: exact sender matches against 9 manually selected wallets; ":""}Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
+  if(!view.smartSupported)state.smart=false;
+  $('smart-toggle').disabled=!view.smartSupported;
+  $('smart-toggle').setAttribute('aria-pressed',String(view.smartActive));
+  $('smart-toggle').title=view.smartSupported?'Filter to the 9 manually selected HOOKED wallets':'Smart* test group is available for the HOOKED Solana contract only';
+  $('smart-group').hidden=!view.smartActive;
+  const sampleCount=summarize(view.allTrades,state.minutes,now).rows.length;
+  $('smart-status').textContent=`${new Set(s.rows.map(row=>row.wallet)).size} / ${SMART_WALLETS.length} wallets observed · ${s.rows.length} matching swaps / ${sampleCount} sampled in this window`;
+  document.querySelector('.flow-summary').setAttribute('aria-label',view.smartActive?'Smart wallet observed flow in selected window':'Observed flow in selected window');
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
   $('quick-net').textContent=available?wholeMoney.format(s.net):'—';$('quick-net').dataset.tone=available?(s.net<0?'sell':'buy'):'none';
   $('quick-buy').textContent=available?wholeMoney.format(s.buy):'—';$('quick-sell').textContent=available?wholeMoney.format(s.sell):'—';$('quick-steps').textContent=available?s.rows.length.toLocaleString():'—';
@@ -157,7 +167,7 @@ function render(){
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
-  const historical=state.minutes===7200&&single;
+  const historical=state.minutes===7200&&single&&!view.smartActive;
   const legend=document.querySelector('.timeline-legend');
   if(historical){
     legend.innerHTML='<span><i class="dot" style="background:#b6a1ff"></i>Total volume</span><span class="mc-value"><i class="mc-key" aria-hidden="true"></i>Est. market cap</span>';
@@ -166,12 +176,28 @@ function render(){
     renderMCDetail(s.rows,mc,false,loaded,state.busy,history);
   }else{
     renderMCDetail(s.rows,mc,!single,loaded,state.busy);
-    if(!document.getElementById('mc-legend'))legend.innerHTML=originalLegend;
-    $('timeline-title').textContent='Flow trend';
+    legend.innerHTML=view.smartActive?originalLegend.replace('Est. market cap','MC at Smart* swaps'):originalLegend;
+    $('timeline-title').textContent=view.smartActive?'Smart* flow trend':'Flow trend';
     renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
     if(state.minutes===7200)$('window-coverage').textContent='Select one listing for candle history · combined flow is observed swaps only';
   }
-  renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes,state.busy);
+  renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes+view.smartActive,state.busy);
+  if(view.smartActive){
+    $('window-coverage').hidden=state.minutes!==7200;
+    $('window-coverage').textContent='Smart* 5D · observed and browser-retained swaps only';
+    const note='Smart* matches the exact transaction sender against 9 manually supplied wallets. This capped pool sample can miss wallet trades and router-attributed activity. The MC line is estimated token market cap at matching swaps, not wallet balance or holdings. No matches does not establish no activity.';
+    $('coverage-tooltip').textContent+=` ${note}`;
+    document.querySelector('.coverage-help summary').title=$('coverage-tooltip').textContent;
+    if(loaded&&!available){
+      $('empty-title').textContent='No matching Smart* swaps in this window';
+      $('empty-detail').textContent=`${sampleCount} swaps sampled in this window; none matched these nine wallet senders. Their activity may be outside the returned sample. This is not evidence of zero buying, selling or holdings.`;
+      $('net-value').textContent='No matches';$('net-label').textContent='Smart* sample';$('swap-count').textContent='9 selected wallets';
+      $('net-value').title='No matching swaps in the returned sample';
+      $('donut').setAttribute('aria-label','No matching Smart wallet swaps in the sample; wallet activity is unknown.');
+      $('timeline').textContent='No matching Smart* swaps in the returned sample.';
+      $('timeline').classList.add('smart-empty');
+    }else $('timeline').classList.remove('smart-empty');
+  }else $('timeline').classList.remove('smart-empty');
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
   if(loaded&&(state.cached||state.busy||state.loadError)){
     const stamp=easternDateTime(state.fetched);
@@ -179,6 +205,8 @@ function render(){
   }
 
 }
+for(const address of SMART_WALLETS){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}
+$('smart-toggle').addEventListener('click',()=>{if(!viewData().smartSupported)return;state.smart=!state.smart;render()});
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,nameForAddress:address=>{
