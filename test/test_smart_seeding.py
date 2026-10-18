@@ -80,12 +80,13 @@ class RankingTests(unittest.TestCase):
             ledger=dict(events=[event(i,0,stamp=NOW-i) for i in range(25)])
             plan=seeds.prepare(folder,REGISTRY,ledger,[],{},NOW)
             self.assertEqual(len(plan['ranking']),20)
-            self.assertEqual(len(plan['tokens']),20)
+            self.assertEqual(len(plan['tokens']),21)  # existing HOOKED archive also gets pause monitoring
+            self.assertEqual(sum(r['auto'] for r in plan['tokens'].values()),20)
             self.assertEqual(plan['candidateCount'],25)
             job=seeds.choose_job(plan,[],NOW)
             self.assertEqual(job['token'],plan['ranking'][0]['token'])
             later=seeds.prepare(folder,REGISTRY,dict(events=[]),[],{},NOW+seeds.DAY+1)
-            self.assertEqual(len(later['tokens']),20)
+            self.assertEqual(len(later['tokens']),21)
             self.assertFalse(any(r['auto'] for r in later['tokens'].values()))
 
 

@@ -200,7 +200,7 @@ def observe(row, report, now):
 
 
 def prepare(directory, registry, ledger, watches, holdings, now):
-    from worker.smart_wallets import make_cohort, read_report
+    from worker.smart_wallets import make_cohort, read_report, group
     plan = load(directory)
     # Only exact membership reports can supply holder-growth ranking inputs.
     reports = {}
@@ -216,7 +216,8 @@ def prepare(directory, registry, ledger, watches, holdings, now):
     recent = {r['token']: r for r in ranked}
     visits = {r['token'] for r in watches if 0 <= now - r.get('requestedAt', 0) < DAY and valid_token(r.get('token'), include_quotes=True)}
     visit_times = {token: max(r.get('requestedAt', 0) for r in watches if r.get('token') == token) for token in visits}
-    for token in set(active) | visits:
+    # The pre-existing archived HOOKED collector must also obey full-universe dormancy.
+    for token in set(active) | visits | {group()['token']}:
         try:
             ensure_token(plan, token, make_cohort(token, registry)['groupId'], now)
         except ValueError:
