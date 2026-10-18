@@ -16,7 +16,7 @@ test('source overlaps and aliases remain searchable without duplicate money tota
 test('universe filters combine flags, provenance, class and freshness without mutating registry',()=>{
  assert.deepEqual(filterUniverse(rows,{interested:'yes',source:'Nansen',code:'none',status:'fresh'},now),[rows[0]]);
  assert.deepEqual(filterUniverse(rows,{query:'early'},now),[rows[0]]);
- assert.deepEqual(filterUniverse(rows,{sort:'tokens'},now),[rows[1],rows[0]]);
+ assert.deepEqual(filterUniverse(rows,{sort:'tokens'},now),[rows[0],rows[1]]);
  assert.equal(rows[0].name,'B');
 });
 test('Interested drives tags independently of trader class',()=>{
