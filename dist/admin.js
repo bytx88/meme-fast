@@ -1,10 +1,11 @@
+import {createSmartness} from './smartness.mjs';
 import {CLASSES,walletState} from './followed-wallets.mjs';
-import {filterUniverse,rankActivity} from './wallet-universe.mjs';
+import {filterUniverse} from './wallet-universe.mjs';
 const $=id=>document.getElementById(id),short=v=>v.slice(0,7)+'…'+v.slice(-5);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time=v=>Number.isFinite(v)&&v>0?new Date(v).toLocaleString():'—';
-let report=null,failed=false,loading=false,editing=null,analyzing=false;
-const analyses=new Map();
+let report=null,failed=false,loading=false,editing=null;
+const smartness=createSmartness({registry:()=>report?.wallets||[]});
 async function api(path,options={}){
  const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(120000),...options});
  const value=await response.json();if(!response.ok)throw new Error(value.detail||'Request failed. Try again.');return value;
@@ -19,10 +20,7 @@ function render(){
   const address=esc(row.address),state=failed?'stale':walletState(row);
   return `<tr><td><strong>${esc(row.name)}</strong><a href="https://solscan.io/account/${address}" target="_blank" rel="noopener noreferrer"><code title="${address}">${esc(short(row.address))} ↗</code></a><small>${esc(row.notes)}</small></td><td><button type="button" data-interest="${address}" aria-pressed="${row.interested}" aria-label="Interested: ${esc(row.name)}">${row.interested?'★ Interested':'☆ Flag Interested'}</button></td><td>${esc(row.source)}<small>${esc(row.label||'No source label')}</small>${row.discoveryToken?`<a class="discovery-token" href="./order-flow.html?query=${encodeURIComponent(row.discoveryToken)}">Discovery token ↗</a>`:''}</td><td>${row.code?`<b class="admin-class">${esc(row.code)}</b><small>${esc(CLASSES[row.code])}</small>`:'Unclassified'}</td><td><span class="admin-state ${state}">${state==='fresh'?'Fresh':state==='stale'?'Stale':'Awaiting / unavailable'}</span><small>${esc(time(row.checkedAt))}</small></td><td>${row.checkedAt?row.mints.length:'—'}</td><td><button type="button" data-edit="${address}">Edit</button> <button type="button" data-analyze="${address}">Analyze</button></td></tr>`;
  }).join(''):`<tr><td colspan="7" class="admin-empty">${report?'No wallets match these filters.':failed?'Wallet universe unavailable.':'Loading…'}</td></tr>`;
- const selected=$('activity-wallet').value;
- $('activity-wallet').innerHTML='<option value="">Choose a wallet</option>'+rows.map(row=>`<option value="${esc(row.address)}">${esc(row.name)}${row.interested?' · Interested':''}</option>`).join('');
- if(rows.some(r=>r.address===selected))$('activity-wallet').value=selected;
- $('analyze-wallet').disabled=analyzing||!rows.length;
+ smartness.render();
 }
 async function refresh(){
  if(loading)return;loading=true;$('refresh').disabled=true;
@@ -35,19 +33,6 @@ function editor(row=null){
  $('wallet-address').readOnly=Boolean(row);$('wallet-interested').checked=Boolean(row?.interested);$('add-wallet-status').textContent='Interested is independent of source and class. Holdings appear after a scheduled check.';
  $('add-wallet-dialog').showModal();$('wallet-name').focus();
 }
-function renderActivity(){
- const names=new Map((report?.wallets||[]).map(row=>[row.address,row.name]));
- const ranked=rankActivity([...analyses.values()]);
- $('top-wallets').innerHTML=ranked.map((row,i)=>`<tr><td>${row.checked?i+1:'—'}</td><td>${esc(names.get(row.address)||short(row.address))}</td><td>${row.checked?row.swaps:'—'}</td><td>${row.checked?row.other:'—'}</td><td>${row.checked} / ${row.returned}</td><td>${row.status!=='ok'?'Partial / unavailable':row.checked?'Sample loaded':'No recent transactions in sample'}<small>${esc(time(row.checkedAt))}</small></td></tr>`).join('');
- const events=ranked.flatMap(row=>row.events.map(event=>({...event,address:row.address}))).sort((a,b)=>b.time-a.time);
- $('activity-events').innerHTML=events.length?events.map(row=>`<tr><td>${esc(time(row.time))}</td><td>${esc(names.get(row.address)||short(row.address))}</td><td><a href="./order-flow.html?query=${encodeURIComponent(row.mint)}" title="${esc(row.mint)}">${esc(short(row.mint))} ↗</a></td><td>${esc(row.quantity)}</td><td>${esc(row.kind)}</td><td><a href="https://solscan.io/tx/${esc(row.signature)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></td></tr>`).join(''):'<tr><td colspan="6" class="admin-empty">No token acquisitions found in the inspected sample. This does not establish no buying.</td></tr>';
-}
-async function analyze(address){
- if(analyzing||!address)return;analyzing=true;$('activity-wallet').value=address;$('analyze-wallet').disabled=true;$('activity-status').textContent='Reading public Solana transaction history…';
- try{const next=await api('/api/wallet-activity?address='+encodeURIComponent(address));if(!Array.isArray(next.events))throw new Error();analyses.set(address,next);renderActivity();$('activity-status').textContent=`${next.checked} transactions inspected / ${next.returned} signatures returned. ${next.error||''} ${next.coverage}`}
- catch(error){$('activity-status').textContent=error.message||'Activity unavailable. Try again.'}
- finally{analyzing=false;$('analyze-wallet').disabled=false}
-}
 for(const id of ['class-filter','wallet-code'])$(id).insertAdjacentHTML('beforeend',Object.entries(CLASSES).filter(([code])=>code!=='I').map(([code,label])=>`<option value="${code}">${code} · ${esc(label)}</option>`).join(''));
 for(const id of ['query','source-filter','interest-filter','class-filter','state-filter','sort'])$(id).addEventListener(id==='query'?'input':'change',render);
 $('reset-filters').addEventListener('click',()=>{for(const id of ['query','source-filter','interest-filter','class-filter','state-filter'])$(id).value='';$('sort').value='name';render()});
@@ -57,7 +42,7 @@ $('wallets').addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
  const address=button.dataset.edit||button.dataset.interest||button.dataset.analyze,row=report?.wallets.find(r=>r.address===address);if(!row)return;
  if(button.dataset.edit){editor(row);return}
- if(button.dataset.analyze){$('activity-form').scrollIntoView({behavior:'smooth',block:'center'});void analyze(address);return}
+ if(button.dataset.analyze){smartness.selectWallet(address);return}
  button.disabled=true;
  try{const saved=await api('/api/wallet-universe',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({address,interested:!row.interested})});Object.assign(row,saved.wallet);render();await refresh()}
  catch(error){$('status').textContent=error.message;button.disabled=false}
@@ -69,5 +54,5 @@ $('add-wallet-form').addEventListener('submit',async event=>{
  catch(error){$('add-wallet-status').textContent=error.message}
  finally{$('save-wallet').disabled=false}
 });
-$('activity-form').addEventListener('submit',event=>{event.preventDefault();void analyze($('activity-wallet').value)});
+
 void refresh();setInterval(()=>{if(!document.hidden)void refresh()},60000);

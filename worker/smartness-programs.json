@@ -1,0 +1,113 @@
+[
+  {
+    "name": "Pump",
+    "program": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+    "instructions": {
+      "66063d1201daebea": {
+        "name": "buy",
+        "side": "buy"
+      },
+      "38fc74089edfcd5f": {
+        "name": "buy_exact_sol_in",
+        "side": "buy"
+      },
+      "b817ee6167c5d33d": {
+        "name": "buy_v2",
+        "side": "buy"
+      },
+      "33e685a4017f83ad": {
+        "name": "sell",
+        "side": "sell"
+      },
+      "5df6823ce7e940b2": {
+        "name": "sell_v2",
+        "side": "sell"
+      },
+      "c2ab1c46684d5b2f": {
+        "name": "buy_exact_quote_in_v2",
+        "side": "buy"
+      },
+      "e1f7501ed5b38488": {
+        "name": "buy_exact_quote_in_v3",
+        "side": "buy"
+      },
+      "07051dc4f5176550": {
+        "name": "buy_v3",
+        "side": "buy"
+      },
+      "1c92de7726c469d5": {
+        "name": "sell_v3",
+        "side": "sell"
+      }
+    },
+    "source": "https://raw.githubusercontent.com/pump-fun/pump-public-docs/main/idl/pump.json"
+  },
+  {
+    "name": "PumpSwap",
+    "program": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+    "instructions": {
+      "66063d1201daebea": {
+        "name": "buy",
+        "side": "buy"
+      },
+      "c62e1552b4d9e870": {
+        "name": "buy_exact_quote_in",
+        "side": "buy"
+      },
+      "b817ee6167c5d33d": {
+        "name": "buy_v2",
+        "side": "buy"
+      },
+      "33e685a4017f83ad": {
+        "name": "sell",
+        "side": "sell"
+      },
+      "5df6823ce7e940b2": {
+        "name": "sell_v2",
+        "side": "sell"
+      },
+      "c2ab1c46684d5b2f": {
+        "name": "buy_exact_quote_in_v2",
+        "side": "buy"
+      }
+    },
+    "source": "https://raw.githubusercontent.com/pump-fun/pump-public-docs/main/idl/pump_amm.json"
+  },
+  {
+    "name": "Jupiter",
+    "program": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    "instructions": {
+      "e517cb977ae3ad2a": {
+        "name": "route",
+        "side": null
+      },
+      "96564774a75d0e68": {
+        "name": "route_with_token_ledger",
+        "side": null
+      },
+      "c1209b3341d69c81": {
+        "name": "shared_accounts_route",
+        "side": null
+      },
+      "e6798f50779f6aaa": {
+        "name": "shared_accounts_route_with_token_ledger",
+        "side": null
+      },
+      "b0d169a89a7d453e": {
+        "name": "shared_accounts_exact_out_route",
+        "side": null
+      },
+      "bb64facc31c4af14": {
+        "name": "route_v2",
+        "side": null,
+        "evidence": "https://solscan.io/tx/2qRCUEtwbybyWdtgY3zPXpAprmq2dzqLcfvEv8VTLpWC9TWZQ1MoDefgamNSsrDs9ddmQy7Ye8RvS7RfuGKBCXVd"
+      },
+      "d19853937cfed8e9": {
+        "name": "shared_accounts_route_v2",
+        "side": null,
+        "evidence": "https://solscan.io/tx/214DJJzBJKFKRfUE677ay3wgQAtW1rt8reXC6gsQKemdc6jm8VnsnLimXha4STJn8bRh14rodDPETYj8rEBsALNH"
+      }
+    },
+    "source": "https://raw.githubusercontent.com/jup-ag/jupiter-cpi/main/idl.json"
+  }
+]

@@ -44,6 +44,7 @@ wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", cre
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
+smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
 
 
 @app.function(timeout=180, max_containers=1,
@@ -67,6 +68,42 @@ def collect_smart_wallets(backfill=None):
     report = collect('/smart')
     smart_volume.commit()
     return report
+
+
+@app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume})
+@modal.concurrent(max_inputs=1)
+def collect_smartness(evidence=None):
+    import sys
+    import time
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.smartness import collect, read_report, write_report
+    from worker.wallet_universe import universe
+    from worker.followed_wallets import registry_wallets_with_retry
+    from modal.exception import ResourceExhaustedError
+    smartness_volume.reload()
+    report = read_report('/smartness')
+    now = int(time.time() * 1000)
+    registry = universe(registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,)), [value for _, value in wallet_universe_registry.items()])
+    if evidence is not None:
+        from worker.smartness import ingest_evidence
+        report, imported = ingest_evidence('/smartness', registry, evidence)
+        smartness_volume.commit()
+        return {'imported': imported, 'events': len(report['events'])}
+    if report.get('attemptedAt') and 0 <= now - report['attemptedAt'] < 240000:
+        return {'attemptedAt': report['attemptedAt'], 'events': len(report['events'])}
+    report.update(scanning=True, scanStartedAt=now)
+    write_report('/smartness', report)
+    smartness_volume.commit()
+    try:
+        report = collect('/smartness', registry)
+    finally:
+        # A crash or provider failure preserves the existing ledger.
+        final = read_report('/smartness')
+        final['scanning'] = False
+        write_report('/smartness', final)
+        smartness_volume.commit()
+    return {'attemptedAt': report.get('attemptedAt'), 'events': len(report['events'])}
 
 
 @app.function(timeout=100, max_containers=1,
@@ -161,6 +198,10 @@ def collect_followed_wallets():
         collect_smart_wallets.spawn()
     except Exception:
         print('Smart wallet dispatch unavailable; on-visit collection remains available')
+    try:
+        collect_smartness.spawn()
+    except Exception:
+        print('Smartness dispatch unavailable; manual trade scan remains available')
     from modal.exception import ResourceExhaustedError
     from worker.followed_wallets import collect, registry_wallets_with_retry
     registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
@@ -191,7 +232,7 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
-@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume})
+@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -290,6 +331,32 @@ def web():
             except (OSError, ValueError):
                 holdings = {}
         return report(registry, holdings)
+
+    smartness_lock = asyncio.Lock()
+
+    async def smartness_report():
+        from worker.smartness import read_report, public_report
+        registry = await universe_registry()
+        async with smartness_lock:
+            await smartness_volume.reload.aio()
+            report = read_report('/smartness')
+        return public_report(report, registry)
+
+    @web_app.get('/api/smartness')
+    async def get_smartness():
+        return JSONResponse(await smartness_report(), headers={'cache-control':'no-store'})
+
+    @web_app.post('/api/smartness/refresh')
+    async def refresh_smartness():
+        import time
+        current = await smartness_report()
+        if current.get('scanning'):
+            return JSONResponse({'requested':True,'startedAt':current.get('scanStartedAt')}, status_code=202, headers={'cache-control':'no-store'})
+        if current.get('attemptedAt') and not current.get('scanning') and 0 <= time.time() * 1000 - current['attemptedAt'] < 240000:
+            return JSONResponse({'requested':False}, headers={'cache-control':'no-store'})
+        # The single writer also enforces a four-minute collection cooldown.
+        await collect_smartness.spawn.aio()
+        return JSONResponse({'requested':True,'startedAt':int(time.time()*1000)}, status_code=202, headers={'cache-control':'no-store'})
 
     @web_app.get('/api/wallet-universe')
     async def get_wallet_universe():

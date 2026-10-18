@@ -39,7 +39,11 @@ const market=createMarketProxy();
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const base=path.resolve('dist');
-http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/wallet-universe'||url.pathname==='/api/wallet-activity'){
+http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/smartness'||url.pathname==='/api/smartness/refresh'){
+ if(url.pathname.endsWith('/refresh')&&req.method!=='POST'){res.writeHead(405).end();return}
+ if(url.pathname.endsWith('/refresh')){if(process.env.MEME_COLLECTOR_DISABLED!=='1')runFile(python,['-m','worker.smartness_preview','collect'],{timeout:220000,maxBuffer:16*1024*1024}).catch(()=>{});res.writeHead(202,{'content-type':'application/json'}).end(JSON.stringify({requested:process.env.MEME_COLLECTOR_DISABLED!=='1'}));return}
+ const result=await runFile(python,['-m','worker.smartness_preview'],{timeout:10000,maxBuffer:16*1024*1024});res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(result.stdout);return
+ }if(url.pathname==='/api/wallet-universe'||url.pathname==='/api/wallet-activity'){
  let value=null,method=req.method;if(url.pathname==='/api/wallet-activity'){method='ACTIVITY';value=url.searchParams.get('address')}
  else if(!['GET','POST','PATCH'].includes(method)){res.writeHead(405).end();return}
  else if(method!=='GET'){let body='';for await(const chunk of req){body+=chunk;if(body.length>4000){res.writeHead(400).end();return}}try{value=JSON.parse(body)}catch{res.writeHead(400).end();return}}
