@@ -1,3 +1,4 @@
+import {moneyStatus} from './wallet-universe.mjs';
 import {setupMCDetail} from './mc-detail-view.mjs';
 import {setupClipboardAddress} from './clipboard-address.mjs';
 import {canonical,listingKey,uniqueListings,scopeTrades,summarize,sampleAvailability,formatUSD,SAMPLE_LIMITS} from './core.mjs';
@@ -83,7 +84,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=tokens.length===1&&tokens[0].network==="solana"&&Boolean(state.universe),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades,(state.universe?.wallets||[]).map(row=>row.address)):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=tokens.length===1&&tokens[0].network==="solana"&&Boolean(state.universe),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades,(state.universe?.wallets||[]).filter(row=>moneyStatus(row)==='smart').map(row=>row.address)):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -144,9 +145,9 @@ function render(){
   $('balance-cohort').querySelector('[value=legacy]').disabled=!legacy;
   if(!legacy&&$('balance-cohort').value==='legacy')$('balance-cohort').value='universe';
   const balanceScope=$('balance-cohort').value;
-  const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>balanceScope!=='interested'||row.interested).map(row=>row.address).sort();
-  $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?`${balanceWallets.length} selected wallets`:`${state.universe.wallets.length} universe wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
-  const groupWallets=state.measure==='balance'?balanceWallets:(state.universe?.wallets||[]).map(row=>row.address);
+  const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>balanceScope==='interested'?row.interested:moneyStatus(row)==='smart').map(row=>row.address).sort();
+  $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?`${balanceWallets.length} selected wallets`:`${state.universe.wallets.filter(row=>moneyStatus(row)==='smart').length} Smart wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
+  const groupWallets=state.measure==='balance'?balanceWallets:(state.universe?.wallets||[]).filter(row=>moneyStatus(row)==='smart').map(row=>row.address);
   $('smart-group-title').textContent=state.measure==='balance'?`Smart* · ${groupWallets.length} wallets · ${balanceScope==='legacy'?'original group':balanceScope==='interested'?'Interested Parties':'universe'}`:`Smart* · ${groupWallets.length} universe wallets`;
   if($('smart-wallet-list').dataset.group!==groupWallets.join(',')){$('smart-wallet-list').dataset.group=groupWallets.join(',');$('smart-wallet-list').replaceChildren();for(const address of groupWallets){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}}
   if(state.measure==='flow'&&view.smartActive)$('smart-status').textContent=state.universeStale?'Registry refresh failed · using last loaded membership':'Filtering sampled swaps by sender';

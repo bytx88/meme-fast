@@ -44,7 +44,7 @@ class PublicRpcTests(unittest.TestCase):
 class BalanceExpansionTests(unittest.TestCase):
     def setUp(self):
         self.legacy = balances.group()
-        self.registry = [dict(row, interested=index == 0) for index, row in enumerate(self.legacy['wallets'])]
+        self.registry = [dict(row, source='Nansen', interested=index == 0) for index, row in enumerate(self.legacy['wallets'])]
         self.token = 'So11111111111111111111111111111111111111112'
 
     def test_membership_is_stable_under_sort_and_separate_across_tokens_and_groups(self):

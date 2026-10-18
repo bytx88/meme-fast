@@ -3,11 +3,39 @@ import unittest
 import tempfile
 from worker.followed_wallets import collect
 from pathlib import Path
-from worker.wallet_universe import universe, report, validate_entry
+from worker.wallet_universe import universe, report, validate_entry, merge_import, smart_status
 from worker.followed_wallets import registry_wallets
 from worker.wallet_activity import acquisitions, analyze
 
 class UniverseTests(unittest.TestCase):
+    def test_import_priority_preserves_interested_identity_and_every_source(self):
+        base=dict(registry_wallets()[0],source='Manual',interested=True,label='Interested Party')
+        uploaded=dict(base,name='lower priority alias',source='Fomo',sources=['Track V2','Fomo'],code='',interested=False)
+        merged=merge_import(base,uploaded)
+        self.assertEqual((merged['name'],merged['code'],merged['interested']),(base['name'],base['code'],True))
+        self.assertEqual(set(merged['sources']),{'Manual','Fomo','Track V2'})
+        self.assertIn('lower priority alias',merged['aliases'])
+        self.assertEqual(smart_status(merged),'non-smart')
+        nansen=dict(base,name='Nansen name',code='',source='Nansen',interested=False)
+        self.assertEqual(merge_import(nansen,uploaded)['name'],'Nansen name')
+        self.assertEqual(merge_import(uploaded,nansen)['name'],'Nansen name')
+        track=dict(nansen,name='Track name',source='Track V2')
+        self.assertEqual(merge_import(track,uploaded)['name'],'lower priority alias')
+
+    def test_money_class_is_independent_of_interest_and_source(self):
+        for code in ('N1','N2','C1','C2','S1','S2'):
+            self.assertEqual(smart_status(dict(code=code,source='Nansen',smartStatus='smart',interested=True)),'non-smart')
+        for code in ('L1','L2','F1','F2'):
+            self.assertEqual(smart_status(dict(code=code,source='Track V2',smartStatus='unclassified')),'smart')
+        self.assertEqual(smart_status(dict(source='Track V2')),'unclassified')
+        self.assertEqual(smart_status(dict(source='Track V2',sources=['Fomo','Track V2'])),'smart')
+        self.assertEqual(smart_status(dict(source='Manual',interested=True)),'unclassified')
+        from worker.smart_wallets import make_cohort, group
+        rows=universe(registry_wallets())
+        smart=make_cohort(group()['token'],rows,'universe')
+        self.assertEqual({r['address'] for r in smart['wallets']},{r['address'] for r in rows if smart_status(r)=='smart'})
+        self.assertEqual(len(make_cohort(group()['token'],rows,'interested')['wallets']),13)
+
     def test_seeds_and_interest_are_independent(self):
         rows=universe(registry_wallets())
         self.assertEqual(len(rows),22)

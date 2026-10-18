@@ -1,7 +1,7 @@
 import {formatSmartNumber} from './smart-number.mjs';
 import {filterUniverse} from './wallet-universe.mjs';
-export function summarizeSmartness(report,registry,{minutes=1440,quote='SOL',interested='',source='',wallet='',token='',rank='buy'}={},now=Date.now()){
- const members=filterUniverse(registry,{interested,source}).filter(row=>!wallet||row.address===wallet),known=new Map(members.map(row=>[row.address,row]));
+export function summarizeSmartness(report,registry,{minutes=1440,quote='SOL',interested='',source='',money='',wallet='',token='',rank='buy'}={},now=Date.now()){
+ const members=filterUniverse(registry,{interested,source,money}).filter(row=>!wallet||row.address===wallet),known=new Map(members.map(row=>[row.address,row]));
  const seen=new Set(),events=[];
  for(const event of report?.events||[]){
   const amount=Number(event.quoteAmount),quantity=Number(event.quantity);
@@ -32,7 +32,7 @@ export function createSmartness({registry=()=>[]}={}){
  function render(){
   const quote=$('smartness-quote').value;
   const rows=registry().length?registry():report?.wallets||[];
-  const result=summarizeSmartness(report,rows,{minutes:Number($('smartness-window').value),quote,interested:$('smartness-interest').value,source:$('smartness-source').value,wallet,token,rank:$('smartness-rank').value});
+  const result=summarizeSmartness(report,rows,{minutes:Number($('smartness-window').value),quote,interested:$('smartness-interest').value,source:$('smartness-source').value,money:$('smartness-money').value,wallet,token,rank:$('smartness-rank').value});
   const scans=new Map((report?.wallets||[]).map(row=>[row.address,row.scan]));
   const scanned=rows.filter(row=>scans.get(row.address)?.checkedAt).length;
   const pending=report?.scanning||(requested&&(!report?.attemptedAt||report.attemptedAt<requested-5000));
@@ -68,7 +68,7 @@ export function createSmartness({registry=()=>[]}={}){
   try{const response=await fetch('/api/smartness/refresh',{method:'POST',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error();const result=await response.json();if(!result.requested)requested=0;else if(result.startedAt)requested=result.startedAt;await refresh()}
   catch{requested=0;error='Could not request a scan. Try again.';render()}
  });
- for(const id of ['smartness-window','smartness-quote','smartness-interest','smartness-source','smartness-rank'])$(id).addEventListener('change',render);
+ for(const id of ['smartness-window','smartness-quote','smartness-interest','smartness-source','smartness-money','smartness-rank'])$(id).addEventListener('change',render);
  document.querySelectorAll('[data-smartness-tab]').forEach(button=>button.addEventListener('click',()=>panel(button.dataset.smartnessTab)));
  document.querySelector('.smartness-tabs').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const buttons=[...document.querySelectorAll('[data-smartness-tab]')],index=buttons.indexOf(event.target);const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowLeft'?buttons.length-1:1))%buttons.length;buttons[next].click();buttons[next].focus()});
  $('smartness-analysis').addEventListener('click',event=>{const button=event.target.closest('[data-flow-wallet],[data-flow-token]');if(!button)return;if(button.dataset.flowWallet){wallet=button.dataset.flowWallet;token='';panel('tokens')}else{token=button.dataset.flowToken;wallet='';panel('wallets')}});

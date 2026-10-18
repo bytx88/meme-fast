@@ -31,8 +31,9 @@ def make_cohort(token, registry, scope='universe'):
         return cohort
     if scope not in ('universe', 'interested'):
         raise ValueError('Choose a supported balance group')
+    from worker.wallet_universe import smart_status
     wallets = sorted((dict(name=row['name'], address=row['address']) for row in registry
-                      if scope != 'interested' or row.get('interested')), key=lambda row: row['address'])
+                      if (row.get('interested') if scope == 'interested' else smart_status(row) == 'smart')), key=lambda row: row['address'])
     if not wallets or len(wallets) > 500:
         raise ValueError('Choose a group with 1 to 500 wallets')
     identity = json.dumps(['solana', token, [row['address'] for row in wallets]], separators=(',', ':'))
