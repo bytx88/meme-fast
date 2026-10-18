@@ -45,7 +45,7 @@ macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missin
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=180, max_containers=1,
+@app.function(timeout=180, max_containers=1,
               volumes={"/smart": smart_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets():
@@ -149,6 +149,12 @@ def collect_followed_wallets():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
+    # Share the existing five-minute dispatch slot; keep balance-history writes
+    # in their own single-writer function and Volume.
+    try:
+        collect_smart_wallets.spawn()
+    except Exception:
+        print('Smart wallet dispatch unavailable; on-visit collection remains available')
     from modal.exception import ResourceExhaustedError
     from worker.followed_wallets import collect, registry_wallets_with_retry
     registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
