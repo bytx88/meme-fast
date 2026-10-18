@@ -145,7 +145,7 @@ function render(){
   $('balance-cohort').querySelector('[value=legacy]').disabled=!legacy;
   if(!legacy&&$('balance-cohort').value==='legacy')$('balance-cohort').value='universe';
   const balanceScope=$('balance-cohort').value;
-  const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>balanceScope==='interested'?row.interested:moneyStatus(row)==='smart').map(row=>row.address).sort();
+  const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>moneyStatus(row)==='smart'&&(balanceScope!=='interested'||row.interested)).map(row=>row.address).sort();
   $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?`${balanceWallets.length} selected wallets`:`${state.universe.wallets.filter(row=>moneyStatus(row)==='smart').length} Smart wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
   const groupWallets=state.measure==='balance'?balanceWallets:(state.universe?.wallets||[]).filter(row=>moneyStatus(row)==='smart').map(row=>row.address);
   $('smart-group-title').textContent=state.measure==='balance'?`Smart* · ${groupWallets.length} wallets · ${balanceScope==='legacy'?'original group':balanceScope==='interested'?'Interested Parties':'universe'}`:`Smart* · ${groupWallets.length} universe wallets`;

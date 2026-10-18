@@ -34,7 +34,7 @@ class UniverseTests(unittest.TestCase):
         rows=universe(registry_wallets())
         smart=make_cohort(group()['token'],rows,'universe')
         self.assertEqual({r['address'] for r in smart['wallets']},{r['address'] for r in rows if smart_status(r)=='smart'})
-        self.assertEqual(len(make_cohort(group()['token'],rows,'interested')['wallets']),13)
+        self.assertEqual(len(make_cohort(group()['token'],rows,'interested')['wallets']),9)
 
     def test_seeds_and_interest_are_independent(self):
         rows=universe(registry_wallets())
