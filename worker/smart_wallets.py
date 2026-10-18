@@ -10,6 +10,7 @@ CONFIG = Path(__file__).with_name('smart-wallets.json')
 RETENTION_MS = 35 * 86400000
 MAX_SAMPLES = 11000
 CACHE_MS = 240000
+COLLECTION_MS = 45 * 60000
 
 
 def group():
@@ -95,6 +96,11 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
     previous = read_report(directory, cohort)
     at = now if now is not None else int(time.time() * 1000)
     prior = {row['address']: row for row in previous['wallets']}
+    rolling = len(cohort['wallets']) > 60
+    saved_cycle = previous.get('collection', {})
+    cycle_start = saved_cycle.get('startedAt', at)
+    if not rolling or not saved_cycle.get('inProgress') or not 0 <= at - cycle_start <= COLLECTION_MS:
+        cycle_start = at
     deadline = time.monotonic() + budget_seconds
     client = None
     if rpc is None:
@@ -102,11 +108,10 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
         import ssl
         import truststore
         client = httpx.Client(timeout=10, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+        from worker.public_rpc import public_rpc
+        public_read = public_rpc(client, pause=pause)
         def rpc(method, params):
-            response = client.post(os.getenv('SOLANA_WALLET_RPC_URL', 'https://api.mainnet-beta.solana.com'),
-                                   json={'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params})
-            response.raise_for_status()
-            return response.json()
+            return {'result': public_read(method, params)}
         def price_fetcher():
             response = client.get('https://api.dexscreener.com/token-pairs/v1/solana/' + cohort['token'])
             response.raise_for_status()
@@ -125,6 +130,10 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
             except Exception:
                 return dict(previous, status='unavailable', error='Mint supply unavailable; balance quantities were not interpreted.')
         for entry in sorted(cohort['wallets'], key=lambda row: prior.get(row['address'], {}).get('attemptedAt') or 0):
+            old = prior.get(entry['address'], {})
+            if rolling and old.get('status') == 'ok' and cycle_start <= (old.get('checkedAt') or 0) <= at and old.get('balanceRaw') is not None:
+                wallets.append(dict(entry, **{key: old.get(key) for key in ('balanceRaw', 'balance', 'checkedAt', 'attemptedAt', 'slot')}, status='ok'))
+                continue
             if time.monotonic() >= deadline:
                 old = prior.get(entry['address'], {})
                 wallets.append(dict(entry, balanceRaw=old.get('balanceRaw'), balance=old.get('balance'),
@@ -134,15 +143,14 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
                 raw, slot = token_balance(rpc('getTokenAccountsByOwner', [entry['address'],
                     {'mint': cohort['token']}, {'encoding': 'jsonParsed', 'commitment': 'confirmed'}]),
                     entry['address'], cohort['token'], cohort['decimals'])
+                checked_at = int(time.time() * 1000) if now is None else at
                 row = dict(entry, balanceRaw=str(raw), balance=raw / 10**cohort['decimals'],
-                           checkedAt=at, attemptedAt=at, slot=slot, status='ok')
+                           checkedAt=checked_at, attemptedAt=at, slot=slot, status='ok')
             except Exception:
                 old = prior.get(entry['address'], {})
                 row = dict(entry, balanceRaw=old.get('balanceRaw'), balance=old.get('balance'),
                            checkedAt=old.get('checkedAt'), attemptedAt=at, status='unavailable')
             wallets.append(row)
-            if client:
-                pause(1.2)
         try:
             payload = rpc('getTokenSupply', [cohort['token'], {'commitment': 'confirmed'}])
             value = payload['result']['value']
@@ -164,22 +172,30 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
     by_address = {row['address']: row for row in wallets}
     wallets = [by_address[row['address']] for row in cohort['wallets']]
     complete = all(row['status'] == 'ok' for row in wallets)
+    ended_at = int(time.time() * 1000) if now is None else at
     raw_total = sum(int(row['balanceRaw']) for row in wallets) if complete else None
-    point = dict(time=at, balanceRaw=str(raw_total) if complete else None,
+    point = dict(time=ended_at, balanceRaw=str(raw_total) if complete else None,
                  balance=raw_total / 10**cohort['decimals'] if complete else None,
                  checkedWallets=sum(row['status'] == 'ok' for row in wallets),
                  holders=sum(row['balance'] > 0 for row in wallets) if complete else None,
                  walletBalances=[row['balanceRaw'] if row['status'] == 'ok' else None for row in wallets],
                  priceUSD=price)
-    # Never construct a group total from a mixture of stale and fresh wallets.
+    if rolling:
+        point.update(source='rolling-collection', collectionStartedAt=cycle_start,
+                     collectionEndedAt=ended_at, totalWallets=len(wallets))
+    # Large cohorts finish a bounded collection cycle across calls. Never carry
+    # readings from an older cycle into a new aggregate or replace failed reads with zero.
     samples = [row for row in previous.get('samples', [])
                if at - RETENTION_MS <= row['time'] < at]
     samples.append(point)
-    report = dict(cohort, version=1, attemptedAt=at,
+    report = dict(cohort, version=1, attemptedAt=ended_at,
                   startedAt=previous.get('startedAt') or (previous['samples'][0]['time'] if previous['samples'] else at),
                   wallets=wallets, supply=supply,
                   status='ok' if complete else 'partial' if point['checkedWallets'] else 'unavailable',
                   samples=samples[-MAX_SAMPLES:], **({'backfill': previous['backfill']} if 'backfill' in previous else {}))
+    if rolling:
+        report['collection'] = dict(startedAt=cycle_start, inProgress=not complete,
+                                    checkedWallets=point['checkedWallets'], totalWallets=len(wallets), maxAgeMs=COLLECTION_MS)
     path = Path(directory) / (cohort['groupId'] + '.json')
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')

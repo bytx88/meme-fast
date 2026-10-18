@@ -17,6 +17,42 @@ def accounts(owner, mint, values):
 
 
 class SmartWalletTests(unittest.TestCase):
+    def test_large_group_finishes_across_bounded_calls_without_resampling_completed_wallets(self):
+        cohort=dict(self.cohort,groupId='large-test',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(70)])
+        elapsed=[0];reads=[]
+        def rpc(method,params):
+            if method=='getTokenSupply':return {'result':{'value':{'amount':'1000000000000','decimals':6}}}
+            reads.append(params[0]);elapsed[0]+=1
+            return accounts(params[0],cohort['token'],[1000000])
+        with patch.object(smart.time,'monotonic',side_effect=lambda:elapsed[0]):
+            for i in range(24):
+                report=smart.collect(self.directory.name,rpc=rpc,now=NOW+i*60000,cohort=cohort,budget_seconds=3)
+                if i==0:
+                    self.assertIsNone(report['samples'][-1]['balance'])
+                    self.assertEqual(report['samples'][-1]['checkedWallets'],3)
+            self.assertEqual(report['samples'][-1]['balance'],70)
+            self.assertEqual(len(reads),70)
+            self.assertFalse(report['collection']['inProgress'])
+            self.assertEqual(report['samples'][-1]['collectionStartedAt'],NOW)
+            next_cycle=smart.collect(self.directory.name,rpc=rpc,now=NOW+24*60000,cohort=cohort,budget_seconds=3)
+            self.assertIsNone(next_cycle['samples'][-1]['balance'])
+            self.assertEqual(next_cycle['samples'][-1]['checkedWallets'],3)
+            self.assertEqual(next_cycle['samples'][-2]['balance'],70)
+
+    def test_expired_cycle_cannot_supply_old_wallets_to_a_new_total(self):
+        cohort=dict(self.cohort,groupId='expiry-test',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(70)])
+        elapsed=[0]
+        def rpc(method,params):
+            if method=='getTokenSupply':return {'result':{'value':{'amount':'1000000000000','decimals':6}}}
+            elapsed[0]+=1
+            return accounts(params[0],cohort['token'],[1000000])
+        with patch.object(smart.time,'monotonic',side_effect=lambda:elapsed[0]):
+            smart.collect(self.directory.name,rpc=rpc,now=NOW,cohort=cohort,budget_seconds=3)
+            report=smart.collect(self.directory.name,rpc=rpc,now=NOW+smart.COLLECTION_MS+1,cohort=cohort,budget_seconds=3)
+        self.assertEqual(report['samples'][-1]['checkedWallets'],3)
+        self.assertIsNone(report['samples'][-1]['balance'])
+        self.assertEqual(report['collection']['startedAt'],NOW+smart.COLLECTION_MS+1)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

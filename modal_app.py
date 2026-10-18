@@ -74,7 +74,8 @@ def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
                                 [value for _, value in wallet_universe_registry.items()])
             cohort = make_cohort(mint, registry, scope)
         saved = read_report('/smart', cohort)
-        if saved.get('attemptedAt') and 0 <= now - saved['attemptedAt'] < CACHE_MS:
+        cache_ms = 60000 if saved.get('collection', {}).get('inProgress') else CACHE_MS
+        if saved.get('attemptedAt') and 0 <= now - saved['attemptedAt'] < cache_ms:
             return saved
         result = collect('/smart', cohort=cohort, budget_seconds=90 if mint else 35)
         smart_volume.commit()

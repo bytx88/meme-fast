@@ -20,6 +20,15 @@ test('partial observations stay chart gaps and cannot produce false aggregate ch
   assert.equal(chartSeries(partial,1440,now).length,2);
 });
 
+test('available raw balances yield an explicitly partial subset, including measured zero',()=>{
+ const partial={decimals:6,wallets:[{},{}],samples:[{time:now,balance:null,walletBalances:['1200000',null]}]};
+ const points=chartSeries(partial,1440,now);
+ assert.equal(points[0].partialBalance,1.2);assert.equal(points[0].partialWallets,1);assert.equal(points[0].totalWallets,2);
+ assert.equal(partial.samples[0].partialBalance,undefined);
+ assert.equal(completeSamples(partial,1440,now).length,0);
+ assert.equal(chartSeries({...partial,samples:[{...partial.samples[0],walletBalances:['0',null]}]},1440,now)[0].partialBalance,0);
+});
+
 function element(tag){return {tag,attributes:{},children:[],clientWidth:900,append(...items){this.children.push(...items)},replaceChildren(){this.children=[]},setAttribute(key,value){this.attributes[key]=String(value)}}}
 function chart(samples){const old=globalThis.document;globalThis.document={createElementNS:(_,tag)=>element(tag)};try{const host=element('div');renderHoldingsChart(host,samples,1440,now);return host.children[0]}finally{globalThis.document=old}}
 
@@ -28,6 +37,23 @@ test('first holdings snapshot draws axes and real dots without inventing a past 
   assert.equal(svg.children.filter(node=>node.tag==='circle').length,2);
   assert.equal(svg.children.filter(node=>node.tag==='path'&&node.attributes.stroke==='#ffc400').length,0);
   assert.ok(svg.children.some(node=>node.tag==='text'&&node.textContent==='Token balance'));
+});
+
+test('partial subsets draw hollow evidence marks without a misleading trend line',()=>{
+ const points=[{time:now-300000,balance:null,partialBalance:3,partialWallets:1,totalWallets:3},{time:now,balance:null,partialBalance:7,partialWallets:2,totalWallets:3}];
+ const svg=chart(points);
+ assert.equal(svg.children.filter(n=>n.tag==='circle'&&n.attributes.stroke==='#ffc400'&&n.attributes.fill==='none').length,2);
+ assert.equal(svg.children.filter(n=>n.tag==='path').length,0);
+ assert.ok(svg.children.some(n=>n.tag==='text'&&n.textContent==='Observed subset · partial'));
+});
+
+test('completed rolling collections connect across progress checks but not expired cycles',()=>{
+ const first={time:now-1200000,balance:10,source:'rolling-collection'};
+ const partial={time:now-600000,balance:null,source:'rolling-collection'};
+ const last={time:now,balance:11,source:'rolling-collection'};
+ const gold=svg=>svg.children.filter(n=>n.tag==='path'&&n.attributes.stroke==='#ffc400');
+ assert.equal(gold(chart([first,partial,last])).length,1);
+ assert.equal(gold(chart([{...first,time:now-3000000},last])).length,0);
 });
 
 test('chart connects measured balances but breaks across failed checks and long gaps',()=>{
