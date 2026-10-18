@@ -136,6 +136,8 @@ body.inspect-depth{
 .smart-metrics>div:last-child{border-right:0}
 .smart-metrics span{font-size:11px;letter-spacing:.04em;color:#a0b2c6}
 .smart-metrics strong{font-size:23px;letter-spacing:-.03em;color:#f3f8ff;font-variant-numeric:tabular-nums}
+.order-flow-page #balance-cohort{padding:8px;margin:4px 0 6px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:5px}
+.order-flow-page .smart-metrics strong{font-size:clamp(12px,1.4vw,21px);max-width:100%;overflow-wrap:anywhere;text-align:center}
 .smart-metrics>div:first-child strong{color:#ffc400}
 .smart-metrics [data-tone=buy]{color:#2bdfaa}.smart-metrics [data-tone=sell]{color:#fb7185}
 .smart-chart-panel{margin:0 0 16px}

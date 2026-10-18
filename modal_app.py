@@ -43,6 +43,7 @@ tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registr
 wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
+balance_watches = modal.Dict.from_name("meme-fast-balance-watches", create_if_missing=True)
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
 smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
 
@@ -50,12 +51,14 @@ smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_i
 @app.function(timeout=180, max_containers=1,
               volumes={"/smart": smart_volume})
 @modal.concurrent(max_inputs=1)
-def collect_smart_wallets(backfill=None):
+def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     import sys
     import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.smart_wallets import collect, read_report, CACHE_MS
+    from worker.smart_wallets import collect, read_report, make_cohort, CACHE_MS
+    from worker.wallet_universe import universe
+    from worker.followed_wallets import registry_wallets
     smart_volume.reload()
     report = read_report('/smart')
     if backfill is not None:
@@ -63,11 +66,34 @@ def collect_smart_wallets(backfill=None):
         report = install_backfill('/smart', backfill, int(time.time() * 1000))
         smart_volume.commit()
         return {'status': report['status'], 'backfill': report['backfill'], 'snapshots': len(report['samples'])}
-    if report.get('attemptedAt') and 0 <= time.time() * 1000 - report['attemptedAt'] < CACHE_MS:
-        return report
-    report = collect('/smart')
-    smart_volume.commit()
-    return report
+    now = int(time.time() * 1000)
+    def sample(mint=None, scope='universe'):
+        cohort = None
+        if mint:
+            registry = universe(registry_wallets([value for _, value in tracked_wallet_registry.items()]),
+                                [value for _, value in wallet_universe_registry.items()])
+            cohort = make_cohort(mint, registry, scope)
+        saved = read_report('/smart', cohort)
+        if saved.get('attemptedAt') and 0 <= now - saved['attemptedAt'] < CACHE_MS:
+            return saved
+        result = collect('/smart', cohort=cohort, budget_seconds=90 if mint else 35)
+        smart_volume.commit()
+        return result
+    if token:
+        result = sample(token, cohort_scope)
+        key = token + ':' + cohort_scope
+        balance_watches.put(key, dict(token=token, scope=cohort_scope, requestedAt=now, checkedAt=now))
+        return result
+    result = sample()
+    # Continue the least-recently checked active chart without an unbounded scheduler.
+    watches = [(key, row) for key, row in balance_watches.items() if now - row.get('requestedAt', 0) < 86400000]
+    for key, row in sorted(watches, key=lambda item: item[1].get('checkedAt', 0))[:1]:
+        try:
+            sample(row['token'], row['scope'])
+            balance_watches.put(key, dict(row, checkedAt=now))
+        except ValueError:
+            pass  # An emptied Interested group is unavailable; existing history remains.
+    return result
 
 
 @app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume})
@@ -391,6 +417,31 @@ def web():
             await wallet_universe_registry.put.aio(row['address'], row)
         return JSONResponse({'wallet': row}, status_code=201 if request.method == 'POST' else 200, headers={'cache-control':'no-store'})
 
+    candidate_cache = {}
+    candidate_lock = asyncio.Lock()
+
+    @web_app.get('/api/wallet-candidates')
+    async def wallet_candidates(token: str = ''):
+        import time
+        from worker.wallet_discovery import discover, valid_address
+        if token:
+            try:
+                valid_address(token)
+            except ValueError:
+                raise HTTPException(status_code=400, detail='Enter a valid Solana token contract')
+        async with candidate_lock:
+            cached = candidate_cache.get(token)
+            if cached and time.time() * 1000 - cached['checkedAt'] < 300000:
+                return JSONResponse(cached, headers={'cache-control': 'no-store'})
+            try:
+                result = await asyncio.to_thread(discover, token)
+            except Exception:
+                raise HTTPException(status_code=503, detail='Public discovery provider unavailable or rate limited. Retry later or paste a wallet list.')
+            if len(candidate_cache) >= 200:
+                candidate_cache.pop(next(iter(candidate_cache)))
+            candidate_cache[token] = result
+            return JSONResponse(result, headers={'cache-control': 'no-store'})
+
     activity_cache = {}
     activity_lock = asyncio.Lock()
 
@@ -415,9 +466,15 @@ def web():
         return JSONResponse(report, headers={'cache-control':'no-store'})
 
     @web_app.get("/api/smart-wallets")
-    async def smart_wallets():
+    async def smart_wallets(token: str = '', scope: str = 'universe'):
+        from worker.smart_wallets import make_cohort
+        if token:
+            try:
+                make_cohort(token, await universe_registry(), scope)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error))
         # A single collector owns writes and caches collection across page visits.
-        report = await collect_smart_wallets.remote.aio()
+        report = await collect_smart_wallets.remote.aio(token=token or None, cohort_scope=scope)
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/followed-wallets")

@@ -1,17 +1,15 @@
+import {formatSmartNumber} from './smart-number.mjs';
 import {easternDateTime,easternTime} from './eastern-time.mjs';
-
 const $=id=>document.getElementById(id);
-const number=value=>value==null?'—':new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(value);
-const compact=value=>value==null?'—':new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:2}).format(value);
-const usd=value=>value==null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(value);
-const priceLabel=value=>'$'+new Intl.NumberFormat('en-US',{maximumSignificantDigits:4}).format(value);
+const number=formatSmartNumber;
+const compact=formatSmartNumber;
+const usd=value=>Number.isFinite(value)?'$'+formatSmartNumber(value):'—';
+const priceLabel=usd;
 const FRESH_MS=10*60000;
 const valid=value=>typeof value==='number'&&Number.isFinite(value);
-
 export function completeSamples(report,minutes,now=Date.now()){
   return (report?.samples||[]).filter(row=>row.time>=now-minutes*60000&&row.time<=now&&valid(row.balance)).sort((a,b)=>a.time-b.time);
 }
-
 // Missing historical measurements remain unknown. Never use today's balance as a past baseline.
 export function balanceChange(report,minutes,index=null,now=Date.now()){
   const current=report?.samples?.at(-1);
@@ -24,21 +22,20 @@ export function balanceChange(report,minutes,index=null,now=Date.now()){
   if(before==null||after==null)return null;
   return Number(BigInt(after)-BigInt(before))/10**report.decimals;
 }
-
 export function chartSeries(report,minutes,now=Date.now()){
   return (report?.samples||[]).filter(row=>row.time>=now-minutes*60000&&row.time<=now).sort((a,b)=>a.time-b.time);
 }
-
 export function renderHoldingsChart(host,samples,minutes,now=Date.now()){
   host.replaceChildren();
   const ns='http://www.w3.org/2000/svg';
   const svg=(tag,attrs={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attrs))el.setAttribute(key,String(value));return el};
-  const width=Math.max(360,host.clientWidth||800),height=280,left=67,right=width-83,top=27,bottom=230;
+  const width=Math.max(360,host.clientWidth||800),height=280,top=27,bottom=230;
   const chart=svg('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':'Observed combined Smart wallet token balance in yellow and token price in grey. Historical account balances and live wallet snapshots use their recorded coverage.'});
   const label=(value,x,y,anchor='start',fill='#9da9b9')=>{const el=svg('text',{x,y,'text-anchor':anchor,fill,'font-size':11});el.textContent=value;chart.append(el)};
   const balanceValues=samples.filter(row=>valid(row.balance)).map(row=>row.balance),priceValues=samples.filter(row=>valid(row.priceUSD)&&row.priceUSD>0).map(row=>row.priceUSD);
   const range=values=>{if(!values.length)return [0,1];const low=Math.min(...values),high=Math.max(...values),pad=Math.max((high-low)*.12,Math.abs(high)*.06,1e-8);return [Math.max(0,low-pad),high+pad]};
   const [low,high]=range(balanceValues),[priceLow,priceHigh]=range(priceValues);
+  const left=Math.max(67,compact(high).length*6+14),right=width-Math.max(83,priceLabel(priceHigh).length*6+18);
   const start=now-minutes*60000,end=now,x=time=>left+(time-start)/(end-start)*(right-left);
   for(const fraction of [0,.25,.5,.75,1]){
     const y=bottom-(bottom-top)*fraction;
@@ -74,20 +71,25 @@ export function renderHoldingsChart(host,samples,minutes,now=Date.now()){
   if(!balanceValues.length)label('Awaiting a complete wallet balance snapshot',(left+right)/2,125,'middle');
   host.append(chart);
 }
-
 export function createSmartHoldings({changed=()=>{},request=fetch,now=Date.now}={}){
-  let report=null,loading=false,error='',attempted=0;
+  let report=null,loading=false,error='',attempted=0,selection=null,generation=0;
+  function configure(token,scope,members=[]){
+    const key=token+':'+scope+':'+members.join(',');
+    if(selection?.key===key)return;
+    selection={token,scope,key};generation++;report=null;loading=false;error='';attempted=0;
+  }
   async function refresh(){
-    if(loading)return;
+    if(loading||!selection)return;
+    const current=generation,chosen=selection;
     loading=true;attempted=now();error='';changed();
     try{
-      const response=await request('/api/smart-wallets',{cache:'no-store',signal:AbortSignal.timeout(165000)});
+      const response=await request('/api/smart-wallets?'+new URLSearchParams({token:chosen.token,scope:chosen.scope}),{cache:'no-store',signal:AbortSignal.timeout(165000)});
       if(!response.ok)throw new Error('Wallet balance service is unavailable');
       const value=await response.json();
-      if(value.token!=='C1mBfBoDkwWfd6uTFZp62ARHLjeVp3bDpCDMfMZtPngE'||value.network!=='solana'||!Array.isArray(value.wallets)||!Array.isArray(value.samples))throw new Error('Wallet balance response is invalid');
-      report=value;
-    }catch{error='Balance refresh failed. Last collected observations are retained.'}
-    finally{loading=false;changed()}
+      if(value.token!==chosen.token||value.network!=='solana'||!Array.isArray(value.wallets)||!Array.isArray(value.samples))throw new Error('Wallet balance response is invalid');
+      if(current===generation){report=value;error=value.error||'';}
+    }catch{if(current===generation)error='Balance refresh failed. Last collected observations are retained.'}
+    finally{if(current===generation){loading=false;changed()}}
   }
   function render(minutes){
     if(!loading&&now()-attempted>=60000){void refresh();return}
@@ -100,7 +102,7 @@ export function createSmartHoldings({changed=()=>{},request=fetch,now=Date.now}=
     $('smart-value').textContent=valid(complete?.balance)&&valid(complete?.priceUSD)?usd(complete.balance*complete.priceUSD):'—';
     $('smart-holders').textContent=complete?`${complete.holders} / ${report.wallets.length}`:'—';
     const supply=report?.supply;
-    $('smart-ownership').textContent=valid(complete?.balance)&&supply?.value>0?(complete.balance/supply.value*100).toFixed(2)+'%':'—';
+    $('smart-ownership').textContent=valid(complete?.balance)&&supply?.value>0?number(complete.balance/supply.value*100)+'%':'—';
     $('smart-ownership').title=supply?`Supply measured ${easternDateTime(supply.checkedAt)}`:'Supply unavailable';
     const change=balanceChange(report,1440,null,time);
     $('smart-change').textContent=change==null?'—':(change>0?'+':'')+compact(change);
@@ -109,26 +111,26 @@ export function createSmartHoldings({changed=()=>{},request=fetch,now=Date.now}=
     $('smart-balance').title=complete?`${number(complete.balance)} tokens · ${easternDateTime(complete.time)}${fresh?'':' · last complete snapshot; stale'}`:'Awaiting complete coverage';
     const samples=chartSeries(report,minutes,time),points=completeSamples(report,minutes,time);
     renderHoldingsChart($('smart-chart'),samples,minutes,time);
-    $('smart-chart-note').textContent=error||(loading&&!report?'Collecting nine wallet balances. The chart starts with the first observed point.':!report?'Could not load wallet balances. Use Refresh to try again.':!complete?'Some wallet checks failed. Individual available balances are listed below; a group total requires all nine wallets.':`${fresh?'':'Last complete total is stale. '}${points.length===1?'One balance snapshot in this window; the line grows as new snapshots arrive.':points.length?`${points.length} complete balance snapshots in this window.`:'No complete balance observations in this window.'} Tracking began ${easternDateTime(report.startedAt||report.samples[0].time)}. Unobserved history is left unfilled.`);
+    $('smart-chart-note').textContent=error||(loading&&!report?'Collecting selected wallet balances. The chart starts with the first observed point.':!report?'Could not load wallet balances. Use Refresh to try again.':!complete?'Some wallet checks failed. Individual available balances are listed below; a group total requires every wallet in this group.':`${fresh?'':'Last complete total is stale. '}${points.length===1?'One balance snapshot in this window; the line grows as new snapshots arrive.':points.length?`${points.length} complete balance snapshots in this window.`:'No complete balance observations in this window.'} Tracking began ${easternDateTime(report.startedAt||report.samples[0].time)}. Unobserved history is left unfilled.`);
     if(report?.backfill&&!error){
       $('smart-chart-note').textContent=`${fresh?'':'Latest balance coverage is stale. '}History reconstructed from ${report.backfill.transactions} transactions across ${report.backfill.accounts.length} discovered token accounts. Yellow: five-minute balance states. Grey: hourly pool closing prices; missing prices stay unfilled. Live snapshots continue every five minutes.`;
       $('smart-history-scope').textContent=report.backfill.scope;
-    }else $('smart-history-scope').textContent='Earlier holdings have not been reconstructed.';
+    }else $('smart-history-scope').textContent='This exact token and wallet membership has its own history. New groups start with observed snapshots; earlier holdings have not been reconstructed.';
     $('smart-wallet-rows').replaceChildren();
     for(const [index,wallet]of (report?.wallets||[]).entries()){
       const row=document.createElement('tr'),name=document.createElement('td'),link=document.createElement('a'),address=document.createElement('small');
       link.href=`https://solscan.io/account/${wallet.address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=wallet.name;link.title=wallet.address;
       address.textContent=wallet.address.slice(0,8)+'…'+wallet.address.slice(-5);name.append(link,address);row.append(name);
       const stale=wallet.status!=='ok'||!wallet.checkedAt||time-wallet.checkedAt>FRESH_MS||Boolean(error);
-      const values=[supply?.value>0&&wallet.balance!=null?(wallet.balance/supply.value*100).toFixed(2)+'%':'—',number(wallet.balance),valid(latest?.priceUSD)&&wallet.balance!=null?usd(wallet.balance*latest.priceUSD):'—',...[1440,10080,43200].map(window=>{const delta=stale?null:balanceChange(report,window,index,time);return delta==null?'—':(delta>0?'+':'')+number(delta)}),stale?'Stale / unavailable':'Current'];
+      const values=[supply?.value>0&&wallet.balance!=null?number(wallet.balance/supply.value*100)+'%':'—',number(wallet.balance),valid(latest?.priceUSD)&&wallet.balance!=null?usd(wallet.balance*latest.priceUSD):'—',...[1440,10080,43200].map(window=>{const delta=stale?null:balanceChange(report,window,index,time);return delta==null?'—':(delta>0?'+':'')+number(delta)}),stale?'Stale / unavailable':'Current'];
       for(const value of values){const cell=document.createElement('td');cell.textContent=value;cell.className='numeric';row.append(cell)}
       row.title=wallet.checkedAt?`Balance checked ${easternDateTime(wallet.checkedAt)}`:'Balance not yet available';
       if(stale)row.className='smart-stale';
       $('smart-wallet-rows').append(row);
     }
-    $('smart-freshness').textContent=fresh?'All nine balances checked.':complete?'Showing the last complete group balance; check wallet statuses below.':'Group total awaits complete coverage.';
+    $('smart-freshness').textContent=fresh?'All selected balances checked.':complete?'Showing the last complete group balance; check wallet statuses below.':'Group total awaits complete coverage.';
   }
-  return {render,refresh,summary:()=>({walletMode:'smart-holdings',token:report?.token,
+  return {configure,render,refresh,summary:()=>({walletMode:'smart-holdings',token:report?.token,
     groupId:report?.groupId,status:report?.status||'unavailable',wallets:report?.wallets||[],
     latest:report?.samples?.at(-1)||null,snapshotCount:report?.samples?.length||0,loading,error})};
 }

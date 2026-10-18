@@ -1,12 +1,13 @@
+import {formatSmartNumber} from './smart-number.mjs';
 import {aggregateMC,tierMetric,tierRead} from './mc-detail.mjs';
 import {formatUSD} from './core.mjs';
 import {candleMarketCaps} from './candle-history.mjs';
 const $=id=>document.getElementById(id);
 const cell=(tag,text)=>{const el=document.createElement(tag);el.textContent=text;return el};
-const cap=n=>new Intl.NumberFormat('en-US',{notation:'compact',maximumSignificantDigits:4}).format(n);
+const cap=formatSmartNumber;
 function addBar(td,value,max,tone,share=null){
   const text=cell('span',td.textContent);text.className='mc-bar-value';td.textContent='';
-  if(share!==null){const label=cell('span',`${share.toFixed(1)}%`);label.className='mc-share';text.append(label)}
+  if(share!==null){const label=cell('span',`${formatSmartNumber(share)}%`);label.className='mc-share';text.append(label)}
   td.append(text);
   if(value==null)return;
   const track=cell('div',''),fill=cell('div','');track.className='mc-bar-track';track.setAttribute('aria-hidden','true');

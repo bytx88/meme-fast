@@ -5,7 +5,7 @@ from pathlib import Path
 from worker.followed_wallets import validate_wallet, CODES
 from worker.smart_wallets import group
 
-SOURCES = {'Manual', 'Nansen', 'Fomo'}
+SOURCES = {'Manual', 'Nansen', 'Fomo', 'Public'}
 
 def validate_entry(value):
     if not isinstance(value, dict):

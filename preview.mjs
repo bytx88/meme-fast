@@ -13,14 +13,14 @@ const python=process.platform==='win32'?'py':'python3';
 if(process.platform==='win32'&&tls.setDefaultCACertificates&&tls.getCACertificates){
  tls.setDefaultCACertificates([...tls.getCACertificates('default'),...tls.getCACertificates('system')]);
 }
-let smartRefresh=null;
-async function smartReport(){
- const source="import json; from worker.smart_wallets import read_report; print(json.dumps(read_report('.data/smart-wallets')))";
- let report=JSON.parse((await runFile(python,['-c',source],{timeout:10000,maxBuffer:8*1024*1024})).stdout);
+const smartRefresh=new Map();
+async function smartReport(token='',scope='universe'){
+ const args=['-X','utf8','-m','worker.balance_preview',token,scope];
+ let report=JSON.parse((await runFile(python,args,{timeout:10000,maxBuffer:8*1024*1024})).stdout);
  if(process.env.MEME_COLLECTOR_DISABLED!=='1'&&(!report.attemptedAt||Date.now()-report.attemptedAt>=240000)){
-  if(!smartRefresh)smartRefresh=runFile(python,['worker/smart_wallets.py','.data/smart-wallets'],{timeout:150000}).finally(()=>{smartRefresh=null});
-  await smartRefresh;
-  report=JSON.parse((await runFile(python,['-c',source],{timeout:10000,maxBuffer:8*1024*1024})).stdout);
+  const key=token+':'+scope;
+  if(!smartRefresh.has(key))smartRefresh.set(key,runFile(python,[...args,'collect'],{timeout:150000,maxBuffer:8*1024*1024}).finally(()=>smartRefresh.delete(key)));
+  report=JSON.parse((await smartRefresh.get(key)).stdout);
  }
  return report;
 }
@@ -39,7 +39,11 @@ const market=createMarketProxy();
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const base=path.resolve('dist');
-http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/smartness'||url.pathname==='/api/smartness/refresh'){
+http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/wallet-candidates'){
+ if(req.method!=='GET'){res.writeHead(405).end();return}
+ const token=url.searchParams.get('token')||'';
+ try{const result=await runFile(python,['-X','utf8','-c','import json,sys; from worker.wallet_discovery import discover; print(json.dumps(discover(sys.argv[1])))',token],{timeout:90000,maxBuffer:4*1024*1024});res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(result.stdout)}catch{res.writeHead(503,{'content-type':'application/json'}).end(JSON.stringify({detail:'Public discovery provider unavailable or rate limited.'}))}return
+ }if(url.pathname==='/api/smartness'||url.pathname==='/api/smartness/refresh'){
  if(url.pathname.endsWith('/refresh')&&req.method!=='POST'){res.writeHead(405).end();return}
  if(url.pathname.endsWith('/refresh')){if(process.env.MEME_COLLECTOR_DISABLED!=='1')runFile(python,['-m','worker.smartness_preview','collect'],{timeout:220000,maxBuffer:16*1024*1024}).catch(()=>{});res.writeHead(202,{'content-type':'application/json'}).end(JSON.stringify({requested:process.env.MEME_COLLECTOR_DISABLED!=='1'}));return}
  const result=await runFile(python,['-m','worker.smartness_preview'],{timeout:10000,maxBuffer:16*1024*1024});res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(result.stdout);return
@@ -48,7 +52,7 @@ http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localho
  else if(!['GET','POST','PATCH'].includes(method)){res.writeHead(405).end();return}
  else if(method!=='GET'){let body='';for await(const chunk of req){body+=chunk;if(body.length>4000){res.writeHead(400).end();return}}try{value=JSON.parse(body)}catch{res.writeHead(400).end();return}}
  try{const result=await runFile(python,['-m','worker.universe_preview',method,JSON.stringify(value)],{timeout:120000,maxBuffer:4*1024*1024});res.writeHead(method==='POST'?201:200,{'content-type':'application/json','cache-control':'no-store'}).end(result.stdout)}catch{res.writeHead(400,{'content-type':'application/json'}).end(JSON.stringify({detail:'Wallet request failed. Check details or try again.'}))}return
- }if(url.pathname==='/api/smart-wallets'){if(req.method!=='GET'){res.writeHead(405).end();return}res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify(await smartReport()));return}if(url.pathname==='/api/refresh-priority'){
+ }if(url.pathname==='/api/smart-wallets'){if(req.method!=='GET'){res.writeHead(405).end();return}res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify(await smartReport(url.searchParams.get('token')||'',url.searchParams.get('scope')||'universe')));return}if(url.pathname==='/api/refresh-priority'){
  if(req.method!=='POST'){res.writeHead(405).end();return}
  let body='';for await(const chunk of req){body+=chunk;if(body.length>6000){res.writeHead(400).end('Priority request too large');return}}
  let ids;try{ids=validPriorityIds(JSON.parse(body).ids)}catch{res.writeHead(400).end('Request 1 to 30 supported token contracts');return}

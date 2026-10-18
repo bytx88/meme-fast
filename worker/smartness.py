@@ -1,6 +1,5 @@
 """Instruction-scoped swap ledger for the shared Solana wallet universe."""
 import json
-import os
 import time
 from collections import defaultdict
 from decimal import Decimal
@@ -153,7 +152,7 @@ def write_report(directory, report):
 
 def public_report(report, registry):
     known = {row['address'] for row in registry}
-    result = {key: value for key, value in report.items() if key != 'seen'}
+    result = {key: value for key, value in report.items() if key not in ('seen', 'history')}
     result['events'] = [row for row in report['events'] if row['address'] in known]
     scans = {row['address']: row for row in report['wallets']}
     result['wallets'] = [dict(row, scan=scans.get(row['address'])) for row in registry]
@@ -161,7 +160,7 @@ def public_report(report, registry):
     cohort = group()
     result['tokens'] = dict(report.get('tokens', {}))
     result['tokens'].setdefault(cohort['token'], {'symbol': cohort['symbol']})
-    result['coverage'] = 'Retained samples of recognized direct Jupiter, Pump and PumpSwap instructions. Each scan reads up to 40 latest signatures and eight unseen transactions per wallet, within 30 days. Unsupported routes, transfers, token-to-token swaps and missing transactions are excluded. Quote flow is actual SOL / USDC / USDT quantity, not historical USD value or profit.'
+    result['coverage'] = 'Retained samples of recognized direct Jupiter, Pump and PumpSwap instructions. Scans read recent signatures and progressively page backward through a 30-day window, decoding up to eight recent and eight historical transactions per wallet per pass. Saved cursors retry missing evidence; public RPC boundaries and recent-page limits can leave gaps. Unsupported routes, transfers, token-to-token swaps and missing transactions are excluded. Quote flow is actual SOL / USDC / USDT quantity, not historical USD value or profit.'
     return result
 
 
@@ -180,6 +179,64 @@ def token_metadata(pairs, requested):
     return result
 
 
+def history_step(owner, state, seen, events, rpc, at, deadline):
+    """Persist an unfinished page before advancing its cursor; retry missing txs."""
+    cutoff = at - RETENTION
+    pending = state.get('pending', [])
+    if state.get('finishedAt'):
+        # Revisit the head daily so a moving 30-day window can be audited again.
+        if at - state['finishedAt'] < 86400000:
+            return state
+        state = {}
+        pending = []
+    if not pending:
+        config = {'limit': 40, 'commitment': 'confirmed'}
+        if state.get('before'):
+            config['before'] = state['before']
+        page = rpc('getSignaturesForAddress', [owner, config])
+        if not isinstance(page, list) or any(not isinstance(row.get('signature'), str) for row in page):
+            raise ValueError('Historical signature page unavailable')
+        if page and page[-1]['signature'] == state.get('before'):
+            raise ValueError('Historical cursor did not advance')
+        pending = [row for row in page if not row.get('err') and
+                   (not row.get('blockTime') or cutoff <= row['blockTime'] * 1000 <= at)]
+        state.update(pending=pending, nextBefore=page[-1]['signature'] if page else None,
+                     terminal=len(page) < 40 or any(row.get('blockTime') and row['blockTime'] * 1000 < cutoff for row in page),
+                     pages=state.get('pages', 0) + 1)
+        times = [row['blockTime'] * 1000 for row in page if row.get('blockTime')]
+        if times:
+            state['oldestAt'] = min(state.get('oldestAt', at), min(times))
+    remaining = []
+    inspected = 0
+    for row in pending:
+        signature = row['signature']
+        if signature in seen or row.get('blockTime') and row['blockTime'] * 1000 < cutoff:
+            continue
+        if inspected >= 8 or time.monotonic() >= deadline:
+            remaining.append(row)
+            continue
+        inspected += 1
+        try:
+            tx = rpc('getTransaction', [signature, {'encoding': 'jsonParsed', 'maxSupportedTransactionVersion': 1, 'commitment': 'confirmed'}])
+            stamp = (tx or {}).get('blockTime')
+            if not tx or tx.get('transaction', {}).get('signatures', [None])[0] != signature or tx.get('slot') != row.get('slot') or not stamp or (row.get('blockTime') and stamp != row['blockTime']):
+                raise ValueError('Historical transaction identity mismatch')
+            if cutoff <= stamp * 1000 <= at:
+                for event in parse_swaps(tx, owner):
+                    identity = owner + ':' + signature + ':' + str(event['instruction'])
+                    events[identity] = dict(event, id=identity, signature=signature, time=stamp * 1000)
+            seen[signature] = stamp * 1000
+        except Exception:
+            remaining.append(row)
+    state['pending'] = remaining
+    state['checkedAt'] = at
+    if not remaining:
+        state['before'] = state.pop('nextBefore', state.get('before'))
+        if state.pop('terminal', False):
+            state['finishedAt'] = at
+    return state
+
+
 def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_seconds=190):
     report = read_report(directory)
     at = now if now is not None else int(time.time() * 1000)
@@ -191,17 +248,12 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
         import ssl
         import truststore
         client = httpx.Client(timeout=8, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
-        def rpc(method, params):
-            pause(1.6)
-            response = client.post(os.getenv('SOLANA_WALLET_RPC_URL', 'https://api.mainnet-beta.solana.com'), json={'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params})
-            response.raise_for_status()
-            value = response.json()
-            if value.get('error'):
-                raise ValueError('Public RPC unavailable or rate limited')
-            return value.get('result')
+        from worker.public_rpc import public_rpc
+        rpc = public_rpc(client, pause=pause)
     seen = {address: {sig: stamp for sig, stamp in entries.items() if stamp >= cutoff} for address, entries in report.get('seen', {}).items()}
     scans = {row['address']: row for row in report['wallets']}
     events = {row['id']: row for row in report['events'] if row['time'] >= cutoff}
+    history = report.get('history', {})
     errors = 0
     metadata = dict(report.get('tokens', {}))
     try:
@@ -237,6 +289,17 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
                 scan.update(checkedAt=at, returned=len(signatures), eligible=len(eligible), inspected=checked, missing=missing, pending=len(pending)-checked, signatureCapped=len(signatures)>=40, status='partial' if missing or len(pending)>checked or len(signatures)>=40 else 'ok')
                 if missing:
                     scan['error'] = 'Some transactions were unavailable, invalid or rate limited.'
+                if time.monotonic() < deadline:
+                    try:
+                        state = history.setdefault(owner, {})
+                        history[owner] = history_step(owner, state, seen[owner], events, rpc, at, deadline)
+                        state = history[owner]
+                        scan.update(historyPages=state.get('pages', 0), historyOldestAt=state.get('oldestAt'),
+                                    historyPending=len(state.get('pending', [])), historyFinishedAt=state.get('finishedAt'), historyError=None)
+                        if not state.get('finishedAt'):
+                            scan['status'] = 'partial'
+                    except Exception:
+                        scan.update(status='partial', historyError='Older history unavailable or rate limited; saved cursor will retry.')
             except Exception:
                 scan.update(status='unavailable', error='Public RPC signature history unavailable or rate limited.')
                 errors += 1
@@ -257,7 +320,7 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
         if client:
             client.close()
     seen = {owner: dict(sorted(entries.items(), key=lambda pair: pair[1], reverse=True)[:2000]) for owner, entries in seen.items()}
-    report.update(startedAt=report.get('startedAt') or at, attemptedAt=at, scanning=False, events=sorted(events.values(), key=lambda row: row['time'])[-50000:], wallets=list(scans.values()), seen=seen, tokens=metadata)
+    report.update(startedAt=report.get('startedAt') or at, attemptedAt=at, scanning=False, events=sorted(events.values(), key=lambda row: row['time'])[-50000:], wallets=list(scans.values()), seen=seen, history=history, tokens=metadata)
     if len(events) > 50000: report['eventCappedAt'] = at
     report['eventCapped'] = bool(report.get('eventCappedAt') and report['eventCappedAt'] >= cutoff)
     write_report(directory, report)

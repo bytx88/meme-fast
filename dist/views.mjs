@@ -1,10 +1,11 @@
+import {formatSmartNumber} from './smart-number.mjs';
 import {formatUSD, summarize} from './core.mjs';
 import {filterTrades, groupTransactions, flowTimeline, visibleFlowRange} from './analysis.mjs';
 import {marketCapTimeline} from './market-cap.mjs';
 import {easternDate,easternDateTime,easternRange,easternTime,easternTimeWithSeconds} from './eastern-time.mjs';
 const $ = id => document.getElementById(id);
 const money = formatUSD;
-const wholeMoney = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+const wholeMoney={format:formatUSD};
 const short = value => value?.length > 18 ? value.slice(0,7)+'…'+value.slice(-6) : value || '—';
 const stamp = easternTime;
 const make = (tag, text, className) => {const el=document.createElement(tag);if(text!=null)el.textContent=text;if(className)el.className=className;return el};
@@ -46,7 +47,7 @@ export function renderTimeline(rows, minutes, now, loaded, busy=true, valuation=
   svg.append(defs);
   const label=(text,x,y,anchor='start')=>{const el=svgEl('text',{x,y,'text-anchor':anchor,fill:'#9da9b9','font-size':11});el.textContent=text;svg.append(el)};
   const max=Math.max(...visibleBins.flatMap(b=>[b.buy,b.sell]),1e-8);
-  const axisMoney=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
+  const axisMoney=formatUSD;
   const mcMax=hasMC?Math.max(...values):0;
   const left=Math.max(48,axisMoney(max).length*6+14);
   const right=chartWidth-(hasMC?Math.max(86,axisMoney(mcMax).length*6+42):12);
@@ -98,7 +99,7 @@ export function setupTape() {
     const pool=make('td',`${trade.pool} · ${trade.network}`,'pool-detail');pool.title=`${trade.pool} · ${trade.network}`;
     const wallet=make('td',short(trade.wallet),'wallet-detail');wallet.title=trade.wallet||'Wallet unavailable';
     const execution=make('td','—','execution-detail');
-    if(trade.quantity!=null){const quantity=new Intl.NumberFormat('en-US',{maximumSignificantDigits:7}).format(trade.quantity);const price=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumSignificantDigits:7}).format(trade.price);execution.textContent=`${quantity} @ ${price}`;execution.title=`${trade.quantity} tokens at $${trade.price} per token`}
+    if(trade.quantity!=null){const quantity=formatSmartNumber(trade.quantity);const price=formatUSD(trade.price);execution.textContent=`${quantity} @ ${price}`;execution.title=`${trade.quantity} tokens at $${trade.price} per token`}
     const tx=make('td',short(trade.hash),'transaction');tx.title=trade.hash;
     const value=make('td',money(trade.usd),'numeric');
     for(const [cell,label]of [[time,'Time'],[side,'Side'],[value,'Value'],[pool,'Pool'],[wallet,'Wallet'],[execution,'Quantity @ price'],[tx,'Transaction']])cell.dataset.label=label;

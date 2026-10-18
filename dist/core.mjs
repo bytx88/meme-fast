@@ -1,3 +1,4 @@
+import {formatSmartNumber} from './smart-number.mjs';
 export const BANDS=[{name:'XL',label:'≥ $10K',min:10000},{name:'L',label:'$1K–<10K',min:1000},{name:'M',label:'$100–<1K',min:100},{name:'S',label:'< $100',min:0}];
 export const SAMPLE_LIMITS=Object.freeze({poolsPerListing:3,tradesPerPool:300});
 export const canonical=a=>typeof a==='string'&&/^0x/i.test(a)?a.toLowerCase():a;
@@ -30,4 +31,4 @@ export function sampleAvailability(trades,minutes,now=Date.now()){
   const all=summarize(trades,1440,now),selected=summarize(trades,minutes,now);
   return {status:selected.rows.length?'available':all.rows.length?'outside-window':'no-data',lastTrade:all.rows[0]||null,totalReturned:all.rows.length};
 }
-export function formatUSD(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:n!==0&&Math.abs(n)<1?6:2}).format(n)}
+export function formatUSD(n){return Number.isFinite(n)?(n<0?'-$':'$')+formatSmartNumber(Math.abs(n)):'—'}

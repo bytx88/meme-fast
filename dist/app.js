@@ -19,7 +19,7 @@ import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 import {createCandleHistory} from './candle-history.mjs';
 import {renderCandleHistory} from './candle-view.mjs';
 import {readFlowWindow,saveFlowWindow} from './flow-preferences.mjs';
-import {SMART_WALLETS,hasSmartGroup,smartWalletTrades} from './smart-wallets.mjs';
+import {SMART_WALLETS,SMART_TEST_TOKEN,smartWalletTrades} from './smart-wallets.mjs';
 import {createSmartHoldings} from './smart-holdings.mjs';
 const smartHoldings=createSmartHoldings({changed:()=>render()});
 const flowCache=createFlowCache();
@@ -31,8 +31,8 @@ const candleHistory=createCandleHistory(path=>api(path,{priority:-2}),()=>render
 const originalLegend=document.querySelector('.timeline-legend').innerHTML;
 const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
-const wholeMoney=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
-const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
+const wholeMoney={format:formatUSD};
+const compact=formatUSD;
 const short=s=>s.length>18?s.slice(0,7)+'…'+s.slice(-6):s;
 const recentContracts=createRecentContracts();
 function renderRecentContracts(){
@@ -83,7 +83,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=state.measure==="balance"?hasSmartGroup(tokens):tokens.length===1&&tokens[0].network==="solana"&&Boolean(state.universe),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades,(state.universe?.wallets||[]).map(row=>row.address)):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=tokens.length===1&&tokens[0].network==="solana"&&Boolean(state.universe),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades,(state.universe?.wallets||[]).map(row=>row.address)):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -133,16 +133,21 @@ function render(){
   if(!view.smartSupported)state.smart=false;
   $('smart-toggle').disabled=!view.smartSupported;
   $('smart-toggle').setAttribute('aria-pressed',String(view.smartActive));
-  $('smart-toggle').title=state.measure==='balance'?'Balance history currently covers the original nine HOOKED wallets':view.smartSupported?'Filter swaps to the shared Smart Wallet universe':'Smart Flow requires one Solana token and an available wallet registry';
+  $('smart-toggle').title=state.measure==='balance'?'Measure this token across the selected Smart wallet group':view.smartSupported?'Filter swaps to the shared Smart Wallet universe':'Smart Flow requires one Solana token and an available wallet registry';
   $('smart-group').hidden=!view.smartActive;
   $('smart-holdings').hidden=!view.balanceActive;
   $('balance-view').hidden=state.measure!=='balance';
   $('balance-unavailable').hidden=state.measure!=='balance'||view.smartActive;
   $('use-smart-balances').hidden=!view.smartSupported;
   document.querySelectorAll('[data-measure]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.measure===state.measure));b.tabIndex=b.dataset.measure===state.measure?0:-1});
-  $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?'9-wallet history group':`${state.universe.wallets.length} universe wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
-  const groupWallets=state.measure==='balance'?SMART_WALLETS:(state.universe?.wallets||[]).map(row=>row.address);
-  $('smart-group-title').textContent=state.measure==='balance'?'Smart* · 9-wallet HOOKED history group':`Smart* · ${groupWallets.length} universe wallets`;
+  const legacy=view.tokens.length===1&&view.tokens[0].address===SMART_TEST_TOKEN;
+  $('balance-cohort').querySelector('[value=legacy]').disabled=!legacy;
+  if(!legacy&&$('balance-cohort').value==='legacy')$('balance-cohort').value='universe';
+  const balanceScope=$('balance-cohort').value;
+  const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>balanceScope!=='interested'||row.interested).map(row=>row.address).sort();
+  $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?`${balanceWallets.length} selected wallets`:`${state.universe.wallets.length} universe wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
+  const groupWallets=state.measure==='balance'?balanceWallets:(state.universe?.wallets||[]).map(row=>row.address);
+  $('smart-group-title').textContent=state.measure==='balance'?`Smart* · ${groupWallets.length} wallets · ${balanceScope==='legacy'?'original group':balanceScope==='interested'?'Interested Parties':'universe'}`:`Smart* · ${groupWallets.length} universe wallets`;
   if($('smart-wallet-list').dataset.group!==groupWallets.join(',')){$('smart-wallet-list').dataset.group=groupWallets.join(',');$('smart-wallet-list').replaceChildren();for(const address of groupWallets){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}}
   if(state.measure==='flow'&&view.smartActive)$('smart-status').textContent=state.universeStale?'Registry refresh failed · using last loaded membership':'Filtering sampled swaps by sender';
   $('smart-flow-coverage').hidden=!view.smartActive||state.measure!=='flow';
@@ -154,7 +159,7 @@ function render(){
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
   if(state.measure==='balance'){
     $('window-coverage').hidden=true;
-    if(view.balanceActive)smartHoldings.render(state.minutes);
+    if(view.balanceActive){smartHoldings.configure(view.tokens[0].address,balanceScope,balanceWallets);smartHoldings.render(state.minutes);}
     else {$("updated").textContent="All-wallet balance history unavailable";$("refresh").disabled=false;}
     return;
   }
@@ -177,6 +182,7 @@ function render(){
   $('window-coverage').hidden=state.minutes!==7200;
   $('window-coverage').textContent='5D candle history · buy/sell figures are observed swaps only';
   $('net-label').textContent=s.net<0?'Net sell volume':'Net buy volume';$('net-value').textContent=loaded?(Math.abs(s.net)>=100000?compact(Math.abs(s.net)):wholeMoney.format(Math.abs(s.net))):'—';$('net-value').dataset.tone=available?(s.net<0?'sell':s.net>0?'buy':'neutral'):'neutral';$('net-value').title=loaded?money(Math.abs(s.net)):'';$('swap-count').textContent=loaded?`${s.rows.length.toLocaleString()} observed swaps`:'Fetching actual swaps';
+  $('net-value').style.fontSize=Math.max(12,Math.min(24,120/Math.max(1,$('net-value').textContent.length*.6)))+'px';
   $('net-value').dataset.empty=String(loaded&&!available);if(loaded&&!available){$('net-label').textContent='Selected window';$('net-value').textContent='No swaps';$('net-value').title='No observed trades from which to calculate flow';$('swap-count').textContent=availability.totalReturned?`${availability.totalReturned} returned across 24h`:'Feed has no usable data'}
   $('buy-value').textContent=available?money(s.buy):'—';$('sell-value').textContent=available?money(s.sell):'—';
   for(const side of ['buy','sell'])$(''+side+'-share').textContent=available?`${s[side+'Count'].toLocaleString()} swaps · ${s.total?(s[side]/s.total*100).toFixed(1):'0.0'}%`:loaded?'No observed swaps':'—';
@@ -221,6 +227,7 @@ $('smart-toggle').addEventListener('click',toggleSmart);
 $('use-smart-balances').addEventListener('click',toggleSmart);
 document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>{state.measure=button.dataset.measure;if(state.measure==='balance'&&viewData().smartActive)state.minutes=43200;render()}));
 document.querySelector('.measure-tabs').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const buttons=[...document.querySelectorAll('[data-measure]')],index=buttons.indexOf(event.target);const next=event.key==='Home'?0:event.key==='End'?1:(index+1)%2;buttons[next].click();buttons[next].focus()});
+$('balance-cohort').addEventListener('change',render);
 $('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>viewData().balanceActive?smartHoldings.refresh():state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,nameForAddress:address=>{

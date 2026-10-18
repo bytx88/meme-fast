@@ -1,3 +1,4 @@
+import {createWalletDiscovery} from './wallet-discovery.mjs';
 import {createSmartness} from './smartness.mjs';
 import {CLASSES,walletState} from './followed-wallets.mjs';
 import {filterUniverse} from './wallet-universe.mjs';
@@ -11,6 +12,7 @@ async function api(path,options={}){
  const value=await response.json();if(!response.ok)throw new Error(value.detail||'Request failed. Try again.');return value;
 }
 function render(){
+ discovery?.render();
  const rows=report?.wallets||[],fresh=rows.filter(r=>walletState(r)==='fresh').length;
  $('total-stat').textContent=rows.length;$('interested-stat').textContent=rows.filter(r=>r.interested).length;$('fresh-stat').textContent=fresh;
  const visible=filterUniverse(rows,{query:$('query').value,source:$('source-filter').value,interested:$('interest-filter').value,code:$('class-filter').value,status:$('state-filter').value,sort:$('sort').value});
@@ -55,4 +57,5 @@ $('add-wallet-form').addEventListener('submit',async event=>{
  finally{$('save-wallet').disabled=false}
 });
 
+const discovery=createWalletDiscovery({registry:()=>report?.wallets||[],request:api,refresh});
 void refresh();setInterval(()=>{if(!document.hidden)void refresh()},60000);

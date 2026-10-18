@@ -21,8 +21,27 @@ def group():
     return dict(value, groupId=hashlib.sha256(identity.encode()).hexdigest()[:16])
 
 
-def read_report(directory):
-    cohort = group()
+def make_cohort(token, registry, scope='universe'):
+    from worker.followed_wallets import validate_wallet
+    validate_wallet(dict(name='Token', address=token, code='F1'))
+    if scope == 'legacy':
+        cohort = group()
+        if token != cohort['token']:
+            raise ValueError('Original group is only available for HOOKED')
+        return cohort
+    if scope not in ('universe', 'interested'):
+        raise ValueError('Choose a supported balance group')
+    wallets = sorted((dict(name=row['name'], address=row['address']) for row in registry
+                      if scope != 'interested' or row.get('interested')), key=lambda row: row['address'])
+    if not wallets or len(wallets) > 500:
+        raise ValueError('Choose a group with 1 to 500 wallets')
+    identity = json.dumps(['solana', token, [row['address'] for row in wallets]], separators=(',', ':'))
+    return dict(network='solana', token=token, symbol=token[:8], scope=scope, wallets=wallets,
+                decimals=None, groupId=hashlib.sha256(identity.encode()).hexdigest()[:16])
+
+
+def read_report(directory, cohort=None):
+    cohort = cohort or group()
     try:
         value = json.loads((Path(directory) / (cohort['groupId'] + '.json')).read_text())
         if value['groupId'] == cohort['groupId'] and value['token'] == cohort['token']:
@@ -70,11 +89,12 @@ def market_price(payload, mint):
     return None
 
 
-def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep):
-    cohort = group()
-    previous = read_report(directory)
+def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep, cohort=None, budget_seconds=110):
+    cohort = dict(cohort or group())
+    previous = read_report(directory, cohort)
     at = now if now is not None else int(time.time() * 1000)
     prior = {row['address']: row for row in previous['wallets']}
+    deadline = time.monotonic() + budget_seconds
     client = None
     if rpc is None:
         import httpx
@@ -92,7 +112,23 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep)
             return market_price(response.json(), cohort['token'])
     wallets, supply, price = [], previous.get('supply'), None
     try:
-        for entry in cohort['wallets']:
+        # Other mints need their actual on-chain decimals before any balance is interpreted.
+        if cohort.get('decimals') is None:
+            try:
+                payload = rpc('getTokenSupply', [cohort['token'], {'commitment': 'confirmed'}])
+                value = payload['result']['value']
+                places = value['decimals']
+                if payload.get('error') or not isinstance(places, int) or not 0 <= places <= 18 or int(value['amount']) <= 0:
+                    raise ValueError('Mint supply unavailable')
+                cohort['decimals'] = places
+            except Exception:
+                return dict(previous, status='unavailable', error='Mint supply unavailable; balance quantities were not interpreted.')
+        for entry in sorted(cohort['wallets'], key=lambda row: prior.get(row['address'], {}).get('attemptedAt') or 0):
+            if time.monotonic() >= deadline:
+                old = prior.get(entry['address'], {})
+                wallets.append(dict(entry, balanceRaw=old.get('balanceRaw'), balance=old.get('balance'),
+                                    checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status='unavailable'))
+                continue
             try:
                 raw, slot = token_balance(rpc('getTokenAccountsByOwner', [entry['address'],
                     {'mint': cohort['token']}, {'encoding': 'jsonParsed', 'commitment': 'confirmed'}]),
@@ -124,6 +160,8 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep)
     finally:
         if client:
             client.close()
+    by_address = {row['address']: row for row in wallets}
+    wallets = [by_address[row['address']] for row in cohort['wallets']]
     complete = all(row['status'] == 'ok' for row in wallets)
     raw_total = sum(int(row['balanceRaw']) for row in wallets) if complete else None
     point = dict(time=at, balanceRaw=str(raw_total) if complete else None,

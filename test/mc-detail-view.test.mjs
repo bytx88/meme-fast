@@ -20,7 +20,7 @@ test('MC bars preserve volume shares, unknown wick tiers, and swap mode when swi
     assert.ok(tiers.every(row=>row.children.length===3));
     const current=tiers.find(row=>row.className==='mc-current');assert.ok(current);
     assert.equal(current.children[0].children[0].textContent,'Current MC');
-    assert.equal(current.children[1].children[0].children[0].textContent,'75.0%');
+    assert.equal(current.children[1].children[0].children[0].textContent,'75%');
     assert.equal(current.children[1].children[1].children[0].style.width,'100%');
     assert.equal(current.children[2].children[0].textContent,'Busiest by volume');
     assert.ok(tiers.some(row=>row.children[1].textContent==='—'&&row.children[1].children.length===0));
@@ -28,8 +28,8 @@ test('MC bars preserve volume shares, unknown wick tiers, and swap mode when swi
     render(rows,snapshot,false,true,false);
     assert.ok(selector.options.every(o=>!o.disabled));assert.equal(elements.get('mc-buy-heading').hidden,false);
     const swap=elements.get('mc-tiers').children[0];assert.equal(swap.children.length,5);
-    assert.equal(swap.children[2].children[0].children[0].textContent,'75.0%');
-    assert.equal(swap.children[3].children[0].children[0].textContent,'25.0%');
+    assert.equal(swap.children[2].children[0].children[0].textContent,'75%');
+    assert.equal(swap.children[3].children[0].children[0].textContent,'25%');
     assert.ok(Math.abs(parseFloat(swap.children[3].children[1].children[0].style.width)-100/3)<1e-10);
     selector.value='average';render(rows.slice(0,1),snapshot,false,true,false);
     const average=elements.get('mc-tiers').children[0];

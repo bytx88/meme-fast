@@ -3,7 +3,7 @@ import {easternRange} from './eastern-time.mjs';
 import {formatUSD} from './core.mjs';
 import {flowTimeline} from './analysis.mjs';
 const $=id=>document.getElementById(id);
-const compact=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(n);
+const compact=formatUSD;
 const el=(tag,text)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;return node};
 
 export function renderCandleHistory(history,snapshot,now=Date.now()){
