@@ -16,4 +16,4 @@ export function hasSmartGroup(tokens){
 }
 
 const selectedWallets=new Set(SMART_WALLETS);
-export function smartWalletTrades(trades){return trades.filter(trade=>selectedWallets.has(trade.wallet));}
+export function smartWalletTrades(trades,wallets=SMART_WALLETS){const selected=wallets===SMART_WALLETS?selectedWallets:new Set(wallets);return trades.filter(trade=>selected.has(trade.wallet));}

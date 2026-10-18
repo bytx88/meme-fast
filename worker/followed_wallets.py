@@ -90,7 +90,7 @@ def positive_mints(payload, owner):
     return mints
 
 
-def collect(filename, fetcher=None, now=None, registry=None):
+def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220):
     now = now or int(time.time() * 1000)
     path = Path(filename)
     try:
@@ -113,9 +113,14 @@ def collect(filename, fetcher=None, now=None, registry=None):
         client = None
     report = awaiting(registry)
     sampled = {}
+    deadline = time.monotonic() + budget_seconds
     try:
-        for row in report['wallets']:
+        for row in sorted(report['wallets'], key=lambda entry: previous.get(entry['address'], {}).get('attemptedAt') or 0):
             owner = row['address']
+            if time.monotonic() >= deadline:
+                old = previous.get(owner, {})
+                row.update(checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status=old.get('status', 'unavailable'), mints=old.get('mints', []))
+                continue
             if owner not in sampled:
                 try:
                     mints = set()

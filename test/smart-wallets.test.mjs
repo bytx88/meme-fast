@@ -25,3 +25,9 @@ test('Smart flow uses exact sender membership, preserving buy/sell records and u
  assert.deepEqual(smartWalletTrades(input),[buy,sell]);
  assert.equal(input.length,5);
 });
+
+test('Smart Flow can use the shared universe independently of the fixed balance cohort',()=>{
+ const outside={wallet:'InterestedParty',side:'buy'},original={wallet:SMART_WALLETS[0],side:'sell'};
+ assert.deepEqual(smartWalletTrades([outside,original],['InterestedParty']),[outside]);
+ assert.deepEqual(smartWalletTrades([outside,original],[]),[]);
+});

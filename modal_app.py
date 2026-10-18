@@ -40,6 +40,7 @@ image = (
 app = modal.App(APP_NAME, image=image)
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
+wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
@@ -163,6 +164,8 @@ def collect_followed_wallets():
     from modal.exception import ResourceExhaustedError
     from worker.followed_wallets import collect, registry_wallets_with_retry
     registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
+    from worker.wallet_universe import universe
+    registry = universe(registry, [value for _, value in wallet_universe_registry.items()])
     history_volume.reload()
     report = collect("/history/followed-wallets.json", registry=registry)
     history_volume.commit()
@@ -271,17 +274,78 @@ def web():
                 report = {"version": 1, "status": "disconnected", "coins": {}}
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
-    @web_app.get("/api/followed-wallets")
-    async def followed_wallets():
-        from worker.followed_wallets import awaiting, registry_wallets, merge_report
-        registry = registry_wallets([value async for _, value in tracked_wallet_registry.items.aio()])
+    async def universe_registry():
+        from worker.followed_wallets import registry_wallets
+        from worker.wallet_universe import universe
+        legacy = registry_wallets([value async for _, value in tracked_wallet_registry.items.aio()])
+        return universe(legacy, [value async for _, value in wallet_universe_registry.items.aio()])
+
+    async def universe_report():
+        from worker.wallet_universe import report
+        registry = await universe_registry()
         async with history_lock:
             await history_volume.reload.aio()
             try:
-                report = json.loads(Path("/history/followed-wallets.json").read_text())
-            except (FileNotFoundError, ValueError):
-                report = awaiting(registry)
-        return JSONResponse(merge_report(report, registry), headers={"cache-control": "no-store"})
+                holdings = json.loads(Path('/history/followed-wallets.json').read_text())
+            except (OSError, ValueError):
+                holdings = {}
+        return report(registry, holdings)
+
+    @web_app.get('/api/wallet-universe')
+    async def get_wallet_universe():
+        return JSONResponse(await universe_report(), headers={'cache-control': 'no-store'})
+
+    @web_app.post('/api/wallet-universe')
+    @web_app.patch('/api/wallet-universe')
+    async def save_universe_wallet(request: Request):
+        import time
+        from worker.wallet_universe import validate_entry
+        body = await request.body()
+        if len(body) > 4000:
+            raise HTTPException(status_code=400, detail='Wallet request too large')
+        try:
+            value = json.loads(body)
+            address = value.get('address')
+            current = next((row for row in await universe_registry() if row['address'] == address), None)
+            if request.method == 'POST' and current:
+                raise HTTPException(status_code=409, detail='Wallet already in the universe. Use Edit.')
+            if request.method == 'PATCH' and not current:
+                raise HTTPException(status_code=404, detail='Wallet not found')
+            row = validate_entry(dict(current or {}, **value))
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(status_code=400, detail='Enter a name, valid Solana address, source and optional class')
+        now = int(time.time() * 1000)
+        row.update(addedAt=current.get('addedAt') if current else now, updatedAt=now)
+        if request.method == 'POST':
+            added = await wallet_universe_registry.put.aio(row['address'], row, skip_if_exists=True)
+            if not added:
+                raise HTTPException(status_code=409, detail='Wallet already added')
+        else:
+            await wallet_universe_registry.put.aio(row['address'], row)
+        return JSONResponse({'wallet': row}, status_code=201 if request.method == 'POST' else 200, headers={'cache-control':'no-store'})
+
+    activity_cache = {}
+    activity_lock = asyncio.Lock()
+
+    @web_app.get('/api/wallet-activity')
+    async def wallet_activity(address: str):
+        import time
+        from worker.wallet_activity import analyze
+        if not any(row['address'] == address for row in await universe_registry()):
+            raise HTTPException(status_code=404, detail='Choose a wallet in the universe')
+        async with activity_lock:
+            cached = activity_cache.get(address)
+            if cached and time.time() * 1000 - cached['checkedAt'] < 300000:
+                return JSONResponse(cached, headers={'cache-control':'no-store'})
+            result = await asyncio.to_thread(analyze, address)
+            activity_cache[address] = result
+            return JSONResponse(result, headers={'cache-control':'no-store'})
+
+    @web_app.get('/api/followed-wallets')
+    async def followed_wallets():
+        report = await universe_report()
+        report['wallets'] = [row for row in report['wallets'] if row['interested']]
+        return JSONResponse(report, headers={'cache-control':'no-store'})
 
     @web_app.get("/api/smart-wallets")
     async def smart_wallets():

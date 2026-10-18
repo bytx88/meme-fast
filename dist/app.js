@@ -47,7 +47,7 @@ function renderRecentContracts(){
 }
 const state={token:{address:'',network:'',symbol:DEFAULT_INSPECT_QUERY,name:'Bitcoin / US Dollar'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.historyTrades=[];
-state.smart=false;state.measure="flow";
+state.smart=false;state.measure="flow";state.universe=null;state.universeStale=false;
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
@@ -83,7 +83,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=hasSmartGroup(tokens),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=state.measure==="balance"?hasSmartGroup(tokens):tokens.length===1&&tokens[0].network==="solana"&&Boolean(state.universe),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades,(state.universe?.wallets||[]).map(row=>row.address)):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -133,15 +133,18 @@ function render(){
   if(!view.smartSupported)state.smart=false;
   $('smart-toggle').disabled=!view.smartSupported;
   $('smart-toggle').setAttribute('aria-pressed',String(view.smartActive));
-  $('smart-toggle').title=view.smartSupported?'Filter the selected view to the 9 selected HOOKED wallets':'Smart* test group is available for the HOOKED Solana contract only';
+  $('smart-toggle').title=state.measure==='balance'?'Balance history currently covers the original nine HOOKED wallets':view.smartSupported?'Filter swaps to the shared Smart Wallet universe':'Smart Flow requires one Solana token and an available wallet registry';
   $('smart-group').hidden=!view.smartActive;
   $('smart-holdings').hidden=!view.balanceActive;
   $('balance-view').hidden=state.measure!=='balance';
   $('balance-unavailable').hidden=state.measure!=='balance'||view.smartActive;
   $('use-smart-balances').hidden=!view.smartSupported;
   document.querySelectorAll('[data-measure]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.measure===state.measure));b.tabIndex=b.dataset.measure===state.measure?0:-1});
-  $('wallet-mode-note').textContent=view.smartActive?'9 selected wallets':state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
-  if(state.measure==='flow'&&view.smartActive)$('smart-status').textContent='Filtering sampled swaps by sender';
+  $('wallet-mode-note').textContent=view.smartActive?(state.measure==='balance'?'9-wallet history group':`${state.universe.wallets.length} universe wallets`):state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
+  const groupWallets=state.measure==='balance'?SMART_WALLETS:(state.universe?.wallets||[]).map(row=>row.address);
+  $('smart-group-title').textContent=state.measure==='balance'?'Smart* · 9-wallet HOOKED history group':`Smart* · ${groupWallets.length} universe wallets`;
+  if($('smart-wallet-list').dataset.group!==groupWallets.join(',')){$('smart-wallet-list').dataset.group=groupWallets.join(',');$('smart-wallet-list').replaceChildren();for(const address of groupWallets){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}}
+  if(state.measure==='flow'&&view.smartActive)$('smart-status').textContent=state.universeStale?'Registry refresh failed · using last loaded membership':'Filtering sampled swaps by sender';
   $('smart-flow-coverage').hidden=!view.smartActive||state.measure!=='flow';
   $('smart-flow-coverage').textContent=`Smart* flow: ${s.rows.length} matching swaps in this window · ${view.allTrades.length} swaps in the returned sample. No matches does not mean no activity.`;
   $('market-flow').hidden=state.measure!=='flow';
@@ -211,7 +214,9 @@ function render(){
   }
 
 }
-for(const address of SMART_WALLETS){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}
+async function refreshUniverse(){try{const response=await fetch('/api/wallet-universe',{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error();const next=await response.json();if(!Array.isArray(next.wallets))throw new Error();state.universe=next;state.universeStale=false}catch{state.universeStale=true}if(state.searchResult==='ready')render()}
+void refreshUniverse();
+setInterval(()=>{if(!document.hidden)void refreshUniverse()},60000);
 function toggleSmart(){if(!viewData().smartSupported)return;state.smart=!state.smart;if(state.measure==='balance'&&state.smart)state.minutes=43200;render()}
 $('smart-toggle').addEventListener('click',toggleSmart);
 $('use-smart-balances').addEventListener('click',toggleSmart);

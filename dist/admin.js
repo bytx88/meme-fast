@@ -1,58 +1,73 @@
 import {CLASSES,walletState} from './followed-wallets.mjs';
-const $=id=>document.getElementById(id);
-const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const time=value=>Number.isFinite(value)&&value>0?new Date(value).toLocaleString():'—';
-let report=null,failed=false,loading=false;
+import {filterUniverse,rankActivity} from './wallet-universe.mjs';
+const $=id=>document.getElementById(id),short=v=>v.slice(0,7)+'…'+v.slice(-5);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const time=v=>Number.isFinite(v)&&v>0?new Date(v).toLocaleString():'—';
+let report=null,failed=false,loading=false,editing=null,analyzing=false;
+const analyses=new Map();
+async function api(path,options={}){
+ const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(120000),...options});
+ const value=await response.json();if(!response.ok)throw new Error(value.detail||'Request failed. Try again.');return value;
+}
 function render(){
- const rows=report?.wallets||[],query=$('query').value.trim().toLowerCase(),code=$('class-filter').value;
- const visible=rows.filter(row=>(!code||row.code===code)&&(!query||`${row.name} ${row.address}`.toLowerCase().includes(query)));
- const fresh=rows.filter(row=>walletState(row)==='fresh').length;
+ const rows=report?.wallets||[],fresh=rows.filter(r=>walletState(r)==='fresh').length;
+ $('total-stat').textContent=rows.length;$('interested-stat').textContent=rows.filter(r=>r.interested).length;$('fresh-stat').textContent=fresh;
+ const visible=filterUniverse(rows,{query:$('query').value,source:$('source-filter').value,interested:$('interest-filter').value,code:$('class-filter').value,status:$('state-filter').value,sort:$('sort').value});
  $('count').textContent=`${visible.length} / ${rows.length} wallets`;
- $('status').textContent=failed?(report?'Status refresh failed. Last observations remain visible as stale.':'Tracked wallets unavailable. Retry Refresh status.'):report?`${rows.length} tracked wallets · ${fresh} fresh · ${rows.length-fresh} stale / unavailable${report.attemptedAt?` · Last collection attempt ${time(report.attemptedAt)}`:''}`:'Loading tracked wallets…';
+ $('status').textContent=failed?'Registry refresh failed. Previously loaded entries may be outdated.':report?`${rows.length} wallets · ${rows.filter(r=>r.interested).length} Interested · ${fresh} fresh holdings checks`:'Loading wallet universe…';
  $('wallets').innerHTML=visible.length?visible.map(row=>{
-  const state=walletState(row),address=esc(row.address),tokens=row.checkedAt&&Array.isArray(row.mints)?new Set(row.mints).size.toLocaleString():'—';
-  return `<tr><td><strong>${esc(row.name)}</strong><small>Solana</small></td><td><b class="admin-class">${esc(row.code)}</b><small>${esc(CLASSES[row.code]||'Unknown class')}</small></td><td class="wallet-address"><a href="https://solscan.io/account/${address}" target="_blank" rel="noopener noreferrer"><code>${address}</code> ↗</a><button class="copy-wallet" type="button" data-copy="${address}" aria-label="Copy ${esc(row.name)} wallet address">Copy</button></td><td><span class="admin-state ${state}">${row.checkedAt?state[0].toUpperCase()+state.slice(1):'Awaiting check'}</span></td><td>${esc(time(row.checkedAt))}</td><td>${esc(time(row.attemptedAt))}</td><td>${tokens}${state==='stale'&&tokens!=='—'?'<small>Last complete sample</small>':''}</td></tr>`;
- }).join(''):`<tr><td class="admin-empty" colspan="7">${report?'No tracked wallets match these filters.':failed?'Wallet list unavailable.':'Loading…'}</td></tr>`;
+  const address=esc(row.address),state=failed?'stale':walletState(row);
+  return `<tr><td><strong>${esc(row.name)}</strong><a href="https://solscan.io/account/${address}" target="_blank" rel="noopener noreferrer"><code title="${address}">${esc(short(row.address))} ↗</code></a><small>${esc(row.notes)}</small></td><td><button type="button" data-interest="${address}" aria-pressed="${row.interested}" aria-label="Interested: ${esc(row.name)}">${row.interested?'★ Interested':'☆ Flag Interested'}</button></td><td>${esc(row.source)}<small>${esc(row.label||'No source label')}</small>${row.discoveryToken?`<a class="discovery-token" href="./order-flow.html?query=${encodeURIComponent(row.discoveryToken)}">Discovery token ↗</a>`:''}</td><td>${row.code?`<b class="admin-class">${esc(row.code)}</b><small>${esc(CLASSES[row.code])}</small>`:'Unclassified'}</td><td><span class="admin-state ${state}">${state==='fresh'?'Fresh':state==='stale'?'Stale':'Awaiting / unavailable'}</span><small>${esc(time(row.checkedAt))}</small></td><td>${row.checkedAt?row.mints.length:'—'}</td><td><button type="button" data-edit="${address}">Edit</button> <button type="button" data-analyze="${address}">Analyze</button></td></tr>`;
+ }).join(''):`<tr><td colspan="7" class="admin-empty">${report?'No wallets match these filters.':failed?'Wallet universe unavailable.':'Loading…'}</td></tr>`;
+ const selected=$('activity-wallet').value;
+ $('activity-wallet').innerHTML='<option value="">Choose a wallet</option>'+rows.map(row=>`<option value="${esc(row.address)}">${esc(row.name)}${row.interested?' · Interested':''}</option>`).join('');
+ if(rows.some(r=>r.address===selected))$('activity-wallet').value=selected;
+ $('analyze-wallet').disabled=analyzing||!rows.length;
 }
 async function refresh(){
- if(loading)return;
- loading=true;$('refresh').disabled=true;
- try{
-  const response=await fetch('/api/followed-wallets',{cache:'no-store',signal:AbortSignal.timeout(20000)});
-  if(!response.ok)throw new Error();
-  const next=await response.json();if(!Array.isArray(next.wallets))throw new Error();
-  report=next;failed=false;
- }catch{failed=true;if(report)report={...report,wallets:report.wallets.map(row=>({...row,status:'unavailable'}))}}
+ if(loading)return;loading=true;$('refresh').disabled=true;
+ try{const next=await api('/api/wallet-universe');if(!Array.isArray(next.wallets))throw new Error();report=next;failed=false}catch{failed=true}
  finally{loading=false;$('refresh').disabled=false;render()}
 }
-$('class-filter').insertAdjacentHTML('beforeend',Object.entries(CLASSES).map(([code,label])=>`<option value="${code}">${code} · ${esc(label)}</option>`).join(''));
-$('legend').innerHTML=Object.entries(CLASSES).map(([code,label])=>`<span><b>${code}</b>${esc(label)}</span>`).join('');
-$('refresh').addEventListener('click',refresh);
-for(const id of ['query','class-filter'])$(id).addEventListener(id==='query'?'input':'change',render);
-$('wallets').addEventListener('click',async event=>{
- const button=event.target.closest('[data-copy]');if(!button)return;
- try{await navigator.clipboard.writeText(button.dataset.copy);button.textContent='Copied ✓'}catch{button.textContent='Select address';$('status').textContent='Copy unavailable. Select and copy the visible address.'}
-});
-render();void refresh();
-setInterval(()=>{if(!document.hidden)void refresh()},60000);
-
-$('wallet-code').innerHTML=Object.entries(CLASSES).map(([code,label])=>`<option value="${code}">${code} · ${esc(label)}</option>`).join('');
-$('add-wallet').addEventListener('click',()=>{
- $('add-wallet-form').reset();$('add-wallet-status').textContent='New wallets are checked during the next scheduled collection.';
+function editor(row=null){
+ editing=row?.address||null;$('add-wallet-form').reset();$('add-wallet-title').textContent=row?'Edit wallet':'Add wallet';
+ for(const [id,key]of [['name','name'],['address','address'],['source','source'],['label','label'],['token','discoveryToken'],['code','code'],['notes','notes']])$('wallet-'+id).value=row?.[key]||((id==='source')?'Manual':'');
+ $('wallet-address').readOnly=Boolean(row);$('wallet-interested').checked=Boolean(row?.interested);$('add-wallet-status').textContent='Interested is independent of source and class. Holdings appear after a scheduled check.';
  $('add-wallet-dialog').showModal();$('wallet-name').focus();
-});
+}
+function renderActivity(){
+ const names=new Map((report?.wallets||[]).map(row=>[row.address,row.name]));
+ const ranked=rankActivity([...analyses.values()]);
+ $('top-wallets').innerHTML=ranked.map((row,i)=>`<tr><td>${row.checked?i+1:'—'}</td><td>${esc(names.get(row.address)||short(row.address))}</td><td>${row.checked?row.swaps:'—'}</td><td>${row.checked?row.other:'—'}</td><td>${row.checked} / ${row.returned}</td><td>${row.status!=='ok'?'Partial / unavailable':row.checked?'Sample loaded':'No recent transactions in sample'}<small>${esc(time(row.checkedAt))}</small></td></tr>`).join('');
+ const events=ranked.flatMap(row=>row.events.map(event=>({...event,address:row.address}))).sort((a,b)=>b.time-a.time);
+ $('activity-events').innerHTML=events.length?events.map(row=>`<tr><td>${esc(time(row.time))}</td><td>${esc(names.get(row.address)||short(row.address))}</td><td><a href="./order-flow.html?query=${encodeURIComponent(row.mint)}" title="${esc(row.mint)}">${esc(short(row.mint))} ↗</a></td><td>${esc(row.quantity)}</td><td>${esc(row.kind)}</td><td><a href="https://solscan.io/tx/${esc(row.signature)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></td></tr>`).join(''):'<tr><td colspan="6" class="admin-empty">No token acquisitions found in the inspected sample. This does not establish no buying.</td></tr>';
+}
+async function analyze(address){
+ if(analyzing||!address)return;analyzing=true;$('activity-wallet').value=address;$('analyze-wallet').disabled=true;$('activity-status').textContent='Reading public Solana transaction history…';
+ try{const next=await api('/api/wallet-activity?address='+encodeURIComponent(address));if(!Array.isArray(next.events))throw new Error();analyses.set(address,next);renderActivity();$('activity-status').textContent=`${next.checked} transactions inspected / ${next.returned} signatures returned. ${next.error||''} ${next.coverage}`}
+ catch(error){$('activity-status').textContent=error.message||'Activity unavailable. Try again.'}
+ finally{analyzing=false;$('analyze-wallet').disabled=false}
+}
+for(const id of ['class-filter','wallet-code'])$(id).insertAdjacentHTML('beforeend',Object.entries(CLASSES).filter(([code])=>code!=='I').map(([code,label])=>`<option value="${code}">${code} · ${esc(label)}</option>`).join(''));
+for(const id of ['query','source-filter','interest-filter','class-filter','state-filter','sort'])$(id).addEventListener(id==='query'?'input':'change',render);
+$('reset-filters').addEventListener('click',()=>{for(const id of ['query','source-filter','interest-filter','class-filter','state-filter'])$(id).value='';$('sort').value='name';render()});
+$('refresh').addEventListener('click',refresh);$('add-wallet').addEventListener('click',()=>editor());
 for(const id of ['close-wallet','cancel-wallet'])$(id).addEventListener('click',()=>$('add-wallet-dialog').close());
+$('wallets').addEventListener('click',async event=>{
+ const button=event.target.closest('button');if(!button)return;
+ const address=button.dataset.edit||button.dataset.interest||button.dataset.analyze,row=report?.wallets.find(r=>r.address===address);if(!row)return;
+ if(button.dataset.edit){editor(row);return}
+ if(button.dataset.analyze){$('activity-form').scrollIntoView({behavior:'smooth',block:'center'});void analyze(address);return}
+ button.disabled=true;
+ try{const saved=await api('/api/wallet-universe',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({address,interested:!row.interested})});Object.assign(row,saved.wallet);render();await refresh()}
+ catch(error){$('status').textContent=error.message;button.disabled=false}
+});
 $('add-wallet-form').addEventListener('submit',async event=>{
- event.preventDefault();if($('save-wallet').disabled)return;
- const wallet={name:$('wallet-name').value.trim(),address:$('wallet-address').value.trim(),code:$('wallet-code').value};
- if(report?.wallets.some(row=>row.address===wallet.address)){$('add-wallet-status').textContent='This wallet is already tracked.';return}
- $('save-wallet').disabled=true;$('add-wallet-status').textContent='Saving wallet…';
- try{
-  const response=await fetch('/api/followed-wallets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(wallet),signal:AbortSignal.timeout(20000)});
-  const result=await response.json();if(!response.ok)throw new Error(result.detail||'Unable to save wallet. Try again.');
-  if(!result.wallet?.address)throw new Error('Unable to confirm the saved wallet. Refresh status before retrying.');
-  $('query').value='';$('class-filter').value='';$('add-wallet-dialog').close();await refresh();
-  $('status').textContent=`${wallet.name} added. Holdings will appear after the next scheduled check.`;
- }catch(error){$('add-wallet-status').textContent=error.name==='TimeoutError'?'Save confirmation timed out. Refresh status before retrying.':error.message||'Unable to save wallet. Try again.'}
+ event.preventDefault();if($('save-wallet').disabled)return;$('save-wallet').disabled=true;
+ const value={};for(const [id,key]of [['name','name'],['address','address'],['source','source'],['label','label'],['token','discoveryToken'],['code','code'],['notes','notes']])value[key]=$('wallet-'+id).value.trim();value.interested=$('wallet-interested').checked;
+ try{await api('/api/wallet-universe',{method:editing?'PATCH':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)});$('add-wallet-dialog').close();await refresh()}
+ catch(error){$('add-wallet-status').textContent=error.message}
  finally{$('save-wallet').disabled=false}
 });
+$('activity-form').addEventListener('submit',event=>{event.preventDefault();void analyze($('activity-wallet').value)});
+void refresh();setInterval(()=>{if(!document.hidden)void refresh()},60000);

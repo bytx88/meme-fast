@@ -8,7 +8,7 @@ export function walletState(row,now=Date.now()){
 }
 export function holdingsFor(coin,report,now=Date.now()){
  if(coin.network!=='solana'&&coin.chain!=='Solana'&&!String(coin.id).startsWith('solana:'))return [];
- return (report?.wallets||[]).filter(row=>CLASSES[row.code]&&walletState(row,now)!=='unavailable'&&row.mints?.includes(coin.contract_address));
+ return (report?.wallets||[]).filter(row=>row.interested!==false&&(CLASSES[row.code]||row.interested===true)&&walletState(row,now)!=='unavailable'&&row.mints?.includes(coin.contract_address)).map(row=>row.code?row:{...row,code:'I'});
 }
 export function walletBadges(coin,report,now=Date.now()){
  const groups=new Map();
@@ -16,13 +16,13 @@ export function walletBadges(coin,report,now=Date.now()){
  if(!groups.size)return '';
  return `<span class="wallet-badges">${[...groups].map(([code,rows])=>{
   const stale=rows.some(row=>walletState(row,now)!=='fresh');
-  const label=`${code} · ${CLASSES[code]} · ${rows.map(row=>`${row.name} (${walletState(row,now)})`).join(', ')}`;
-  return `<details class="wallet-badge wallet-${code[0]}${stale?' wallet-stale':''}"><summary title="${esc(label)}" aria-label="${esc(label)}">${icon(code)}${esc(code)}${stale?' · !':''}</summary><span class="wallet-popup"><strong>${esc(CLASSES[code])}</strong>${rows.map(row=>`<a href="https://solscan.io/account/${esc(row.address)}" target="_blank" rel="noopener noreferrer">${esc(row.name)} ↗</a><small>${walletState(row,now)==='fresh'?'Checked':'Stale · last checked'} ${esc(new Date(row.checkedAt).toLocaleString())}</small>`).join('')}</span></details>`;
+  const label=`${code} · ${CLASSES[code]||'Interested Party'} · ${rows.map(row=>`${row.name} (${walletState(row,now)})`).join(', ')}`;
+  return `<details class="wallet-badge wallet-${code[0]}${stale?' wallet-stale':''}"><summary title="${esc(label)}" aria-label="${esc(label)}">${icon(code)}${esc(code)}${stale?' · !':''}</summary><span class="wallet-popup"><strong>${esc(CLASSES[code]||'Interested Party')}</strong>${rows.map(row=>`<a href="https://solscan.io/account/${esc(row.address)}" target="_blank" rel="noopener noreferrer">${esc(row.name)} ↗</a><small>${walletState(row,now)==='fresh'?'Checked':'Stale · last checked'} ${esc(new Date(row.checkedAt).toLocaleString())}</small>`).join('')}</span></details>`;
  }).join('')}</span>`;
 }
 export function walletCoverage(report,now=Date.now()){
  const rows=report?.wallets||[],fresh=rows.filter(row=>walletState(row,now)==='fresh').length;
- return `Followed wallets: ${fresh}/${rows.length||8} fresh${rows.length-fresh>0?' · stale / unavailable':''}`;
+ return `Interested Parties: ${fresh}/${rows.length||8} fresh${rows.length-fresh>0?' · stale / unavailable':''}`;
 }
 export function walletRegistry(report,now=Date.now()){
  return `<details class="wallet-registry"><summary>${esc(walletCoverage(report,now))}</summary><p>Solana token balances sampled every 5m. Badges match exact contracts with a positive balance. Labels are assigned by you; Dev does not verify token creation. Absence of a badge is inconclusive when checks are stale or unavailable.</p><div class="wallet-legend">${Object.entries(CLASSES).map(([code,label])=>`<span>${icon(code)} <b>${code}</b> ${esc(label)}</span>`).join('')}</div>${(report?.wallets||[]).map(row=>`<div class="wallet-registry-row"><b>${esc(row.code)}</b><a href="https://solscan.io/account/${esc(row.address)}" target="_blank" rel="noopener noreferrer">${esc(row.name)} ↗</a><span>${walletState(row,now)}${row.checkedAt?` · ${esc(new Date(row.checkedAt).toLocaleString())}`:''}</span></div>`).join('')}</details>`;

@@ -11,3 +11,5 @@
 .source-health-state.ok{color:#bfe68a}
 .source-health-state.partial,.source-health-state.failed{color:#ffba92}
 @media(max-width:600px){.source-health-head{flex-direction:column}.source-health-head button{align-self:flex-start}}
+
+.source-admin-nav{display:flex;gap:18px;margin:20px 0 0;font-size:13px}.source-admin-nav a{color:var(--accent)}
