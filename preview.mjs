@@ -13,6 +13,17 @@ const python=process.platform==='win32'?'py':'python3';
 if(process.platform==='win32'&&tls.setDefaultCACertificates&&tls.getCACertificates){
  tls.setDefaultCACertificates([...tls.getCACertificates('default'),...tls.getCACertificates('system')]);
 }
+let smartRefresh=null;
+async function smartReport(){
+ const source="import json; from worker.smart_wallets import read_report; print(json.dumps(read_report('.data/smart-wallets')))";
+ let report=JSON.parse((await runFile(python,['-c',source],{timeout:10000})).stdout);
+ if(process.env.MEME_COLLECTOR_DISABLED!=='1'&&(!report.attemptedAt||Date.now()-report.attemptedAt>=240000)){
+  if(!smartRefresh)smartRefresh=runFile(python,['worker/smart_wallets.py','.data/smart-wallets'],{timeout:150000}).finally(()=>{smartRefresh=null});
+  await smartRefresh;
+  report=JSON.parse((await runFile(python,['-c',source],{timeout:10000})).stdout);
+ }
+ return report;
+}
 const historyFile=path.resolve('.data/coins.json');
 const xFactorFile=path.resolve('.data/x-factor.json');
 const jeanphilFile=path.resolve('.data/jeanphil-monitor.json');
@@ -28,7 +39,7 @@ const market=createMarketProxy();
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const base=path.resolve('dist');
-http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/refresh-priority'){
+http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/api/smart-wallets'){if(req.method!=='GET'){res.writeHead(405).end();return}res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify(await smartReport()));return}if(url.pathname==='/api/refresh-priority'){
  if(req.method!=='POST'){res.writeHead(405).end();return}
  let body='';for await(const chunk of req){body+=chunk;if(body.length>6000){res.writeHead(400).end('Priority request too large');return}}
  let ids;try{ids=validPriorityIds(JSON.parse(body).ids)}catch{res.writeHead(400).end('Request 1 to 30 supported token contracts');return}

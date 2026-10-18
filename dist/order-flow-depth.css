@@ -129,4 +129,29 @@ body.inspect-depth{
 .smart-group p{line-height:1.6;max-width:110ch}
 .smart-group ol{padding-left:22px;line-height:1.9;overflow-wrap:anywhere}
 .smart-group a{color:#a2cfff}
-#timeline.smart-empty{display:grid;min-height:162px;place-items:center;text-align:center;color:#a0b2c6}
+
+#market-flow[hidden],#smart-holdings[hidden],[data-smart-only][hidden]{display:none!important}
+.smart-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin:8px 0 12px;border:1px solid #2c3c4e;background:#15212d;border-radius:7px}
+.smart-metrics>div{display:flex;flex-direction:column;align-items:center;gap:8px;padding:13px 8px;border-right:1px solid #2c3c4e}
+.smart-metrics>div:last-child{border-right:0}
+.smart-metrics span{font-size:11px;letter-spacing:.04em;color:#a0b2c6}
+.smart-metrics strong{font-size:23px;letter-spacing:-.03em;color:#f3f8ff;font-variant-numeric:tabular-nums}
+.smart-metrics>div:first-child strong{color:#ffc400}
+.smart-metrics [data-tone=buy]{color:#2bdfaa}.smart-metrics [data-tone=sell]{color:#fb7185}
+.smart-chart-panel{margin:0 0 16px}
+.smart-chart-legend{display:flex;gap:16px;font-size:12px;color:#b2c4d7}
+.smart-chart-legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:6px}
+.smart-balance-key{background:#ffc400}.smart-price-key{background:#718695}
+#smart-chart{margin-top:16px;min-width:0}
+#smart-chart svg{display:block;width:100%;height:auto;min-height:230px}
+#smart-chart-note{line-height:1.6;margin-top:4px}
+.smart-balances-panel{margin-bottom:20px}
+.smart-balances-panel .panel-heading{flex-wrap:wrap}
+.smart-balances-panel small{display:block;margin-top:4px;color:#91a2b6;font-size:11px}
+.smart-balances-panel table{min-width:850px}
+.smart-balances-panel td{font-size:13px}
+.smart-balances-panel td:first-child{color:#f3f8ff}
+.smart-balances-panel .chart-note{margin-top:10px;line-height:1.6}
+.smart-stale{opacity:.6}
+@media(max-width:850px){.smart-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.smart-metrics>div{border-bottom:1px solid #2c3c4e}.smart-metrics strong{font-size:20px}}
+@media(max-width:580px){.smart-metrics span{font-size:10px}.smart-chart-panel .panel-heading{flex-wrap:wrap}.smart-metrics strong{font-size:18px}.smart-chart-panel,.smart-balances-panel{padding:14px 9px!important}.smart-chart-legend{gap:10px}}

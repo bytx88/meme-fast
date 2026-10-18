@@ -11,11 +11,6 @@ export const SMART_WALLETS=Object.freeze([
   '9e6ZQpCcKhejmnXwhVPVKejv7B9tCN3iTWWy4bNtX9ut',
   'J53jf6fUKNnmrPp62V1vakdoGV4eviiE1UMPYqAPJq1t'
 ]);
-const addresses=new Set(SMART_WALLETS);
 export function hasSmartGroup(tokens){
   return tokens.length===1&&tokens[0].network==='solana'&&tokens[0].address===SMART_TEST_TOKEN;
-}
-export function smartWalletTrades(trades){
-  // Solana addresses are case-sensitive. Match the attributed sender exactly.
-  return trades.filter(trade=>trade.network==='solana'&&trade.tokenKey===`solana:${SMART_TEST_TOKEN}`&&addresses.has(trade.wallet));
 }

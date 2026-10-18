@@ -42,6 +42,25 @@ refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
+smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
+
+
+@app.function(schedule=modal.Period(minutes=5), timeout=180, max_containers=1,
+              volumes={"/smart": smart_volume})
+@modal.concurrent(max_inputs=1)
+def collect_smart_wallets():
+    import sys
+    import time
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    from worker.smart_wallets import collect, read_report, CACHE_MS
+    smart_volume.reload()
+    report = read_report('/smart')
+    if report.get('attemptedAt') and 0 <= time.time() * 1000 - report['attemptedAt'] < CACHE_MS:
+        return report
+    report = collect('/smart')
+    smart_volume.commit()
+    return report
 
 
 @app.function(timeout=100, max_containers=1,
@@ -252,6 +271,12 @@ def web():
             except (FileNotFoundError, ValueError):
                 report = awaiting(registry)
         return JSONResponse(merge_report(report, registry), headers={"cache-control": "no-store"})
+
+    @web_app.get("/api/smart-wallets")
+    async def smart_wallets():
+        # A single collector owns writes and caches collection across page visits.
+        report = await collect_smart_wallets.remote.aio()
+        return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/followed-wallets")
     async def add_followed_wallet(request: Request):

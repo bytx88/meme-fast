@@ -1,0 +1,17 @@
+{
+  "token": "C1mBfBoDkwWfd6uTFZp62ARHLjeVp3bDpCDMfMZtPngE",
+  "symbol": "HOOKED",
+  "network": "solana",
+  "decimals": 6,
+  "wallets": [
+    {"address": "4CPQqg2GeUiyykB5Vz5VHMSDbGa6ztjk5RcpdMdm3Hu1", "name": "Smart Trader 1"},
+    {"address": "9CXqAEnMKRAE14QiKhSXA9PQPmHf4suCHDtDkFTpUjw4", "name": "Smart Trader 2"},
+    {"address": "6CgsbsC1nAchgQ1d1tZgDSWiVuUPjj9rnkU76YeypAHe", "name": "FuzzyKeyCoral"},
+    {"address": "5bFi2MNTzcSwPg3Hy5rb5db6Nr9g5qtNwJnTfE4Kb9iS", "name": "3xv2sd"},
+    {"address": "H6PEtpaDddtPEQjvGwEq5y7nF7WpNsTNy73m5h97oTye", "name": "Carver_"},
+    {"address": "8ddc12hR2ePg4UkkWcecd9ShcNJyHrkBpLDjd8Yjn4GG", "name": "Smart Trader 3"},
+    {"address": "FXBA4QqvkWTajCrApU8MF8h7GjrySZTLoUqYCFkhPDoa", "name": "Smart Trader 4"},
+    {"address": "9e6ZQpCcKhejmnXwhVPVKejv7B9tCN3iTWWy4bNtX9ut", "name": "Smart Trader 5"},
+    {"address": "J53jf6fUKNnmrPp62V1vakdoGV4eviiE1UMPYqAPJq1t", "name": "J53jf6f"}
+  ]
+}
