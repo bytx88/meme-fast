@@ -1,0 +1,16 @@
+/* One-stream page expansion, following Snipe's Full mode. */
+.stream-expand{display:flex;align-items:center;gap:7px;background:transparent;border:1px solid #3a4657;border-radius:7px;padding:4px 7px;color:var(--muted);flex-shrink:0;cursor:pointer}
+.stream-expand .count-badge{border:0;padding:0;min-width:20px;min-height:0}
+.stream-expand-label{font-size:11px;white-space:nowrap}
+.stream-expand:hover,.stream-expand[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+.stream-expand:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+body[data-stream-full] .radar{width:calc(100% - 24px);max-width:none;margin:0 auto;padding:8px 0}
+body[data-stream-full] .radar>:not(.stream-grid){display:none}
+body[data-stream-full] .radar .stream-grid{display:block}
+body[data-stream-full=news] .money-stream,body[data-stream-full=coins] .attention-stream{display:none}
+body[data-stream-full] .stream{min-height:calc(100dvh - 16px);overflow:visible}
+body[data-stream-full] .stream-heading{position:sticky;top:0;z-index:10;border-radius:12px 12px 0 0;box-shadow:0 3px 12px #0005}
+body[data-stream-full] #trends,body[data-stream-full] #coins{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));align-items:start}
+body[data-stream-full] .signal-card{min-width:0;height:100%;box-sizing:border-box;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+body[data-stream-full] .stream-more{display:none}
+@media(max-width:600px){body[data-stream-full] .radar{width:calc(100% - 12px)}.stream-expand{gap:4px;padding:4px 6px}}

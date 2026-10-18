@@ -48,6 +48,10 @@ Swing's chain toolbar uses small coloured letter circles: A for All, R for Robin
 
 Snipe uses the same circles in its normal and Full toolbars across Starter, Discover, Explore, and same-name listings. Selections are saved with the existing Screener settings and stay synchronized between toolbars; the settings dialog shows “Multiple selected chains” when more than one is active. Applying other screener limits preserves that selection, and Reset defaults returns to All.
 
+## Tweet full-screen streams
+
+Each Tweet stream has a **Full** button beside its count. Expanding Publisher news shows only news cards; expanding Top coins shows only coin cards. The selected stream fills the page with a responsive card grid and all matching results, retaining its own filters and a sticky **Exit Full** control. Escape also exits, restoring the normal two-stream layout, prior top-three/all selection and scroll position. Dialogs close first when Escape is pressed.
+
 ## X social signal
 
 Tweet and Swing show an **X RSS** badge for each sampled contract. It counts x.com posts indexed by Google News RSS in the current six hours and shows the change versus the previous six hours. The inspector links to indexed items. A zero means none appeared in this RSS sample; it does not mean there were no X posts. The count does not include likes, reposts, author diversity, or a 0–100 X Factor score, and it does not affect market rankings.

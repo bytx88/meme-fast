@@ -49,14 +49,14 @@ function render(){
  $('#followed-wallets').innerHTML=walletRegistry(walletReport);
  const view=buildTweetView(dataset,state);
  const links=buildEvidenceLinks(view.trends,view.coins);
- loadCoinContexts(expandedCoins?view.coins:view.coins.slice(0,3));
+ loadCoinContexts((expandedCoins||document.body.dataset.streamFull==='coins')?view.coins:view.coins.slice(0,3));
  $('#trend-count').textContent=view.trends.length;$('#coin-count').textContent=view.coins.length;$('#crossover-count').textContent=links.length;
  $('#filter-status').textContent=`${view.trends.length} news signals · ${view.coins.length} coins · ${state.hours===72?'3-day':state.hours+'H'} news window${state.topic!=='all'?' · topic: '+state.topic:''}${state.chain!=='all'?' · chain: '+state.chain:''}${state.stage!=='all'?' · '+(state.stage==='single'?'single publisher':'multiple publishers'):''} · market metrics: 24H`;
- $('#trends').innerHTML=(expandedTrends?view.trends:view.trends.slice(0,3)).map(n=>{
+ $('#trends').innerHTML=((expandedTrends||document.body.dataset.streamFull==='news')?view.trends:view.trends.slice(0,3)).map(n=>{
   const excerpt=newsExcerpt(n),sources=excerpt.sources.map(p=>safeURL(p.url)?`<a href="${esc(safeURL(p.url))}" target="_blank" rel="noopener noreferrer" title="${esc(p.title)}">${esc(p.publisher)} ↗</a>`:'').filter(Boolean);
   return `<article class="signal-card tweet-news-card"><div class="signal-top"><span class="rank">${String(n.rank).padStart(2,'0')}</span><div class="signal-name"><h3>${esc(n.title)}</h3></div></div><div class="tags"><span class="stage-tag">${n.stage===1?'Multiple publishers':'Single publisher'}</span>${tokens(n)}</div><p class="signal-summary">${esc(excerpt.text||'Publisher excerpt unavailable. Open the source article for the full story.')}</p>${sources.length?`<div class="news-source-links"><span>Publisher excerpts</span>${sources.join(' · ')}</div>`:''}<div class="news-coverage">${n.sources} publisher${n.sources===1?'':'s'} · ${n.mentions} article${n.mentions===1?'':'s'} · latest ${esc(ago(n.latest))}</div><div class="signal-bottom"><span>First observed article ${esc(ago(n.first))}</span><div class="signal-actions"><a class="text-button" href="./narrative.html?id=${encodeURIComponent(n.id)}">Open research ↗</a><button class="text-button" data-timeline="${n.id}">Quick timeline</button></div></div></article>`;
  }).join('')||empty(loading&&!dataset.articles.length?'Loading public news…':'No articles match this window and filters. Try 24H or 3D. Feed availability is shown above.');
- $('#coins').innerHTML=(expandedCoins?view.coins:view.coins.slice(0,3)).map(c=>{
+ $('#coins').innerHTML=((expandedCoins||document.body.dataset.streamFull==='coins')?view.coins:view.coins.slice(0,3)).map(c=>{
   const related=links.filter(link=>link.coin.id===c.id),exact=related.filter(link=>link.level==='exact').length,m=tweetCoinMetrics(c),fomo=fomoLink(c),image=safeURL(c.image_url);
   const change=m.change24h==null?'—':`${m.change24h>0?'+':''}${m.change24h.toFixed(1)}%`;
   const stats=[['MC',money(m.mc),'Reported market cap; FDV is not substituted'],['Liquidity',money(m.liquidity),'Liquidity in the selected pool'],['Price · 24H',change,'Reported price change over 24 hours',m.change24h==null?'':m.change24h>0?'positive':m.change24h<0?'negative':''],['Vol · 24H',money(m.volume24h),'USD volume in the selected pool over 24 hours'],['Buyers · 24H',num(m.buyers24h),'Reported buyers in the selected pool over 24 hours'],['B/S · 24H',`${num(m.buys24h)} / ${num(m.sells24h)}`,'Buy / sell swap counts over 24 hours; not USD flow'],['Vol · 5m',money(m.volume5m),'USD volume in the selected pool over five minutes'],['B/S · 5m',`${num(m.buys5m)} / ${num(m.sells5m)}`,'Buy / sell swap counts over five minutes; not USD flow'],['Pool age',Number.isFinite(c.poolCreated)&&c.poolCreated>0&&c.poolCreated<=Date.now()?ago(c.poolCreated).replace(' ago',''):'—','Time since pool creation; not token launch age']];
@@ -153,6 +153,28 @@ $('#sources-open').onclick=()=>{renderSources();$('#sources-dialog').showModal()
 $('#source-form').onsubmit=e=>{e.preventDefault();const handle='@'+$('#source-handle').value.replace(/^@/,'');if(sources.some(s=>s.handle.toLowerCase()===handle.toLowerCase())){$('#source-status').textContent='Account already saved.';return}sources.push({handle,category:$('#source-category').value,group:$('#source-group').value,weight:Number($('#source-weight').value)});const saved=save(SOURCE_KEY,sources);$('#source-status').textContent=saved?'Bookmark saved locally. Account collection is inactive.':'Saved for this session; browser storage is unavailable.';$('#source-handle').value='';renderSources()};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-remove-source]');if(b){sources=sources.filter(s=>s.handle!==b.dataset.removeSource);save(SOURCE_KEY,sources);renderSources()}});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
+// Like Snipe's Full mode: fill the page with one selected stream, without cloning cards.
+let streamScroll=0;
+function setStreamFull(stream){
+ const previous=document.body.dataset.streamFull;
+ if(stream&&!previous)streamScroll=window.scrollY;
+ if(stream)document.body.dataset.streamFull=stream;
+ else delete document.body.dataset.streamFull;
+ document.querySelectorAll('[data-stream-full]').forEach(button=>{
+  const active=button.dataset.streamFull===stream;
+  button.setAttribute('aria-pressed',String(active));
+  button.setAttribute('aria-label',active?'Exit full screen':`Expand ${button.dataset.streamFull==='news'?'publisher news':'top coins'} full screen`);
+  button.querySelector('.stream-expand-label').textContent=active?'× Exit Full':'⛶ Full';
+ });
+ render();
+ window.scrollTo({top:stream?0:streamScroll,behavior:'instant'});
+ if(!stream&&previous)document.querySelector(`[data-stream-full="${previous}"]`).focus({preventScroll:true});
+}
+document.querySelectorAll('[data-stream-full]').forEach(button=>button.addEventListener('click',()=>setStreamFull(document.body.dataset.streamFull===button.dataset.streamFull?null:button.dataset.streamFull)));
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&document.body.dataset.streamFull&&!document.querySelector('dialog[open]'))setStreamFull(null);
+});
+
 const cached=read('meme-fast-public-articles-v1',[]);
 if(Array.isArray(cached))dataset.articles=mergeArticles([],cached.filter(p=>p&&typeof p.id==='string'&&safeURL(p.url)&&typeof p.title==='string'&&typeof p.summary==='string'&&typeof p.publisher==='string'&&Number.isFinite(p.time)&&FEEDS.some(f=>f.id===p.feed)));
 render();refresh();setInterval(()=>{if(!document.hidden)refresh()},300000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastAttempt>300000)refresh()});
