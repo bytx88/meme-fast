@@ -111,6 +111,8 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
         smart_volume.commit()
         def checkpoint(report):
             stamp = int(time.time() * 1000)
+            # Keep a queued lease alive while pre-deployment inputs drain too.
+            balance_requests.put('balance-heartbeat', dict(at=stamp))
             seeds.checkpoint(plan, job, report, stamp)
             seeds.save('/smart', plan)
             smart_volume.commit()
@@ -430,7 +432,8 @@ def web():
         await smart_volume.reload.aio()
         value = public_report(load('/smart'), int(time.time() * 1000))
         lease = await balance_requests.get.aio('balance-writer', None)
-        value['queued'] = bool(lease and 0 <= value['now'] - lease.get('requestedAt', 0) < 1800000)
+        heartbeat = await balance_requests.get.aio('balance-heartbeat', {})
+        value['queued'] = bool(lease and 0 <= value['now'] - max(lease.get('requestedAt', 0), heartbeat.get('at', 0)) < 1800000)
         return JSONResponse(value, headers={'cache-control':'no-store'})
 
     @web_app.post('/api/smart-seeding/refresh')

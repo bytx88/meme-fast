@@ -16,7 +16,8 @@ FILE = 'collection-plan.json'
 def request_collection(leases, dispatch, now):
     key = 'balance-writer'
     lease = leases.get(key, None)
-    if lease and 0 <= now - lease.get('requestedAt', 0) < 1800000:
+    heartbeat = leases.get('balance-heartbeat', {}).get('at', 0)
+    if lease and 0 <= now - max(lease.get('requestedAt', 0), heartbeat) < 1800000:
         return False
     if lease:
         leases.pop(key, None)

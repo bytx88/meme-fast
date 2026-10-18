@@ -39,6 +39,8 @@ class RankingTests(unittest.TestCase):
         self.assertFalse(seeds.request_collection(leases,lambda **k:calls.append(k),NOW+60000))
         self.assertEqual(len(calls),1)
         self.assertTrue(seeds.request_collection(leases,lambda **k:calls.append(k),NOW+1800000))
+        leases['balance-heartbeat'] = dict(at=NOW+3500000)
+        self.assertFalse(seeds.request_collection(leases,lambda **k:calls.append(k),NOW+3700000))
         leases.clear()
         def broken(**kwargs):raise RuntimeError('Dispatcher unavailable')
         with self.assertRaises(RuntimeError):seeds.request_collection(leases,broken,NOW)
