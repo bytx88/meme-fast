@@ -1,3 +1,4 @@
+const seedVisits=new Map();
 import {moneyStatus} from './wallet-universe.mjs';
 import {setupMCDetail} from './mc-detail-view.mjs';
 import {setupClipboardAddress} from './clipboard-address.mjs';
@@ -129,6 +130,10 @@ function emptyRow(text){const tr=document.createElement('tr'),td=document.create
 function currentSummary(){if(state.measure==="balance")return viewData().balanceActive?smartHoldings.summary():{measure:"balance",walletMode:"all",status:"unavailable"};if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,measure:"flow",walletMode:view.smartActive?"smart":"all",windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData();
+  if(state.searchResult==='ready'&&view.tokens.length===1&&view.tokens[0].network==='solana'&&!view.tokens[0].unverified){
+    const token=view.tokens[0].address,at=Date.now();
+    if(at-(seedVisits.get(token)||0)>300000){seedVisits.set(token,at);if(seedVisits.size>100)seedVisits.delete(seedVisits.keys().next().value);void fetch('/api/smart-seeding/inspect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token}),signal:AbortSignal.timeout(15000)}).catch(()=>{});}
+  }
   if(!view.balanceActive&&state.minutes>7200)state.minutes=1440;
   const now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
   if(!view.smartSupported)state.smart=false;

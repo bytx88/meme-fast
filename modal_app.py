@@ -49,8 +49,15 @@ balance_requests = modal.Dict.from_name("meme-fast-balance-requests", create_if_
 smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
 
 
+def dispatch_smart_collection():
+    """One queued/running balance job for all automatic and Inspect requests."""
+    import time
+    from worker.smart_seeding import request_collection
+    return request_collection(balance_requests, collect_smart_wallets.spawn, int(time.time() * 1000))
+
+
 @app.function(timeout=1200, max_containers=1,
-              volumes={"/smart": smart_volume})
+              volumes={"/smart": smart_volume, "/smartness": smartness_volume, "/history": history_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
     try:
@@ -67,7 +74,9 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.smart_wallets import collect_cycle, read_report, make_cohort, needs_refresh
+    from worker.smart_wallets import collect_cycle, read_report, make_cohort, needs_refresh, group
+    from worker import smart_seeding as seeds
+    from worker.smartness import read_report as read_ledger
     from worker.wallet_universe import universe
     from worker.followed_wallets import registry_wallets
     smart_volume.reload()
@@ -77,39 +86,53 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
         report = install_backfill('/smart', backfill, int(time.time() * 1000))
         smart_volume.commit()
         return {'status': report['status'], 'backfill': report['backfill'], 'snapshots': len(report['samples'])}
+    registry = universe(registry_wallets([value for _, value in tracked_wallet_registry.items()]),
+                        [value for _, value in wallet_universe_registry.items()])
     now = int(time.time() * 1000)
-    def sample(mint=None, scope='universe'):
-        cohort = None
-        if mint:
-            registry = universe(registry_wallets([value for _, value in tracked_wallet_registry.items()]),
-                                [value for _, value in wallet_universe_registry.items()])
-            cohort = make_cohort(mint, registry, scope)
-        saved = read_report('/smart', cohort)
-        if not needs_refresh(saved, now):
-            return saved
+    if token:
+        key = token + ':' + cohort_scope
+        balance_watches.put(key, dict(token=token, scope=cohort_scope, requestedAt=now))
+    watches = [row for _, row in balance_watches.items()]
+    smartness_volume.reload()
+    history_volume.reload()
+    try:
+        import json
+        holdings = json.loads(Path('/history/followed-wallets.json').read_text())
+    except (OSError, ValueError):
+        holdings = {}
+    plan = seeds.prepare('/smart', registry, read_ledger('/smartness'), watches, holdings, now)
+    smart_volume.commit()
+    job = seeds.choose_job(plan, watches, now)
+    result = None
+    if job:
+        job['startedAt'] = int(time.time() * 1000)
+        plan['running'] = dict(job)
+        seeds.save('/smart', plan)
+        smart_volume.commit()
         def checkpoint(report):
+            stamp = int(time.time() * 1000)
+            seeds.checkpoint(plan, job, report, stamp)
+            seeds.save('/smart', plan)
             smart_volume.commit()
             print('Balance checkpoint', report['token'], report.get('collection', {}).get('checkedWallets',
                   sum(row['status'] == 'ok' for row in report['wallets'])), '/', len(report['wallets']), flush=True)
-        result = collect_cycle('/smart', cohort=cohort, checkpoint=checkpoint,
-                               budget_seconds=900 if mint else 35,
-                               pass_seconds=90 if mint else 35)
-        return result
-    if token:
-        result = sample(token, cohort_scope)
-        key = token + ':' + cohort_scope
-        balance_watches.put(key, dict(token=token, scope=cohort_scope, requestedAt=now, checkedAt=now))
-        return result
-    result = sample()
-    # Continue the least-recently checked active chart without an unbounded scheduler.
-    watches = [(key, row) for key, row in balance_watches.items() if now - row.get('requestedAt', 0) < 86400000]
-    for key, row in sorted(watches, key=lambda item: item[1].get('checkedAt', 0))[:1]:
         try:
-            sample(row['token'], row['scope'])
-            balance_watches.put(key, dict(row, checkedAt=now))
-        except ValueError:
-            pass  # An emptied Interested group is unavailable; existing history remains.
-    return result
+            cohort = make_cohort(job['token'], registry, job['scope'])
+            result = collect_cycle('/smart', cohort=cohort, checkpoint=checkpoint, budget_seconds=900, pass_seconds=90)
+            seeds.checkpoint(plan, job, result, int(time.time() * 1000), finished=True)
+            plan.pop('error', None)
+        except Exception as error:
+            plan.update(running=None, error='Collection failed; saved readings retained: ' + type(error).__name__)
+            plan['checks'][job['token'] + ':' + job['scope']] = dict(nextDueAt=int(time.time() * 1000) + 300000, status='unavailable')
+        finally:
+            seeds.save('/smart', plan)
+            smart_volume.commit()
+    # Keep the original archived group current, while honoring a token-wide pause.
+    original = group()
+    paused = plan['tokens'].get(original['token'], {}).get('mode') == 'dormant'
+    if not paused and needs_refresh(read_report('/smart'), int(time.time() * 1000)):
+        collect_cycle('/smart', budget_seconds=35, pass_seconds=35, checkpoint=lambda _: smart_volume.commit())
+    return result or dict(ranking=len(plan['ranking']), monitored=len(plan['tokens']), error=plan.get('error'))
 
 
 @app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume})
@@ -237,7 +260,7 @@ def collect_followed_wallets():
     # Share the existing five-minute dispatch slot; keep balance-history writes
     # in their own single-writer function and Volume.
     try:
-        collect_smart_wallets.spawn()
+        dispatch_smart_collection()
     except Exception:
         print('Smart wallet dispatch unavailable; on-visit collection remains available')
     try:
@@ -400,6 +423,39 @@ def web():
         await collect_smartness.spawn.aio()
         return JSONResponse({'requested':True,'startedAt':int(time.time()*1000)}, status_code=202, headers={'cache-control':'no-store'})
 
+    @web_app.get('/api/smart-seeding')
+    async def get_smart_seeding():
+        import time
+        from worker.smart_seeding import load, public_report
+        await smart_volume.reload.aio()
+        value = public_report(load('/smart'), int(time.time() * 1000))
+        lease = await balance_requests.get.aio('balance-writer', None)
+        value['queued'] = bool(lease and 0 <= value['now'] - lease.get('requestedAt', 0) < 1800000)
+        return JSONResponse(value, headers={'cache-control':'no-store'})
+
+    @web_app.post('/api/smart-seeding/refresh')
+    async def refresh_smart_seeding():
+        requested = await asyncio.to_thread(dispatch_smart_collection)
+        return JSONResponse(dict(requested=requested), status_code=202, headers={'cache-control':'no-store'})
+
+    @web_app.post('/api/smart-seeding/inspect')
+    async def inspect_seed(request: Request):
+        import time
+        from worker.smart_seeding import valid_token
+        body = await request.body()
+        if len(body) > 300:
+            raise HTTPException(status_code=400, detail='Invalid token request')
+        try:
+            value = json.loads(body)
+            token = value.get('token')
+            if not valid_token(token, include_quotes=True):
+                raise ValueError()
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(status_code=400, detail='Choose a Solana token')
+        await balance_watches.put.aio(token + ':universe', dict(token=token, scope='universe', requestedAt=int(time.time() * 1000)))
+        await asyncio.to_thread(dispatch_smart_collection)
+        return JSONResponse(dict(requested=True), status_code=202, headers={'cache-control':'no-store'})
+
     @web_app.get('/api/wallet-universe')
     async def get_wallet_universe(metadata: bool = False):
         value = dict(version=1, wallets=await universe_registry()) if metadata else await universe_report()
@@ -495,21 +551,19 @@ def web():
         await smart_volume.reload.aio()
         report = read_report('/smart', cohort)
         now = int(time.time() * 1000)
-        key = cohort['groupId']
-        lease = await balance_requests.get.aio(key, None)
-        if lease and not 0 <= now - lease.get('requestedAt', 0) < 1800000:
-            await balance_requests.pop.aio(key, None)
-            lease = None
-        if needs_refresh(report, now) and not lease:
-            lease = {'requestedAt': now}
-            if await balance_requests.put.aio(key, lease, skip_if_exists=True):
-                try:
-                    await collect_smart_wallets.spawn.aio(token=token or None, cohort_scope=scope, request_key=key, request_at=now)
-                except Exception:
-                    await balance_requests.pop.aio(key, None)
-                    lease = None
-                    report['error'] = 'Could not request a balance refresh. Saved observations are retained.'
-        report['refreshing'] = bool(lease)
+        watch_scope = scope if token else 'legacy'
+        await balance_watches.put.aio(cohort['token'] + ':' + watch_scope,
+                                     dict(token=cohort['token'], scope=watch_scope, requestedAt=now))
+        from worker.smart_seeding import load
+        policy = load('/smart')['tokens'].get(cohort['token'], {})
+        pending = needs_refresh(report, now) or policy.get('mode') == 'dormant'
+        if pending:
+            try:
+                await asyncio.to_thread(dispatch_smart_collection)
+            except Exception:
+                report['error'] = 'Could not request a balance refresh. Saved observations are retained.'
+        report['collectionPolicy'] = {k: v for k, v in policy.items() if k != 'zeroDays'}
+        report['refreshing'] = pending
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/followed-wallets")

@@ -1,4 +1,5 @@
 import {createWalletDiscovery} from './wallet-discovery.mjs';
+import {createSmartSeeding} from './smart-seeding.mjs';
 import {createSmartness} from './smartness.mjs';
 import {CLASSES,walletState} from './followed-wallets.mjs';
 import {filterUniverse,moneyStatus} from './wallet-universe.mjs';
@@ -7,6 +8,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const time=v=>Number.isFinite(v)&&v>0?new Date(v).toLocaleString():'—';
 let report=null,failed=false,loading=false,editing=null;
 const smartness=createSmartness({registry:()=>report?.wallets||[]});
+const seeding=createSmartSeeding();
 async function api(path,options={}){
  const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(120000),...options});
  const value=await response.json();if(!response.ok)throw new Error(value.detail||'Request failed. Try again.');return value;
