@@ -16,11 +16,11 @@ if(process.platform==='win32'&&tls.setDefaultCACertificates&&tls.getCACertificat
 let smartRefresh=null;
 async function smartReport(){
  const source="import json; from worker.smart_wallets import read_report; print(json.dumps(read_report('.data/smart-wallets')))";
- let report=JSON.parse((await runFile(python,['-c',source],{timeout:10000})).stdout);
+ let report=JSON.parse((await runFile(python,['-c',source],{timeout:10000,maxBuffer:8*1024*1024})).stdout);
  if(process.env.MEME_COLLECTOR_DISABLED!=='1'&&(!report.attemptedAt||Date.now()-report.attemptedAt>=240000)){
   if(!smartRefresh)smartRefresh=runFile(python,['worker/smart_wallets.py','.data/smart-wallets'],{timeout:150000}).finally(()=>{smartRefresh=null});
   await smartRefresh;
-  report=JSON.parse((await runFile(python,['-c',source],{timeout:10000})).stdout);
+  report=JSON.parse((await runFile(python,['-c',source],{timeout:10000,maxBuffer:8*1024*1024})).stdout);
  }
  return report;
 }

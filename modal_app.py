@@ -48,7 +48,7 @@ smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_i
 @app.function(timeout=180, max_containers=1,
               volumes={"/smart": smart_volume})
 @modal.concurrent(max_inputs=1)
-def collect_smart_wallets():
+def collect_smart_wallets(backfill=None):
     import sys
     import time
     if "/app" not in sys.path:
@@ -56,6 +56,11 @@ def collect_smart_wallets():
     from worker.smart_wallets import collect, read_report, CACHE_MS
     smart_volume.reload()
     report = read_report('/smart')
+    if backfill is not None:
+        from worker.smart_backfill import install_backfill
+        report = install_backfill('/smart', backfill, int(time.time() * 1000))
+        smart_volume.commit()
+        return {'status': report['status'], 'backfill': report['backfill'], 'snapshots': len(report['samples'])}
     if report.get('attemptedAt') and 0 <= time.time() * 1000 - report['attemptedAt'] < CACHE_MS:
         return report
     report = collect('/smart')

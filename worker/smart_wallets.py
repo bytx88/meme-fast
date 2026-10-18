@@ -140,7 +140,7 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep)
                   startedAt=previous.get('startedAt') or (previous['samples'][0]['time'] if previous['samples'] else at),
                   wallets=wallets, supply=supply,
                   status='ok' if complete else 'partial' if point['checkedWallets'] else 'unavailable',
-                  samples=samples[-MAX_SAMPLES:])
+                  samples=samples[-MAX_SAMPLES:], **({'backfill': previous['backfill']} if 'backfill' in previous else {}))
     path = Path(directory) / (cohort['groupId'] + '.json')
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')

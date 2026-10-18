@@ -7,9 +7,9 @@
   <link rel="icon" type="image/svg+xml" sizes="any" href="./brand-mark.svg?v=2">
   <link rel="stylesheet" href="./style.css?v=brand-depth-v2">
   <link rel="stylesheet" href="./order-flow-quick.css?v=trader-5d-v1">
-  <link rel="stylesheet" href="./order-flow-depth.css?v=smart-holdings-v2">
+  <link rel="stylesheet" href="./order-flow-depth.css?v=smart-backfill-v3">
   <link rel="stylesheet" href="./mc-detail-bars.css?v=1">
-  <script type="module" src="./app.js?v=smart-holdings-v2"></script>
+  <script type="module" src="./app.js?v=smart-backfill-v3"></script>
   <script type="module" src="./page-scroll.js?v=1"></script>
 <link rel="stylesheet" href="./donate.css?v=quiet-donate-v1"><link rel="stylesheet" href="./trader-ui.css?v=3"><script type="module" src="./donate.js?v=static-header-v1"></script><link rel="stylesheet" href="./site-footer.css?v=1"></head>
 <body class="inspect-depth trader-ui">
@@ -29,7 +29,7 @@
     <div class="token-meta-row"><div id="scope-tabs" class="scope-tabs" aria-label="Listing view" hidden></div></div>
     <div id="listing-coverage" class="listing-coverage" hidden></div>
     <div class="toolbar order-flow-toolbar"><div class="periods" aria-label="Time window and wallet filter"><button type="button" data-window="5" aria-pressed="false">5m</button><button type="button" data-window="15" aria-pressed="false">15m</button><button type="button" data-window="60" aria-pressed="true">1h</button><button type="button" data-window="1440" aria-pressed="false">24h</button><button type="button" data-window="7200" aria-pressed="false">5D</button><button type="button" data-window="43200" data-smart-only aria-pressed="false" hidden>30D</button><button id="smart-toggle" type="button" aria-pressed="false" aria-controls="smart-group" disabled>Smart*</button></div><span id="window-coverage" class="window-coverage" hidden>5D candle history · buy/sell figures are observed swaps only</span><div class="refresh-group"><span id="updated">Loading swaps…</span><button type="button" id="refresh">Refresh ↻</button></div></div>
-    <section id="smart-group" class="smart-group" aria-label="Smart wallet group" hidden><div><strong>Smart* · 9 selected wallets</strong><span id="smart-status" role="status"></span></div><details><summary>Wallet list &amp; coverage</summary><p>* Manually selected HOOKED wallets. Balances are read directly from Solana every five minutes, including wallets with no recent swaps. Yellow shows combined token holdings; grey shows token price. History starts when collection begins. Balance changes include transfers and do not establish buys or sells. Unavailable checks leave gaps. Wallet labels are user supplied.</p><ol id="smart-wallet-list"></ol></details></section>
+    <section id="smart-group" class="smart-group" aria-label="Smart wallet group" hidden><div><strong>Smart* · 9 selected wallets</strong><span id="smart-status" role="status"></span></div><details><summary>Wallet list &amp; coverage</summary><p>* Manually selected HOOKED wallets. Balances are read directly from Solana every five minutes, including wallets with no recent swaps. Yellow shows combined token holdings; grey shows token price. Historical balances, when available, are reconstructed from transactions of the discovered token accounts. Balance changes include transfers and do not establish buys or sells. Unavailable checks leave gaps. Wallet labels are user supplied.</p><ol id="smart-wallet-list"></ol></details></section>
     <section id="smart-holdings" aria-label="Smart wallet holdings" hidden>
       <section class="smart-metrics" aria-label="Smart wallet balance summary">
         <div><span>Combined balance</span><strong id="smart-balance">—</strong></div>
@@ -39,7 +39,7 @@
         <div><span>24h balance change</span><strong id="smart-change">—</strong></div>
         <div><span>Token price</span><strong id="smart-price">—</strong></div>
       </section>
-      <section class="panel smart-chart-panel"><div class="panel-heading"><h3>What are Smart* wallets holding?</h3><div class="smart-chart-legend"><span><i class="smart-balance-key"></i>Token balance</span><span><i class="smart-price-key"></i>Token price</span></div></div><div id="smart-chart"></div><p id="smart-chart-note" class="chart-note" role="status"></p></section>
+      <section class="panel smart-chart-panel"><div class="panel-heading"><h3>What are Smart* wallets holding?</h3><div class="smart-chart-legend"><span><i class="smart-balance-key"></i>Token balance</span><span><i class="smart-price-key"></i>Token price</span></div></div><div id="smart-chart"></div><p id="smart-chart-note" class="chart-note" role="status"></p><details class="smart-history-method"><summary>Historical coverage</summary><p id="smart-history-scope" class="chart-note"></p><p class="chart-note">The fixed nine-wallet group can differ from Nansen’s full Smart Money group. Historical account coverage is narrower than a complete owner-wide archive index.</p></details></section>
       <section class="panel smart-balances-panel"><div class="panel-heading"><h3>Wallet balances</h3><span id="smart-freshness" class="chart-note"></span></div><div class="table-wrap"><table aria-label="Smart wallet token balances"><thead><tr><th>Wallet</th><th class="numeric">Supply owned</th><th class="numeric">Balance</th><th class="numeric">Value (USD)</th><th class="numeric">24h change</th><th class="numeric">7D change</th><th class="numeric">30D change</th><th class="numeric">Status</th></tr></thead><tbody id="smart-wallet-rows"></tbody></table></div><p class="chart-note">Changes are token quantities. A dash means the required historical snapshot is unavailable. Transfers can change balances without a trade.</p></section>
     </section>
     <div id="market-flow">

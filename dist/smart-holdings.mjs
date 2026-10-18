@@ -34,7 +34,7 @@ export function renderHoldingsChart(host,samples,minutes,now=Date.now()){
   const ns='http://www.w3.org/2000/svg';
   const svg=(tag,attrs={})=>{const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attrs))el.setAttribute(key,String(value));return el};
   const width=Math.max(360,host.clientWidth||800),height=280,left=67,right=width-83,top=27,bottom=230;
-  const chart=svg('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':'Observed combined Smart wallet token balance in yellow and token price in grey. History begins with the first collected snapshot.'});
+  const chart=svg('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':'Observed combined Smart wallet token balance in yellow and token price in grey. Historical account balances and live wallet snapshots use their recorded coverage.'});
   const label=(value,x,y,anchor='start',fill='#9da9b9')=>{const el=svg('text',{x,y,'text-anchor':anchor,fill,'font-size':11});el.textContent=value;chart.append(el)};
   const balanceValues=samples.filter(row=>valid(row.balance)).map(row=>row.balance),priceValues=samples.filter(row=>valid(row.priceUSD)&&row.priceUSD>0).map(row=>row.priceUSD);
   const range=values=>{if(!values.length)return [0,1];const low=Math.min(...values),high=Math.max(...values),pad=Math.max((high-low)*.12,Math.abs(high)*.06,1e-8);return [Math.max(0,low-pad),high+pad]};
@@ -51,20 +51,23 @@ export function renderHoldingsChart(host,samples,minutes,now=Date.now()){
   label(axisStamp(start),left,257);label(axisStamp(start+(end-start)/2),(left+right)/2,257,'middle');label(axisStamp(end),right,257,'end');
   for(const [field,min,max,color]of [['priceUSD',priceLow,priceHigh,'#718695'],['balance',low,high,'#ffc400']]){
     let previous=null,segment=[];
-    const observed=samples.filter(row=>valid(row[field])),single=observed.length===1;
+    // Reconstructed prices are actual hourly closes, not five-minute price estimates.
+    const fieldSamples=field==='priceUSD'?samples.filter(row=>row.source!=='rpc-reconstructed'||valid(row.priceUSD)):samples;
+    const observed=fieldSamples.filter(row=>valid(row[field])),single=observed.length===1;
     const flush=()=>{if(segment.length>1)chart.append(svg('path',{d:segment.map((point,index)=>`${index?'L':'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '),fill:'none',stroke:color,'stroke-width':2}));segment=[]};
-    for(const point of samples){
+    for(const point of fieldSamples){
       const value=point[field];
       if(!valid(value)){flush();previous=null;continue}
       const cx=x(point.time),cy=bottom-(value-min)/(max-min)*(bottom-top);
       // Failed checks and long collection gaps are not filled with synthetic balances.
-      if(previous&&point.time-previous.time>FRESH_MS)flush();
+      const gap=field==='priceUSD'&&point.source==='rpc-reconstructed'&&previous?.source==='rpc-reconstructed'?3600000:FRESH_MS;
+      if(previous&&point.time-previous.time>gap)flush();
       segment.push({x:cx,y:cy});
       if(observed.length<=100||point===observed.at(-1)){
         const dot=svg('circle',{cx,cy,r:single?(field==='priceUSD'?6:3.5):2.5,fill:single&&field==='priceUSD'?'none':color,stroke:color,'stroke-width':single&&field==='priceUSD'?2:0,tabindex:0});
         const title=svg('title');title.textContent=`${easternDateTime(point.time)} · ${field==='balance'?`${number(value)} tokens`:priceLabel(value)}`;dot.append(title);chart.append(dot);
       }
-      previous={x:cx,y:cy,time:point.time};
+      previous={x:cx,y:cy,time:point.time,source:point.source};
     }
     flush();
   }
@@ -107,6 +110,10 @@ export function createSmartHoldings({changed=()=>{},request=fetch,now=Date.now}=
     const samples=chartSeries(report,minutes,time),points=completeSamples(report,minutes,time);
     renderHoldingsChart($('smart-chart'),samples,minutes,time);
     $('smart-chart-note').textContent=error||(loading&&!report?'Collecting nine wallet balances. The chart starts with the first observed point.':!report?'Could not load wallet balances. Use Refresh to try again.':!complete?'Some wallet checks failed. Individual available balances are listed below; a group total requires all nine wallets.':`${fresh?'':'Last complete total is stale. '}${points.length===1?'One balance snapshot in this window; the line grows as new snapshots arrive.':points.length?`${points.length} complete balance snapshots in this window.`:'No complete balance observations in this window.'} Tracking began ${easternDateTime(report.startedAt||report.samples[0].time)}. Unobserved history is left unfilled.`);
+    if(report?.backfill&&!error){
+      $('smart-chart-note').textContent=`${fresh?'':'Latest balance coverage is stale. '}History reconstructed from ${report.backfill.transactions} transactions across ${report.backfill.accounts.length} discovered token accounts. Yellow: five-minute balance states. Grey: hourly pool closing prices; missing prices stay unfilled. Live snapshots continue every five minutes.`;
+      $('smart-history-scope').textContent=report.backfill.scope;
+    }else $('smart-history-scope').textContent='Earlier holdings have not been reconstructed.';
     $('smart-wallet-rows').replaceChildren();
     for(const [index,wallet]of (report?.wallets||[]).entries()){
       const row=document.createElement('tr'),name=document.createElement('td'),link=document.createElement('a'),address=document.createElement('small');

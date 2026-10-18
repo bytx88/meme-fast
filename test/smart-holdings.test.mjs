@@ -38,3 +38,16 @@ test('chart connects measured balances but breaks across failed checks and long 
   assert.equal(gold(chart([point,{time:now-450000,balance:null},next])).length,0);
   assert.equal(gold(chart([{...point,time:now-1200000},next])).length,0);
 });
+
+test('historical price line uses hourly closes without inventing five-minute prices',()=>{
+  const samples=[{time:now-3600000,balance:10,priceUSD:.001,source:'rpc-reconstructed'},
+    {time:now-3300000,balance:11,priceUSD:null,source:'rpc-reconstructed'},
+    {time:now,balance:12,priceUSD:.002,source:'rpc-reconstructed'}];
+  const grey=chart(samples).children.filter(node=>node.tag==='path'&&node.attributes.stroke==='#718695');
+  assert.equal(grey.length,1);
+});
+
+test('a full thirty-day backfill renders paths without thousands of DOM nodes',()=>{
+  const samples=Array.from({length:8640},(_,i)=>({time:now-(8639-i)*300000,balance:i,priceUSD:i%12===0?.001:null,source:'rpc-reconstructed'}));
+  assert.ok(chart(samples).children.length<40);
+});

@@ -159,3 +159,16 @@ The fixed, manually supplied group is configured in `worker/smart-wallets.json`.
 Only complete nine-wallet checks contribute a group balance point. Failed wallet checks retain explicitly stale individual balances, and incomplete group checks create chart gaps. Price failures leave price gaps without discarding measured balances. The group ID includes the ordered membership and mint; changed membership uses a separate history file. Snapshots retain up to 35 days. Historical 24h/7D/30D changes require a measurement at the target time within ten minutes; missing history stays unavailable. A first snapshot renders a chart point, with no invented line extending into the past. Balances and their changes include transfers and are not buy/sell flow or P&L. These nine selected wallets need not reproduce Nansen's full Smart Money group.
 
 For local preview, manually collect with `py worker/smart_wallets.py .data/smart-wallets`. The preview endpoint samples on demand when collection is enabled, and reads saved reports when `MEME_COLLECTOR_DISABLED=1`. Production collection and history continue independently of browser visits. No local history is uploaded during deployment.
+
+### Smart history backfill
+
+`worker/smart_backfill.py` reconstructs the complete transaction histories of the currently discovered HOOKED token accounts. Every account must reach its initialization, have continuous integer pre/post balances in slot and transaction order, and reconcile to its finalized current balance. A missing transaction, ownership/decimal mismatch, truncated signature page or discontinuity rejects the group. Version-1 transactions are supported. Histories are projected to five-minute balance states; prices are actual hourly GeckoTerminal closes timestamped at candle end, with no invented pre-market prices. The nine current accounts may omit additional historical closed or non-associated accounts; this limitation is visible under Historical coverage. This fixed group does not reproduce Nansen's broader Smart Money cohort, including exited wallets.
+
+Collect or resume public evidence, then validate the artifact:
+
+```powershell
+py -m worker.smart_backfill .data/smart-backfill .data/smart-backfill/payload.json --collect
+py scripts/import-smart-backfill.py .data/smart-backfill/payload.json
+```
+
+Only when the history write is authorized, after deploying its code, apply the artifact with `py scripts/import-smart-backfill.py .data/smart-backfill/payload.json --apply`. This calls the existing single-writer `collect_smart_wallets(backfill=...)` through authenticated Modal access using profile/workspace `bytx24`. There is no public history-write endpoint. Group/range/raw-balance validation runs before writing; imported history precedes the earliest live observation, preserving every observed snapshot. Collection retains the history and its source metadata. No raw transaction cache, local database or secrets are uploaded. Public RPC can rate-limit archive reads; cached immutable transactions survive retries. An authenticated RPC may be selected with `SOLANA_WALLET_RPC_URL`.
