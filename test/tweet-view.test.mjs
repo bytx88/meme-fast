@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics,tweetCoinOneLiner} from '../dist/tweet-view.mjs';
+import {buildTweetView,tweetSocialBadge,newsExcerpt,newsThumbnail,tweetCoinMetrics,tweetCoinOneLiner} from '../dist/tweet-view.mjs';
 const now=1800000000000;
+test('Grouped news thumbnails link to the publisher that supplied the selected image',()=>{
+ const source={image_url:'https://cdn.decrypt.co/photo.jpg',url:'https://decrypt.co/source',publisher:'Decrypt'};
+ assert.deepEqual(newsThumbnail({posts:[{url:'https://cointelegraph.com/other'},source]}),{image:source.image_url,url:source.url,publisher:source.publisher});
+ assert.equal(newsThumbnail({posts:[{...source,image_url:'javascript:alert(1)'}]}),null);
+ assert.equal(newsThumbnail({posts:[{...source,url:'javascript:alert(1)'}]}),null);
+ assert.equal(newsThumbnail({}),null);
+});
 test('coin one-liners use source text only and distinguish project descriptions from related leads',()=>{
   assert.equal(tweetCoinOneLiner(null),null);
   assert.equal(tweetCoinOneLiner({profile:{description:'  '}}),null);

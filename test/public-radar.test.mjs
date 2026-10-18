@@ -14,6 +14,23 @@ test('News dates are parsed as UTC and evidence URLs stay on the source publishe
  const data={status:'ok',items:[{title:'An &amp; update',link:'https://decrypt.co/news/one?utm_source=rss',pubDate:'2026-09-22 10:00:00',description:'<b>hello</b>'},{title:'bad',link:'javascript:alert(1)',pubDate:'2026-09-22 10:00:00'},{title:'offsite',link:'https://example.com',pubDate:'2026-09-22 10:00:00'}]};
  const items=parseNews(data,FEEDS[0],now);assert.equal(items.length,1);assert.equal(items[0].time,now-7200000);assert.equal(items[0].title,'An & update');assert.equal(items[0].id,'https://decrypt.co/news/one');
 });
+
+test('Publisher thumbnails survive refresh and clustering; unsafe and non-image enclosures are withheld',()=>{
+ const item={title:'A new internet character',link:'https://decrypt.co/news/image',pubDate:'2026-09-22 10:00:00',description:'Source excerpt'};
+ const parse=extra=>parseNews({status:'ok',items:[{...item,...extra}]},FEEDS[0],now)[0];
+ const photo='https://cdn.decrypt.co/photo.jpg';
+ const refreshed=parse({thumbnail:photo,enclosure:{link:'https://cdn.decrypt.co/other.png',type:'image/png'}});
+ assert.equal(refreshed.image_url,photo);
+ const articles=mergeArticles([{...refreshed,image_url:undefined}],[refreshed],now);
+ assert.equal(buildPublicView({articles,coins:[]},{hours:4},now).trends[0].posts[0].image_url,photo);
+ assert.equal(parse({thumbnail:'javascript:alert(1)',enclosure:{link:photo,type:'image/jpeg'}}).image_url,photo);
+ assert.equal(parse({enclosure:{link:photo,thumbnail:photo}}).image_url,photo);
+ for(const thumbnail of ['javascript:alert(1)','http://example.com/image.jpg','https://user:pass@example.com/image.jpg']){
+  assert.equal(parse({thumbnail}).image_url,null);
+ }
+ assert.equal(parse({enclosure:{link:'https://example.com/audio.mp3',type:'audio/mpeg'}}).image_url,null);
+ assert.equal(parse({}).image_url,null);
+});
 test('News clusters use publisher breadth and window metrics, never imaginary social counts',()=>{
  const dataset={articles:[post('a','Decrypt',now-1800000),post('b','Cointelegraph',now-7200000),post('c','Decrypt',now-10800000,'Unrelated mining hardware advances')],coins:[]};
  const four=buildPublicView(dataset,{hours:4},now),one=buildPublicView(dataset,{hours:1},now);

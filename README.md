@@ -48,6 +48,10 @@ Swing's chain toolbar uses small coloured letter circles: A for All, R for Robin
 
 Snipe uses the same circles in its normal and Full toolbars across Starter, Discover, Explore, and same-name listings. Selections are saved with the existing Screener settings and stay synchronized between toolbars; the settings dialog shows “Multiple selected chains” when more than one is active. Applying other screener limits preserves that selection, and Reset defaults returns to All.
 
+## Tweet news thumbnails
+
+Publisher-news cards use the article thumbnail supplied by Decrypt or Cointelegraph's RSS feed, with an image enclosure as fallback. The thumbnail opens its source article and appears in both normal and Full views. Images load lazily; absent or failed images leave a text-only card. Previously cached articles gain thumbnails on the next successful feed refresh.
+
 ## Tweet full-screen streams
 
 Each Tweet stream has a **Full** button beside its count. Expanding Publisher news shows only news cards; expanding Top coins shows only coin cards. The selected stream fills the page with a responsive card grid and all matching results, retaining its own filters and a sticky **Exit Full** control. Escape also exits, restoring the normal two-stream layout, prior top-three/all selection and scroll position. Dialogs close first when Escape is pressed.

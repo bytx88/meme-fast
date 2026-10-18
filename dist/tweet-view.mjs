@@ -1,6 +1,14 @@
-import {buildPublicView,addressMatches,cleanText} from './public-radar.mjs';
+import {buildPublicView,addressMatches,cleanText,safeURL} from './public-radar.mjs';
 import {xFactorReading,xFactorBadge} from './x-factor.mjs';
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+export function newsThumbnail(narrative){
+  for(const post of narrative.posts||[]){
+    const image=safeURL(post.image_url),url=safeURL(post.url);
+    if(image&&url)return {image,url,publisher:post.publisher};
+  }
+  return null;
+}
 
 export function tweetCoinOneLiner(context){
   if(!context)return null;

@@ -5,7 +5,7 @@ import {chainMarker} from './chain-marker.mjs';
 import {SOURCE_KEY,loadSources} from './source-watchlist.mjs';
 import {feedStatus} from './source-coverage.mjs';
 import {loadXFactor} from './x-factor.mjs';
-import {buildTweetView,tweetSocialBadge,newsExcerpt,tweetCoinMetrics,tweetCoinOneLiner} from './tweet-view.mjs';
+import {buildTweetView,tweetSocialBadge,newsExcerpt,newsThumbnail,tweetCoinMetrics,tweetCoinOneLiner} from './tweet-view.mjs';
 import {fetchTweetContext} from './tweet-context.mjs';
 import {walletBadges,walletRegistry} from './followed-wallets.mjs';
 import {buildEvidenceLinks} from './evidence-links.mjs';
@@ -26,6 +26,14 @@ async function refreshWallets(){
  }catch{if(walletReport)walletReport={...walletReport,wallets:walletReport.wallets.map(row=>({...row,status:'unavailable'}))}}
  render();
 }
+const failedNewsImages=new Set();
+document.addEventListener('error',event=>{
+ const image=event.target;
+ if(image instanceof HTMLImageElement&&image.closest('.news-thumbnail')){
+  failedNewsImages.add(image.src);
+  image.closest('.news-thumbnail').hidden=true;
+ }
+},true);
 const evidenceCache=new Map();
 const coinContexts=new Map();
 function loadCoinContexts(coins){
@@ -53,8 +61,9 @@ function render(){
  $('#trend-count').textContent=view.trends.length;$('#coin-count').textContent=view.coins.length;$('#crossover-count').textContent=links.length;
  $('#filter-status').textContent=`${view.trends.length} news signals · ${view.coins.length} coins · ${state.hours===72?'3-day':state.hours+'H'} news window${state.topic!=='all'?' · topic: '+state.topic:''}${state.chain!=='all'?' · chain: '+state.chain:''}${state.stage!=='all'?' · '+(state.stage==='single'?'single publisher':'multiple publishers'):''} · market metrics: 24H`;
  $('#trends').innerHTML=((expandedTrends||document.body.dataset.streamFull==='news')?view.trends:view.trends.slice(0,3)).map(n=>{
+  const thumbnail=newsThumbnail(n),image=thumbnail&&!failedNewsImages.has(thumbnail.image)?`<a class="news-thumbnail" href="${esc(thumbnail.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(thumbnail.publisher)} source article"><img src="${esc(thumbnail.image)}" width="96" height="72" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>`:'';
   const excerpt=newsExcerpt(n),sources=excerpt.sources.map(p=>safeURL(p.url)?`<a href="${esc(safeURL(p.url))}" target="_blank" rel="noopener noreferrer" title="${esc(p.title)}">${esc(p.publisher)} ↗</a>`:'').filter(Boolean);
-  return `<article class="signal-card tweet-news-card"><div class="signal-top"><span class="rank">${String(n.rank).padStart(2,'0')}</span><div class="signal-name"><h3>${esc(n.title)}</h3></div></div><div class="tags"><span class="stage-tag">${n.stage===1?'Multiple publishers':'Single publisher'}</span>${tokens(n)}</div><p class="signal-summary">${esc(excerpt.text||'Publisher excerpt unavailable. Open the source article for the full story.')}</p>${sources.length?`<div class="news-source-links"><span>Publisher excerpts</span>${sources.join(' · ')}</div>`:''}<div class="news-coverage">${n.sources} publisher${n.sources===1?'':'s'} · ${n.mentions} article${n.mentions===1?'':'s'} · latest ${esc(ago(n.latest))}</div><div class="signal-bottom"><span>First observed article ${esc(ago(n.first))}</span><div class="signal-actions"><a class="text-button" href="./narrative.html?id=${encodeURIComponent(n.id)}">Open research ↗</a><button class="text-button" data-timeline="${n.id}">Quick timeline</button></div></div></article>`;
+  return `<article class="signal-card tweet-news-card"><div class="signal-top"><span class="rank">${String(n.rank).padStart(2,'0')}</span>${image}<div class="signal-name"><h3>${esc(n.title)}</h3></div></div><div class="tags"><span class="stage-tag">${n.stage===1?'Multiple publishers':'Single publisher'}</span>${tokens(n)}</div><p class="signal-summary">${esc(excerpt.text||'Publisher excerpt unavailable. Open the source article for the full story.')}</p>${sources.length?`<div class="news-source-links"><span>Publisher excerpts</span>${sources.join(' · ')}</div>`:''}<div class="news-coverage">${n.sources} publisher${n.sources===1?'':'s'} · ${n.mentions} article${n.mentions===1?'':'s'} · latest ${esc(ago(n.latest))}</div><div class="signal-bottom"><span>First observed article ${esc(ago(n.first))}</span><div class="signal-actions"><a class="text-button" href="./narrative.html?id=${encodeURIComponent(n.id)}">Open research ↗</a><button class="text-button" data-timeline="${n.id}">Quick timeline</button></div></div></article>`;
  }).join('')||empty(loading&&!dataset.articles.length?'Loading public news…':'No articles match this window and filters. Try 24H or 3D. Feed availability is shown above.');
  $('#coins').innerHTML=((expandedCoins||document.body.dataset.streamFull==='coins')?view.coins:view.coins.slice(0,3)).map(c=>{
   const related=links.filter(link=>link.coin.id===c.id),exact=related.filter(link=>link.level==='exact').length,m=tweetCoinMetrics(c),fomo=fomoLink(c),image=safeURL(c.image_url);

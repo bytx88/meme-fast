@@ -13,7 +13,9 @@ export function parseNews(data,feed,now=Date.now()) {
   if(!url||!Number.isFinite(time)||time>now+300000||!cleanText(item.title))return [];
   const host=new URL(url).hostname;if(host!==feed.host&&!host.endsWith('.'+feed.host))return [];
   const canonical=new URL(url);canonical.search='';canonical.hash='';
-  return [{id:canonical.href,url,title:cleanText(item.title).slice(0,240),summary:cleanText(item.description||item.content).slice(0,280),publisher:feed.name,feed:feed.id,time}];
+  const image_url=safeURL(item.thumbnail)||safeURL(item.enclosure?.thumbnail)||
+    (/^image\//i.test(item.enclosure?.type||'')?safeURL(item.enclosure?.link):null);
+  return [{id:canonical.href,url,title:cleanText(item.title).slice(0,240),summary:cleanText(item.description||item.content).slice(0,280),publisher:feed.name,feed:feed.id,time,image_url}];
  });
 }
 export function parsePools(data,network,now=Date.now()) {
