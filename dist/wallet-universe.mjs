@@ -1,5 +1,5 @@
 import {walletState} from './followed-wallets.mjs';
-export function moneyStatus(row){return ['C1','C2','S1','S2','N1','N2'].includes(row.code)?'non-smart':['L1','L2','F1','F2'].includes(row.code)?'smart':row.smartStatus||((row.sources||[row.source]).some(s=>['Nansen','Fomo'].includes(s))?'smart':'unclassified')}
+export function moneyStatus(row){return row.smartMoney===true?'smart':row.smartMoney===false?'non-smart':'unclassified'}
 export function filterUniverse(rows,{query='',source='',interested='',money='',code='',status='',sort='name'}={},now=Date.now()){
  const text=query.trim().toLowerCase();
  return rows.filter(row=>(!text||[row.name,row.address,row.label,row.notes,row.discoveryToken,...(row.aliases||[])].join(' ').toLowerCase().includes(text))&&(!source||(row.sources||[row.source]).includes(source))&&(!interested||Boolean(row.interested)===(interested==='yes'))&&(!money||moneyStatus(row)===money)&&(!code||(code==='none'?!row.code:row.code===code))&&(!status||walletState(row,now)===status)).sort((a,b)=>sort==='tokens'?(b.mints?.length||0)-(a.mints?.length||0)||a.name.localeCompare(b.name):sort==='checked'?(b.checkedAt||0)-(a.checkedAt||0)||a.name.localeCompare(b.name):sort==='added'?(b.addedAt||0)-(a.addedAt||0)||a.name.localeCompare(b.name):a.name.localeCompare(b.name));

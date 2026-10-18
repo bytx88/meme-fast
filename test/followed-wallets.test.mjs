@@ -24,10 +24,10 @@ test('wallet names are escaped and all assigned codes are available',()=>{
  assert.deepEqual(Object.keys(CLASSES),['F1','F2','Dev','C1','C2','S1','S2','N1','N2','L1','L2']);
 });
 
-test('short holders match exact holdings and show the L2 label and wallet name',()=>{
+test('long-term class 2 holders match exact holdings and show the L2 label and wallet name',()=>{
  const report={wallets:[{...row,name:'Frankdegods',code:'L2'}]};
- assert.equal(CLASSES.L2,'Short holder');
+ assert.equal(CLASSES.L2,'Long-term holder · class 2');
  assert.equal(holdingsFor(coin,report,now).length,1);
  const html=walletBadges(coin,report,now);
- assert.match(html,/Short holder/);assert.match(html,/Frankdegods/);assert.match(html,/>L2<\/summary>/);
+ assert.match(html,/Long-term holder/);assert.match(html,/Frankdegods/);assert.match(html,/>L2<\/summary>/);
 });

@@ -3,13 +3,13 @@ import unittest
 import tempfile
 from worker.followed_wallets import collect
 from pathlib import Path
-from worker.wallet_universe import universe, report, validate_entry, merge_import, smart_status
+from worker.wallet_universe import universe, report, validate_entry, merge_import, smart_status, migrate_smart_money
 from worker.followed_wallets import registry_wallets
 from worker.wallet_activity import acquisitions, analyze
 
 class UniverseTests(unittest.TestCase):
     def test_import_priority_preserves_interested_identity_and_every_source(self):
-        base=dict(registry_wallets()[0],source='Manual',interested=True,label='Interested Party')
+        base=dict(registry_wallets()[0],source='Manual',interested=True,label='Interested Party',smartMoney=False)
         uploaded=dict(base,name='lower priority alias',source='Fomo',sources=['Track V2','Fomo'],code='',interested=False)
         merged=merge_import(base,uploaded)
         self.assertEqual((merged['name'],merged['code'],merged['interested']),(base['name'],base['code'],True))
@@ -23,18 +23,40 @@ class UniverseTests(unittest.TestCase):
         self.assertEqual(merge_import(track,uploaded)['name'],'lower priority alias')
 
     def test_money_class_is_independent_of_interest_and_source(self):
-        for code in ('N1','N2','C1','C2','S1','S2'):
-            self.assertEqual(smart_status(dict(code=code,source='Nansen',smartStatus='smart',interested=True)),'non-smart')
-        for code in ('L1','L2','F1','F2'):
-            self.assertEqual(smart_status(dict(code=code,source='Track V2',smartStatus='unclassified')),'smart')
-        self.assertEqual(smart_status(dict(source='Track V2')),'unclassified')
-        self.assertEqual(smart_status(dict(source='Track V2',sources=['Fomo','Track V2'])),'smart')
+        for code in ('N1','N2','C1','C2','S1','S2','F1','F2'):
+            migrated=migrate_smart_money(dict(code=code,source='Nansen',smartStatus='smart',interested=True))
+            self.assertIs(migrated['smartMoney'],False)
+            self.assertEqual(smart_status(migrated),'non-smart')
+        for code in ('L1','L2'):
+            self.assertIs(migrate_smart_money(dict(code=code,smartStatus='unclassified'))['smartMoney'],True)
+        self.assertEqual(smart_status(dict(code='L1',source='Nansen')),'unclassified')
+        self.assertEqual(smart_status(dict(code='F1',source='Manual',smartMoney=True)),'smart')
+        self.assertEqual(smart_status(dict(code='L1',source='Nansen',smartMoney=False)),'non-smart')
         self.assertEqual(smart_status(dict(source='Manual',interested=True)),'unclassified')
         from worker.smart_wallets import make_cohort, group
         rows=universe(registry_wallets())
         smart=make_cohort(group()['token'],rows,'universe')
         self.assertEqual({r['address'] for r in smart['wallets']},{r['address'] for r in rows if smart_status(r)=='smart'})
-        self.assertEqual(len(make_cohort(group()['token'],rows,'interested')['wallets']),9)
+        self.assertEqual(len(make_cohort(group()['token'],rows,'interested')['wallets']),3)
+
+    def test_flags_validate_independently_and_migration_is_idempotent(self):
+        base=dict(name='Test',address=registry_wallets()[0]['address'],code='F1',source='Nansen',interested=True)
+        self.assertIsNone(validate_entry(base)['smartMoney'])
+        reviewed=validate_entry(dict(base,smartMoney=True))
+        self.assertTrue(reviewed['smartMoney'])
+        self.assertTrue(validate_entry(dict(reviewed,code='C1',source='Fomo'))['smartMoney'])
+        self.assertEqual(migrate_smart_money(reviewed),reviewed)
+        for invalid in ('yes',1,0,[],{}):
+            with self.assertRaises(ValueError): validate_entry(dict(base,smartMoney=invalid))
+        legacy=dict(base,smartStatus='smart',aliases=['Cup1'],sources=['Nansen','Track V2'])
+        migrated=migrate_smart_money(legacy)
+        self.assertFalse(migrated['smartMoney'])
+        self.assertEqual(migrate_smart_money(migrated),migrated)
+        self.assertEqual({k:v for k,v in migrated.items() if k not in ('smartMoney','smartStatus')},
+                         {k:v for k,v in legacy.items() if k!='smartStatus'})
+        self.assertTrue(migrate_smart_money(dict(base,code=''))['smartMoney'])
+        self.assertIsNone(validate_entry(dict(base,code=''))['smartMoney'])
+        self.assertTrue(merge_import(reviewed,dict(base,smartMoney=False))['smartMoney'])
 
     def test_seeds_and_interest_are_independent(self):
         rows=universe(registry_wallets())

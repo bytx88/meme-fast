@@ -409,7 +409,7 @@ def web():
     @web_app.patch('/api/wallet-universe')
     async def save_universe_wallet(request: Request):
         import time
-        from worker.wallet_universe import validate_entry
+        from worker.wallet_universe import validate_entry, merge_import
         body = await request.body()
         if len(body) > 4000:
             raise HTTPException(status_code=400, detail='Wallet request too large')
@@ -417,22 +417,23 @@ def web():
             value = json.loads(body)
             address = value.get('address')
             current = next((row for row in await universe_registry() if row['address'] == address), None)
-            if request.method == 'POST' and current:
+            merging = request.method == 'POST' and value.get('merge') is True
+            if request.method == 'POST' and current and not merging:
                 raise HTTPException(status_code=409, detail='Wallet already in the universe. Use Edit.')
             if request.method == 'PATCH' and not current:
                 raise HTTPException(status_code=404, detail='Wallet not found')
-            row = validate_entry(dict(current or {}, **value))
+            row = merge_import(current, value) if merging else validate_entry(dict(current or {}, **value))
         except (ValueError, TypeError, AttributeError):
             raise HTTPException(status_code=400, detail='Enter a name, valid Solana address, source and optional class')
         now = int(time.time() * 1000)
         row.update(addedAt=current.get('addedAt') if current else now, updatedAt=now)
-        if request.method == 'POST':
+        if request.method == 'POST' and not current:
             added = await wallet_universe_registry.put.aio(row['address'], row, skip_if_exists=True)
             if not added:
                 raise HTTPException(status_code=409, detail='Wallet already added')
         else:
             await wallet_universe_registry.put.aio(row['address'], row)
-        return JSONResponse({'wallet': row}, status_code=201 if request.method == 'POST' else 200, headers={'cache-control':'no-store'})
+        return JSONResponse({'wallet': row}, status_code=201 if request.method == 'POST' and not current else 200, headers={'cache-control':'no-store'})
 
     candidate_cache = {}
     candidate_lock = asyncio.Lock()

@@ -45,15 +45,15 @@ export function createWalletDiscovery({registry,request,refresh}){
   finally{row.saving=false;render();}
  });
  const invalidate=()=>{preview=null;$('import-save').disabled=true;$('import-preview-list').replaceChildren();};
- for(const id of ['import-wallets','import-source','import-token','import-label','import-interested'])$(id).addEventListener('input',invalidate);
+ for(const id of ['import-wallets','import-source','import-money','import-token','import-label','import-interested'])$(id).addEventListener('input',invalidate);
  $('import-preview').addEventListener('click',()=>{
   invalidate();try{
    const addresses=parseAddressList($('import-wallets').value),token=$('import-token').value.trim();if(token&&!isSolanaAddress(token))throw new Error('Invalid discovery token.');
    const known=new Set(registry().map(row=>row.address)),fresh=addresses.filter(address=>!known.has(address));
-   preview={addresses:fresh,source:$('import-source').value,discoveryToken:token,label:$('import-label').value.trim(),interested:$('import-interested').checked};
-   $('import-status').textContent=`${fresh.length} new wallets · ${addresses.length-fresh.length} already in universe (kept unchanged). Source: ${preview.source}. Interested: ${preview.interested?'yes':'no'}.`;
+   preview={addresses,source:$('import-source').value,smartMoney:$('import-money').value==='smart'?true:$('import-money').value==='non-smart'?false:null,discoveryToken:token,label:$('import-label').value.trim(),interested:$('import-interested').checked};
+   $('import-status').textContent=`${fresh.length} new wallets · ${addresses.length-fresh.length} already in universe (merge sources; keep reviewed flags and priority labels). Source: ${preview.source}. SmartMoney: ${preview.smartMoney===true?'Yes':preview.smartMoney===false?'No':'Unreviewed'}. Interested: ${preview.interested?'yes':'no'}.`;
    for(const address of fresh){const line=document.createElement('div');line.textContent=address;$('import-preview-list').append(line);}
-   $('import-save').disabled=!fresh.length;
+   $('import-save').disabled=!addresses.length;
   }catch(error){$('import-status').textContent=error.message;}
  });
  $('import-wallet-form').addEventListener('submit',async event=>{
@@ -61,10 +61,10 @@ export function createWalletDiscovery({registry,request,refresh}){
   let added=0;const errors=[];
   for(const [index,address] of batch.addresses.entries()){
    $('import-status').textContent=`Adding ${index+1} / ${batch.addresses.length}…`;
-   try{await request('/api/wallet-universe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...batch,addresses:undefined,address,name:'Research '+short(address),code:'',notes:'Manually supplied research list; source label is not independently verified.'})});added++;}
+   try{await request('/api/wallet-universe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...batch,merge:true,addresses:undefined,address,name:'Research '+short(address),code:'',notes:'Manually supplied research list; source label is not independently verified.'})});added++;}
    catch(error){errors.push(short(address)+': '+error.message);}
   }
-  await refresh();render();$('import-preview').disabled=false;$('import-status').textContent=`Added ${added} wallets · ${errors.length} not added. ${errors.join(' ')}`;
+  await refresh();render();$('import-preview').disabled=false;$('import-status').textContent=`Added / merged ${added} wallets · ${errors.length} not added. ${errors.join(' ')}`;
  });
  render();return {render};
 }

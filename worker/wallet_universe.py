@@ -6,15 +6,35 @@ from worker.followed_wallets import validate_wallet, CODES
 from worker.smart_wallets import group
 
 SOURCES = {'Manual', 'Nansen', 'Fomo', 'Track V2', 'Public'}
-NON_SMART_CODES = {'C1', 'C2', 'S1', 'S2', 'N1', 'N2'}
+NON_SMART_CODES = {'F1', 'F2', 'C1', 'C2', 'S1', 'S2', 'N1', 'N2'}
 
 
 def smart_status(row):
-    if row.get('code') in NON_SMART_CODES:
-        return 'non-smart'
-    if row.get('code') in {'L1', 'L2', 'F1', 'F2'}:
-        return 'smart'
-    return row.get('smartStatus') or ('smart' if (set(row.get('sources', [])) | {row.get('source')}) & {'Nansen', 'Fomo'} else 'unclassified')
+    flag = row.get('smartMoney')
+    return 'smart' if flag is True else 'non-smart' if flag is False else 'unclassified'
+
+
+def migrate_smart_money(row):
+    """One-time conversion of approved legacy eligibility; never used by filters.
+
+    Existing explicit flags survive reruns. Classification corrections apply to
+    legacy records only; source defaults preserve the previously selected cohort.
+    New imports do not receive eligibility merely from their source.
+    """
+    result = dict(row)
+    if 'smartMoney' not in result:
+        code = result.get('code')
+        if code in NON_SMART_CODES:
+            flag = False
+        elif code in {'L1', 'L2'}:
+            flag = True
+        elif result.get('smartStatus') in ('smart', 'non-smart', 'unclassified'):
+            flag = {'smart': True, 'non-smart': False, 'unclassified': None}[result['smartStatus']]
+        else:
+            flag = True if (set(result.get('sources', [])) | {result.get('source')}) & {'Nansen', 'Fomo'} else None
+        result['smartMoney'] = flag
+    result['smartStatus'] = smart_status(result)
+    return result
 
 def validate_entry(value):
     if not isinstance(value, dict):
@@ -41,7 +61,11 @@ def validate_entry(value):
     status = value.get('smartStatus')
     if status is not None and status not in ('smart', 'non-smart', 'unclassified'):
         raise ValueError('Choose a money classification')
-    row['smartStatus'] = smart_status(dict(row, **({'smartStatus': status} if status else {})))
+    flag = value.get('smartMoney', {'smart': True, 'non-smart': False}.get(status))
+    if flag is not None and type(flag) is not bool:
+        raise ValueError('Choose SmartMoney Yes, No or Unreviewed')
+    row['smartMoney'] = flag
+    row['smartStatus'] = smart_status(row)
     for key, limit in [('label', 120), ('discoveryToken', 44), ('notes', 500)]:
         item = value.get(key, '')
         if not isinstance(item, str) or len(item) > limit or any(ord(c) < 32 and c not in '\n\t' for c in item):
@@ -65,9 +89,8 @@ def merge_import(current, incoming):
     result['aliases'] = list(dict.fromkeys(current['aliases'] + incoming['aliases'] + [current['name'], incoming['name']]))
     result['code'] = current['code'] or incoming['code']
     result['interested'] = current['interested'] or incoming['interested']
-    # Non-smart evidence survives overlaps; a source label must never erase it.
-    statuses = {current['smartStatus'], incoming['smartStatus']}
-    result['smartStatus'] = 'non-smart' if 'non-smart' in statuses else 'smart' if 'smart' in statuses else 'unclassified'
+    # Imports add provenance; they cannot replace an already reviewed flag.
+    result['smartMoney'] = current['smartMoney'] if current['smartMoney'] is not None else incoming['smartMoney']
     return validate_entry(result)
 
 
@@ -78,11 +101,11 @@ def universe(legacy, overrides=()):
     cohort = group()
     for row in cohort['wallets']:
         if row['address'] not in rows:
-            rows[row['address']] = dict(row, network='solana', code='', interested=False, source='Nansen', label='User-supplied Smart Money list', discoveryToken=cohort['token'], notes='', addedAt=None)
+            rows[row['address']] = dict(row, network='solana', code='', smartMoney=True, interested=False, source='Nansen', label='User-supplied Smart Money list', discoveryToken=cohort['token'], notes='', addedAt=None)
     for value in overrides:
         row = validate_entry(value)
         rows[row['address']] = dict(row, addedAt=value.get('addedAt'), updatedAt=value.get('updatedAt'))
-    return [dict(row, sources=row.get('sources', [row['source']]), aliases=row.get('aliases', []), smartStatus=smart_status(row)) for row in rows.values()]
+    return [dict(row, sources=row.get('sources', [row['source']]), aliases=row.get('aliases', []), smartMoney=row.get('smartMoney'), smartStatus=smart_status(row)) for row in rows.values()]
 
 
 def report(registry, holdings):

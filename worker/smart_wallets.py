@@ -56,9 +56,66 @@ def read_report(directory, cohort=None):
             return value
     except (OSError, ValueError, KeyError):
         pass
+    projected = subset_history(directory, cohort)
+    if projected:
+        return projected
     return dict(cohort, version=1, attemptedAt=None, status='unavailable', supply=None,
                 samples=[], wallets=[dict(row, balance=None, balanceRaw=None, checkedAt=None,
                                           status='unavailable') for row in cohort['wallets']])
+
+
+def subset_history(directory, cohort):
+    """Reuse measured per-wallet evidence when a group loses members.
+
+    Recalculate each point from raw quantities for the exact remaining members.
+    A missing balance stays unknown; group totals are never apportioned.
+    Source files and their original memberships remain untouched.
+    """
+    selected = {row['address'] for row in cohort['wallets']}
+    best, best_score = None, (-1, -1)
+    for path in Path(directory).glob('*.json'):
+        try:
+            old = json.loads(path.read_text(encoding='utf-8'))
+            if old['token'] != cohort['token'] or old.get('network') != cohort['network']:
+                continue
+            addresses = [row['address'] for row in old['wallets']]
+            if len(set(addresses)) != len(addresses) or not selected < set(addresses):
+                continue
+            decimals = old['decimals']
+            if type(decimals) is not int or not 0 <= decimals <= 18:
+                continue
+            indices = [addresses.index(row['address']) for row in cohort['wallets']]
+            samples = []
+            for point in old['samples']:
+                raw = point.get('walletBalances', [])
+                if len(raw) != len(addresses):
+                    continue
+                amounts = [raw[i] if isinstance(raw[i], str) and raw[i].isascii() and raw[i].isdigit() else None for i in indices]
+                complete = all(value is not None for value in amounts)
+                total = sum(map(int, amounts)) if complete else None
+                samples.append(dict(point, walletBalances=amounts, checkedWallets=sum(v is not None for v in amounts),
+                                    balanceRaw=str(total) if complete else None,
+                                    balance=total / 10**decimals if complete else None,
+                                    holders=sum(int(v) > 0 for v in amounts) if complete else None,
+                                    totalWallets=len(indices), derivedFromGroupId=old['groupId']))
+            if not samples:
+                continue
+            score = (max((p['time'] for p in samples if p['balance'] is not None), default=-1), samples[-1]['time'])
+            if score <= best_score:
+                continue
+            wallets = [dict(old['wallets'][i], **entry) for i, entry in zip(indices, cohort['wallets'])]
+            checked = sum(row.get('status') == 'ok' for row in wallets)
+            best = dict(cohort, version=1, decimals=decimals, wallets=wallets, samples=samples,
+                        supply=old.get('supply'), attemptedAt=old.get('attemptedAt'),
+                        startedAt=samples[0]['time'], status='ok' if checked == len(wallets) else 'partial',
+                        historyProjection=dict(sourceGroupId=old['groupId'], sourceWallets=len(addresses)))
+            if old.get('collection'):
+                best['collection'] = dict(old['collection'], checkedWallets=checked,
+                                          totalWallets=len(wallets), inProgress=checked != len(wallets))
+            best_score = score
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            continue
+    return best
 
 
 def token_balance(payload, owner, mint, decimals):

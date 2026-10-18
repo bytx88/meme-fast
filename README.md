@@ -214,3 +214,12 @@ Nansen/Fomo lists can be pasted into a previewed bulk import (up to 150 addresse
 History/discovery reads use paced public Solana endpoints (mainnet-beta and PublicNode), bounded fallback and per-method cooldowns. A configured SOLANA_WALLET_RPC_URL overrides this pool. PublicNode may require personal access for indexed holder requests; the app does not bypass that restriction.
 
 Inspect Flow/Balance totals, token prices, holdings, trade quantities, chart values and Smartness rankings share magnitude-based rounding through smart-number.mjs: maximum 4/5/6 decimals at absolute thresholds 10/1/0.01, scaled six-decimal e-N notation below 0.01, trailing zeros removed, and zero displayed as 0. Ledger quantities remain unchanged.
+
+
+### SmartMoney and wallet classification
+
+`smartMoney` is an independent nullable boolean: Yes (`true`), No (`false`), or Unreviewed (`null`). Inspect Smart filters, balance cohorts and Smartness ranking filters use this saved flag, not source or classification. `smartStatus` is a compatibility description derived from this flag. Classification (`code`), multi-source provenance (`sources`) and Interested remain separate. Editing a class/source does not change SmartMoney. New wallets and public holder candidates default to Unreviewed; bulk imports have an explicit SmartMoney selector.
+
+The authorized legacy migration sets L1/L2 (long-term holder classes 1/2) to Yes, and F1/F2, N1/N2, C1/C2 and S1/S2 to No. C1 means fast clipper/sniper; C2 means slower clipper/sniper. Cupsey-related wallet names remain intact. Existing approved Nansen/Fomo eligibility is preserved during migration only; new source labels do not promote wallets. Preview with `py scripts/migrate-smart-money.py`, then apply the authorized conversion with `--apply` on profile/workspace bytx24. The script saves a local backup, skips reviewed flags, checks concurrent edits and verifies all other stored metadata is unchanged.
+
+A reduced balance cohort can reuse saved raw per-wallet observations from a strict superset of the same token. Each point is recalculated for the exact remaining addresses; any missing member keeps that point incomplete. Original history files remain intact. This does not reconstruct unobserved dates. Automatic top-token seeding and the proposed ten-day dormancy policy are separate future work.

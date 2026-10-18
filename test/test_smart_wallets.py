@@ -17,6 +17,25 @@ def accounts(owner, mint, values):
 
 
 class SmartWalletTests(unittest.TestCase):
+    def test_reduced_membership_reuses_exact_wallet_history_without_changing_source(self):
+        original=self.collect()
+        source=Path(self.directory.name)/(self.cohort['groupId']+'.json')
+        before=source.read_bytes()
+        subset=dict(self.cohort,groupId='smaller-group',wallets=self.cohort['wallets'][:2])
+        projected=smart.read_report(self.directory.name,subset)
+        self.assertEqual(projected['samples'][0]['balanceRaw'],'2500000')
+        self.assertEqual(projected['samples'][0]['walletBalances'],['1250000','1250000'])
+        self.assertEqual(projected['samples'][0]['checkedWallets'],2)
+        self.assertEqual(projected['samples'][0]['derivedFromGroupId'],original['groupId'])
+        self.assertEqual(source.read_bytes(),before)
+        self.fail.add(self.cohort['wallets'][0]['address'])
+        self.collect(NOW+300000)
+        projected=smart.read_report(self.directory.name,subset)
+        self.assertIsNone(projected['samples'][-1]['balance'])
+        self.assertEqual(projected['samples'][-1]['walletBalances'],[None,'1250000'])
+        unknown=dict(subset,groupId='new-member',wallets=[dict(name='New',address='missing')])
+        self.assertEqual(smart.read_report(self.directory.name,unknown)['samples'],[])
+
     def test_one_job_completes_319_wallets_and_publishes_progress_between_passes(self):
         cohort=dict(self.cohort,groupId='319-cycle',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(319)])
         elapsed=[0];reads=[];checkpoints=[]
