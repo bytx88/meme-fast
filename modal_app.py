@@ -45,18 +45,29 @@ history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_miss
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
 balance_watches = modal.Dict.from_name("meme-fast-balance-watches", create_if_missing=True)
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
+balance_requests = modal.Dict.from_name("meme-fast-balance-requests", create_if_missing=True)
 smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
 
 
 @app.function(timeout=180, max_containers=1,
               volumes={"/smart": smart_volume})
 @modal.concurrent(max_inputs=1)
-def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
+def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
+    try:
+        return _collect_smart_wallets(backfill, token, cohort_scope)
+    finally:
+        if request_key:
+            lease = balance_requests.get(request_key, None)
+            if lease and lease.get('requestedAt') == request_at:
+                balance_requests.pop(request_key, None)
+
+
+def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     import sys
     import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.smart_wallets import collect, read_report, make_cohort, CACHE_MS
+    from worker.smart_wallets import collect, read_report, make_cohort, needs_refresh
     from worker.wallet_universe import universe
     from worker.followed_wallets import registry_wallets
     smart_volume.reload()
@@ -74,8 +85,7 @@ def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
                                 [value for _, value in wallet_universe_registry.items()])
             cohort = make_cohort(mint, registry, scope)
         saved = read_report('/smart', cohort)
-        cache_ms = 60000 if saved.get('collection', {}).get('inProgress') else CACHE_MS
-        if saved.get('attemptedAt') and 0 <= now - saved['attemptedAt'] < cache_ms:
+        if not needs_refresh(saved, now):
             return saved
         result = collect('/smart', cohort=cohort, budget_seconds=90 if mint else 35)
         smart_volume.commit()
@@ -259,7 +269,7 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
-@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume})
+@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -386,8 +396,9 @@ def web():
         return JSONResponse({'requested':True,'startedAt':int(time.time()*1000)}, status_code=202, headers={'cache-control':'no-store'})
 
     @web_app.get('/api/wallet-universe')
-    async def get_wallet_universe():
-        return JSONResponse(await universe_report(), headers={'cache-control': 'no-store'})
+    async def get_wallet_universe(metadata: bool = False):
+        value = dict(version=1, wallets=await universe_registry()) if metadata else await universe_report()
+        return JSONResponse(value, headers={'cache-control': 'no-store'})
 
     @web_app.post('/api/wallet-universe')
     @web_app.patch('/api/wallet-universe')
@@ -468,14 +479,31 @@ def web():
 
     @web_app.get("/api/smart-wallets")
     async def smart_wallets(token: str = '', scope: str = 'universe'):
-        from worker.smart_wallets import make_cohort
-        if token:
-            try:
-                make_cohort(token, await universe_registry(), scope)
-            except ValueError as error:
-                raise HTTPException(status_code=400, detail=str(error))
-        # A single collector owns writes and caches collection across page visits.
-        report = await collect_smart_wallets.remote.aio(token=token or None, cohort_scope=scope)
+        import time
+        from worker.smart_wallets import make_cohort, group, read_report, needs_refresh
+        try:
+            cohort = make_cohort(token, await universe_registry(), scope) if token else group()
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        # Reads must not wait behind the single writer's RPC budget or other tokens.
+        await smart_volume.reload.aio()
+        report = read_report('/smart', cohort)
+        now = int(time.time() * 1000)
+        key = cohort['groupId']
+        lease = await balance_requests.get.aio(key, None)
+        if lease and not 0 <= now - lease.get('requestedAt', 0) < 600000:
+            await balance_requests.pop.aio(key, None)
+            lease = None
+        if needs_refresh(report, now) and not lease:
+            lease = {'requestedAt': now}
+            if await balance_requests.put.aio(key, lease, skip_if_exists=True):
+                try:
+                    await collect_smart_wallets.spawn.aio(token=token or None, cohort_scope=scope, request_key=key, request_at=now)
+                except Exception:
+                    await balance_requests.pop.aio(key, None)
+                    lease = None
+                    report['error'] = 'Could not request a balance refresh. Saved observations are retained.'
+        report['refreshing'] = bool(lease)
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/followed-wallets")

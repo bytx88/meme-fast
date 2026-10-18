@@ -108,6 +108,7 @@ export function createSmartHoldings({changed=()=>{},request=fetch,now=Date.now}=
     const time=now(),latest=report?.samples?.at(-1),complete=[...(report?.samples||[])].reverse().find(point=>valid(point.balance));
     const fresh=report?.status==='ok'&&complete&&time-complete.time<=FRESH_MS&&!error;
     $('smart-status').textContent=loading&&!report?'Reading balances directly from Solana…':report?`${latest?.checkedWallets??0} / ${report.wallets.length} wallets checked · ${fresh?'Current balances':'Incomplete or stale coverage'}`:'Wallet balances unavailable';
+    if(report?.refreshing)$('smart-status').textContent+=' · Collection queued / running';
     $('updated').textContent=loading?'Updating wallet balances…':report?.attemptedAt?`Balances ${easternDateTime(report.attemptedAt)}`:'Wallet balances unavailable';
     $('refresh').disabled=loading;
     $('smart-balance').textContent=compact(complete?.balance);

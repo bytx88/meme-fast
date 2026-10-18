@@ -220,7 +220,7 @@ function render(){
   }
 
 }
-async function refreshUniverse(){try{const response=await fetch('/api/wallet-universe',{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error();const next=await response.json();if(!Array.isArray(next.wallets))throw new Error();state.universe=next;state.universeStale=false}catch{state.universeStale=true}if(state.searchResult==='ready')render()}
+async function refreshUniverse(){try{const response=await fetch('/api/wallet-universe?metadata=true',{cache:'no-store',signal:AbortSignal.timeout(30000)});if(!response.ok)throw new Error();const next=await response.json();if(!Array.isArray(next.wallets))throw new Error();state.universe=next;state.universeStale=false}catch{state.universeStale=true}if(state.searchResult==='ready')render()}
 void refreshUniverse();
 setInterval(()=>{if(!document.hidden)void refreshUniverse()},60000);
 function toggleSmart(){if(!viewData().smartSupported)return;state.smart=!state.smart;if(state.measure==='balance'&&state.smart)state.minutes=43200;render()}

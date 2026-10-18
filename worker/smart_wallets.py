@@ -13,6 +13,12 @@ CACHE_MS = 240000
 COLLECTION_MS = 45 * 60000
 
 
+def needs_refresh(report, at):
+    age = at - (report.get('attemptedAt') or 0)
+    cache_ms = 60000 if report.get('collection', {}).get('inProgress') else CACHE_MS
+    return not report.get('attemptedAt') or age < 0 or age >= cache_ms
+
+
 def group():
     value = json.loads(CONFIG.read_text(encoding='utf-8'))
     addresses = [row['address'] for row in value['wallets']]

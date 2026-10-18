@@ -17,6 +17,14 @@ def accounts(owner, mint, values):
 
 
 class SmartWalletTests(unittest.TestCase):
+    def test_refresh_cadence_resumes_partial_cycles_without_polling_complete_groups(self):
+        self.assertTrue(smart.needs_refresh({},NOW))
+        report=dict(attemptedAt=NOW)
+        self.assertFalse(smart.needs_refresh(report,NOW+60000))
+        self.assertTrue(smart.needs_refresh(report,NOW+smart.CACHE_MS))
+        report['collection']={'inProgress':True}
+        self.assertFalse(smart.needs_refresh(report,NOW+59999))
+        self.assertTrue(smart.needs_refresh(report,NOW+60000))
     def test_large_group_finishes_across_bounded_calls_without_resampling_completed_wallets(self):
         cohort=dict(self.cohort,groupId='large-test',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(70)])
         elapsed=[0];reads=[]
