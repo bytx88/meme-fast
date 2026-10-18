@@ -1,3 +1,4 @@
+import {formatSmartNumber} from './smart-number.mjs';
 import {filterUniverse} from './wallet-universe.mjs';
 export function summarizeSmartness(report,registry,{minutes=1440,quote='SOL',interested='',source='',wallet='',token='',rank='buy'}={},now=Date.now()){
  const members=filterUniverse(registry,{interested,source}).filter(row=>!wallet||row.address===wallet),known=new Map(members.map(row=>[row.address,row]));
@@ -20,7 +21,7 @@ export function summarizeSmartness(report,registry,{minutes=1440,quote='SOL',int
 export function createSmartness({registry=()=>[]}={}){
  const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),short=v=>v.slice(0,6)+'…'+v.slice(-5),stamp=v=>v?new Date(v).toLocaleString():'Not scanned';
  let report=null,error='',loading=false,requested=0,view='universe',wallet='',token='';
- const format=v=>new Intl.NumberFormat('en-US',{maximumFractionDigits:8}).format(v);
+ const format=formatSmartNumber;
  function panel(next){
   view=next;
   document.querySelectorAll('[data-smartness-tab]').forEach(button=>{button.setAttribute('aria-selected',String(button.dataset.smartnessTab===view));button.tabIndex=button.dataset.smartnessTab===view?0:-1});
@@ -40,6 +41,7 @@ export function createSmartness({registry=()=>[]}={}){
   $('smartness-status').textContent=error||(!report?'Loading trade samples…':`${result.events.length} recorded swap steps in this selection · ${scanned} / ${rows.length} wallets have signature checks · ${report.attemptedAt?'Last scan '+stamp(report.attemptedAt):'Awaiting first scan'}${pending?' · Scanning…':''}`);
   for(const key of ['buy','sell','net']){
    $('smartness-'+key+'-label').textContent=(key==='net'?'Net':key==='buy'?'Buy':'Sell')+' flow ('+quote+')';
+   $('smartness-'+key).title=result.events.length?String(result.total[key]):'';
    $('smartness-'+key).textContent=result.events.length?(key==='net'&&result.total[key]>0?'+':'')+format(result.total[key]):'—';
   }
   $('smartness-focus').hidden=!wallet&&!token;
@@ -51,8 +53,8 @@ export function createSmartness({registry=()=>[]}={}){
   }).join(''):'<tr><td colspan="8" class="admin-empty">No wallets match this selection.</td></tr>';
   $('smartness-tokens').innerHTML=result.tokens.length?result.tokens.map((row,index)=>`<tr><td>${index+1}</td><td><button type="button" class="flow-drill" data-flow-token="${esc(row.mint)}">${esc(report?.tokens?.[row.mint]?.symbol||short(row.mint))}</button><small>${esc(short(row.mint))}</small></td><td>${format(row.buy)}</td><td>${format(row.sell)}</td><td class="${row.net<0?'flow-negative':'flow-positive'}">${row.net>0?'+':''}${format(row.net)}</td><td>${row.buyers.size} / ${row.sellers.size}</td><td>${row.buyCount+row.sellCount}</td><td><a href="./order-flow.html?query=${encodeURIComponent(row.mint)}">Inspect ↗</a></td></tr>`).join(''):'<tr><td colspan="8" class="admin-empty">No supported swaps recorded for these filters. Other activity may be outside the sample or decoder coverage.</td></tr>';
   const names=new Map(rows.map(row=>[row.address,row.name]));
-  $('smartness-trades').innerHTML=result.events.length?result.events.slice(0,100).map(event=>`<tr><td>${esc(stamp(event.time))}</td><td><button type="button" class="flow-drill" data-flow-wallet="${esc(event.address)}">${esc(names.get(event.address)||short(event.address))}</button></td><td class="${event.side==='sell'?'flow-negative':'flow-positive'}">${event.side==='sell'?'Sell':'Buy'}</td><td>${esc(event.quantity)} <button type="button" class="flow-drill" data-flow-token="${esc(event.mint)}">${esc(report?.tokens?.[event.mint]?.symbol||short(event.mint))}</button></td><td>${format(event.amount)} ${quote}</td><td>${esc(event.program)}</td><td><a href="https://solscan.io/tx/${esc(event.signature)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></td></tr>`).join(''):'<tr><td colspan="7" class="admin-empty">No classified trade evidence in this selection.</td></tr>';
-  $('smartness-coverage').textContent=(report?.coverage||'Only observed, supported swap instructions enter these rankings.')+` ${result.events.length>100?'Showing the latest 100 evidence rows. ':''}${report?.eventCapped?'The 50,000-event retention cap was reached. ':''}Current source and Interested flags define the selected cohort. Missing activity is unknown, not zero.`;
+  $('smartness-trades').innerHTML=result.events.length?result.events.slice(0,100).map(event=>`<tr><td>${esc(stamp(event.time))}</td><td><button type="button" class="flow-drill" data-flow-wallet="${esc(event.address)}">${esc(names.get(event.address)||short(event.address))}</button></td><td class="${event.side==='sell'?'flow-negative':'flow-positive'}">${event.side==='sell'?'Sell':'Buy'}</td><td><span title="${esc(event.quantity)}">${format(Number(event.quantity))}</span> <button type="button" class="flow-drill" data-flow-token="${esc(event.mint)}">${esc(report?.tokens?.[event.mint]?.symbol||short(event.mint))}</button></td><td>${format(event.amount)} ${quote}</td><td>${esc(event.program)}</td><td><a href="https://solscan.io/tx/${esc(event.signature)}" target="_blank" rel="noopener noreferrer">View transaction ↗</a></td></tr>`).join(''):'<tr><td colspan="7" class="admin-empty">No classified trade evidence in this selection.</td></tr>';
+  $('smartness-coverage').textContent=(report?.coverage||'Only observed, supported swap instructions enter these rankings.')+` ${result.events.length>100?'Showing the latest 100 evidence rows. ':''}${report?.eventCapped?'The 50,000-event retention cap was reached. ':''}Current source and Interested flags define the selected cohort. Missing activity is unknown, not zero. Small-number suffixes: e1 = ×10⁻¹; e2 = ×10⁻².`;
  }
  async function refresh(){
   if(loading)return;loading=true;
