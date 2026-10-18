@@ -155,3 +155,5 @@ body.inspect-depth{
 .smart-stale{opacity:.6}
 @media(max-width:850px){.smart-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.smart-metrics>div{border-bottom:1px solid #2c3c4e}.smart-metrics strong{font-size:20px}}
 @media(max-width:580px){.smart-metrics span{font-size:10px}.smart-chart-panel .panel-heading{flex-wrap:wrap}.smart-metrics strong{font-size:18px}.smart-chart-panel,.smart-balances-panel{padding:14px 9px!important}.smart-chart-legend{gap:10px}}
+
+.inspect-view-controls{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin:6px 0 12px}.measure-tabs{display:flex;gap:4px;border-bottom:1px solid #304454}.measure-tabs button{border:0;border-radius:0;padding:10px 20px;background:transparent}.measure-tabs button[aria-selected="true"]{color:#24e2ad;border-bottom:2px solid #24e2ad;background:#152b2b}.wallet-filter{display:flex;align-items:center;gap:10px}.wallet-filter span{font-size:12px;color:#95afc9}#balance-unavailable{padding:22px}#balance-unavailable p{color:#95afc9}#smart-flow-coverage{margin:10px 0}

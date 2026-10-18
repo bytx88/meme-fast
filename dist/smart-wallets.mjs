@@ -14,3 +14,6 @@ export const SMART_WALLETS=Object.freeze([
 export function hasSmartGroup(tokens){
   return tokens.length===1&&tokens[0].network==='solana'&&tokens[0].address===SMART_TEST_TOKEN;
 }
+
+const selectedWallets=new Set(SMART_WALLETS);
+export function smartWalletTrades(trades){return trades.filter(trade=>selectedWallets.has(trade.wallet));}

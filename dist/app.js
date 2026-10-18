@@ -19,7 +19,7 @@ import {createFlowHistory,mergeFlowHistory} from './flow-history.mjs';
 import {createCandleHistory} from './candle-history.mjs';
 import {renderCandleHistory} from './candle-view.mjs';
 import {readFlowWindow,saveFlowWindow} from './flow-preferences.mjs';
-import {SMART_WALLETS,hasSmartGroup} from './smart-wallets.mjs';
+import {SMART_WALLETS,hasSmartGroup,smartWalletTrades} from './smart-wallets.mjs';
 import {createSmartHoldings} from './smart-holdings.mjs';
 const smartHoldings=createSmartHoldings({changed:()=>render()});
 const flowCache=createFlowCache();
@@ -47,7 +47,7 @@ function renderRecentContracts(){
 }
 const state={token:{address:'',network:'',symbol:DEFAULT_INSPECT_QUERY,name:'Bitcoin / US Dollar'},minutes:readFlowWindow(),trades:[],pools:[],fetched:0,busy:false,generation:0,searchGeneration:0,searchBusy:false};
 state.historyTrades=[];
-state.smart=false;
+state.smart=false;state.measure="flow";
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
@@ -83,7 +83,7 @@ async function search(query){
 
 }
 function updateSelection(){for(const check of $('results').querySelectorAll('input'))check.checked=state.draft.has(check.value);$('combine-selected').textContent=`${state.draft.size>1?'Combine selected':'View selected'} (${state.draft.size})`;$('combine-selected').disabled=!state.draft.size}
-function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=hasSmartGroup(tokens),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,allTrades,trades:allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
+function viewData(){const tokens=state.scope==='all'?state.tokens:state.tokens.filter(t=>listingKey(t)===state.scope),keys=new Set(tokens.map(listingKey));const pools=state.pools.filter(p=>p.targets.some(t=>keys.has(listingKey(t)))),listings=state.listings.filter(l=>keys.has(l.key));const trades=state.minutes>1440?mergeFlowHistory(state.trades,state.historyTrades):state.trades,allTrades=scopeTrades(trades,tokens,state.scope),smartSupported=hasSmartGroup(tokens),smartActive=state.smart&&smartSupported;return {tokens,pools,listings,smartSupported,smartActive,balanceActive:state.measure==="balance"&&smartActive,allTrades,trades:smartActive?smartWalletTrades(allTrades):allTrades,loaded:state.fetched>0&&pools.some(p=>p.status==='loaded'),missing:listings.filter(l=>l.status!=='loaded').length}}
 function updateAvatar(token,combined,listingImage=null){
   const link=$('avatar-link'),img=$('avatar-image'),fallback=$('avatar-fallback');
   fallback.textContent=combined?'Σ':token.symbol.slice(0,1).toUpperCase();
@@ -122,28 +122,37 @@ async function load(){
     Object.assign(state,result);state.fetched=Date.now();state.cached=false;flowCache.write(state);flowHistory.record(result.trades);state.historyTrades=flowHistory.read(tokens.map(listingKey));render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
     return currentSummary();
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
-  finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=viewData().smartActive?smartHoldings.summary().loading:false;$('charts').setAttribute('aria-busy','false')}}
+  finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=viewData().balanceActive?smartHoldings.summary().loading:false;$('charts').setAttribute('aria-busy','false')}}
 }
 function emptyRow(text){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.className='table-empty';td.textContent=text;tr.append(td);return tr}
-function currentSummary(){if(viewData().smartActive)return smartHoldings.summary();if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,walletMode:"all",windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
+function currentSummary(){if(state.measure==="balance")return viewData().balanceActive?smartHoldings.summary():{measure:"balance",walletMode:"all",status:"unavailable"};if(state.searchResult!=='ready')return {query:state.searchedQuery,listings:[],dataStatus:state.searchResult,buyUSD:null,sellUSD:null,netUSD:null,swapCount:0};const view=viewData(),now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),availability=sampleAvailability(view.trades,state.minutes,now);return {savedSnapshot:Boolean(state.cached),refreshing:state.busy,listings:view.tokens,view:state.scope,measure:"flow",walletMode:view.smartActive?"smart":"all",windowMinutes:state.minutes,buyUSD:s.rows.length?s.buy:null,sellUSD:s.rows.length?s.sell:null,netUSD:s.rows.length?s.net:null,swapCount:s.rows.length,dataStatus:view.loaded?availability.status:'unavailable',incompleteListings:view.missing,lastReturnedSwap:availability.lastTrade?new Date(availability.lastTrade.time).toISOString():null,coverage:`Recent swap sample, up to ${SAMPLE_LIMITS.tradesPerPool} swaps per pool from up to ${SAMPLE_LIMITS.poolsPerListing} pools per listing`,sampleCoverage:{listingsRequested:view.tokens.length,listingsLoaded:view.listings.filter(l=>l.status==='loaded').length,poolsDiscovered:view.pools.length,poolsLoaded:view.pools.filter(p=>p.status==='loaded').length,poolsCapped:view.pools.filter(p=>p.count>=SAMPLE_LIMITS.tradesPerPool).length,returnedSwaps:availability.totalReturned,limits:SAMPLE_LIMITS},updatedAt:state.fetched?new Date(state.fetched).toISOString():null}}
 function render(){
   const view=viewData();
-  if(!view.smartActive&&state.minutes>7200)state.minutes=1440;
+  if(!view.balanceActive&&state.minutes>7200)state.minutes=1440;
   const now=state.fetched||Date.now(),s=summarize(view.trades,state.minutes,now),loaded=view.loaded,available=loaded&&s.rows.length>0,availability=sampleAvailability(view.trades,state.minutes,now);
   if(!view.smartSupported)state.smart=false;
   $('smart-toggle').disabled=!view.smartSupported;
   $('smart-toggle').setAttribute('aria-pressed',String(view.smartActive));
-  $('smart-toggle').title=view.smartSupported?'Show balances and history for the 9 selected HOOKED wallets':'Smart* test group is available for the HOOKED Solana contract only';
+  $('smart-toggle').title=view.smartSupported?'Filter the selected view to the 9 selected HOOKED wallets':'Smart* test group is available for the HOOKED Solana contract only';
   $('smart-group').hidden=!view.smartActive;
-  $('smart-holdings').hidden=!view.smartActive;
-  $('market-flow').hidden=view.smartActive;
-  $('flow-data-source').textContent=view.smartActive?'Solana balances · DEX Screener price ↗':'Data by GeckoTerminal ↗';
-  $('flow-data-source').href=view.smartActive?'https://dexscreener.com/solana/'+view.tokens[0].address:'https://www.geckoterminal.com';
-  document.querySelector('[data-smart-only]').hidden=!view.smartActive;
+  $('smart-holdings').hidden=!view.balanceActive;
+  $('balance-view').hidden=state.measure!=='balance';
+  $('balance-unavailable').hidden=state.measure!=='balance'||view.smartActive;
+  $('use-smart-balances').hidden=!view.smartSupported;
+  document.querySelectorAll('[data-measure]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.measure===state.measure));b.tabIndex=b.dataset.measure===state.measure?0:-1});
+  $('wallet-mode-note').textContent=view.smartActive?'9 selected wallets':state.measure==='flow'?'All wallets · sampled swaps':'All wallets';
+  if(state.measure==='flow'&&view.smartActive)$('smart-status').textContent='Filtering sampled swaps by sender';
+  $('smart-flow-coverage').hidden=!view.smartActive||state.measure!=='flow';
+  $('smart-flow-coverage').textContent=`Smart* flow: ${s.rows.length} matching swaps in this window · ${view.allTrades.length} swaps in the returned sample. No matches does not mean no activity.`;
+  $('market-flow').hidden=state.measure!=='flow';
+  $('flow-data-source').textContent=view.balanceActive?'Solana balances · DEX Screener price ↗':'Data by GeckoTerminal ↗';
+  $('flow-data-source').href=view.balanceActive?'https://dexscreener.com/solana/'+view.tokens[0].address:'https://www.geckoterminal.com';
+  document.querySelector('[data-smart-only]').hidden=!view.balanceActive;
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
-  if(view.smartActive){
+  if(state.measure==='balance'){
     $('window-coverage').hidden=true;
-    smartHoldings.render(state.minutes);
+    if(view.balanceActive)smartHoldings.render(state.minutes);
+    else {$("updated").textContent="All-wallet balance history unavailable";$("refresh").disabled=false;}
     return;
   }
   updateAvatar(view.tokens[0]||state.token,view.tokens.length>1,view.listings[0]?.image_url);
@@ -161,6 +170,7 @@ function render(){
   $('empty-notice').hidden=!loaded||available;$('show-all').hidden=availability.status!=='outside-window';
   $('empty-title').textContent=availability.status==='outside-window'?'No swaps in this window':'No usable swaps returned';
   $('empty-detail').textContent=availability.lastTrade?`The feed returned ${availability.totalReturned} swaps in the past 24 hours. Latest: ${easternDateTime(availability.lastTrade.time)}. None is inside this window. This does not establish that the whole market was inactive.`:`The feed has no usable recent swaps for these pools. Market flow is unavailable; this is not evidence of zero trading.${state.skipped?` ${state.skipped} records could not be classified.`:''}`;
+  if(view.smartActive&&!available){$('empty-title').textContent='No matching Smart* swaps in this sample';$('empty-detail').textContent=$('smart-flow-coverage').textContent;$('show-all').hidden=true;}
   document.querySelectorAll('[data-window]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.window)===state.minutes)));
   $('window-coverage').hidden=state.minutes!==7200;
   $('window-coverage').textContent='5D candle history · buy/sell figures are observed swaps only';
@@ -179,7 +189,7 @@ function render(){
   if(state.fetched&&!loaded&&!state.busy){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='No usable pool data';$('donut').setAttribute('aria-label','No usable pool data for this selection');$('updated').textContent='Data unavailable';$('tape').replaceChildren(emptyRow('No usable pool data for this selection.'))}
   if(state.loadError){$('updated').textContent=loaded?'Refresh failed · previous snapshot':'Data unavailable';if(!loaded){$('net-label').textContent='Flow unavailable';$('swap-count').textContent='Could not load swaps';$('tape').replaceChildren(emptyRow('Data unavailable.'))}}
   renderCoverage(view,state,s.rows);
-  const historical=state.minutes===7200&&single;
+  const historical=state.minutes===7200&&single&&!view.smartActive;
   const legend=document.querySelector('.timeline-legend');
   if(historical){
     legend.innerHTML='<span><i class="dot" style="background:#b6a1ff"></i>Total volume</span><span class="mc-value"><i class="mc-key" aria-hidden="true"></i>Est. market cap</span>';
@@ -189,9 +199,9 @@ function render(){
   }else{
     renderMCDetail(s.rows,mc,!single,loaded,state.busy);
     legend.innerHTML=originalLegend;
-    $('timeline-title').textContent='Flow trend';
+    $('timeline-title').textContent=view.smartActive?'Smart* flow trend':'Flow trend';
     renderTimeline(s.rows,state.minutes,now,loaded,state.busy,view.listings[0]?.marketCap||null,view.tokens.length>1);
-    if(state.minutes===7200)$('window-coverage').textContent='Select one listing for candle history · combined flow is observed swaps only';
+    if(state.minutes===7200)$('window-coverage').textContent=view.smartActive?'Smart* observed swaps only · sampled coverage':'Select one listing for candle history · combined flow is observed swaps only';
   }
   renderTape(s.rows,loaded,state.tokens.map(listingKey).join('|')+state.scope+state.minutes+view.smartActive,state.busy);
   if(state.busy)$('updated').textContent=state.progress||'Loading swaps…';
@@ -202,8 +212,12 @@ function render(){
 
 }
 for(const address of SMART_WALLETS){const item=document.createElement('li'),link=document.createElement('a');link.href=`https://solscan.io/account/${address}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=address;item.append(link);$('smart-wallet-list').append(item)}
-$('smart-toggle').addEventListener('click',()=>{if(!viewData().smartSupported)return;state.smart=!state.smart;if(state.smart)state.minutes=43200;else if(state.minutes>7200)state.minutes=1440;render()});
-$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>viewData().smartActive?smartHoldings.refresh():state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
+function toggleSmart(){if(!viewData().smartSupported)return;state.smart=!state.smart;if(state.measure==='balance'&&state.smart)state.minutes=43200;render()}
+$('smart-toggle').addEventListener('click',toggleSmart);
+$('use-smart-balances').addEventListener('click',toggleSmart);
+document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>{state.measure=button.dataset.measure;if(state.measure==='balance'&&viewData().smartActive)state.minutes=43200;render()}));
+document.querySelector('.measure-tabs').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const buttons=[...document.querySelectorAll('[data-measure]')],index=buttons.indexOf(event.target);const next=event.key==='Home'?0:event.key==='End'?1:(index+1)%2;buttons[next].click();buttons[next].focus()});
+$('search-form').addEventListener('submit',e=>{e.preventDefault();search($('query').value).catch(e=>error(e.message))});$('refresh').addEventListener('click',()=>viewData().balanceActive?smartHoldings.refresh():state.tokens.some(t=>t.unverified)?search(state.searchedQuery):load());document.querySelectorAll('[data-window]').forEach(b=>b.addEventListener('click',()=>{state.minutes=Number(b.dataset.window);saveFlowWindow(state.minutes);render()}));
 $('timeline-toggle').addEventListener('click',()=>{const body=$('timeline-body'),expanded=body.hidden;body.hidden=!expanded;const button=$('timeline-toggle');button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',expanded?'Collapse flow trend':'Expand flow trend');button.title=expanded?'Collapse flow trend':'Expand flow trend';button.firstElementChild.textContent=expanded?'▴':'▾';if(expanded)requestAnimationFrame(render)});
 const clipboardControl=setupClipboardAddress({button:$('paste-contract'),input:$('query'),clipboard:navigator.clipboard,permissions:navigator.permissions,win:window,doc:document,nameForAddress:address=>{
   const names=[...new Set([...state.matches,...state.tokens,...(flowCache.read(address)?.tokens||[])].filter(token=>!token.unverified&&canonical(token.address)===canonical(address)&&token.name&&token.name!=='Token'&&token.name!==address).map(token=>token.name.trim()).filter(Boolean))];
@@ -220,7 +234,7 @@ $('find-listings').addEventListener('click',()=>{const token=viewData().tokens[0
 $('save-token').addEventListener('click',()=>{const token=viewData().tokens[0]||state.token;if(state.tokens.length!==1)return;toggleSaved({type:'token',id:listingKey(token),title:`$${token.symbol} · ${token.name}`,subtitle:`${token.network} · ${short(token.address)}`,href:`./order-flow.html?query=${encodeURIComponent(token.address)}`,image_url:!$('avatar-image').hidden?$('avatar-image').src:token.image_url});updateIdentity()});
 window.addEventListener('storage',event=>{if(event.key==='meme-fast-watchlist-v1'&&state.token)updateIdentity()});
 $('address').addEventListener('click',async()=>{const token=viewData().tokens[0]||state.token;if(state.tokens.length!==1)return;const button=$('address'),glyph=button.querySelector('span');try{await navigator.clipboard.writeText(token.address);glyph.textContent='✓';button.title='Contract address copied';button.setAttribute('aria-label','Contract address copied');setTimeout(()=>{if(state.tokens.length===1&&listingKey(state.tokens[0])===listingKey(token)){glyph.textContent='⧉';button.title=`Copy ${token.address}`;button.setAttribute('aria-label',`Copy ${token.symbol} contract address`)}},1400)}catch{$('query').value=token.address;$('query').focus();$('query').select();error('Clipboard unavailable. Select and copy the contract address from the search field.')}});
-setInterval(()=>{if(!document.hidden&&!state.busy&&!state.searchBusy&&state.searchResult==='ready'&&!state.tokens.some(t=>t.unverified)&&Date.now()-state.fetched>=60000){if(viewData().smartActive)smartHoldings.refresh();else load()}},60000);
+setInterval(()=>{if(!document.hidden&&!state.busy&&!state.searchBusy&&state.searchResult==='ready'&&!state.tokens.some(t=>t.unverified)&&Date.now()-state.fetched>=60000){if(viewData().balanceActive)smartHoldings.refresh();else load()}},60000);
 const context=document.modelContext;
 if(context?.registerTool){const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});for(const tool of [
   {name:'search_tokens',description:'Search indexed tokens and automatically show one match or the combined flow of multiple matches.',inputSchema:{type:'object',properties:{query:{type:'string',minLength:2,maxLength:160}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{if(typeof input?.query!=='string'||input.query.trim().length<2||input.query.length>160)throw new Error('Enter a ticker or contract address between 2 and 160 characters.');$('query').value=input.query;return search(input.query)}},
