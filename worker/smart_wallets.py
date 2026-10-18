@@ -210,6 +210,34 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
     return report
 
 
+def collect_cycle(directory, *, cohort=None, checkpoint=None, budget_seconds=900,
+                  pass_seconds=90, **kwargs):
+    """Finish a large cohort in one job, publishing bounded checkpoints as we go.
+
+    Scheduling each pass separately can leave a busy group waiting long enough
+    for its readings to expire. Keep its remaining reads in the current job;
+    stop on an unavailable provider rather than retrying it in a tight loop.
+    """
+    deadline = time.monotonic() + budget_seconds
+    previous = read_report(directory, cohort)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return previous
+        report = collect(directory, cohort=cohort,
+                         budget_seconds=min(pass_seconds, remaining), **kwargs)
+        if checkpoint:
+            checkpoint(report)
+        cycle = report.get('collection', {})
+        if not cycle.get('inProgress'):
+            return report
+        old_cycle = previous.get('collection', {})
+        old_count = old_cycle.get('checkedWallets', 0) if old_cycle.get('startedAt') == cycle.get('startedAt') else 0
+        if cycle.get('checkedWallets', 0) <= old_count:
+            return report
+        previous = report
+
+
 if __name__ == '__main__':
     import sys
     report = collect(sys.argv[1])

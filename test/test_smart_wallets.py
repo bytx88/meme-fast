@@ -17,6 +17,36 @@ def accounts(owner, mint, values):
 
 
 class SmartWalletTests(unittest.TestCase):
+    def test_one_job_completes_319_wallets_and_publishes_progress_between_passes(self):
+        cohort=dict(self.cohort,groupId='319-cycle',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(319)])
+        elapsed=[0];reads=[];checkpoints=[]
+        def rpc(method,params):
+            if method=='getTokenSupply':return {'result':{'value':{'amount':'1000000000000','decimals':6}}}
+            elapsed[0]+=1;reads.append(params[0])
+            return accounts(params[0],cohort['token'],[1000000])
+        with patch.object(smart.time,'monotonic',side_effect=lambda:elapsed[0]), patch.object(smart.time,'time',side_effect=lambda:NOW/1000+elapsed[0]):
+            report=smart.collect_cycle(self.directory.name,cohort=cohort,rpc=rpc,
+                budget_seconds=400,pass_seconds=30,checkpoint=lambda r:checkpoints.append(r['collection']['checkedWallets']))
+        self.assertEqual(checkpoints,[30,60,90,120,150,180,210,240,270,300,319])
+        self.assertEqual(len(set(reads)),319)
+        self.assertEqual(len(reads),319)
+        self.assertEqual(report['samples'][-1]['balance'],319)
+        self.assertEqual(report['collection']['startedAt'],NOW)
+        self.assertFalse(report['collection']['inProgress'])
+
+    def test_cycle_stops_when_provider_makes_no_progress(self):
+        cohort=dict(self.cohort,groupId='blocked-cycle',wallets=[dict(name=str(i),address='wallet'+str(i)) for i in range(70)])
+        calls=[];checkpoints=[]
+        def failed(method,params):
+            if method=='getTokenSupply':return {'result':{'value':{'amount':'1000000000000','decimals':6}}}
+            calls.append(params[0]);raise ValueError('Provider unavailable')
+        report=smart.collect_cycle(self.directory.name,cohort=cohort,rpc=failed,
+            checkpoint=lambda r:checkpoints.append(r))
+        self.assertEqual(len(checkpoints),1)
+        self.assertEqual(len(calls),70)
+        self.assertIsNone(report['samples'][-1]['balance'])
+        self.assertEqual(report['collection']['checkedWallets'],0)
+
     def test_refresh_cadence_resumes_partial_cycles_without_polling_complete_groups(self):
         self.assertTrue(smart.needs_refresh({},NOW))
         report=dict(attemptedAt=NOW)

@@ -49,7 +49,7 @@ balance_requests = modal.Dict.from_name("meme-fast-balance-requests", create_if_
 smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
 
 
-@app.function(timeout=180, max_containers=1,
+@app.function(timeout=1200, max_containers=1,
               volumes={"/smart": smart_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
@@ -67,7 +67,7 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.smart_wallets import collect, read_report, make_cohort, needs_refresh
+    from worker.smart_wallets import collect_cycle, read_report, make_cohort, needs_refresh
     from worker.wallet_universe import universe
     from worker.followed_wallets import registry_wallets
     smart_volume.reload()
@@ -87,8 +87,13 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
         saved = read_report('/smart', cohort)
         if not needs_refresh(saved, now):
             return saved
-        result = collect('/smart', cohort=cohort, budget_seconds=90 if mint else 35)
-        smart_volume.commit()
+        def checkpoint(report):
+            smart_volume.commit()
+            print('Balance checkpoint', report['token'], report.get('collection', {}).get('checkedWallets',
+                  sum(row['status'] == 'ok' for row in report['wallets'])), '/', len(report['wallets']), flush=True)
+        result = collect_cycle('/smart', cohort=cohort, checkpoint=checkpoint,
+                               budget_seconds=900 if mint else 35,
+                               pass_seconds=90 if mint else 35)
         return result
     if token:
         result = sample(token, cohort_scope)
@@ -491,7 +496,7 @@ def web():
         now = int(time.time() * 1000)
         key = cohort['groupId']
         lease = await balance_requests.get.aio(key, None)
-        if lease and not 0 <= now - lease.get('requestedAt', 0) < 600000:
+        if lease and not 0 <= now - lease.get('requestedAt', 0) < 1800000:
             await balance_requests.pop.aio(key, None)
             lease = None
         if needs_refresh(report, now) and not lease:

@@ -143,6 +143,7 @@ function render(){
   document.querySelectorAll('[data-measure]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.measure===state.measure));b.tabIndex=b.dataset.measure===state.measure?0:-1});
   const legacy=view.tokens.length===1&&view.tokens[0].address===SMART_TEST_TOKEN;
   $('balance-cohort').querySelector('[value=legacy]').disabled=!legacy;
+  $('balance-cohort').querySelector('[value=legacy]').hidden=!legacy;
   if(!legacy&&$('balance-cohort').value==='legacy')$('balance-cohort').value='universe';
   const balanceScope=$('balance-cohort').value;
   const balanceWallets=balanceScope==='legacy'?SMART_WALLETS:(state.universe?.wallets||[]).filter(row=>moneyStatus(row)==='smart'&&(balanceScope!=='interested'||row.interested)).map(row=>row.address).sort();
