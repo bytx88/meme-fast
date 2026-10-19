@@ -185,7 +185,7 @@ def observe(row, report, now):
             continue
         day = str(int(stamp // DAY))
         certificate = row.setdefault('zeroDays', {}).setdefault(day, dict(positive=False, firstAt=stamp))
-        if certificate['positive']:
+        if certificate['positive'] or stamp <= row.get('lastPositiveAt', 0):
             continue
         cursor, streak = int(stamp // DAY), 0
         while str(cursor) in row['zeroDays'] and not row['zeroDays'][str(cursor)]['positive']:
@@ -260,8 +260,11 @@ def choose_job(plan, watches, now):
         interval = PROBE_INTERVAL if row['mode'] == 'dormant' else AUTO_INTERVAL if row.get('auto') else DAY
         check = plan['checks'].get(token + ':universe', {})
         due = check.get('nextDueAt', 0)
-        if row['mode'] == 'dormant':
+        if row['mode'] == 'dormant' and not check.get('retryPending'):
             due = max(due, (row.get('lastProbeAt') or row['dormantAt']) + PROBE_INTERVAL)
+        elif row['mode'] != 'dormant' and check.get('status') == 'complete':
+            # A former seed promoted into the top 20 must adopt its shorter cadence.
+            due = min(due, check.get('lastAttemptAt', check.get('lastCompleteAt', now)) + interval)
         if due <= now:
             job = dict(token=token, scope='universe', kind='probe' if row['mode'] == 'dormant' else 'automatic' if row.get('auto') else 'monitor',
                        interval=interval, dueAt=due, rank=row.get('rank') or 999999)
@@ -292,12 +295,13 @@ def checkpoint(plan, job, report, now, finished=False):
     point = report.get('samples', [{}])[-1] if report.get('samples') else {}
     is_complete = (complete(point, len(report.get('wallets', []))) and not report.get('error')
                    and point.get('time', 0) >= job.get('startedAt', 0))
-    interval = PROBE_INTERVAL if row['mode'] == 'dormant' else job['interval'] if is_complete else 5 * 60000
+    active_interval = (AUTO_INTERVAL if row.get('auto') else DAY) if job['kind'] == 'probe' else job['interval']
+    interval = (PROBE_INTERVAL if row['mode'] == 'dormant' else active_interval) if is_complete else 5 * 60000
     check = plan['checks'].setdefault(job['token'] + ':' + job['scope'], {})
     check.update(lastAttemptAt=now, nextDueAt=now + interval, checkedWallets=point.get('checkedWallets', 0),
                  totalWallets=len(report.get('wallets', [])), status='dormant' if row['mode'] == 'dormant' else 'complete' if is_complete else 'partial',
-                 lastCompleteAt=point['time'] if is_complete else check.get('lastCompleteAt'))
-    if job['kind'] == 'probe' and finished:
+                 lastCompleteAt=point['time'] if is_complete else check.get('lastCompleteAt'), retryPending=not is_complete)
+    if job['kind'] == 'probe' and finished and is_complete:
         row['lastProbeAt'] = now
     if finished:
         plan.update(running=None, dispatchCount=plan.get('dispatchCount', 0) + 1, updatedAt=now)

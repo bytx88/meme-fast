@@ -125,7 +125,8 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
             plan.pop('error', None)
         except Exception as error:
             plan.update(running=None, error='Collection failed; saved readings retained: ' + type(error).__name__)
-            plan['checks'][job['token'] + ':' + job['scope']] = dict(nextDueAt=int(time.time() * 1000) + 300000, status='unavailable')
+            check = plan['checks'].setdefault(job['token'] + ':' + job['scope'], {})
+            check.update(nextDueAt=int(time.time() * 1000) + 300000, status='unavailable', retryPending=True)
         finally:
             seeds.save('/smart', plan)
             smart_volume.commit()

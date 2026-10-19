@@ -93,6 +93,55 @@ class RankingTests(unittest.TestCase):
 
 
 class DormancyTests(unittest.TestCase):
+    def test_older_zero_history_cannot_override_newer_positive_signal(self):
+        row=policy();row['membershipAt']=NOW-20*seeds.DAY
+        seeds.positive(row,NOW,NOW,'New SmartMoney buy')
+        report=observation(NOW-seeds.DAY)
+        report['samples']=[observation(NOW-i*seeds.DAY)['samples'][0] for i in range(11,0,-1)]
+        seeds.observe(row,report,NOW)
+        self.assertEqual(row['mode'],'active')
+        self.assertEqual(row['zeroStreak'],0)
+        # A new, subsequent ten-day zero run can still pause the token.
+        for i in range(1,12):
+            at=NOW+i*seeds.DAY
+            seeds.observe(row,observation(at),at)
+        self.assertEqual(row['mode'],'dormant')
+
+    def test_promoted_top_token_uses_shorter_cadence_without_shortening_retry(self):
+        row=policy();row.update(auto=True,rank=1)
+        check=dict(status='complete',lastAttemptAt=NOW-5*3600000,
+                   lastCompleteAt=NOW-5*3600000,nextDueAt=NOW+19*3600000)
+        plan=dict(tokens={TOKENS[0]:row},checks={TOKENS[0]+':universe':check},dispatchCount=1)
+        self.assertEqual(seeds.choose_job(plan,[],NOW)['kind'],'automatic')
+        check.update(status='partial',nextDueAt=NOW+5*60000)
+        self.assertIsNone(seeds.choose_job(plan,[],NOW))
+
+    def test_failed_dormant_probe_retries_promptly_and_success_returns_to_weekly(self):
+        row=policy();row.update(mode='dormant',dormantAt=NOW-seeds.PROBE_INTERVAL,auto=True)
+        plan=dict(tokens={TOKENS[0]:row},checks={},dispatchCount=0)
+        job=seeds.choose_job(plan,[],NOW);job['startedAt']=NOW
+        seeds.checkpoint(plan,job,observation(NOW,('0',None)),NOW,finished=True)
+        self.assertNotIn('lastProbeAt',row)
+        self.assertIsNone(seeds.choose_job(plan,[],NOW+5*60000-1))
+        retry=seeds.choose_job(plan,[],NOW+5*60000)
+        self.assertEqual(retry['kind'],'probe')
+        retry['startedAt']=NOW+5*60000
+        seeds.checkpoint(plan,retry,observation(NOW+5*60000),NOW+5*60000,finished=True)
+        self.assertEqual(row['lastProbeAt'],NOW+5*60000)
+        self.assertIsNone(seeds.choose_job(plan,[],NOW+seeds.DAY))
+        self.assertEqual(seeds.choose_job(plan,[],NOW+5*60000+seeds.PROBE_INTERVAL)['kind'],'probe')
+        # Collector exceptions use the same prompt retry, even after a prior probe.
+        plan['checks'][TOKENS[0]+':universe'].update(status='unavailable',retryPending=True,nextDueAt=NOW+10*60000)
+        self.assertEqual(seeds.choose_job(plan,[],NOW+10*60000)['kind'],'probe')
+
+    def test_positive_probe_resumes_active_cadence(self):
+        row=policy();row.update(mode='dormant',dormantAt=NOW-seeds.PROBE_INTERVAL,auto=True)
+        plan=dict(tokens={TOKENS[0]:row},checks={},dispatchCount=0)
+        job=seeds.choose_job(plan,[],NOW);job['startedAt']=NOW
+        seeds.checkpoint(plan,job,observation(NOW,('1','0')),NOW,finished=True)
+        self.assertEqual(row['mode'],'active')
+        self.assertEqual(plan['checks'][TOKENS[0]+':universe']['nextDueAt'],NOW+seeds.AUTO_INTERVAL)
+
     def test_pause_requires_ten_elapsed_days_and_daily_complete_zeros(self):
         row=policy()
         for i in range(10):
