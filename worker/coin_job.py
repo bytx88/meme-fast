@@ -10,7 +10,13 @@ import time
 from pathlib import Path
 from worker.refresh_priority import PRIORITY_TTL
 
-DESIGN_VERSION = 2
+DESIGN_VERSION = 3
+
+# Volume latency can exceed a minute during service congestion. Leave space
+# for durable publication inside Modal's 600-second function timeout, while
+# keeping provider collection independently bounded.
+DEFAULT_BUDGETS = {'total': 540, 'reload': 90, 'priorities': 20, 'collect': 280,
+                   'projections': 60, 'commit': 120, 'cleanup': 10, 'report': 30}
 
 
 class StageTimeout(RuntimeError):
@@ -101,14 +107,13 @@ def public_job_health(report, now_ms=None):
 
 async def run_coin_job(volume, priorities, root='/history', app='/app', **options):
     # An independent outer deadline covers even unexpected gaps between stages.
-    total = (options.get('budgets') or {}).get('total', 480)
+    total = (options.get('budgets') or {}).get('total', DEFAULT_BUDGETS['total'])
     return await bounded(_run_coin_job(volume, priorities, root, app, **options), total, 'overall job')
 
 
 async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
                        budgets=None, commands=None, log=print):
-    limits = {'total': 480, 'reload': 45, 'priorities': 20, 'collect': 280,
-              'projections': 60, 'commit': 60, 'cleanup': 10, 'report': 10}
+    limits = dict(DEFAULT_BUDGETS)
     limits.update(budgets or {})
     started, started_at = time.monotonic(), int(time.time()*1000)
     deadline = started+limits['total']

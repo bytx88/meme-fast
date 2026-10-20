@@ -9,9 +9,37 @@ from pathlib import Path
 from types import SimpleNamespace
 from worker.coin_job import run_coin_job, bounded, StageTimeout, public_job_health, Child
 from worker.coin_projections import project
+from worker.coin_job import DEFAULT_BUDGETS
+from unittest.mock import patch
 
 
 class CoinJobTests(unittest.IsolatedAsyncioTestCase):
+    async def test_volume_congestion_fits_default_deadlines(self):
+        # Model the observed 60s+ commit, 45s+ reload and a slow checkpoint read
+        # without making a regression test wait minutes for real storage.
+        from worker import coin_job
+        real_bounded = coin_job.bounded
+        observed = {}
+        async def congested(operation, seconds, name):
+            observed[name] = seconds
+            latency = {'reload': 65, 'commit': 95,
+                       'checkpoint validation': 15}.get(name, 0)
+            if latency >= seconds:
+                if hasattr(operation, 'close'):
+                    operation.close()
+                raise StageTimeout(f'{name} would time out during congestion')
+            return await real_bounded(operation, seconds, name)
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(coin_job, 'bounded', congested):
+                report = await self.exercise(folder, self.checkpoint_command(folder))
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(observed['overall job'], DEFAULT_BUDGETS['total'])
+        self.assertLess(DEFAULT_BUDGETS['total'], 600)
+        self.assertLessEqual(observed['collect'], 280)
+        self.assertEqual(observed['reload'], 90)
+        self.assertEqual(observed['commit'], 120)
+        self.assertEqual(observed['checkpoint validation'], 30)
+
     async def test_commits_once_after_indexer_exits(self):
         with tempfile.TemporaryDirectory() as folder:
             marker = Path(folder)/'index.done'
