@@ -76,11 +76,11 @@ def read_gecko_source(path):
                 return body
         reply = gecko_response(stream, path, fetch, ttl)
         return dict(status=200, body=dict(reply['value'], _sourceObservedAt=reply['observedAt']))
-    except Exception:
+    except Exception as error:
         import time
         cooldown = stream.cooldowns().get(('api.geckoterminal.com', 'get'), 0) - time.time()
         return dict(status=429 if cooldown > 0 else 503, body={'error':'Shared market source unavailable'},
-                    retryAfter=max(1, int(cooldown)))
+                    retryAfter=max(1, int(cooldown), getattr(error,'retry_after',0)))
     finally:
         session.finish()
 

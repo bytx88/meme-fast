@@ -187,7 +187,7 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
             return {'result': public_read(method, params)}
         def price_fetcher():
             from worker.source_stream import source_json
-            pairs = source_json(client, 'https://api.dexscreener.com/token-pairs/v1/solana/' + cohort['token'])
+            pairs = source_json(client, 'https://api.dexscreener.com/tokens/v1/solana/' + cohort['token'])
             return dict(value=market_price(pairs, cohort['token']), observedAt=min(
                 (pair['_sourceObservedAt'] for pair in pairs if type(pair.get('_sourceObservedAt')) in (int, float)),
                 default=int(time.time() * 1000)))

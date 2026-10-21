@@ -17,6 +17,25 @@ def accounts(owner, mint, values):
 
 
 class SmartWalletTests(unittest.TestCase):
+    def test_default_valuation_reuses_shared_quote_without_full_pool_discovery(self):
+        from worker.source_stream import SourceStream, dex_tokens
+        from types import SimpleNamespace
+        mint=self.cohort['token']
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:NOW/1000)
+            dex_tokens(stream,'solana',[mint],lambda *args:[dict(chainId='solana',baseToken={'address':mint},priceUsd='.002')])
+            def shared(network,addresses,scope='quotes'):
+                self.assertEqual(scope,'quotes')
+                return dex_tokens(stream,network,addresses,lambda *args:self.fail('duplicate valuation pull'))['value']
+            with patch.dict('os.environ',{'MEME_SHARED_SOURCES':'1'}), \
+                 patch('worker.public_rpc.public_rpc',return_value=lambda method,params:self.rpc(method,params)['result']), \
+                 patch('worker.source_stream.shared_dex',side_effect=shared), \
+                 patch('httpx.Client',return_value=SimpleNamespace(close=lambda:None)):
+                report=smart.collect(self.directory.name,now=NOW,cohort=self.cohort)
+            self.assertEqual(report['samples'][-1]['priceUSD'],.002)
+            self.assertEqual(report['samples'][-1]['priceObservedAt'],NOW)
+            stream.close()
+
     def test_reduced_membership_reuses_exact_wallet_history_without_changing_source(self):
         original=self.collect()
         source=Path(self.directory.name)/(self.cohort['groupId']+'.json')

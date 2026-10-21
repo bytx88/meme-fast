@@ -1,10 +1,80 @@
 import tempfile
 import unittest
 from unittest.mock import patch
-from worker.source_stream import SourceStream, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics, mint_from_wallet_cache, gecko_response, source_json
+from worker.source_stream import SourceStream, SourceUnavailable, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics, mint_from_wallet_cache, gecko_response, source_json
 
 
 class SourceStreamTests(unittest.TestCase):
+    def test_broad_scan_backoff_does_not_block_an_exact_mint_coverage_miss(self):
+        from worker.shared_holdings import PROGRAMS
+        config={'encoding':'jsonParsed','commitment':'confirmed'}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,failure_ttl=30)
+            def fail():raise ValueError('broad scan unavailable')
+            with self.assertRaises(ValueError):
+                stream.get('solana:getTokenAccountsByOwner',['owner',{'programId':PROGRAMS[0]},config],fail,240)
+            self.assertIsNone(mint_from_wallet_cache(stream,['owner',{'mint':'mint'},config]))
+            value=stream.get('solana:getTokenAccountsByOwner',['owner',{'mint':'mint'},config],lambda:{'value':[]},30)
+            self.assertEqual(value['value'],{'value':[]})
+            stream.close()
+
+    def test_failed_read_backoff_survives_restart_is_scoped_and_does_not_extend_on_hits(self):
+        clock,calls=[1000],[]
+        def failed():
+            calls.append('failed')
+            raise ValueError('provider unavailable')
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:clock[0],failure_ttl=30)
+            with self.assertRaises(ValueError):stream.get('rpc',['A'],failed,60)
+            stream.close()
+            clock[0]+=10
+            stream=SourceStream(folder,clock=lambda:clock[0],failure_ttl=30)
+            for seconds in (20,10):
+                with self.assertRaises(SourceUnavailable) as caught:stream.get('rpc',['A'],failed,60)
+                self.assertEqual(caught.exception.retry_after,seconds)
+                clock[0]+=10
+            self.assertEqual(calls,['failed'])
+            self.assertEqual(stream.get('rpc',['B'],lambda:[],60)['value'],[])
+            recovered=stream.get('rpc',['A'],lambda:['real observation'],60)
+            self.assertEqual(recovered['observedAt'],1030000)
+            self.assertEqual(recovered['value'],['real observation'])
+            self.assertEqual(stream.metrics()['rpc:backoff']['hits'],2)
+            stream.close()
+
+    def test_overlapping_failed_batches_share_entity_backoff_without_returning_empty_data(self):
+        for provider in ('dex','gecko'):
+            with self.subTest(provider=provider), tempfile.TemporaryDirectory() as folder:
+                clock,calls=[1000],[]
+                stream=SourceStream(folder,clock=lambda:clock[0],failure_ttl=30)
+                def fetch(*args):
+                    calls.append(args)
+                    raise ValueError('unavailable')
+                def read(addresses):
+                    return dex_tokens(stream,'solana',addresses,fetch) if provider=='dex' else gecko_response(
+                        stream,'/networks/solana/tokens/multi/'+','.join(addresses),fetch)
+                with self.assertRaises(ValueError):read(['A','B'])
+                clock[0]+=10
+                with self.assertRaises(SourceUnavailable):read(['B','C'])
+                self.assertEqual(len(calls),1)
+                clock[0]+=20
+                with self.assertRaises(ValueError):read(['B','C'])
+                self.assertEqual(len(calls),2)
+                stream.close()
+
+    def test_gecko_single_reads_share_evm_case_and_equivalent_include_order(self):
+        address='0x'+'aB'*20
+        first=gecko_path('/networks/base/tokens/'+address+'/pools?include=quote_token,base_token')
+        second=gecko_path('/networks/base/tokens/'+address.lower()+'/pools?include=base_token,quote_token')
+        self.assertEqual(first,second)
+        self.assertNotEqual(gecko_path('/networks/solana/tokens/ABC/pools'),
+                            gecko_path('/networks/solana/tokens/abc/pools'))
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder)
+            a=gecko_response(stream,first,lambda _:dict(data=[]))
+            b=gecko_response(stream,second,lambda _:self.fail('duplicate equivalent read'))
+            self.assertEqual(a['observedAt'],b['observedAt'])
+            stream.close()
+
     def test_denied_holder_method_backs_off_across_mints_without_blocking_other_reads(self):
         import httpx
         from worker.public_rpc import public_rpc

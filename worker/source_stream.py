@@ -12,6 +12,12 @@ RPC_TTL = {'getTransaction': 3600, 'getSignaturesForAddress': 30,
 QUOTE_TTL = 300  # One market observation per normal five-minute collection cycle.
 
 
+class SourceUnavailable(ValueError):
+    def __init__(self, retry_after):
+        self.retry_after = retry_after
+        super().__init__('Shared source retry is deferred after an unsuccessful read')
+
+
 def gecko_path(path):
     from urllib.parse import urlparse, parse_qsl, urlencode
     target = urlparse(path)
@@ -27,7 +33,13 @@ def gecko_path(path):
             or any(key not in {'query', 'include', 'duration', 'page', 'sort', 'aggregate', 'limit',
                                'currency', 'token', 'before_timestamp'} for key, _ in parameters)):
         raise ValueError('Unsupported market source path')
-    return target.path + ('?' + urlencode(sorted(parameters)) if parameters else '')
+    segments = target.path.split('/')
+    if len(segments)>2 and segments[1]=='networks' and segments[2]!='solana':
+        segments = [','.join(value.lower() if re.fullmatch(r'0x[0-9A-Fa-f]+',value) else value
+                             for value in segment.split(',')) for segment in segments]
+    parameters = [(key,','.join(sorted(set(value.split(',')))) if key=='include' else value)
+                  for key,value in parameters]
+    return '/'.join(segments) + ('?' + urlencode(sorted(parameters)) if parameters else '')
 
 
 def gecko_response(stream, path, fetch, ttl=60):
@@ -74,7 +86,12 @@ def gecko_response(stream, path, fetch, ttl=60):
                         or canonical(row['id'][len(network)+1:]) not in missing):
                     raise ValueError('Market entity does not match requested contracts')
             return body
-        reply = stream.get('gecko:request', [2,route], validated_fetch, ttl)
+        try:
+            reply = stream.get('gecko:request', [2,route], validated_fetch, ttl)
+        except Exception:
+            for address in missing:
+                stream.defer('gecko:entity',keys[address])
+            raise
         body = reply['value']
         for address in missing:
             rows = [row for row in body['data'] if canonical(row['id'][len(network)+1:]) == address]
@@ -113,16 +130,41 @@ def related_includes(rows, included):
 
 
 class SourceStream:
-    def __init__(self, directory, clock=time.time):
+    def __init__(self, directory, clock=time.time, failure_ttl=0):
         Path(directory).mkdir(parents=True, exist_ok=True)
         self.clock = clock
+        self.failure_ttl = failure_ttl
         self.db = sqlite3.connect(Path(directory) / 'sources.sqlite', check_same_thread=False)
         self.db.execute('CREATE TABLE IF NOT EXISTS responses (key TEXT PRIMARY KEY, expires REAL, sampled REAL, body TEXT)')
         self.db.execute('CREATE TABLE IF NOT EXISTS metrics (name TEXT PRIMARY KEY, hits INTEGER DEFAULT 0, requests INTEGER DEFAULT 0, failures INTEGER DEFAULT 0)')
         self.db.execute('CREATE TABLE IF NOT EXISTS cooldowns (endpoint TEXT, method TEXT, until REAL, PRIMARY KEY(endpoint,method))')
+        self.db.execute('CREATE TABLE IF NOT EXISTS failed_reads (key TEXT PRIMARY KEY, expires REAL)')
 
     def close(self):
         self.db.close()
+
+    @staticmethod
+    def key(namespace, parameters):
+        return hashlib.sha256(json.dumps([namespace,parameters],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+    def defer(self, namespace, parameters):
+        if self.failure_ttl:
+            self.db.execute('INSERT OR REPLACE INTO failed_reads VALUES (?,?)',
+                            (self.key(namespace,parameters),self.clock()+self.failure_ttl))
+            self.prune()
+            self.db.commit()
+
+    def check_backoff(self, namespace, key):
+        if not self.failure_ttl:
+            return
+        failed = self.db.execute('SELECT expires FROM failed_reads WHERE key=?',(key,)).fetchone()
+        if self.failure_ttl and failed and failed[0]>self.clock():
+            name=namespace+':backoff'
+            self.db.execute('INSERT OR IGNORE INTO metrics(name) VALUES (?)',(name,))
+            self.db.execute('UPDATE metrics SET hits=hits+1 WHERE name=?',(name,))
+            self.db.commit()
+            import math
+            raise SourceUnavailable(max(1,math.ceil(failed[0]-self.clock())))
 
     def lookup(self, namespace, parameters):
         key = hashlib.sha256(json.dumps([namespace, parameters], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -132,6 +174,7 @@ class SourceStream:
             self.db.execute('UPDATE metrics SET hits=hits+1 WHERE name=?', (namespace,))
             self.db.commit()
             return dict(value=json.loads(saved[2]), observedAt=int(saved[1]*1000), cache='hit')
+        self.check_backoff(namespace,key)
         return None
 
     def store(self, namespace, parameters, value, sampled_ms, ttl):
@@ -141,6 +184,7 @@ class SourceStream:
             return
         body = json.dumps(value, separators=(',', ':'), allow_nan=False)
         if len(body) <= 2_000_000:
+            self.db.execute('DELETE FROM failed_reads WHERE key=?',(key,))
             self.db.execute('INSERT OR REPLACE INTO responses VALUES (?, ?, ?, ?)',
                             (key, sampled_ms/1000 + ttl, sampled_ms/1000, body))
             self.prune()
@@ -148,6 +192,8 @@ class SourceStream:
 
     def prune(self):
         self.db.execute('DELETE FROM responses WHERE expires<=?', (self.clock(),))
+        self.db.execute('DELETE FROM failed_reads WHERE expires<=?',(self.clock(),))
+        self.db.execute('DELETE FROM failed_reads WHERE key NOT IN (SELECT key FROM failed_reads ORDER BY expires DESC LIMIT 2000)')
         count, size = self.db.execute('SELECT COUNT(*), COALESCE(SUM(LENGTH(body)),0) FROM responses').fetchone()
         while count > 2000 or size > 32_000_000:
             oldest = self.db.execute('SELECT key,LENGTH(body) FROM responses ORDER BY sampled LIMIT 1').fetchone()
@@ -164,6 +210,7 @@ class SourceStream:
             self.db.execute('UPDATE metrics SET hits=hits+1 WHERE name=?', (namespace,))
             self.db.commit()
             return dict(value=json.loads(saved[2]), observedAt=int(saved[1] * 1000), cache='hit')
+        self.check_backoff(namespace,key)
         self.db.execute('UPDATE metrics SET requests=requests+1 WHERE name=?', (namespace,))
         try:
             value = fetch()
@@ -171,6 +218,7 @@ class SourceStream:
                 raise ValueError('Source returned no observation')
             body = json.dumps(value, separators=(',', ':'), allow_nan=False)
             sampled = self.clock()
+            self.db.execute('DELETE FROM failed_reads WHERE key=?',(key,))
             # Large responses remain usable but do not displace the bounded cache.
             if len(body) <= 2_000_000:
                 self.db.execute('INSERT OR REPLACE INTO responses VALUES (?, ?, ?, ?)', (key, sampled + ttl, sampled, body))
@@ -179,6 +227,9 @@ class SourceStream:
             return dict(value=value, observedAt=int(sampled * 1000), cache='miss')
         except Exception:
             self.db.execute('UPDATE metrics SET failures=failures+1 WHERE name=?', (namespace,))
+            if self.failure_ttl:
+                self.db.execute('INSERT OR REPLACE INTO failed_reads VALUES (?,?)',(key,self.clock()+self.failure_ttl))
+                self.prune()
             self.db.commit()
             raise
 
@@ -214,7 +265,7 @@ class SourceSession:
 
     def stream(self):
         if self.connection is None:
-            self.connection = SourceStream(self.directory)
+            self.connection = SourceStream(self.directory, failure_ttl=30)
         return self.connection
 
     def finish(self, force=False):
@@ -300,8 +351,11 @@ def mint_from_wallet_cache(stream, params):
             or params[2] != {'encoding':'jsonParsed','commitment':'confirmed'}):
         return None
     owner, mint = params[0], params[1]['mint']
-    saved = {program:stream.lookup('solana:getTokenAccountsByOwner',
-        [owner,{'programId':program},params[2]]) for program in PROGRAMS}
+    try:
+        saved = {program:stream.lookup('solana:getTokenAccountsByOwner',
+            [owner,{'programId':program},params[2]]) for program in PROGRAMS}
+    except SourceUnavailable:
+        return None  # A broad-scan failure must not block a different exact-mint read.
     if not all(saved.values()):
         return None
     sampled = min(row['observedAt'] for row in saved.values())
@@ -324,7 +378,12 @@ def dex_tokens(stream, network, addresses, fetch):
     cached = {address: stream.lookup('dex:token', [network, address]) for address in addresses}
     missing = [address for address, saved in cached.items() if saved is None]
     if missing:
-        reply = stream.get('dex:batch', [network, missing], lambda: fetch(network, missing), QUOTE_TTL)
+        try:
+            reply = stream.get('dex:batch', [network, missing], lambda: fetch(network, missing), QUOTE_TTL)
+        except Exception:
+            for address in missing:
+                stream.defer('dex:token',[network,address])
+            raise
         if not isinstance(reply['value'], list):
             raise ValueError('Invalid token market response')
         for address in missing:

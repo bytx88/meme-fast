@@ -89,3 +89,28 @@ Gecko token/pool multi requests reuse individual entities across overlapping bat
 Dedicated collection remains for macro series/news, FOMO membership, the CoinLore benchmark and Robinhood event indexing. These supply different evidence rather than duplicate token quotes. Local/manual tools retain their explicit direct-provider mode. A cache miss after its freshness window is a new reading, not a promise of zero future upstream calls. Public endpoints denying largest-account access receive a one-hour method-specific cooldown; unavailable holder coverage is never represented as an empty holder list.
 
 Gecko multi projections canonicalize hexadecimal EVM addresses while preserving Solana address case. Batch shapes and identities are validated before caching. Each entity retains only its reachable included-resource graph, including nested relationships, so a subset read does not inherit unrelated resources from a larger batch. The projection cache contract is versioned to avoid reusing earlier case-sensitive or oversized entity entries.
+
+Deployed source sessions share a bounded 30-second failed-read backoff as well as successful observations. Failure markers survive checkpoints, are scoped to the request (and individual entities for overlapping batches), do not extend when hit, and never become empty or successful observations. `:backoff` metric namespaces count suppressed retries separately from successful response reuse. Equivalent Gecko include ordering and hexadecimal address case share keys for both single and multi reads. Smart Wallet valuation consumes common token quotes; it does not request full-pool discovery just to obtain a price.
+
+### Deployed source ownership audit
+
+| Function / consumer | Data ownership |
+| --- | --- |
+| `read_source` | Sole Solana RPC owner; shared holdings, signatures, transactions, supply and holder discovery |
+| `read_market_source` | Sole Dex owner; quotes, full pools, search and profiles retain distinct contracts |
+| `read_gecko_source` | Sole Gecko owner; discovery, metadata, pools, swaps and candles |
+| `read_social_source` | Sole configured publisher / indexed-X RSS owner |
+| `read_context_source` | Sole configured story / normalized search owner |
+| `collect_coins` | Common market/news sources, saved Robinhood catalogue and bounded wallet nominations; publishes the token snapshot |
+| `collect_followed_wallets` | Common RPC; publishes reusable complete holdings |
+| `collect_smart_wallets` | Reuses complete holdings; gaps use common RPC, valuation uses common quotes |
+| `collect_smartness` | Common RPC and quotes; publishes the classified ledger |
+| `collect_data_stream` | Projects the saved token, holdings and ledger datasets; discovery gaps use common RPC |
+| `collect_x_factor`, `collect_coin_evidence`, manual Jean Phil monitor | Common RSS / quotes, with separate analysis rules and saved histories |
+| Web: Snipe, Swing, Tweet, Watchlist | Saved snapshot views; detail gaps use the common owners |
+| Web: Inspect, wallet activity / candidates, Smartness and balances | Saved datasets or common owners; no independent token/wallet provider client |
+| `collect_meme_index` | Common token quotes; dedicated FOMO membership and CoinLore benchmark |
+| `collect_macro_review` | Single owner of its dedicated economic/exchange/news inputs and saved 30-minute report |
+| Robinhood indexer | Single event-index owner with persistent scan cursors; downstream readers reuse its catalogue |
+
+The common stream comprises these shared source observations and retained datasets; not every feature reads the ranked `/api/data-stream` projection. Distinct provider endpoints, analysis coverage, expired observations and explicit local/manual collection still require separate work. No claim of zero upstream traffic after cache expiry, restart, eviction or deployment is made.
