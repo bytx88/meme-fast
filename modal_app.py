@@ -903,6 +903,17 @@ def web():
         return JSONResponse({"wallet": awaiting([row])["wallets"][0]}, status_code=201,
                             headers={"cache-control": "no-store"})
 
+    @web_app.get("/api/runner-mode")
+    async def runner_mode():
+        from worker.runner_mode import public_report
+        async with history_lock:
+            await history_volume.reload.aio()
+            try:
+                saved = json.loads(Path('/history/runner-mode.json').read_text())
+            except (FileNotFoundError, ValueError):
+                saved = None
+        return JSONResponse(public_report(saved), headers={'cache-control': 'no-store'})
+
     @web_app.get("/api/meme-index")
     async def meme_index():
         async with history_lock:

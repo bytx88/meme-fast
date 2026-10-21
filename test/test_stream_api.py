@@ -15,6 +15,26 @@ async def ready(*args, **kwargs):
 
 
 class StreamApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_runner_mode_returns_unknown_before_collection_and_when_stale(self):
+        import json
+        import modal_app
+        from worker.runner_mode import unknown
+        volume = SimpleNamespace(reload=SimpleNamespace(aio=ready))
+        with patch.object(modal_app, 'history_volume', volume):
+            app = modal_app.web.local()
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+                with patch.object(Path, 'read_text', side_effect=FileNotFoundError):
+                    response = await client.get('/api/runner-mode')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.headers['cache-control'], 'no-store')
+                self.assertEqual(response.json()['mode'], 'Unknown')
+                self.assertIsNone(response.json()['counts24h']['500000'])
+                stale = {**unknown(), 'mode': 'Easy', 'ready': True, 'updatedAt': 1000}
+                with patch.object(Path, 'read_text', return_value=json.dumps(stale)):
+                    response = await client.get('/api/runner-mode')
+                self.assertEqual(response.json()['mode'], 'Unknown')
+                self.assertFalse(response.json()['ready'])
+
     async def test_common_stream_routes_and_dex_use_saved_or_shared_data(self):
         policy = asyncio.get_event_loop_policy()
         import modal_app

@@ -33,7 +33,7 @@ const priorities=new Map();
 try{for(const [id,at] of Object.entries(JSON.parse(await readFile(priorityFile,'utf8'))))if(Date.now()-at<PRIORITY_TTL)priorities.set(id,at)}catch{}
 let priorityWrite=Promise.resolve();
 let collecting=false;
-async function tick(){if(collecting)return;collecting=true;try{await runFile(python,['worker/robinhood_indexer.py','scan',path.resolve('.data/robinhood-pools.sqlite'),path.resolve('.data/robinhood-pool-feed.json')],{timeout:280000})}catch(error){console.error('Robinhood pool indexer:',error.message)}try{const stream=await readLocalStream();await collect(historyFile,{candidateTokens:stream.tokenCandidates||[],priorityIds:[...priorities].filter(([,at])=>Date.now()-at<PRIORITY_TTL).sort((a,b)=>b[1]-a[1]).slice(0,300).map(([id])=>id)})}catch(error){console.error('Coin collector:',error.message)}finally{collecting=false}}
+async function tick(){if(collecting)return;collecting=true;try{await runFile(python,['worker/robinhood_indexer.py','scan',path.resolve('.data/robinhood-pools.sqlite'),path.resolve('.data/robinhood-pool-feed.json')],{timeout:280000})}catch(error){console.error('Robinhood pool indexer:',error.message)}try{const stream=await readLocalStream();await collect(historyFile,{candidateTokens:stream.tokenCandidates||[],priorityIds:[...priorities].filter(([,at])=>Date.now()-at<PRIORITY_TTL).sort((a,b)=>b[1]-a[1]).slice(0,300).map(([id])=>id)});await runFile(python,['worker/coin_projections.py',historyFile],{timeout:60000})}catch(error){console.error('Coin collector:',error.message)}finally{collecting=false}}
 
 import {createMarketProxy} from './worker/market.mjs';
 import {createDexProxy} from './worker/dex-market.mjs';
@@ -43,6 +43,10 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const base=path.resolve('dist');
 http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost');
+ if(url.pathname==='/api/runner-mode'){
+  const result=await runFile(python,['-X','utf8','-c',"import json; from pathlib import Path; from worker.runner_mode import public_report; p=Path('.data/runner-mode.json'); print(json.dumps(public_report(json.loads(p.read_text()) if p.exists() else None)))"],{timeout:10000});
+  res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(result.stdout);return
+ }
  if(url.pathname.startsWith('/api/dex/')){const response=await dex(new Request(url,{method:req.method}));res.writeHead(response.status,Object.fromEntries(response.headers)).end(Buffer.from(await response.arrayBuffer()));return}
  if(url.pathname==='/api/data-stream'){
   if(req.method!=='GET'){res.writeHead(405).end();return}

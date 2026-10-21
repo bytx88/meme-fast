@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chart,compareReading,hourlyComparisons} from '../dist/market-delta.mjs';
+import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails} from '../dist/market-delta.mjs';
 test('A single complete 1h reading renders immediately on a zero-centered chart',()=>{
  assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Meme \+2\.50%/);
  assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Alt -1\.25%/);
@@ -52,4 +52,16 @@ test('Legacy five-minute history produces at most one comparison per UTC hour',(
  assert.equal(comparisons.length,1);
  assert.equal(comparisons[0].at,at+5*60000);
  assert.equal(comparisons[0].meme,3);
+});
+
+test('Mode requires fresh reliable history independently of the price delta',()=>{
+ const now=2000000000000;
+ const report={updatedAt:now,ready:true,mode:'Easy',reliableDays:14,coverage:{reliable:true}};
+ assert.equal(runnerMode(null,now),'Unknown');
+ assert.equal(runnerMode(report,now),'Easy');
+ for(const change of [{updatedAt:now-16*60000},{updatedAt:now+1},{ready:false},{reliableDays:13},{coverage:{reliable:false}},{mode:'<script>'}])assert.equal(runnerMode({...report,...change},now),'Unknown');
+ const html=runnerDetails({counts24h:{500000:2,1000000:0},reason:'<unsafe>'});
+ assert.match(html,/Solana Mode/);assert.match(html,/Unknown/);assert.match(html,/&lt;unsafe&gt;/);
+ assert.match(html,/>0<\/b>/);assert.match(html,/not all Solana memes/);
+ assert.match(runnerDetails(report,true),/Runner data unavailable/);
 });

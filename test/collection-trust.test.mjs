@@ -96,3 +96,14 @@ test('freshness distinguishes age from partial, missing and future market timest
  assert.equal(marketFreshness({...coin,marketUpdatedAt:0},now).state,'unknown');
  assert.match(freshnessCounts([coin,{...coin,liquidity:null},{}],now),/^1 fresh · 0 stale · 2 partial/);
 });
+
+test('runner valuations use timestamped market cap without stale cap or FDV fallback',()=>{
+ const coin={id:'solana:Mint',network:'solana',contract_address:'Mint',mc:90000000,fdv:90000000};
+ const pair={chainId:'solana',baseToken:{address:'Mint'},marketCap:600000,fdv:90000000,liquidity:{usd:30000},volume:{h24:5000},_sourceObservedAt:1000};
+ const [fresh]=refreshMarket([coin],[pair],2000);
+ assert.deepEqual(fresh.runnerMarket,{at:1000,cap:600000,liquidity:30000,volume24h:5000,source:'DexScreener'});
+ const [missing]=refreshMarket([fresh],[{...pair,marketCap:null,_sourceObservedAt:2000}],2000);
+ assert.equal(missing.runnerMarket.cap,null);
+ const [old]=refreshMarket([missing],[pair],3000);
+ assert.equal(old.runnerMarket.at,2000);
+});
