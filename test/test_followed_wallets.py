@@ -1,8 +1,13 @@
 import json
 import tempfile
+import subprocess
+import threading
+import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from worker.followed_wallets import collect, positive_mints, awaiting, PROGRAMS, registry_wallets, validate_wallet, registry_wallets_with_retry
+from unittest.mock import patch
+from worker.followed_wallets import collect, collect_isolated, positive_mints, awaiting, PROGRAMS, registry_wallets, validate_wallet, registry_wallets_with_retry
 
 
 def payload(owner, amounts):
@@ -12,6 +17,68 @@ def payload(owner, amounts):
 
 
 class WalletTests(unittest.TestCase):
+    def test_deadline_between_programs_preserves_complete_previous_holdings(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'report.json'
+            registry = [dict(name='Test', address='owner', code='F1')]
+            collect(path, lambda owner, program: payload(owner, [('OLD', '1')]),
+                    now=1000, registry=registry)
+            clock = [0]
+            calls = []
+            def slow(owner, program):
+                calls.append(program)
+                clock[0] = 11
+                return payload(owner, [('PARTIAL', '1')])
+            with patch('worker.followed_wallets.time.monotonic', side_effect=lambda: clock[0]):
+                report = collect(path, slow, now=2000, registry=registry, budget_seconds=10)
+            self.assertEqual(calls, [PROGRAMS[0]])
+            self.assertEqual(report['wallets'][0]['mints'], ['OLD'])
+            self.assertEqual(report['wallets'][0]['checkedAt'], 1000)
+            self.assertEqual(report['wallets'][0]['status'], 'unavailable')
+            self.assertTrue(report['collection']['budgetReached'])
+
+    def test_isolated_collector_uses_supplied_registry_and_publishes_revision(self):
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect_isolated(Path(folder)/'report.json', [])
+            self.assertEqual(report['wallets'], [])
+            self.assertEqual(report['collection']['sampledWallets'], 0)
+            self.assertEqual(len(report['collection']['codeSha256']), 64)
+
+    def test_trickling_rpc_is_killed_without_replacing_previous_report(self):
+        release = threading.Event()
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.send_response(200)
+                self.send_header('Content-Length', '10000')
+                self.end_headers()
+                try:
+                    while not release.wait(.02):
+                        self.wfile.write(b' ')
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    pass
+            def log_message(self, *args): pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder)/'report.json'
+                previous = json.dumps({'wallets': []})
+                path.write_text(previous)
+                registry = [dict(name='Test', address='owner', code='F1')]
+                with patch.dict('os.environ', {'SOLANA_WALLET_RPC_URL': f'http://127.0.0.1:{server.server_port}'}):
+                    before = time.monotonic()
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        collect_isolated(path, registry, budget_seconds=1, timeout_seconds=2)
+                    self.assertLess(time.monotonic()-before, 4)
+                self.assertEqual(path.read_text(), previous)
+        finally:
+            release.set()
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
     def test_overloaded_registry_restarts_the_entire_snapshot(self):
         calls, waits = [], []
         partial = dict(name='Partial', address='11111111111111111111111111111111', code='F1')

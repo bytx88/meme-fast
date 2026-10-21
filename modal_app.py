@@ -254,10 +254,15 @@ def collect_meme_index():
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=280, max_containers=1,
+@app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1,
               volumes={"/history": history_volume})
 def collect_followed_wallets():
     import sys
+    import time
+    started = time.monotonic()
+    def note(stage):
+        print(f'collect_followed_wallets +{time.monotonic()-started:.1f}s {stage}', flush=True)
+    note('dispatch started')
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     # Share the existing five-minute dispatch slot; keep balance-history writes
@@ -271,16 +276,26 @@ def collect_followed_wallets():
     except Exception:
         print('Smartness dispatch unavailable; manual trade scan remains available')
     from modal.exception import ResourceExhaustedError
-    from worker.followed_wallets import collect, registry_wallets_with_retry
+    note('dispatch completed; registry started')
+    from worker.followed_wallets import collect_isolated, registry_wallets_with_retry
     registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
     from worker.wallet_universe import universe
     registry = universe(registry, [value for _, value in wallet_universe_registry.items()])
+    note(f'registry completed ({len(registry)} wallets); reload started')
     history_volume.reload()
-    report = collect("/history/followed-wallets.json", registry=registry)
+    note('reload completed; sampling started')
+    # Keep provider work bounded independently of registry and Volume latency.
+    # subprocess.run kills and reaps the child on timeout, before any commit.
+    report = collect_isolated("/history/followed-wallets.json", registry=registry)
+    note('sampling completed; commit started')
     history_volume.commit()
+    note('commit completed')
     summary = {"wallets": len(report["wallets"]),
-               "available": sum(row["status"] == "ok" for row in report["wallets"])}
-    print(f'Followed wallets: sampled {summary["wallets"]}; available {summary["available"]}')
+               "available": sum(row["status"] == "ok" for row in report["wallets"]),
+               "collection": report.get('collection'),
+               "elapsedSeconds": round(time.monotonic()-started, 1)}
+    print(f'Followed wallets: sampled {report["collection"]["sampledWallets"]}/{summary["wallets"]}; '
+          f'available {summary["available"]}; budget reached {report["collection"]["budgetReached"]}', flush=True)
     return summary
 
 
