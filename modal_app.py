@@ -430,11 +430,18 @@ async def collect_macro_review():
 @app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_coins():
+    import asyncio
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.coin_job import run_coin_job
     from worker.data_stream import read as read_stream
+    try:
+        # Reuse the existing schedule slot, while running Mode in a separate
+        # single-writer worker before slower discovery or Volume work begins.
+        await asyncio.wait_for(collect_runner_mode.spawn.aio(), 10)
+    except Exception as exc:
+        print('Runner Mode dispatch failed: '+type(exc).__name__, flush=True)
     await stream_volume.reload.aio()
     candidates = read_stream('/stream').get('tokenCandidates', [])
     web_url = await web.get_web_url.aio()
@@ -442,7 +449,7 @@ async def collect_coins():
                               market_url=web_url.rstrip('/') + '/api/dex')
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=360, max_containers=1, memory=1024,
+@app.function(timeout=360, max_containers=1, memory=1024,
               volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_runner_mode():
