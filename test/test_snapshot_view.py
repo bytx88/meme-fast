@@ -21,13 +21,14 @@ class FakeResponse:
 class SnapshotViewTests(unittest.TestCase):
     def test_catalog_reuses_retained_lists_without_histories_or_unverified_contracts(self):
         now=1800000000000
-        coin=dict(network='solana',contract_address='ABC',symbol='TEST',name='Test',firstSeen=now,marketHistory=[{'at':now}])
+        coin=dict(network='solana',contract_address='ABC',symbol='TEST',name='Test',firstSeen=now,marketHistory=[{'at':now}],holders=100,volume=500,mc=1000)
         radar=dict(coin,lastSeenRadarAt=now)
         snapshot=dict(coins=[coin,dict(coin,contract_address='old',firstSeen=now-6*86400000),dict(coin,contract_address='bad',contract_verified=False)],
                       radarCoins=[radar,dict(radar,contract_address='abc')])
         result=snapshot_view(snapshot,'catalog',now_ms=now)
         self.assertEqual([c['contract_address'] for c in result['coins']],['ABC','abc'])
         self.assertNotIn('marketHistory',result['coins'][0])
+        self.assertEqual([result['coins'][0][key] for key in ('holders','volume','mc')],[100,500,1000])
 
     def test_final_stretch_ignores_discovery_window_but_respects_retention(self):
         now = 1800000000000

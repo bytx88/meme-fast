@@ -104,7 +104,7 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
         now_ms = time.time() * 1000
     cutoff = now_ms - RETENTION_MS
     if view == "catalog":
-        fields = ("network", "contract_address", "name", "symbol")
+        fields = ("network", "contract_address", "name", "symbol", "holderCount", "holders", "volume", "mc")
         tokens = {}
         for rows, timestamp in ((snapshot.get("radarCoins", []), "lastSeenRadarAt"), (snapshot.get("coins", []), "firstSeen")):
             for coin in rows:

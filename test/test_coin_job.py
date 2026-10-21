@@ -188,7 +188,7 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
             path.write_text(raw,encoding='utf-8')
             project(path)
             self.assertEqual(path.read_text(encoding='utf-8'),raw)
-            catalog=json.loads(path.with_name('coins.catalog.v1.json').read_text(encoding='utf-8'))
+            catalog=json.loads(path.with_name('coins.catalog.v2.json').read_text(encoding='utf-8'))
             self.assertEqual(catalog,dict(version=1,lastRun=123,coins=[]))
             for hours in (1,6,12,36,120):
                 output=json.loads(path.with_name(f'coins.snipe.v2.{hours}.json').read_text(encoding='utf-8'))

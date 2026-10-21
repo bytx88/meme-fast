@@ -16,6 +16,21 @@ test('large collected catalogs retain early and late matches without a display-c
  assert.equal(known.length,22000);assert.equal(matchKnownTokens(known,'T0')[0].address,catalog[0].address);
  assert.equal(matchKnownTokens(known,'T21999')[0].address,catalog.at(-1).address);
 });
+test('same-name matches rank by holders, then 24h volume, then market cap before limiting',()=>{
+ const candidates=Array.from({length:20},(_,i)=>({...rows[0],address:'0x'+i.toString(16).padStart(40,'0'),volume:i*100,mc:i*1000}));
+ candidates[0].holders={count:50};candidates[1].holderCount=50;candidates[1].volume=500;
+ const known=mergeKnownTokens(candidates);
+ assert.deepEqual(matchKnownTokens(known,'XL',3).map(t=>t.address),[candidates[1].address,candidates[0].address,candidates[19].address]);
+ const tied=mergeKnownTokens([{...rows[0],volume:10,mc:1},{...rows[1],volume:10,mc:20}]);
+ assert.equal(matchKnownTokens(tied,'XL')[0].network,'eth');
+ const richerPrefix={...rows[2],holderCount:1000000,volume:1e12};
+ assert.equal(matchKnownTokens(mergeKnownTokens(tied,[richerPrefix]),'XL')[0].symbol,'XL');
+});
+test('missing or invalid metrics stay unknown and metadata-only updates retain collected metrics',()=>{
+ const known=mergeKnownTokens([{...rows[0],volume:123,mc:400,holderCount:0}],[{...rows[0],volume:'NaN',mc:-1}]);
+ assert.equal(known[0].volume,123);assert.equal(known[0].mc,400);assert.equal(known[0].holderCount,0);
+ assert.equal(mergeKnownTokens([{...rows[1],volume:Infinity}])[0].volume,null);
+});
 class Element{
  constructor(){this.events={};this.attributes={};this.children=[];this.hidden=true;this.value=''}
  addEventListener(name,fn){(this.events[name]??=[]).push(fn)}

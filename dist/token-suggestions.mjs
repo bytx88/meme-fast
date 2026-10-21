@@ -1,6 +1,9 @@
 import {isContractAddress} from './recent-contracts.mjs';
 const KEY='meme-fast:known-tokens:v1';
 const networks={ethereum:'eth',polygon:'polygon_pos',avalanche:'avax',bnb:'bsc'};
+const metric=value=>value===null||value===undefined||value===''||typeof value==='boolean'||!Number.isFinite(Number(value))||Number(value)<0?null:Number(value);
+const popularity=(a,b)=>{for(const field of ['holderCount','volume','mc']){const delta=(b[field]??-1)-(a[field]??-1);if(delta)return delta}return 0};
+const compact=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:2});
 export function mergeKnownTokens(...groups){
   const tokens=new Map();
   for(const row of groups.flat()){
@@ -10,7 +13,11 @@ export function mergeKnownTokens(...groups){
     const symbol=String(row.symbol||'').trim().slice(0,80),name=String(row.name||symbol).trim().slice(0,160);
     if(!symbol||symbol==='Contract'||!name)continue;
     const key=network+':'+(address.startsWith('0x')?address.toLowerCase():address);
-    tokens.set(key,{address,network,symbol,name});
+    const previous=tokens.get(key);
+    tokens.set(key,{address,network,symbol,name,
+      holderCount:metric(row.holderCount??row.holders?.count??row.holders)??previous?.holderCount??null,
+      volume:metric(row.volume24h??row.volume)??previous?.volume??null,
+      mc:metric(row.mc??row.marketCap)??previous?.mc??null});
   }
   return [...tokens.values()];
 }
@@ -20,7 +27,7 @@ export function matchKnownTokens(tokens,query,limit=12){
   const score=t=>{const symbol=t.symbol.normalize('NFKC').toLowerCase(),name=t.name.normalize('NFKC').toLowerCase();
     return symbol===q?0:name===q?1:symbol.startsWith(q)?2:name.startsWith(q)?3:symbol.includes(q)?4:name.includes(q)?5:t.address.toLowerCase().includes(q)?6:99};
   return tokens.map(t=>({t,score:score(t)})).filter(r=>r.score<99)
-    .sort((a,b)=>a.score-b.score||a.t.symbol.localeCompare(b.t.symbol)||a.t.network.localeCompare(b.t.network)||a.t.address.localeCompare(b.t.address))
+    .sort((a,b)=>a.score-b.score||popularity(a.t,b.t)||a.t.symbol.localeCompare(b.t.symbol)||a.t.network.localeCompare(b.t.network)||a.t.address.localeCompare(b.t.address))
     .slice(0,limit).map(r=>r.t);
 }
 export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=[],fetcher=fetch,storage=()=>localStorage,doc=document,cacheStorage=globalThis.caches}){
@@ -37,7 +44,10 @@ export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=
       const row=doc.createElement('div');row.id=`known-token-${index}`;row.className='token-suggestion';row.setAttribute('role','option');row.setAttribute('aria-selected','false');
       const title=doc.createElement('strong'),name=doc.createElement('span'),meta=doc.createElement('small');
       title.textContent=token.symbol;name.textContent=token.name;meta.textContent=`${token.network} · ${token.address}`;
-      row.append(title,name,meta);row.addEventListener('pointerdown',event=>event.preventDefault());row.addEventListener('click',()=>pick(token));list.append(row);
+      row.append(title,name,meta);
+      const figures=[token.holderCount==null?null:`Holders ${compact.format(token.holderCount)}`,token.volume==null?null:`24h vol $${compact.format(token.volume)}`,token.mc==null?null:`MC $${compact.format(token.mc)}`].filter(Boolean);
+      if(figures.length){const stats=doc.createElement('small');stats.textContent=figures.join(' · ');row.append(stats)}
+      row.addEventListener('pointerdown',event=>event.preventDefault());row.addEventListener('click',()=>pick(token));list.append(row);
     }
     status.textContent=matches.length?`${matches.length} known match${matches.length===1?'':'es'} · ↑ ↓ to choose · Enter to open`:
       loading?'Loading saved token list…':failed?'Saved list unavailable · press Enter to search': 'No known matches · press Enter to search';
