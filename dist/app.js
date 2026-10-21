@@ -61,6 +61,7 @@ const suggestions=setupTokenSuggestions({input:$('query'),panel:$('token-suggest
     recentContracts.label(token.address,token.symbol);renderRecentContracts();error('');
     selectToken(token).catch(e=>error(e.message));
   }});
+void suggestions.preload();
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
 function axiomUrl(token){const chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[token.network];return token.unverified?null:axiomLink({chain,contract_address:token.address,contract_verified:true})}

@@ -679,9 +679,9 @@ def web():
         hours_text = request.query_params.get("hours", "120")
         if view == "coin" and hours_text not in ("1", "6", "12", "36", "120"):
             raise HTTPException(status_code=400, detail="Choose a supported Snipe time window")
-        if view in ("coin", "health"):
+        if view in ("coin", "health", "catalog"):
             main = Path("/history/coins.json")
-            projection = Path(f"/history/coins.snipe.v2.{hours_text}.json") if view == "coin" else Path("/history/coins.health.json")
+            projection = Path(f"/history/coins.snipe.v2.{hours_text}.json") if view == "coin" else Path("/history/coins.catalog.v1.json" if view == "catalog" else "/history/coins.health.json")
             if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
                 return Response(projection.read_bytes(), media_type="application/json",
                                 headers={"cache-control": "no-store"})

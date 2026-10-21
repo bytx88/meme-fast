@@ -28,7 +28,7 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now(),name='',hour
  if(view==='watchlist')return watchlistView(snapshot,ids,now);
  const cutoff=now-RETENTION_MS;
  if(view==='catalog'){
-  const fields=['network','contract_address','contract_verified','name','symbol','image_url'],tokens=new Map();
+  const fields=['network','contract_address','name','symbol'],tokens=new Map();
   for(const [rows,timestamp]of [[snapshot.radarCoins||[],'lastSeenRadarAt'],[snapshot.coins||[],'firstSeen']])for(const coin of rows){
    const network=coin.network,address=coin.contract_address;
    if(!network||!address||!(coin[timestamp]>cutoff)||coin.contract_verified===false)continue;

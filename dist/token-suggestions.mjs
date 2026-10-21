@@ -23,7 +23,7 @@ export function matchKnownTokens(tokens,query,limit=12){
     .sort((a,b)=>a.score-b.score||a.t.symbol.localeCompare(b.t.symbol)||a.t.network.localeCompare(b.t.network)||a.t.address.localeCompare(b.t.address))
     .slice(0,limit).map(r=>r.t);
 }
-export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=[],fetcher=fetch,storage=()=>localStorage,doc=document}){
+export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=[],fetcher=fetch,storage=()=>localStorage,doc=document,cacheStorage=globalThis.caches}){
   let tokens=[],matches=[],active=-1,loaded=false,loading=false,failed=false,dismissed=false;
   try{tokens=mergeKnownTokens(JSON.parse(storage().getItem(KEY)||'[]'))}catch{}
   function remember(rows){tokens=mergeKnownTokens(tokens,rows);try{storage().setItem(KEY,JSON.stringify(tokens))}catch{}render()}
@@ -45,7 +45,10 @@ export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=
   }
   async function preload(){
     if(loaded||loading)return;loading=true;render();
-    try{const response=await fetcher('/api/new-coins?view=catalog',{signal:AbortSignal.timeout(20000)});if(!response.ok)throw Error();const data=await response.json();if(!Array.isArray(data.coins))throw Error();remember(data.coins);loaded=true;failed=false}catch{failed=true}finally{loading=false;render()}
+    try{const cached=await (await cacheStorage?.open('meme-fast-token-catalog-v1'))?.match('/api/new-coins?view=catalog');if(cached)remember((await cached.json()).coins)}catch{}
+    try{const response=await fetcher('/api/new-coins?view=catalog',{signal:AbortSignal.timeout(60000)});if(!response.ok)throw Error();const data=await response.json();if(!Array.isArray(data.coins))throw Error();remember(data.coins);loaded=true;failed=false;
+      try{await (await cacheStorage?.open('meme-fast-token-catalog-v1'))?.put('/api/new-coins?view=catalog',new Response(JSON.stringify({coins:tokens}),{headers:{'content-type':'application/json'}}))}catch{}
+    }catch{failed=true}finally{loading=false;render()}
   }
   input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-controls',list.id);input.setAttribute('aria-expanded','false');
   input.addEventListener('focus',()=>{dismissed=false;render();void preload()});input.addEventListener('input',()=>{dismissed=false;render()});
@@ -58,5 +61,5 @@ export function setupTokenSuggestions({input,panel,list,status,onSelect,initial=
   });
   input.addEventListener('blur',close);doc.addEventListener('pointerdown',event=>{if(!panel.contains(event.target)&&event.target!==input)close()});
   remember(initial);
-  return {remember,close};
+  return {remember,close,preload};
 }

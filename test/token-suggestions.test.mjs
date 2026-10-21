@@ -49,3 +49,10 @@ test('failed catalog load preserves cached matches and leaves unmatched Enter av
  f.input.emit('keydown',{key:'Enter',preventDefault(){prevented=true}});assert.equal(prevented,false);
  f.input.emit('keydown',{key:'Escape'});assert.equal(f.panel.hidden,true);
 });
+test('a background catalog response does not reopen a dismissed dropdown',async()=>{
+ let finish;const f=fixture(()=>new Promise(resolve=>finish=resolve));
+ f.input.value='XL';f.input.emit('focus');await tick();
+ f.input.emit('keydown',{key:'Escape'});finish({ok:true,json:async()=>({coins:rows})});await tick();
+ assert.equal(f.panel.hidden,true);
+ f.input.emit('input');assert.equal(f.list.children.length,3);
+});
