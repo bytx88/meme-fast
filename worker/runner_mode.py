@@ -23,6 +23,8 @@ POLICY = {'version': 2, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
           'minimumValuationCoverage': .95, 'followupHours': 72,
           'confirmationMinutes': 15, 'trendChange': .2}
 
+CLASSIFICATION = 'Provisional descriptive score: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. Compare adjacent equal-length 24H, 6H or 1H periods using existing covered history, with two earlier baseline periods. Each period needs at least 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage. Population variation is at most 25%, at least ten $500K events and five events at each of three agreeing thresholds. Daily history length alone never unlocks a score. Not a validated trading signal.'
+
 
 def number(value):
     return (float(value) if isinstance(value, (int, float)) and not isinstance(value, bool)
@@ -41,6 +43,7 @@ def public_report(report, now=None):
     if not report:
         return unknown()
     report = dict(report)
+    report['classification'] = CLASSIFICATION
     if report.get('policy', {}).get('version') != POLICY['version']:
         report.update(mode='Unknown', score=None, ready=False, policy=POLICY,
                       history=unknown()['history'],
@@ -260,7 +263,7 @@ def collect(snapshot, directory):
                                'valuationFraction': fraction, 'sourcesOk': sources_ok,
                                'reliable': reliable},
                   'definition': 'Unique mints first observed crossing each market-cap threshold after a baseline below it; two distinct quotes within 15 minutes, liquidity at least $3K and positive 24H volume. Initial above-threshold tokens and repeat reclaims are excluded. Follow-up is 72 hours from admission; gaps remain unknown. Not first lifetime crossings or all Solana memes.',
-                  'classification': 'Provisional descriptive score: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. Compare adjacent equal-length 24H, 6H or 1H periods using existing covered history, with two earlier baseline periods. Each period needs at least 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage. Population variation is at most 25%, at least ten $500K events and five events at each of three agreeing thresholds. Daily history length alone never unlocks a score. Not a validated trading signal.'}
+                  'classification': CLASSIFICATION}
 
     destination = directory / 'runner-mode.json'
     temporary = destination.with_suffix('.json.tmp')
