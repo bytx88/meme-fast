@@ -39,21 +39,48 @@ def gecko_response(stream, path, fetch, ttl=60):
     if not match:
         return stream.get('gecko:request', path, lambda: fetch(path), ttl)
     network, kind, addresses = match.groups()
-    addresses = sorted(set(addresses.split(',')))
-    keys = {address:[network,kind,address,target.query] for address in addresses}
+    def canonical(address):
+        return address.lower() if network != 'solana' and re.fullmatch(r'0x[0-9A-Fa-f]+',address) else address
+    addresses = sorted({canonical(address) for address in addresses.split(',')})
+    # Version the projected contract: older entries used case-sensitive IDs and
+    # retained unrelated includes from the entire original batch.
+    keys = {address:[2,network,kind,address,target.query] for address in addresses}
     cached = {address:stream.lookup('gecko:entity', key) for address,key in keys.items()}
     missing = [address for address in addresses if cached[address] is None]
     if missing:
         route = f'/networks/{network}/{kind}/multi/' + ','.join(missing)
         route += '?' + target.query if target.query else ''
-        reply = stream.get('gecko:request', route, lambda: fetch(route), ttl)
+        def validated_fetch():
+            body = fetch(route)
+            expected = 'token' if kind == 'tokens' else 'pool'
+            if (not isinstance(body,dict) or not isinstance(body.get('data'),list)
+                    or not isinstance(body.get('included',[]),list)):
+                raise ValueError('Invalid multi market response')
+            for row in [*body['data'],*body.get('included',[])]:
+                if not isinstance(row,dict) or not isinstance(row.get('id'),str) or not isinstance(row.get('type'),str):
+                    raise ValueError('Invalid multi market entity')
+                if not isinstance(row.get('relationships',{}),dict):
+                    raise ValueError('Invalid market relationships')
+                for relationship in row.get('relationships',{}).values():
+                    if not isinstance(relationship,dict):
+                        raise ValueError('Invalid market relationship')
+                    data = relationship.get('data')
+                    for reference in data if isinstance(data,list) else [data]:
+                        if reference is not None and (not isinstance(reference,dict)
+                                or not isinstance(reference.get('type'),str) or not isinstance(reference.get('id'),str)):
+                            raise ValueError('Invalid market relationship reference')
+            for row in body['data']:
+                if (row['type'] != expected or not row['id'].startswith(network+'_')
+                        or canonical(row['id'][len(network)+1:]) not in missing):
+                    raise ValueError('Market entity does not match requested contracts')
+            return body
+        reply = stream.get('gecko:request', [2,route], validated_fetch, ttl)
         body = reply['value']
-        if not isinstance(body.get('data'),list):
-            raise ValueError('Invalid multi market response')
         for address in missing:
-            rows = [row for row in body['data'] if row.get('id') == network+'_'+address]
+            rows = [row for row in body['data'] if canonical(row['id'][len(network)+1:]) == address]
             value = dict(body, data=rows)
-            # Includes are bounded by the original batch and retain all relationships.
+            if 'included' in body:
+                value['included'] = related_includes(rows,body['included'])
             stream.store('gecko:entity',keys[address],value,reply['observedAt'],ttl)
             cached[address] = dict(reply,value=value)
     bodies = [row['value'] for row in sorted(cached.values(),key=lambda row:row['observedAt'])]
@@ -63,6 +90,26 @@ def gecko_response(stream, path, fetch, ttl=60):
             for body in bodies for row in body.get('included',[])}.values())
     return dict(value=value,observedAt=min(row['observedAt'] for row in cached.values()),
                 cache='miss' if missing else 'hit')
+
+
+def related_includes(rows, included):
+    """Keep the reachable JSON:API relationship graph, including nested links."""
+    indexed = {(row['type'],row['id']):row for row in included}
+    pending, seen, result = list(rows), set(), []
+    while pending:
+        row = pending.pop()
+        for relationship in row.get('relationships',{}).values():
+            data = relationship.get('data')
+            for reference in data if isinstance(data,list) else [data]:
+                if not isinstance(reference,dict):
+                    continue
+                identity = (reference.get('type'),reference.get('id'))
+                if identity not in seen and identity in indexed:
+                    seen.add(identity)
+                    entity = indexed[identity]
+                    result.append(entity)
+                    pending.append(entity)
+    return result
 
 
 class SourceStream:

@@ -56,7 +56,7 @@ class SourceStreamTests(unittest.TestCase):
         def fetch(path):
             calls.append(path)
             addresses=path.split('?')[0].split('/')[-1].split(',')
-            return {'data':[{'id':'solana_'+a,'type':'token'} for a in addresses],
+            return {'data':[{'id':'solana_'+a,'type':'token','relationships':{'top_pools':{'data':[{'type':'pool','id':'pool'}]}}} for a in addresses],
                     'included':[{'id':'pool','type':'pool','price':clock[0]}]}
         with tempfile.TemporaryDirectory() as folder:
             stream=SourceStream(folder,clock=lambda:clock[0])
@@ -75,6 +75,59 @@ class SourceStreamTests(unittest.TestCase):
             clock[0]+=60
             gecko_response(stream,'/networks/solana/tokens/multi/B,C?include=top_pools',fetch)
             self.assertEqual(len(calls),4)
+            stream.close()
+
+    def test_gecko_evm_address_case_reuses_one_observation_without_changing_solana_identity(self):
+        calls=[]
+        def fetch(path):
+            calls.append(path)
+            network=path.split('/')[2]
+            address=path.split('/')[-1]
+            return {'data':[{'id':network+'_'+address,'type':'token'}]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder)
+            address='0x'+'aB'*20
+            first=gecko_response(stream,'/networks/bsc/tokens/multi/'+address,fetch)
+            second=gecko_response(stream,'/networks/bsc/tokens/multi/'+address.lower(),fetch)
+            self.assertEqual(len(first['value']['data']),1)
+            self.assertEqual(first['observedAt'],second['observedAt'])
+            self.assertEqual(len(calls),1)
+            gecko_response(stream,'/networks/solana/tokens/multi/ABC',fetch)
+            gecko_response(stream,'/networks/solana/tokens/multi/abc',fetch)
+            self.assertEqual(len(calls),3)
+            stream.close()
+
+    def test_invalid_gecko_batch_is_not_cached_and_next_valid_read_recovers(self):
+        invalids=[{'data':{}},{'data':[None]},
+                  {'data':[{'id':'bsc_A','type':'token'}]},
+                  {'data':[{'id':'solana_A','type':'token','relationships':None}]},
+                  {'data':[],'included':[{'id':'x','type':'pool','relationships':{'x':{'data':{'type':'token','id':{}}}}}]}]
+        for invalid in invalids:
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as folder:
+                stream=SourceStream(folder)
+                with self.assertRaises(ValueError):
+                    gecko_response(stream,'/networks/solana/tokens/multi/A',lambda _:invalid)
+                calls=[]
+                def valid(path):
+                    calls.append(path)
+                    return {'data':[{'id':'solana_A','type':'token'}]}
+                self.assertEqual(len(gecko_response(stream,'/networks/solana/tokens/multi/A',valid)['value']['data']),1)
+                self.assertEqual(len(calls),1)
+                stream.close()
+
+    def test_cached_gecko_entity_keeps_only_its_nested_relationships_and_handles_cycles(self):
+        def ref(kind,identity):return {'type':kind,'id':identity}
+        def entity(kind,identity,related):
+            return dict(ref(kind,identity),relationships={'related':{'data':related}})
+        body={'data':[entity('token','solana_A',[ref('pool','poolA')]),entity('token','solana_B',[ref('pool','poolB')])],
+              'included':[entity('pool','poolA',[ref('token','quote')]),
+                          entity('token','quote',[ref('pool','poolA')]),entity('pool','poolB',[])]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder)
+            gecko_response(stream,'/networks/solana/tokens/multi/A,B',lambda _:body)
+            subset=gecko_response(stream,'/networks/solana/tokens/multi/A',lambda _:self.fail('duplicate provider pull'))
+            self.assertEqual({row['id'] for row in subset['value']['included']},{'poolA','quote'})
+            self.assertEqual([row['id'] for row in subset['value']['data']],['solana_A'])
             stream.close()
 
     def test_context_is_restricted_and_collector_ui_search_encodings_share_one_key(self):
