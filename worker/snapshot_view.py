@@ -103,6 +103,16 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
         import time
         now_ms = time.time() * 1000
     cutoff = now_ms - RETENTION_MS
+    if view == "catalog":
+        fields = ("network", "contract_address", "contract_verified", "name", "symbol", "image_url")
+        tokens = {}
+        for rows, timestamp in ((snapshot.get("radarCoins", []), "lastSeenRadarAt"), (snapshot.get("coins", []), "firstSeen")):
+            for coin in rows:
+                network, address = coin.get("network"), coin.get("contract_address")
+                if not network or not address or (coin.get(timestamp) or 0) <= cutoff or coin.get("contract_verified") is False:
+                    continue
+                tokens[_key(f"{network}:{address}")] = {field: coin.get(field) for field in fields}
+        return {"version": 1, "lastRun": snapshot.get("lastRun"), "coins": list(tokens.values())}
     if view == "health":
         return {field: snapshot.get(field) for field in ("revision", "lastRun", "feeds")}
     if view == "name":

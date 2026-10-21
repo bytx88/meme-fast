@@ -19,6 +19,16 @@ class FakeResponse:
 
 
 class SnapshotViewTests(unittest.TestCase):
+    def test_catalog_reuses_retained_lists_without_histories_or_unverified_contracts(self):
+        now=1800000000000
+        coin=dict(network='solana',contract_address='ABC',symbol='TEST',name='Test',firstSeen=now,marketHistory=[{'at':now}])
+        radar=dict(coin,lastSeenRadarAt=now)
+        snapshot=dict(coins=[coin,dict(coin,contract_address='old',firstSeen=now-6*86400000),dict(coin,contract_address='bad',contract_verified=False)],
+                      radarCoins=[radar,dict(radar,contract_address='abc')])
+        result=snapshot_view(snapshot,'catalog',now_ms=now)
+        self.assertEqual([c['contract_address'] for c in result['coins']],['ABC','abc'])
+        self.assertNotIn('marketHistory',result['coins'][0])
+
     def test_final_stretch_ignores_discovery_window_but_respects_retention(self):
         now = 1800000000000
         older = {"id": "near", "firstSeen": now - 3 * 86400000,
@@ -65,7 +75,7 @@ class SnapshotViewTests(unittest.TestCase):
         )
         root = Path(__file__).resolve().parents[1]
         for view, ids, name, hours in (("coin", [], "", 1), ("coin", [], "", 120), ("radar", [], "", 120),
-                                      ("health", [], "", 120), ("watchlist", ["solana:ABC"], "", 120), ("name", [], "Yee", 120)):
+                                      ("health", [], "", 120), ("catalog", [], "", 120), ("watchlist", ["solana:ABC"], "", 120), ("name", [], "Yee", 120)):
             source = snapshot if view != "name" else {**snapshot, "coins": [{**coin, "name": " Yee "}],
                                                       "radarCoins": [{**coin, "name": "Yee", "id": "base:B", "lastSeenRadarAt": now}]}
             result = subprocess.run(

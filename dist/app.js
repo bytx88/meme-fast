@@ -13,6 +13,7 @@ import {formatUnitPrice} from './unit-price.mjs?v=magnitude-rounding-v3';
 import {toggleSaved,isSaved,watchlist} from './research-store.mjs?v=watchlist-fomo-v2';
 import {initialInspectQuery,DEFAULT_INSPECT_QUERY} from './inspect-startup.mjs';
 import {createRecentContracts,isContractAddress} from './recent-contracts.mjs?v=symbol-history-v1';
+import {setupTokenSuggestions} from './token-suggestions.mjs';
 import {axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {safeURL} from './public-radar.mjs';
@@ -51,10 +52,20 @@ const state={token:{address:'',network:'',symbol:DEFAULT_INSPECT_QUERY,name:'Bit
 state.historyTrades=[];
 state.smart=false;state.measure="flow";state.universe=null;state.universeStale=false;
 state.tokens=[state.token];state.scope='all';state.matches=[];state.draft=new Set();state.listings=[];state.searchResult='ready';state.searchedQuery='';
+const suggestions=setupTokenSuggestions({input:$('query'),panel:$('token-suggestions'),list:$('token-suggestion-list'),status:$('token-suggestion-status'),
+  initial:[...recentContracts.entries.filter(t=>!t.address.startsWith('0x')).map(t=>({...t,network:'solana'})),
+    ...watchlist().map(item=>item.marketSnapshot||{network:item.id?.split(':')[0],address:item.id?.split(':').slice(1).join(':'),symbol:item.title?.split(' · ')[0]?.replace(/^\$/,''),name:item.title?.split(' · ')[1]}),...flowCache.tokens],
+  onSelect:token=>{
+    state.searchController?.abort();state.searchGeneration++;state.searchBusy=false;state.matches=[token];state.searchedQuery=token.address;
+    $('query').value=token.address;$('results').replaceChildren();$('results').hidden=true;$('combine-controls').hidden=true;$('match-chooser').hidden=true;
+    recentContracts.label(token.address,token.symbol);renderRecentContracts();error('');
+    selectToken(token).catch(e=>error(e.message));
+  }});
 function error(message){$('error').textContent=message;$('error').hidden=!message}
 function safeUrl(network,address,type='tokens'){return `https://www.geckoterminal.com/${encodeURIComponent(network)}/${type}/${encodeURIComponent(address)}`}
 function axiomUrl(token){const chain={solana:'Solana',base:'Base',robinhood:'Robinhood Chain',eth:'Ethereum',ethereum:'Ethereum',bsc:'BSC'}[token.network];return token.unverified?null:axiomLink({chain,contract_address:token.address,contract_verified:true})}
 async function search(query){
+  suggestions.close();
   query=query.trim();if(query.length<2||query.length>160)throw new Error('Enter at least 2 characters of a ticker or contract address.');
   const cached=isContractAddress(query)?flowCache.read(query):null;
   if(cached){
@@ -67,7 +78,7 @@ async function search(query){
   if(recentContracts.remember(query))renderRecentContracts();
   state.generation++;state.loadController?.abort();state.busy=false;state.searchResult='searching';state.searchedQuery=query;state.matches=[];state.draft.clear();$('dashboard').hidden=true;$('match-chooser').hidden=true;$('charts').setAttribute('aria-busy','false');$('refresh').disabled=false;state.searchController?.abort();const controller=new AbortController();state.searchController=controller;const generation=++state.searchGeneration;state.searchBusy=true;$('search-status').textContent='Finding matching tokens…';$('results').hidden=true;$('combine-controls').hidden=true;error('');
   try{const found=await lookupTokens(query,{gecko:api,dex:dexApi,signal:controller.signal,onStatus:message=>{if(generation===state.searchGeneration)$('search-status').textContent=message}});if(generation!==state.searchGeneration)return [];
-    state.matches=uniqueListings(found);state.draft=new Set(state.matches.map(listingKey));
+    state.matches=uniqueListings(found);suggestions.remember(state.matches);state.draft=new Set(state.matches.map(listingKey));
     const remembered=state.matches.find(t=>!t.unverified&&canonical(t.address)===canonical(query));if(remembered&&recentContracts.label(query,remembered.symbol))renderRecentContracts();
     $('results').replaceChildren();for(const token of state.matches){const row=document.createElement('div');row.className='result-choice';const label=document.createElement('label'),check=document.createElement('input'),copy=document.createElement('span');check.type='checkbox';check.value=listingKey(token);check.checked=state.draft.has(check.value);check.addEventListener('change',()=>{if(check.checked)state.draft.add(check.value);else state.draft.delete(check.value);updateSelection()});copy.className='result-copy';const main=document.createElement('strong');main.textContent=`${token.symbol} · ${token.name} · ${token.network}`;main.insertAdjacentHTML('beforeend',chainMarker(token));const meta=document.createElement('small');meta.textContent=`${token.unverified?'Unverified address':compact(token.liquidity)+' indexed liquidity'}`;const address=document.createElement('small');address.textContent=token.address;copy.append(main,meta,address);label.append(check,copy);const view=document.createElement('button');view.type='button';view.textContent='View only';view.setAttribute('aria-label',`View only ${token.symbol} on ${token.network} ${short(token.address)}`);view.addEventListener('click',()=>selectToken(token));row.append(label,view);$('results').append(row)}
     updateSelection();

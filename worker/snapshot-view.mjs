@@ -27,6 +27,16 @@ export async function readSnapshotVersion(filename,readSnapshot){
 export function snapshotView(snapshot,view='',ids=[],now=Date.now(),name='',hours=120){
  if(view==='watchlist')return watchlistView(snapshot,ids,now);
  const cutoff=now-RETENTION_MS;
+ if(view==='catalog'){
+  const fields=['network','contract_address','contract_verified','name','symbol','image_url'],tokens=new Map();
+  for(const [rows,timestamp]of [[snapshot.radarCoins||[],'lastSeenRadarAt'],[snapshot.coins||[],'firstSeen']])for(const coin of rows){
+   const network=coin.network,address=coin.contract_address;
+   if(!network||!address||!(coin[timestamp]>cutoff)||coin.contract_verified===false)continue;
+   const key=`${network}:${network==='solana'?address:address.toLowerCase()}`;
+   tokens.set(key,Object.fromEntries(fields.map(field=>[field,coin[field]??null])));
+  }
+  return {version:1,lastRun:snapshot.lastRun??null,coins:[...tokens.values()]};
+ }
  if(view==='health')return Object.fromEntries(['revision','lastRun','feeds'].map(field=>[field,snapshot[field]??null]));
  if(view==='name'){
   const key=nameKey(name);

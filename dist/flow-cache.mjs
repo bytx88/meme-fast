@@ -13,6 +13,7 @@ function valid(s,address,now){
 export function createFlowCache(getStorage=()=>window.localStorage,now=Date.now){
   function entries(){try{const raw=getStorage().getItem(KEY);if(!raw||raw.length>MAX_BYTES)return [];const data=JSON.parse(raw);return Array.isArray(data)?data.filter(s=>valid(s,s?.tokens?.[0]?.address,now())).slice(0,3):[]}catch{return []}}
   return {
+    get tokens(){return entries().flatMap(snapshot=>snapshot.tokens)},
     read(address){return entries().find(s=>canonical(s.tokens[0].address)===canonical(address))||null},
     write(state){
       // Cache only an exact, unambiguous contract selection with usable pool data.
