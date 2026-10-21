@@ -78,7 +78,9 @@ def classify(days):
 
 def eligible(row):
     return (row.get('network') == 'solana' and row.get('contract_address')
-            and (row.get('dex') in ('pumpfun', 'pumpswap', 'meteoradbc')
+            and (row.get('dex') in ('pumpfun', 'pumpswap', 'meteoradbc',
+                                   'pump-fun', 'pump-swap', 'meteora-dbc')
+                 or row.get('launchpadSource') in ('pump-fun', 'meteora-dbc', 'verified-curve')
                  or isinstance(row.get('launchpad'), dict)))
 
 

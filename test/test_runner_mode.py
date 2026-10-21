@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from worker.runner_mode import (DAY, LEVELS, MINUTE, classify, collect, day_start,
-                                public_report, unknown)
+                                eligible, public_report, unknown)
 
 NOW = 1_800_000_000_000
 
@@ -24,6 +24,13 @@ def snapshot(rows, at=NOW):
 
 
 class RunnerModeTests(unittest.TestCase):
+    def test_both_provider_launchpad_identities_are_admitted(self):
+        for dex in ('pumpfun', 'pumpswap', 'meteoradbc', 'pump-fun', 'pump-swap', 'meteora-dbc'):
+            self.assertTrue(eligible({**coin(), 'dex': dex}))
+        self.assertTrue(eligible({**coin(), 'dex': 'raydium', 'launchpadSource': 'pump-fun'}))
+        self.assertFalse(eligible({**coin(), 'dex': 'raydium'}))
+        self.assertFalse(eligible({**coin(), 'network': 'base'}))
+
     def test_crossings_are_confirmed_mint_deduplicated_and_not_reclaims(self):
         with tempfile.TemporaryDirectory() as folder:
             collect(snapshot([coin()]), folder)
