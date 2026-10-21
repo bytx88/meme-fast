@@ -121,7 +121,7 @@ class RunnerModeTests(unittest.TestCase):
         old = {**report, 'policy': {'version': 1}, 'classification': 'Old 14-day rule'}
         self.assertFalse(public_report(old, NOW)['ready'])
         self.assertIsNone(public_report(old, NOW)['score'])
-        self.assertEqual(public_report(old, NOW)['policy']['version'], 3)
+        self.assertEqual(public_report(old, NOW)['policy']['version'], 4)
         self.assertNotIn('historyDays', public_report(old, NOW)['policy'])
         self.assertNotIn('14', public_report(old, NOW)['classification'])
 

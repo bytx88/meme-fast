@@ -18,12 +18,12 @@ MINUTE = 60_000
 DAY = 24 * 60 * MINUTE
 FOLLOWUP = 3 * DAY
 SGT = dt.timezone(dt.timedelta(hours=8))
-POLICY = {'version': 3, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
+POLICY = {'version': 4, 'provisionalBaselinePeriods': 1, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
           'minimumRunnerEvents': 10, 'minimumThresholdEvents': 5, 'minimumPeriodCoverage': .9,
           'minimumValuationCoverage': .95, 'followupHours': 72,
           'confirmationMinutes': 15, 'trendChange': .2}
 
-CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets, two baseline periods and a current covered 24H, 6H or 1H period are required. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage of the entire cohort. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard; sparse positive or conflicting evidence stays unknown. Not a validated predictive signal.'
+CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets are required. Initially, provisional Mode compares the oldest covered hour with the latest complete covered hour for the same observed tokens. Full Mode uses two baseline periods and a current covered 24H, 6H or 1H period. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage of the entire cohort. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard; sparse positive or conflicting evidence stays unknown. Not a validated predictive signal.'
 
 
 def number(value):
@@ -61,12 +61,12 @@ def day_start(now):
         hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
 
 
-def classify(periods):
+def classify(periods, provisional=False):
     """Two baseline observations plus a current, comparable observation.
 
     Periods can be hourly, six-hourly or daily; elapsed calendar age is not a gate.
     """
-    if len(periods) < POLICY['baselinePeriods'] + 1 or not all(p['reliable'] for p in periods):
+    if len(periods) < (2 if provisional else POLICY['baselinePeriods'] + 1) or not all(p['reliable'] for p in periods):
         return 'Unknown', 'Need two covered baseline periods and a comparable current period'
     populations = [p['population'] for p in periods]
     if min(populations) < POLICY['minimumPopulation']:
@@ -85,9 +85,9 @@ def classify(periods):
         baseline = statistics.median(values[:-1])
         previous, current = values[-2:]
         if current > previous and current >= previous * (1 + POLICY['trendChange']):
-            labels.append('Easy' if current >= baseline else 'Improving')
+            labels.append('Improving' if provisional else 'Easy' if current >= baseline else 'Improving')
         elif current < previous and current <= previous * (1 - POLICY['trendChange']):
-            labels.append('Cooling' if current >= baseline else 'Hard')
+            labels.append('Cooling' if provisional else 'Cooling' if current >= baseline else 'Hard')
         else:
             labels.append('Balanced')
     for label in ('Easy', 'Improving', 'Balanced', 'Cooling', 'Hard'):
@@ -145,6 +145,51 @@ def usable_history(db, now, managed=False):
         if best is None or len(periods) >= best['comparablePeriods']:
             best = result
     return best
+
+
+def provisional_history(db, now):
+    """Compare endpoints only, without certifying intervening gaps or changing events."""
+    hour = 60 * MINUTE
+    end = now // hour * hour
+    latest = period_summary(db, end-hour, end, managed=True)
+    result = {'usable': False, 'provisional': True, 'periodHours': 1,
+              'comparablePeriods': 0, 'baselinePeriods': 0, 'periods': [],
+              'mode': 'Unknown', 'reason': 'Need two complete covered hours for provisional Mode'}
+    if not latest['reliable']:
+        return result
+    first = db.execute('SELECT MIN(slot) FROM monitor_coverage').fetchone()[0]
+    if first is None:
+        return result
+    start = max(first * 5 * MINUTE // hour * hour, end - 7 * DAY)
+    def observed_mints(period):
+        return {mint for mint, slots in db.execute(
+            'SELECT mint,COUNT(DISTINCT CAST(at / ? AS INTEGER)) FROM monitor_observations '
+            'WHERE at>=? AND at<? GROUP BY mint',
+            (5 * MINUTE, period['startAt'], period['endAt']))
+            if slots / 12 >= POLICY['minimumPeriodCoverage']}
+    latest_mints = observed_mints(latest)
+    for old_start in range(start, end-hour, hour):
+        oldest = period_summary(db, old_start, old_start+hour, managed=True)
+        if not oldest['reliable']:
+            continue
+        shared = observed_mints(oldest) & latest_mints
+        if (len(shared) < POLICY['minimumPopulation'] or
+                len(shared) < max(oldest['population'], latest['population']) * POLICY['minimumValuationCoverage']):
+            continue
+        periods = []
+        for period in (oldest, latest):
+            counts = {str(k): 0 for k in LEVELS}
+            for mint, threshold in db.execute(
+                    'SELECT mint,threshold FROM monitor_events WHERE at>=? AND at<?',
+                    (period['startAt'], period['endAt'])):
+                if mint in shared:
+                    counts[str(threshold)] += 1
+            periods.append({**period, 'counts': counts, 'population': len(shared)})
+        mode, reason = classify(periods, provisional=True)
+        return {**result, 'usable': mode != 'Unknown', 'comparablePeriods': 2,
+                'baselinePeriods': 1, 'periods': periods, 'matchedTokens': len(shared),
+                'mode': mode, 'reason': 'Provisional: oldest covered hour versus latest complete hour. ' + reason}
+    return result
 
 
 def eligible(row):
@@ -289,6 +334,8 @@ def collect(snapshot, directory):
         counts.update({str(k): n for k, n in db.execute(
             f'SELECT threshold,COUNT(*) FROM {event_table} WHERE at>? AND at<=? GROUP BY threshold', (now - DAY, now))})
         history = usable_history(db, now, managed)
+        if managed and history['comparablePeriods'] < 3:
+            history = provisional_history(db, now)
         mode, reason = history['mode'], history['reason']
         if not reliable:
             mode, reason = 'Unknown', 'Current source or valuation coverage is incomplete'
