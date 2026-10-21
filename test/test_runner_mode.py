@@ -120,6 +120,8 @@ class RunnerModeTests(unittest.TestCase):
         old = {**report, 'policy': {'version': 1}}
         self.assertFalse(public_report(old, NOW)['ready'])
         self.assertIsNone(public_report(old, NOW)['score'])
+        self.assertEqual(public_report(old, NOW)['policy']['version'], 2)
+        self.assertNotIn('historyDays', public_report(old, NOW)['policy'])
 
     def test_end_to_end_three_covered_hours_can_score_and_missing_coverage_withholds_it(self):
         # Synthetic unit data only: 100 tracked mints, six/six/twelve new runners

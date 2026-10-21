@@ -42,7 +42,9 @@ def public_report(report, now=None):
         return unknown()
     report = dict(report)
     if report.get('policy', {}).get('version') != POLICY['version']:
-        report.update(mode='Unknown', score=None, ready=False, reason='Awaiting a report using usable history and coverage')
+        report.update(mode='Unknown', score=None, ready=False, policy=POLICY,
+                      history=unknown()['history'],
+                      reason='Awaiting a report using usable history and coverage')
     at = number(report.get('updatedAt'))
     if at is None or not 0 <= now - at <= 15 * MINUTE:
         report.update(mode='Unknown', score=None, ready=False, reason='Runner collection is stale or unavailable')
