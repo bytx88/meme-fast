@@ -1,4 +1,4 @@
-import {mountMarket} from './market-delta.mjs?v=market-mode-v2';
+import {mountMarket} from './market-delta.mjs?v=market-mode-v3';
 const address = 'BNoUUtinMiHdARMwEM6YXaNJ1MhGmTiJ4a5FmCgyJL8R';
 const header = document.querySelector('.masthead');
 

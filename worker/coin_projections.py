@@ -5,13 +5,16 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from worker.snapshot_view import snapshot_view
-from worker.runner_mode import collect as collect_runner_mode
+from worker.runner_sampling import candidate_snapshot
 
 
 def project(filename):
     main = Path(filename)
     snapshot = json.loads(main.read_text(encoding='utf-8'))
-    collect_runner_mode(snapshot, main.parent)
+    candidates = main.with_name('coins.runner-candidates.json')
+    temporary = candidates.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(candidate_snapshot(snapshot), separators=(',', ':')), encoding='utf-8')
+    os.replace(temporary, candidates)
     catalog = main.with_name('coins.catalog.v2.json')
     temporary = catalog.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(snapshot_view(snapshot, 'catalog'), separators=(',', ':')), encoding='utf-8')

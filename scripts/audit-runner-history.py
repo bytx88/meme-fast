@@ -56,6 +56,14 @@ def audit_ledger(path):
         result['reliableSlots'] = db.execute('SELECT COUNT(*) FROM coverage WHERE reliable=1').fetchone()[0]
         result['coverageRange'] = db.execute('SELECT MIN(slot)*300000,MAX(slot)*300000 FROM coverage').fetchone()
         result['history'] = usable_history(db, result['coverageRange'][1]) if result['coverageRange'][1] else None
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'monitor_coverage' in tables:
+            monitored = {table: db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]
+                         for table in ('monitor_tokens', 'monitor_events', 'monitor_observations', 'monitor_coverage')}
+            monitored['reliableSlots'] = db.execute('SELECT COUNT(*) FROM monitor_coverage WHERE reliable=1').fetchone()[0]
+            latest = db.execute('SELECT MAX(slot)*300000 FROM monitor_coverage').fetchone()[0]
+            monitored['history'] = usable_history(db, latest, managed=True) if latest else None
+            result['monitoredSample'] = monitored
         return result
 
 

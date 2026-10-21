@@ -114,13 +114,14 @@ class RunnerModeTests(unittest.TestCase):
         for period in sparse:
             period['counts'].update({'1000000': 0, '5000000': 0, '10000000': 0})
         self.assertEqual(classify(sparse)[0], 'Unknown')
+        self.assertEqual(classify(periods([2, 1, 0]))[0], 'Hard')
         report = {**unknown(), 'updatedAt': NOW, 'mode': 'Easy', 'score': 5, 'ready': True}
         self.assertIsNone(public_report(report, NOW+16*MINUTE)['score'])
         self.assertIsNone(public_report(report, NOW-MINUTE)['score'])
         old = {**report, 'policy': {'version': 1}, 'classification': 'Old 14-day rule'}
         self.assertFalse(public_report(old, NOW)['ready'])
         self.assertIsNone(public_report(old, NOW)['score'])
-        self.assertEqual(public_report(old, NOW)['policy']['version'], 2)
+        self.assertEqual(public_report(old, NOW)['policy']['version'], 3)
         self.assertNotIn('historyDays', public_report(old, NOW)['policy'])
         self.assertNotIn('14', public_report(old, NOW)['classification'])
 

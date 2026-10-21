@@ -442,6 +442,19 @@ async def collect_coins():
                               market_url=web_url.rstrip('/') + '/api/dex')
 
 
+@app.function(schedule=modal.Period(minutes=5), timeout=360, max_containers=1, memory=1024,
+              volumes={"/history": history_volume})
+@modal.concurrent(max_inputs=1)
+async def collect_runner_mode():
+    import sys
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.runner_sampling import run_job
+    async def quotes(addresses):
+        return await read_market_source.remote.aio('solana', addresses)
+    return await run_job(history_volume, quotes)
+
+
 @app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
               volumes={"/history": history_volume})
 def collect_x_factor(target_limit=3):
