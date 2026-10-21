@@ -9,6 +9,7 @@ from pathlib import Path
 RPC_TTL = {'getTransaction': 3600, 'getSignaturesForAddress': 30,
            'getTokenAccountsByOwner': 30, 'getTokenSupply': 60,
            'getTokenLargestAccounts': 60, 'getMultipleAccounts': 30}
+QUOTE_TTL = 300  # One market observation per normal five-minute collection cycle.
 
 
 def gecko_path(path):
@@ -27,6 +28,41 @@ def gecko_path(path):
                                'currency', 'token', 'before_timestamp'} for key, _ in parameters)):
         raise ValueError('Unsupported market source path')
     return target.path + ('?' + urlencode(sorted(parameters)) if parameters else '')
+
+
+def gecko_response(stream, path, fetch, ttl=60):
+    """Reuse overlapping multi reads without conflating different field contracts."""
+    from urllib.parse import urlsplit
+    path = gecko_path(path)
+    target = urlsplit(path)
+    match = re.fullmatch(r'/networks/([\w-]+)/(tokens|pools)/multi/([A-Za-z0-9,]+)', target.path)
+    if not match:
+        return stream.get('gecko:request', path, lambda: fetch(path), ttl)
+    network, kind, addresses = match.groups()
+    addresses = sorted(set(addresses.split(',')))
+    keys = {address:[network,kind,address,target.query] for address in addresses}
+    cached = {address:stream.lookup('gecko:entity', key) for address,key in keys.items()}
+    missing = [address for address in addresses if cached[address] is None]
+    if missing:
+        route = f'/networks/{network}/{kind}/multi/' + ','.join(missing)
+        route += '?' + target.query if target.query else ''
+        reply = stream.get('gecko:request', route, lambda: fetch(route), ttl)
+        body = reply['value']
+        if not isinstance(body.get('data'),list):
+            raise ValueError('Invalid multi market response')
+        for address in missing:
+            rows = [row for row in body['data'] if row.get('id') == network+'_'+address]
+            value = dict(body, data=rows)
+            # Includes are bounded by the original batch and retain all relationships.
+            stream.store('gecko:entity',keys[address],value,reply['observedAt'],ttl)
+            cached[address] = dict(reply,value=value)
+    bodies = [row['value'] for row in sorted(cached.values(),key=lambda row:row['observedAt'])]
+    value = dict(bodies[0],data=[entity for body in bodies for entity in body['data']])
+    if any('included' in body for body in bodies):
+        value['included'] = list({(row.get('type'),row.get('id')):row
+            for body in bodies for row in body.get('included',[])}.values())
+    return dict(value=value,observedAt=min(row['observedAt'] for row in cached.values()),
+                cache='miss' if missing else 'hit')
 
 
 class SourceStream:
@@ -152,7 +188,7 @@ def source_session(directory, volume):
 
 def source_metrics(directory):
     result = {}
-    for source in ('solana', 'dex', 'rss', 'gecko'):
+    for source in ('solana', 'dex', 'rss', 'gecko', 'context'):
         path = Path(directory) / source / 'sources.sqlite'
         if not path.exists():
             result[source] = {}
@@ -241,7 +277,7 @@ def dex_tokens(stream, network, addresses, fetch):
     cached = {address: stream.lookup('dex:token', [network, address]) for address in addresses}
     missing = [address for address, saved in cached.items() if saved is None]
     if missing:
-        reply = stream.get('dex:batch', [network, missing], lambda: fetch(network, missing), 60)
+        reply = stream.get('dex:batch', [network, missing], lambda: fetch(network, missing), QUOTE_TTL)
         if not isinstance(reply['value'], list):
             raise ValueError('Invalid token market response')
         for address in missing:
@@ -249,7 +285,7 @@ def dex_tokens(stream, network, addresses, fetch):
             pairs = [pair for pair in reply['value'] if pair.get('chainId') == network
                      and (pair.get('baseToken', {}).get('address', '') if network == 'solana'
                           else pair.get('baseToken', {}).get('address', '').lower()) == key]
-            stream.store('dex:token', [network, address], pairs, reply['observedAt'], 60)
+            stream.store('dex:token', [network, address], pairs, reply['observedAt'], QUOTE_TTL)
             cached[address] = dict(reply, value=pairs)
     return dict(value=[dict(pair, _sourceObservedAt=saved['observedAt'])
                        for saved in cached.values() for pair in saved['value']],
@@ -268,13 +304,13 @@ def dex_pools(stream, network, address, fetch):
     quote_pairs = [pair for pair in reply['value'] if pair.get('chainId') == network
                    and (pair.get('baseToken', {}).get('address', '') if network == 'solana'
                         else pair.get('baseToken', {}).get('address', '').lower()) == key]
-    stream.store('dex:token', [network, address], quote_pairs, reply['observedAt'], 60)
+    stream.store('dex:token', [network, address], quote_pairs, reply['observedAt'], QUOTE_TTL)
     return dict(reply, value=[dict(pair, _sourceObservedAt=reply['observedAt']) for pair in reply['value']])
 
 
-def shared_dex(network, addresses):
+def shared_dex(network, addresses, scope='quotes'):
     import modal
-    return modal.Function.from_name('meme-fast', 'read_market_source').remote(network, addresses)['value']
+    return modal.Function.from_name('meme-fast', 'read_market_source').remote(network, addresses, scope=scope)['value']
 
 
 def source_json(client, url, **kwargs):
@@ -282,9 +318,11 @@ def source_json(client, url, **kwargs):
     import os
     import re
     if os.getenv('MEME_SHARED_SOURCES') == '1':
-        match = re.fullmatch(r'https://api\.dexscreener\.com/(?:tokens/v1|token-pairs/v1)/([a-z0-9_-]+)/([A-Za-z0-9,]+)', url)
+        match = re.fullmatch(r'https://api\.dexscreener\.com/(tokens/v1|token-pairs/v1)/([a-z0-9_-]+)/([A-Za-z0-9,]+)', url)
         if match:
-            return shared_dex(match[1], match[2].split(','))
+            return shared_dex(match[2], match[3].split(','), scope='pools' if match[1]=='token-pairs/v1' else 'quotes')
+        if url.startswith('https://api.dexscreener.com/'):
+            raise ValueError('Unsupported shared Dex source; direct fallback disabled')
     response = client.get(url, **kwargs)
     response.raise_for_status()
     return response.json()

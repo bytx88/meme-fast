@@ -58,7 +58,7 @@ def read_gecko_source(path):
     import httpx
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
-    from worker.source_stream import source_session, paced_get, gecko_path
+    from worker.source_stream import source_session, paced_get, gecko_path, gecko_response
     path = gecko_path(path)
     session = source_session('/sources/gecko', source_volume)
     stream = session.stream()
@@ -66,15 +66,15 @@ def read_gecko_source(path):
     if '/ohlcv/' in path:
         ttl = 300
     try:
-        def fetch():
+        def fetch(target_path):
             with httpx.Client(timeout=15, follow_redirects=False) as client:
-                response = paced_get(session, client, 'https://api.geckoterminal.com/api/v2' + path, 4.5,
+                response = paced_get(session, client, 'https://api.geckoterminal.com/api/v2' + target_path, 4.5,
                                      headers={'accept': 'application/json'})
                 body = response.json()
                 if not isinstance(body, dict) or not isinstance(body.get('data'), (list, dict)):
                     raise ValueError('Invalid market source response')
                 return body
-        reply = stream.get('gecko:request', path, fetch, ttl)
+        reply = gecko_response(stream, path, fetch, ttl)
         return dict(status=200, body=dict(reply['value'], _sourceObservedAt=reply['observedAt']))
     except Exception:
         import time
@@ -121,29 +121,59 @@ def read_social_source(url):
 
 @app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
+def read_context_source(url):
+    import sys
+    import httpx
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.context_source import context_target
+    from worker.source_stream import source_session, paced_get
+    target, ttl = context_target(url)
+    session = source_session('/sources/context', source_volume)
+    try:
+        def fetch():
+            with httpx.Client(timeout=25,follow_redirects=False) as client:
+                return paced_get(session,client,target,1,headers={'accept':'text/plain'}).text[:60000]
+        return session.stream().get('context:read',target,fetch,ttl)
+    finally:
+        session.finish()
+
+
+@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@modal.concurrent(max_inputs=1)
 def read_market_source(network, addresses, scope='quotes'):
     import sys
     import httpx
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
     from worker.source_stream import source_session, dex_tokens, dex_pools, paced_get
-    if scope not in ('quotes', 'pools') or scope == 'pools' and len(addresses) != 1:
+    profiles = network == 'profiles' and addresses == [] and scope == 'profiles'
+    if network == 'profiles' and not profiles:
+        raise ValueError('Invalid token profile source')
+    if not profiles and (scope not in ('quotes', 'pools') or scope == 'pools' and len(addresses) != 1):
         raise ValueError('Invalid token source scope')
     search = network == 'search'
-    if network not in ('solana', 'base', 'robinhood', 'bsc', 'ethereum', 'arbitrum', 'optimism', 'polygon', 'avalanche', 'search'):
+    if network not in ('solana', 'base', 'robinhood', 'bsc', 'ethereum', 'arbitrum', 'optimism', 'polygon', 'avalanche', 'search', 'profiles'):
         raise ValueError('Unsupported market network')
     if search:
         if not isinstance(addresses, list) or len(addresses) != 1 or not isinstance(addresses[0], str) or not 1 <= len(addresses[0].strip()) <= 160:
             raise ValueError('Invalid market search')
-    elif not isinstance(addresses, list) or not 1 <= len(addresses) <= 30 or any(
-            not isinstance(address, str) or not re.fullmatch(r'[A-Za-z0-9]{20,100}', address) for address in addresses):
-        raise ValueError('Invalid token addresses')
+    elif not profiles and (not isinstance(addresses, list) or not 1 <= len(addresses) <= 30 or any(
+            not isinstance(address, str) or not re.fullmatch(r'[A-Za-z0-9]{20,100}', address) for address in addresses)):
+            raise ValueError('Invalid token addresses')
     if network not in ('solana', 'search'):
         addresses = [address.lower() for address in addresses]
     session = source_session('/sources/dex', source_volume)
     stream = session.stream()
     try:
         with httpx.Client(timeout=15, follow_redirects=False) as client:
+            if profiles:
+                def fetch_profiles():
+                    body = paced_get(session,client,'https://api.dexscreener.com/token-profiles/latest/v1',.3).json()
+                    if not isinstance(body,list):
+                        raise ValueError('Invalid token profiles')
+                    return body
+                return stream.get('dex:profiles',[],fetch_profiles,900)
             if search:
                 def search_tokens():
                     response = paced_get(session, client, 'https://api.dexscreener.com/latest/dex/search', .3, params={'q': addresses[0]})
@@ -1039,7 +1069,9 @@ def web():
 
     @web_app.get('/api/dex/{dex_path:path}')
     async def dex_source(dex_path: str, request: Request):
-        if dex_path == 'latest/dex/search' and set(request.query_params) == {'q'}:
+        if dex_path == 'token-profiles/latest/v1' and not request.query_params:
+            network, addresses = 'profiles', []
+        elif dex_path == 'latest/dex/search' and set(request.query_params) == {'q'}:
             query = request.query_params['q'].strip()
             if not 1 <= len(query) <= 160:
                 raise HTTPException(status_code=400, detail='Invalid market search')
@@ -1051,7 +1083,7 @@ def web():
             network, addresses = match[1], match[2].split(',')
         try:
             report = await read_market_source.remote.aio(network, addresses,
-                scope='pools' if dex_path.startswith('token-pairs/v1/') else 'quotes')
+                scope='profiles' if network == 'profiles' else 'pools' if dex_path.startswith('token-pairs/v1/') else 'quotes')
         except Exception:
             raise HTTPException(status_code=503, detail='Shared token market source unavailable')
         return JSONResponse(report['value'], headers={'cache-control':'no-store', 'x-data-observed-at':str(report['observedAt'])})
@@ -1067,31 +1099,30 @@ def web():
         return JSONResponse(reply['body'], status_code=reply['status'], headers={
             'cache-control':'no-store', **({'retry-after':str(reply['retryAfter'])} if 'retryAfter' in reply else {})})
 
-    context_cache = {}
-    context_sources = {
-        "jeanphil-story": "https://trenches-on.com/en/runners/2026-09-20-jeanphil/",
-        "jeanphil-origin": "https://meme.com/memes/jean-phil",
-        "super-inu": "https://opensea.io/token/solana/DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP",
-        "ionq-background": "https://www.reddit.com/r/Backpack_official/comments/1wnd2fi/ionq_stock_is_now_tokenized_on_solana_how_ionq/",
-    }
+    from worker.context_source import SOURCES as context_sources, context_target
+
+    async def common_context(target):
+        try:
+            target, _ = context_target(target)
+        except ValueError:
+            raise HTTPException(status_code=400, detail='Unsupported context source')
+        try:
+            report = await read_context_source.remote.aio(target)
+        except Exception:
+            raise HTTPException(status_code=502, detail='Context source unavailable')
+        return Response(report['value'], media_type='text/plain; charset=utf-8',headers={
+            'cache-control':'no-store','x-data-observed-at':str(report['observedAt']),
+            'x-content-type-options':'nosniff'})
+
+    @web_app.get('/api/context/read')
+    async def context_read(url: str):
+        return await common_context(url)
 
     @web_app.get("/api/context/source/{source_id}")
     async def context_source(source_id: str):
-        import time
         if source_id not in context_sources:
             raise HTTPException(status_code=404, detail="Unknown story source")
-        cached = context_cache.get(source_id)
-        if cached and cached[0] > time.time():
-            return Response(cached[1], media_type="text/plain")
-        try:
-            async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
-                upstream = await client.get("https://r.jina.ai/" + context_sources[source_id])
-                upstream.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Story source unavailable") from exc
-        body = upstream.text[:60000]
-        context_cache[source_id] = (time.time() + 900, body)
-        return Response(body, media_type="text/plain", headers={"cache-control": "public, max-age=900"})
+        return await common_context('https://r.jina.ai/' + context_sources[source_id])
 
     @web_app.get("/api/context/search")
     async def context_search(request: Request):
@@ -1103,15 +1134,7 @@ def web():
         mode = request.query_params.get("mode", "story")
         search = f'"{contract}"' if mode == "contract" else f'"{name}" {symbol} meme origin story'
         target = "https://r.jina.ai/http://html.duckduckgo.com/html/?" + urlencode({"q": search})
-        try:
-            async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
-                upstream = await client.get(target, headers={"accept": "text/plain"})
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Context provider unavailable") from exc
-        if not upstream.is_success:
-            raise HTTPException(status_code=502, detail="Context provider unavailable")
-        body = upstream.text[:60000]
-        return Response(body, media_type="text/plain; charset=utf-8", headers={"cache-control": "public, max-age=300", "x-content-type-options": "nosniff"})
+        return await common_context(target)
 
     @web_app.api_route("/{asset_path:path}", methods=["GET", "HEAD"])
     async def static_app(asset_path: str, request: Request):

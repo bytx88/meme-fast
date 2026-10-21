@@ -1,10 +1,97 @@
 import tempfile
 import unittest
 from unittest.mock import patch
-from worker.source_stream import SourceStream, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics, mint_from_wallet_cache
+from worker.source_stream import SourceStream, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics, mint_from_wallet_cache, gecko_response, source_json
 
 
 class SourceStreamTests(unittest.TestCase):
+    def test_denied_holder_method_backs_off_across_mints_without_blocking_other_reads(self):
+        import httpx
+        from worker.public_rpc import public_rpc
+        clock,calls,blocked=[1000],[],{}
+        def respond(request):
+            import json
+            method=json.loads(request.content)['method']
+            calls.append(method)
+            return httpx.Response(403 if method=='getTokenLargestAccounts' else 200,json={'result':{'value':[]}})
+        with patch.dict('os.environ',{'SOLANA_WALLET_RPC_URL':'https://rpc.test'}), httpx.Client(transport=httpx.MockTransport(respond)) as client:
+            rpc=public_rpc(client,shared=False,pause=lambda _:None,clock=lambda:clock[0],blocked=blocked)
+            with self.assertRaises(ValueError):rpc('getTokenLargestAccounts',['A'])
+            clock[0]+=600
+            with self.assertRaises(ValueError):rpc('getTokenLargestAccounts',['B'])
+            self.assertEqual(calls,['getTokenLargestAccounts'])
+            self.assertEqual(rpc('getTokenSupply',['B']),{'value':[]})
+            clock[0]+=3000
+            with self.assertRaises(ValueError):rpc('getTokenLargestAccounts',['B'])
+            self.assertEqual(calls.count('getTokenLargestAccounts'),2)
+
+    def test_python_adapter_preserves_quote_and_full_pool_contracts(self):
+        with patch.dict('os.environ',{'MEME_SHARED_SOURCES':'1'}), patch('worker.source_stream.shared_dex',return_value=[]) as shared:
+            source_json(None,'https://api.dexscreener.com/token-pairs/v1/solana/A')
+            shared.assert_called_with('solana',['A'],scope='pools')
+            source_json(None,'https://api.dexscreener.com/tokens/v1/solana/A,B')
+            shared.assert_called_with('solana',['A','B'],scope='quotes')
+            with self.assertRaisesRegex(ValueError,'direct fallback disabled'):
+                source_json(None,'https://api.dexscreener.com/latest/dex/tokens/A')
+
+    def test_quote_reuse_spans_collection_phases_but_expires_without_changing_times(self):
+        clock, calls = [1000], []
+        def fetch(network,addresses):
+            calls.append(addresses)
+            return [dict(chainId=network,baseToken={'address':address}) for address in addresses]
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:clock[0])
+            first=dex_tokens(stream,'solana',['A'],fetch)
+            clock[0]+=240
+            second=dex_tokens(stream,'solana',['A'],fetch)
+            self.assertEqual(first['observedAt'],second['observedAt'])
+            self.assertEqual(calls,[['A']])
+            clock[0]+=60
+            dex_tokens(stream,'solana',['A'],fetch)
+            self.assertEqual(calls,[['A'],['A']])
+            stream.close()
+
+    def test_gecko_overlapping_batches_reuse_entities_and_keep_query_scopes_separate(self):
+        clock,calls=[1000],[]
+        def fetch(path):
+            calls.append(path)
+            addresses=path.split('?')[0].split('/')[-1].split(',')
+            return {'data':[{'id':'solana_'+a,'type':'token'} for a in addresses],
+                    'included':[{'id':'pool','type':'pool','price':clock[0]}]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:clock[0])
+            first=gecko_response(stream,'/networks/solana/tokens/multi/A,B?include=top_pools',fetch)
+            clock[0]+=10
+            second=gecko_response(stream,'/networks/solana/tokens/multi/B,C?include=top_pools',fetch)
+            self.assertEqual(calls,['/networks/solana/tokens/multi/A,B?include=top_pools',
+                                    '/networks/solana/tokens/multi/C?include=top_pools'])
+            self.assertEqual(second['observedAt'],first['observedAt'])
+            self.assertEqual({row['id'] for row in second['value']['data']},{'solana_B','solana_C'})
+            self.assertEqual(second['value']['included'][0]['price'],1010)
+            gecko_response(stream,'/networks/solana/tokens/multi/C,B?include=top_pools',fetch)
+            self.assertEqual(len(calls),2)
+            gecko_response(stream,'/networks/solana/tokens/multi/B?include=other',fetch)
+            self.assertEqual(len(calls),3)
+            clock[0]+=60
+            gecko_response(stream,'/networks/solana/tokens/multi/B,C?include=top_pools',fetch)
+            self.assertEqual(len(calls),4)
+            stream.close()
+
+    def test_context_is_restricted_and_collector_ui_search_encodings_share_one_key(self):
+        from worker.context_source import context_target
+        first,ttl=context_target('https://r.jina.ai/http://html.duckduckgo.com/html/?q=cat%20story')
+        second,_=context_target('https://r.jina.ai/http://html.duckduckgo.com/html/?q=cat+story')
+        self.assertEqual(first,second)
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder)
+            original=stream.get('context:read',first,lambda:'story',ttl)
+            reused=stream.get('context:read',second,lambda:self.fail('duplicate research'),ttl)
+            self.assertEqual(original['observedAt'],reused['observedAt'])
+            stream.close()
+        for url in ('https://r.jina.ai/http://localhost/', 'https://evil.test/x',
+                    'https://r.jina.ai/http://html.duckduckgo.com/html/?q=x&q=y'):
+            with self.assertRaises(ValueError):context_target(url)
+
     def test_complete_program_cache_supplies_mint_reads_without_another_rpc(self):
         from worker.shared_holdings import PROGRAMS
         config={'encoding':'jsonParsed','commitment':'confirmed'}

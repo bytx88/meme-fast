@@ -2,8 +2,10 @@
 export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),timeoutMs=15000,initial={},budgetMs=210000,policies={}}={}){
  const upstream=direct;
  if(process.env.MEME_SHARED_MARKET_URL)direct=(target,options)=>{
-  const url=new URL(target),supported=/^\/(?:tokens\/v1|token-pairs\/v1)\//.test(url.pathname)||url.pathname==='/latest/dex/search';
+  const url=new URL(target),supported=/^\/(?:tokens\/v1|token-pairs\/v1)\//.test(url.pathname)||['/latest/dex/search','/token-profiles/latest/v1'].includes(url.pathname);
   const gecko=process.env.MEME_SHARED_MARKET_URL.replace(/\/dex$/,'/gecko');
+  if(url.hostname==='r.jina.ai')return upstream(process.env.MEME_SHARED_MARKET_URL.replace(/\/dex$/,'/context/read')+'?'+new URLSearchParams({url:target}),options);
+  if(url.hostname==='api.dexscreener.com'&&!supported)throw Error('Unsupported shared Dex source; direct fallback disabled');
   return upstream(url.hostname==='api.dexscreener.com'&&supported?process.env.MEME_SHARED_MARKET_URL+url.pathname+url.search:
    url.hostname==='api.geckoterminal.com'?gecko+url.pathname.replace(/^\/api\/v2/,'')+url.search:target,options);
  };

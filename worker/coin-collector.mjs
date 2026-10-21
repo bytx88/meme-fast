@@ -104,11 +104,11 @@ export async function backfillPriceHistory(coins,fetcher=fetch,now=Date.now()){
    const end=Math.min(now,observationStart(coin)+LATE_RECOVERY_WINDOW_MS);
    let pool=coin.pool;
    try{if(coin.contract_address){
-    const lookup=await fetcher(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(coin.contract_address)}`,{signal:AbortSignal.timeout(15000)});
+    const lookup=await fetcher(`https://api.dexscreener.com/token-pairs/v1/${encodeURIComponent(coin.network)}/${encodeURIComponent(coin.contract_address)}`,{signal:AbortSignal.timeout(15000)});
     if(lookup.ok){
      const payload=await lookup.json();
      const sameAddress=address=>coin.network==='solana'?address===coin.contract_address:String(address).toLowerCase()===String(coin.contract_address).toLowerCase();
-     const pairs=(payload.pairs||[]).filter(pair=>pair.chainId===coin.network&&sameAddress(pair.baseToken?.address)&&Number(pair.liquidity?.usd)>=1000&&Number(pair.pairCreatedAt)>0);
+     const pairs=(Array.isArray(payload)?payload:[]).filter(pair=>pair.chainId===coin.network&&sameAddress(pair.baseToken?.address)&&Number(pair.liquidity?.usd)>=1000&&Number(pair.pairCreatedAt)>0);
      pairs.sort((a,b)=>a.pairCreatedAt-b.pairCreatedAt);
      if(pairs[0]?.pairAddress)pool=pairs[0].pairAddress;
     }

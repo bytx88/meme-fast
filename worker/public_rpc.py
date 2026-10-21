@@ -22,7 +22,8 @@ def public_rpc(client, pause=time.sleep, clock=time.monotonic, shared=True, bloc
             try:
                 response = client.post(endpoint, json={'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params})
                 if response.status_code in (403, 429):
-                    blocked[key] = clock() + 300
+                    # Access denied is not repaired by querying another mint.
+                    blocked[key] = clock() + (3600 if response.status_code == 403 and method == 'getTokenLargestAccounts' else 300)
                     continue
                 response.raise_for_status()
                 body = response.json()

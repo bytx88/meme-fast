@@ -46,7 +46,12 @@ test('Deployed collector uses the shared source owners for both market providers
   const calls=[],fetcher=createProviderFetch(async url=>{calls.push(url);return new Response('{}')});
   await fetcher('https://api.dexscreener.com/tokens/v1/solana/'+address);
   await fetcher('https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=1');
-  assert.deepEqual(calls,['https://site/api/dex/tokens/v1/solana/'+address,'https://site/api/gecko/networks/solana/new_pools?page=1']);
+  await fetcher('https://api.dexscreener.com/token-profiles/latest/v1');
+  const story='https://r.jina.ai/https://meme.com/memes/jean-phil';
+  await fetcher(story);
+  await assert.rejects(fetcher('https://api.dexscreener.com/latest/dex/tokens/'+address),/direct fallback disabled/);
+  assert.deepEqual(calls,['https://site/api/dex/tokens/v1/solana/'+address,'https://site/api/gecko/networks/solana/new_pools?page=1',
+   'https://site/api/dex/token-profiles/latest/v1','https://site/api/context/read?'+new URLSearchParams({url:story})]);
  }finally{if(previous===undefined)delete process.env.MEME_SHARED_MARKET_URL;else process.env.MEME_SHARED_MARKET_URL=previous}
 });
 test('Quiet markets leave the hot refresh queue while old launches can reactivate',()=>{

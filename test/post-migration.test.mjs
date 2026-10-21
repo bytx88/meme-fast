@@ -87,11 +87,12 @@ test('backfill uses the earliest liquid pool when the current pool is newer',asy
  const urls=[];
  const fetcher=async url=>{
   urls.push(url);
-  if(url.includes('dexscreener'))return Response.json({pairs:[{chainId:'solana',baseToken:{address:'Ca'},pairAddress:'old-pool',pairCreatedAt:start,liquidity:{usd:5000}}]});
+  if(url.includes('dexscreener'))return Response.json([{chainId:'solana',baseToken:{address:'Ca'},pairAddress:'old-pool',pairCreatedAt:start,liquidity:{usd:5000}}]);
   return Response.json({data:{attributes:{ohlcv_list:[0,5,10,15,20].map((minute,index)=>[(start+minute*60000)/1000,1,1,1,1+index*0.2,1])}}});
  };
  const [filled]=await backfillPriceHistory([launched],fetcher,start+2*3600000);
  assert.equal(filled.priceHistoryPool,'old-pool');
+ assert.ok(urls.some(url=>url.includes('/token-pairs/v1/solana/Ca')));
  assert.ok(urls.some(url=>url.includes('/pools/old-pool/')));
  assert.equal(updateMigrationStates([filled],start+2*3600000)[0].successScenario,'continuation');
 });

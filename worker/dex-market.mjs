@@ -2,6 +2,7 @@
 export function dexMarketPath(url){
  const prefix='/api/dex/';if(!url.pathname.startsWith(prefix))return null;
  const path=url.pathname.slice(prefix.length);
+ if(path==='token-profiles/latest/v1'&&!url.search)return path;
  if(path==='latest/dex/search'){
   const query=url.searchParams.get('q')?.trim();
   return query&&query.length<=160&&[...url.searchParams.keys()].every(k=>k==='q')?
