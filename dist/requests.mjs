@@ -26,6 +26,8 @@ export function createRequestClient({base='/api/market',fetcher=fetch,interval=2
       }
       if(!response.ok)throw new Error(`The data provider could not return swaps (HTTP ${response.status}). Please try again.`);
       const value=decode(await response.json());if(!Array.isArray(job.path.includes('/ohlcv/')?value?.data?.attributes?.ohlcv_list:value.data))throw new Error('The data provider returned an unexpected response.');
+      const observedAt=Number(response.headers?.get?.('x-data-observed-at'));
+      if(Number.isFinite(observedAt)&&observedAt>0)value._sourceObservedAt=observedAt;
       if(job.signal?.aborted)throw abortError();
       cache.delete(job.path);cache.set(job.path,{time:Date.now(),value});
       if(cache.size>128)cache.delete(cache.keys().next().value);

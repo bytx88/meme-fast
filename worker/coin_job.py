@@ -112,7 +112,7 @@ async def run_coin_job(volume, priorities, root='/history', app='/app', **option
 
 
 async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
-                       budgets=None, commands=None, log=print):
+                       budgets=None, commands=None, log=print, candidate_tokens=(), market_url=''):
     limits = dict(DEFAULT_BUDGETS)
     limits.update(budgets or {})
     started, started_at = time.monotonic(), int(time.time()*1000)
@@ -187,7 +187,9 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
         collector = None
         async def collect():
             nonlocal collector
-            collector = await launch(commands['collect'], {**os.environ, 'MEME_REFRESH_PRIORITY_IDS': json.dumps(ids)})
+            collector = await launch(commands['collect'], {**os.environ, 'MEME_REFRESH_PRIORITY_IDS': json.dumps(ids),
+                'MEME_STREAM_TOKEN_CANDIDATES': json.dumps(list(candidate_tokens)[:30]),
+                'MEME_SHARED_MARKET_URL': market_url})
             return await collector.finish(limits['collect'], 'collect')
         collect_timeout = None
         try:
@@ -203,8 +205,17 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
                 raise collect_timeout
             warnings.append(f'Fresh checkpoint retained after {collect_timeout}')
         if indexer:
+            # A fast shared-cache pass can finish before the event loop has
+            # observed the indexer's exit. Give its final atomic export one
+            # bounded second, without using the publication/cleanup reserve.
+            grace = min(1, max(0, deadline-time.monotonic()-limits['commit']-limits['cleanup']-limits['report']))
+            if indexer.process.returncode is None and grace:
+                try:
+                    await asyncio.wait_for(indexer.process.wait(), grace)
+                except asyncio.TimeoutError:
+                    pass
             if indexer.process.returncode is None:
-                warnings.append('Indexer budget exhausted; retained its previous atomic export')
+                warnings.append('Indexer still running after market collection; retained its previous atomic export')
             elif indexer.process.returncode:
                 warnings.append('Optional indexer failed: '+indexer.tail(indexer.error))
             await indexer.close(limits['cleanup'])

@@ -154,16 +154,26 @@ def market_price(payload, mint):
     return None
 
 
-def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep, cohort=None, budget_seconds=110):
+def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep, cohort=None, budget_seconds=110,
+            holdings=None):
     cohort = dict(cohort or group())
     previous = read_report(directory, cohort)
     at = now if now is not None else int(time.time() * 1000)
     prior = {row['address']: row for row in previous['wallets']}
+    from worker.shared_holdings import balance as shared_balance
+    observed = {row['address']: row.get('observation') for row in (holdings or {}).get('wallets', [])}
+    reused, fetched = 0, 0
     rolling = len(cohort['wallets']) > 60
     saved_cycle = previous.get('collection', {})
     cycle_start = saved_cycle.get('startedAt', at)
     if not rolling or not saved_cycle.get('inProgress') or not 0 <= at - cycle_start <= COLLECTION_MS:
         cycle_start = at
+        if rolling:
+            # A shared observation can predate dispatch; retain the real cycle
+            # boundary so subsequent passes recognize those completed wallets.
+            fresh = [value.get('sampledAt') for value in observed.values() if isinstance(value, dict)
+                     and type(value.get('sampledAt')) in (int, float) and 0 <= at - value['sampledAt'] < 300000]
+            cycle_start = min([at, *fresh])
     deadline = time.monotonic() + budget_seconds
     client = None
     if rpc is None:
@@ -176,10 +186,12 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
         def rpc(method, params):
             return {'result': public_read(method, params)}
         def price_fetcher():
-            response = client.get('https://api.dexscreener.com/token-pairs/v1/solana/' + cohort['token'])
-            response.raise_for_status()
-            return market_price(response.json(), cohort['token'])
-    wallets, supply, price = [], previous.get('supply'), None
+            from worker.source_stream import source_json
+            pairs = source_json(client, 'https://api.dexscreener.com/token-pairs/v1/solana/' + cohort['token'])
+            return dict(value=market_price(pairs, cohort['token']), observedAt=min(
+                (pair['_sourceObservedAt'] for pair in pairs if type(pair.get('_sourceObservedAt')) in (int, float)),
+                default=int(time.time() * 1000)))
+    wallets, supply, price, price_at = [], previous.get('supply'), None, None
     try:
         # Other mints need their actual on-chain decimals before any balance is interpreted.
         if cohort.get('decimals') is None:
@@ -203,12 +215,22 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
                                     checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status='unavailable'))
                 continue
             try:
-                raw, slot = token_balance(rpc('getTokenAccountsByOwner', [entry['address'],
-                    {'mint': cohort['token']}, {'encoding': 'jsonParsed', 'commitment': 'confirmed'}]),
-                    entry['address'], cohort['token'], cohort['decimals'])
-                checked_at = int(time.time() * 1000) if now is None else at
+                read_at = int(time.time() * 1000) if now is None else at
+                cached = shared_balance(observed.get(entry['address']), entry['address'], cohort['token'],
+                                        cohort['decimals'], read_at,
+                                        not_before=cycle_start if rolling and saved_cycle.get('inProgress') else 0)
+                if cached:
+                    raw, slot, checked_at = cached['raw'], cached['slot'], cached['checkedAt']
+                    reused += 1
+                else:
+                    fetched += 1
+                    payload = rpc('getTokenAccountsByOwner', [entry['address'],
+                        {'mint': cohort['token']}, {'encoding': 'jsonParsed', 'commitment': 'confirmed'}])
+                    raw, slot = token_balance(payload, entry['address'], cohort['token'], cohort['decimals'])
+                    checked_at = payload.get('result', {}).get('_sourceObservedAt', int(time.time() * 1000) if now is None else at)
                 row = dict(entry, balanceRaw=str(raw), balance=raw / 10**cohort['decimals'],
-                           checkedAt=checked_at, attemptedAt=at, slot=slot, status='ok')
+                           checkedAt=checked_at, attemptedAt=at, slot=slot, status='ok',
+                           source='shared-wallet-scan' if cached else 'direct-mint-read')
             except Exception:
                 old = prior.get(entry['address'], {})
                 row = dict(entry, balanceRaw=old.get('balanceRaw'), balance=old.get('balance'),
@@ -225,10 +247,14 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
             pass
         try:
             price = price_fetcher() if price_fetcher else None
+            if isinstance(price, dict):
+                price_at, price = price.get('observedAt'), price.get('value')
+            elif price is not None:
+                price_at = at
             if price is not None and (not math.isfinite(price) or price <= 0):
-                price = None
+                price, price_at = None, None
         except Exception:
-            price = None
+            price, price_at = None, None
     finally:
         if client:
             client.close()
@@ -242,7 +268,9 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
                  checkedWallets=sum(row['status'] == 'ok' for row in wallets),
                  holders=sum(row['balance'] > 0 for row in wallets) if complete else None,
                  walletBalances=[row['balanceRaw'] if row['status'] == 'ok' else None for row in wallets],
-                 priceUSD=price)
+                 priceUSD=price, priceObservedAt=price_at,
+                 walletCheckedAt=[row.get('checkedAt') if row['status'] == 'ok' else None for row in wallets],
+                 observedFrom=min((row['checkedAt'] for row in wallets if row['status'] == 'ok'), default=None))
     if rolling:
         point.update(source='rolling-collection', collectionStartedAt=cycle_start,
                      collectionEndedAt=ended_at, totalWallets=len(wallets))
@@ -255,7 +283,9 @@ def collect(directory, rpc=None, price_fetcher=None, now=None, pause=time.sleep,
                   startedAt=previous.get('startedAt') or (previous['samples'][0]['time'] if previous['samples'] else at),
                   wallets=wallets, supply=supply,
                   status='ok' if complete else 'partial' if point['checkedWallets'] else 'unavailable',
-                  samples=samples[-MAX_SAMPLES:], **({'backfill': previous['backfill']} if 'backfill' in previous else {}))
+                  samples=samples[-MAX_SAMPLES:],
+                  requests=dict(sharedBalanceHits=reused, balanceFetches=fetched),
+                  **({'backfill': previous['backfill']} if 'backfill' in previous else {}))
     if rolling:
         report['collection'] = dict(startedAt=cycle_start, inProgress=not complete,
                                     checkedWallets=point['checkedWallets'], totalWallets=len(wallets), maxAgeMs=COLLECTION_MS)

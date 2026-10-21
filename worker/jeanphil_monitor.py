@@ -29,6 +29,13 @@ def _number(value):
 def market_sample(now_ms, fetcher=None):
     if fetcher is None:
         def fetcher(url):
+            import os
+            if os.getenv('MEME_SHARED_SOURCES') == '1':
+                if __package__:
+                    from worker.source_stream import shared_dex
+                else:
+                    from source_stream import shared_dex
+                return {'pairs': shared_dex('solana', [CONTRACT])}
             request = Request(url, headers={"User-Agent": "MemeFast/1.0", "Accept": "application/json"})
             with urlopen(request, timeout=20) as response:
                 return json.load(response)
@@ -41,7 +48,7 @@ def market_sample(now_ms, fetcher=None):
     price = _number(pair.get("priceUsd"))
     if price is None:
         raise ValueError("Selected Jean Phil pool has no price")
-    return {"at": now_ms, "priceUsd": price, "marketCap": _number(pair.get("marketCap")),
+    return {"at": min(now_ms, _number(pair.get('_sourceObservedAt')) or now_ms), "priceUsd": price, "marketCap": _number(pair.get("marketCap")),
             "fdv": _number(pair.get("fdv")), "liquidity": _number((pair.get("liquidity") or {}).get("usd")),
             "volume5m": _number((pair.get("volume") or {}).get("m5")),
             "buys5m": _number(((pair.get("txns") or {}).get("m5") or {}).get("buys")),

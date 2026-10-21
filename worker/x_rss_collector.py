@@ -45,7 +45,18 @@ def search_url(term):
         {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"})
 
 
+class ObservedFeed(bytes):
+    def __new__(cls, value, observed_at):
+        instance = super().__new__(cls, value)
+        instance.observed_at = observed_at
+        return instance
+
+
 def fetch_feed(url):
+    if os.getenv('MEME_SHARED_SOURCES') == '1':
+        import modal
+        report = modal.Function.from_name('meme-fast', 'read_social_source').remote(url)
+        return ObservedFeed(report['value'].encode('utf-8'), report['observedAt'])
     request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; MemeFastRSS/1.0)"})
     with urlopen(request, timeout=20) as response:
         return response.read()
@@ -100,9 +111,12 @@ def collect(snapshot, config, fetcher=fetch_feed, now_ms=None, limit=3):
     coins, errors = {}, []
     for target in targets:
         found = {}
+        observed_at = now_ms
         try:
             for term in [target["contract"], *target["aliases"]]:
-                for post in parse_feed(fetcher(search_url(term)), now_ms):
+                body = fetcher(search_url(term))
+                observed_at = min(observed_at, getattr(body, 'observed_at', now_ms))
+                for post in parse_feed(body, now_ms):
                     if not title_matches(post["title"], term):
                         continue
                     found[post["guid"]] = post
@@ -112,7 +126,7 @@ def collect(snapshot, config, fetcher=fetch_feed, now_ms=None, limit=3):
             previous = sum(now_ms - 12 * HOUR_MS <= post["publishedAt"] < now_ms - 6 * HOUR_MS
                            for post in posts)
             coins[target["id"]] = {
-                "source": "google-news-rss", "sampledAt": now_ms,
+                "source": "google-news-rss", "sampledAt": observed_at,
                 "posts6h": len(current), "previousPosts6h": previous,
                 "delta6h": len(current) - previous,
                 "coverage": "Google News RSS index of x.com; visible title matches for contract or configured aliases; sampled, incomplete coverage; alias matches do not prove a contract link",

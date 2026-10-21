@@ -257,18 +257,24 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
     errors = 0
     metadata = dict(report.get('tokens', {}))
     try:
-        for wallet in sorted(registry, key=lambda row: scans.get(row['address'], {}).get('attemptedAt') or 0):
+        for wallet in sorted(registry, key=lambda row: (
+                row.get('collectionPriority', 0) if row['address'] in scans else -1,
+                scans.get(row['address'], {}).get('attemptedAt') or 0)):
             if time.monotonic() >= deadline:
                 break
             owner = wallet['address']
             prior = scans.get(owner, {})
+            if prior.get('attemptedAt') and 0 <= at - prior['attemptedAt'] < wallet.get('refreshAfterMs', 0):
+                continue
             scan = dict(prior, address=owner, attemptedAt=at, status='partial', error=None)
             seen.setdefault(owner, {})
             try:
                 signatures = rpc('getSignaturesForAddress', [owner, {'limit': 40, 'commitment': 'confirmed'}])
                 if not isinstance(signatures, list):
                     raise ValueError('Signature history unavailable')
-                eligible = [row for row in signatures if row.get('blockTime') and cutoff <= row['blockTime'] * 1000 <= at and not row.get('err')]
+                recent_only = bool(wallet.get('refreshAfterMs')) and not wallet.get('interested')
+                sample_cutoff = max(cutoff, at - 86400000) if recent_only else cutoff
+                eligible = [row for row in signatures if row.get('blockTime') and sample_cutoff <= row['blockTime'] * 1000 <= at and not row.get('err')]
                 pending = [row for row in eligible if row['signature'] not in seen[owner]]
                 checked, missing = 0, 0
                 for row in pending[:8]:
@@ -289,7 +295,8 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
                 scan.update(checkedAt=at, returned=len(signatures), eligible=len(eligible), inspected=checked, missing=missing, pending=len(pending)-checked, signatureCapped=len(signatures)>=40, status='partial' if missing or len(pending)>checked or len(signatures)>=40 else 'ok')
                 if missing:
                     scan['error'] = 'Some transactions were unavailable, invalid or rate limited.'
-                if time.monotonic() < deadline:
+                scan['collectionScope'] = 'recent24h' if recent_only else 'retained-history'
+                if time.monotonic() < deadline and not recent_only:
                     try:
                         state = history.setdefault(owner, {})
                         history[owner] = history_step(owner, state, seen[owner], events, rpc, at, deadline)
@@ -311,9 +318,8 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
             requested = sorted({row['mint'] for row in events.values()} - metadata.keys())[:30]
             if requested:
                 try:
-                    response = client.get('https://api.dexscreener.com/tokens/v1/solana/' + ','.join(requested))
-                    response.raise_for_status()
-                    metadata.update(token_metadata(response.json(), set(requested)))
+                    from worker.source_stream import source_json
+                    metadata.update(token_metadata(source_json(client, 'https://api.dexscreener.com/tokens/v1/solana/' + ','.join(requested)), set(requested)))
                 except Exception:
                     pass  # Missing labels never change classified trade amounts.
     finally:

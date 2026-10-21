@@ -41,14 +41,8 @@ def analyze(owner, rpc=None, pause=time.sleep, now=None):
         import ssl
         import truststore
         client = httpx.Client(timeout=8, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
-        def rpc(method, params):
-            response = client.post(os.getenv('SOLANA_WALLET_RPC_URL', 'https://api.mainnet-beta.solana.com'),
-                                   json={'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params})
-            response.raise_for_status()
-            value = response.json()
-            if value.get('error'):
-                raise ValueError('Public RPC unavailable or rate limited')
-            return value.get('result')
+        from worker.public_rpc import public_rpc
+        rpc = public_rpc(client, pause=pause)
     events, checked, missing, returned = [], 0, 0, 0
     error = None
     try:
@@ -59,7 +53,6 @@ def analyze(owner, rpc=None, pause=time.sleep, now=None):
         for row in signatures:
             if row.get('err') or not row.get('blockTime') or row['blockTime'] * 1000 < at - 86400000:
                 continue
-            pause(1.6)
             try:
                 tx = rpc('getTransaction', [row['signature'], {'encoding': 'jsonParsed', 'maxSupportedTransactionVersion': 1, 'commitment': 'confirmed'}])
                 if not tx:

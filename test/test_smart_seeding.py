@@ -28,6 +28,19 @@ def policy():
 
 
 class RankingTests(unittest.TestCase):
+    def test_common_pool_filters_automatic_tokens_but_inspect_can_resume_saved_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = dict(events=[event(0),event(1)])
+            plan = seeds.prepare(directory,REGISTRY,ledger,[],{},NOW,active_tokens={TOKENS[0]})
+            self.assertEqual([row['token'] for row in plan['ranking']],[TOKENS[0]])
+            original = group()['token']
+            self.assertTrue(plan['tokens'][original]['streamPaused'])
+            job = seeds.choose_job(plan,[],NOW)
+            self.assertNotEqual(job['token'],original)
+            watch=dict(token=original,scope='legacy',requestedAt=NOW+1000)
+            plan = seeds.prepare(directory,REGISTRY,ledger,[watch],{},NOW+1000,active_tokens=set())
+            self.assertFalse(plan['tokens'][original]['streamPaused'])
+
     def test_dispatch_lease_prevents_backlogs_and_failed_enqueue_can_retry(self):
         class Leases(dict):
             def put(self,key,value,skip_if_exists=False):

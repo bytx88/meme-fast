@@ -87,34 +87,24 @@ def holder_candidates(mint, rpc, now=None):
         if owners[owner] <= 0:
             continue
         candidates.append(dict(address=owner, balanceRaw=str(owners[owner]), balance=owners[owner]/10**places,
-                               label='Public holder candidate', source='Public', discoveryToken=mint))
+                               decimals=places, label='Public holder candidate', source='Public', discoveryToken=mint))
     return dict(token=mint, checkedAt=now or int(time.time()*1000), candidates=candidates[:10],
                 sampledAccounts=len(rows), excludedAccounts=excluded,
                 coverage='Up to 10 signing-wallet candidates from 20 largest token accounts. Program authorities are excluded. Balances cover sampled accounts only. Holding size does not verify skill, identity or profitability.')
 
 
 def discover(token=''):
+    if not token:
+        from worker.data_stream import read
+        report = read('.data')
+        return dict(tokens=[dict(address=row['contract_address'], symbol=row.get('symbol'))
+                            for row in report.get('windows', {}).get('1h', {}).get('tokens', [])
+                            if row['network'] == 'solana'][:15], checkedAt=report.get('updatedAt'),
+                    source='Shared 1h token stream')
     import httpx
     import ssl
     import truststore
     with httpx.Client(timeout=12, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
-        if not token:
-            response = client.get('https://api.geckoterminal.com/api/v2/networks/solana/trending_pools', params={'include': 'base_token', 'page': 1})
-            response.raise_for_status()
-            body = response.json()
-            included = {row['id']: row for row in body.get('included', []) if row.get('type') == 'token'}
-            tokens = {}
-            for pool in body.get('data', []):
-                row = included.get(pool.get('relationships', {}).get('base_token', {}).get('data', {}).get('id'), {})
-                info = row.get('attributes', {})
-                address = info.get('address')
-                if address:
-                    try:
-                        valid_address(address)
-                        tokens.setdefault(address, dict(address=address, symbol=str(info.get('symbol') or address[:8])[:40]))
-                    except ValueError:
-                        pass
-            return dict(tokens=list(tokens.values())[:15], checkedAt=int(time.time()*1000), source='GeckoTerminal Solana trending pools')
         from worker.public_rpc import public_rpc
         rpc = public_rpc(client)
         return holder_candidates(token, rpc)

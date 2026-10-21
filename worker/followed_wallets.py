@@ -8,6 +8,10 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+if __package__:
+    from worker.shared_holdings import observe
+else:
+    from shared_holdings import observe
 
 REGISTRY = Path(__file__).with_name('followed-wallets.json')
 PROGRAMS = ('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
@@ -94,10 +98,11 @@ def positive_mints(payload, owner):
     return mints
 
 
-def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220):
+def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220, retain_mints=None):
     started = time.monotonic()
     deadline = started + budget_seconds
-    now = now or int(time.time() * 1000)
+    fixed_now = now
+    now = now if now is not None else int(time.time() * 1000)
     path = Path(filename)
     try:
         previous = {row['address']: row for row in json.loads(path.read_text())['wallets']}
@@ -112,6 +117,13 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('Wallet sampling budget exhausted')
+            if os.getenv('MEME_SHARED_SOURCES') == '1':
+                if __package__:
+                    from worker.source_stream import shared_rpc
+                else:
+                    from source_stream import shared_rpc
+                return {'result': shared_rpc('getTokenAccountsByOwner', [owner, {'programId': program},
+                                            {'encoding': 'jsonParsed', 'commitment': 'confirmed'}])}
             response = client.post(os.getenv('SOLANA_WALLET_RPC_URL', 'https://api.mainnet-beta.solana.com'),
                 timeout=min(15, remaining),
                 json={'jsonrpc': '2.0', 'id': 1, 'method': 'getTokenAccountsByOwner',
@@ -121,29 +133,42 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220)
             return response.json()
     else:
         client = None
+    # The RPC budget starts after client/TLS setup; the parent process still
+    # enforces the independent overall deadline, including setup and shutdown.
+    deadline = time.monotonic() + budget_seconds
     report = awaiting(registry)
     sampled = {}
     try:
-        for row in sorted(report['wallets'], key=lambda entry: previous.get(entry['address'], {}).get('attemptedAt') or 0):
+        for row in sorted(report['wallets'], key=lambda entry: (
+                entry.get('collectionPriority', 0) if entry['address'] in previous else -1,
+                previous.get(entry['address'], {}).get('attemptedAt') or 0)):
             owner = row['address']
-            if time.monotonic() >= deadline:
+            old = previous.get(owner, {})
+            recent = old.get('attemptedAt') and 0 <= now - old['attemptedAt'] < row.get('refreshAfterMs', 0)
+            if recent or time.monotonic() >= deadline:
                 old = previous.get(owner, {})
-                row.update(checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status=old.get('status', 'unavailable'), mints=old.get('mints', []))
+                row.update(checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status=old.get('status', 'unavailable'), mints=old.get('mints', []), observation=old.get('observation'))
                 continue
             if owner not in sampled:
                 try:
-                    mints = set()
+                    mints, responses = set(), {}
+                    sampled_at = fixed_now if fixed_now is not None else int(time.time() * 1000)
                     for program in PROGRAMS:
                         if time.monotonic() >= deadline:
                             raise TimeoutError('Wallet sampling budget exhausted')
-                        mints.update(positive_mints(fetcher(owner, program), owner))
-                        if client:
+                        responses[program] = fetcher(owner, program)
+                        mints.update(positive_mints(responses[program], owner))
+                        if client and os.getenv('MEME_SHARED_SOURCES') != '1':
                             time.sleep(min(1.5, max(0, deadline - time.monotonic())))
-                    sampled[owner] = dict(checkedAt=now, attemptedAt=now, status='ok', mints=sorted(mints))
+                    sampled[owner] = dict(checkedAt=sampled_at, attemptedAt=now, status='ok', mints=sorted(mints),
+                                          observation=observe(owner, responses, min([sampled_at, *[
+                                              value['result'].get('_sourceObservedAt', sampled_at) for value in responses.values()]]), retain_mints))
+                    if sampled[owner]['observation']:
+                        sampled[owner]['checkedAt'] = sampled[owner]['observation']['sampledAt']
                 except Exception:
                     old = previous.get(owner, {})
                     sampled[owner] = dict(checkedAt=old.get('checkedAt'), attemptedAt=now,
-                        status='unavailable', mints=old.get('mints', []))
+                        status='unavailable', mints=old.get('mints', []), observation=old.get('observation'))
             row.update(sampled[owner])
     finally:
         if client:
@@ -159,7 +184,7 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220)
     return report
 
 
-def collect_isolated(filename, registry, budget_seconds=180, timeout_seconds=210):
+def collect_isolated(filename, registry, budget_seconds=180, timeout_seconds=210, retain_mints=None):
     """Stop even an RPC stuck reading a response before committing the Volume."""
     if not 0 < budget_seconds < timeout_seconds:
         raise ValueError('Sampling budget must fit inside the process deadline')
@@ -167,8 +192,13 @@ def collect_isolated(filename, registry, budget_seconds=180, timeout_seconds=210
     with tempfile.TemporaryDirectory(prefix='followed-wallets-') as folder:
         registry_path = Path(folder)/'registry.json'
         registry_path.write_text(json.dumps(registry), encoding='utf-8')
+        arguments = []
+        if retain_mints is not None:
+            token_path = Path(folder)/'tokens.json'
+            token_path.write_text(json.dumps(list(retain_mints)), encoding='utf-8')
+            arguments = ['--retain-mints',str(token_path)]
         result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(filename),
-            '--registry', str(registry_path), '--budget-seconds', str(budget_seconds)],
+            '--registry', str(registry_path), '--budget-seconds', str(budget_seconds), *arguments],
             capture_output=True, text=True, timeout=timeout_seconds)
     if result.returncode:
         raise RuntimeError(result.stderr[-4000:] or f'Wallet collector exited {result.returncode}')
@@ -181,8 +211,10 @@ if __name__ == '__main__':
     parser.add_argument('filename')
     parser.add_argument('--registry')
     parser.add_argument('--budget-seconds', type=float, default=220)
+    parser.add_argument('--retain-mints')
     args = parser.parse_args()
     registry = json.loads(Path(args.registry).read_text(encoding='utf-8')) if args.registry else None
-    report = collect(args.filename, registry=registry, budget_seconds=args.budget_seconds)
+    retained = json.loads(Path(args.retain_mints).read_text(encoding='utf-8')) if args.retain_mints else None
+    report = collect(args.filename, registry=registry, budget_seconds=args.budget_seconds, retain_mints=retained)
     print(json.dumps({'wallets': len(report['wallets']),
                       'available': sum(row['status'] == 'ok' for row in report['wallets'])}))

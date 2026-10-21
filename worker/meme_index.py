@@ -79,10 +79,8 @@ class Sources:
         self.client = httpx.Client(timeout=12)
 
     def get(self, url, **kwargs):
-        response = self.client.get(url, **kwargs)
-        if response.status_code != 200:
-            raise ValueError('Provider HTTP ' + str(response.status_code))
-        return response.json()
+        from worker.source_stream import source_json
+        return source_json(self.client, url, **kwargs)
 
     def board(self):
         key = os.environ.get('FOMO_KEY')
@@ -92,11 +90,13 @@ class Sources:
                         headers={'authorization': 'Bearer ' + key})
 
     def quotes(self, tokens, now):
-        """Resolve up to 30 exact contracts with one bounded DexScreener request."""
+        """Reuse shared per-token quotes, batching missing contracts per chain."""
         if not tokens or len(tokens) > 30:
             raise ValueError('Invalid basket quote batch')
-        addresses = ','.join(token['address'] for token in tokens)
-        pairs = self.get('https://api.dexscreener.com/latest/dex/tokens/' + addresses).get('pairs') or []
+        pairs = []
+        for chain in sorted({{'eth': 'ethereum'}.get(token['chain'], token['chain']) for token in tokens}):
+            addresses = ','.join(token['address'] for token in tokens if {'eth': 'ethereum'}.get(token['chain'], token['chain']) == chain)
+            pairs.extend(self.get('https://api.dexscreener.com/tokens/v1/' + chain + '/' + addresses))
         result = {}
         for token in tokens:
             chain = {'eth': 'ethereum'}.get(token['chain'], token['chain'])
@@ -115,7 +115,7 @@ class Sources:
                     continue
                 if price and liquidity and liquidity >= 10_000 and volume and math.isfinite(change) and change > -90:
                     candidates.append({'price': price, 'liquidity': liquidity, 'source': 'DexScreener',
-                                       'h1': change, 'at': now})
+                                       'h1': change, 'at': min(now, pair.get('_sourceObservedAt') or now)})
             if candidates:
                 result[token['id']] = max(candidates, key=lambda q: q['liquidity'])
         return result

@@ -1,7 +1,7 @@
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL} from '../dist/public-radar.mjs';
+import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL,mergeArticles} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
@@ -28,7 +28,11 @@ export function refreshMarket(coins,pairs,now=Date.now()){
  return coins.map(coin=>{
   const pair=byAddress.get(tokenKey(`${coin.network}:${coin.contract_address}`));
   if(!pair)return coin;
-  return {...coin,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?now:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:now,fetchedAt:now};
+  const observedAt=Math.min(now,amount(pair._sourceObservedAt)??now);
+  if(observedAt<(coin.marketUpdatedAt??0))return coin;
+  const marketWindows=Object.fromEntries(['m5','h1','h6','h24'].map(window=>[window,{
+   volume:amount(pair.volume?.[window]),buys:amount(pair.txns?.[window]?.buys),sells:amount(pair.txns?.[window]?.sells),buyers:null}]));
+  return {...coin,marketWindows,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?observedAt:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:observedAt,fetchedAt:observedAt};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
@@ -259,6 +263,7 @@ async function enrichContext(snapshot,fetcher,now){
   const profiles=await response.json();return Array.isArray(profiles)?profiles:[];
  })()]);
  const articles=news.slice(0,FEEDS.length).flatMap(r=>r.status==='fulfilled'?r.value:[]);
+ snapshot.articles=mergeArticles(snapshot.articles||[],articles,now);
  const profiles=news.at(-1).status==='fulfilled'?news.at(-1).value:[];
  FEEDS.forEach((feed,index)=>{const result=news[index];feeds[`news_${feed.id}`]=feedStatus(feeds[`news_${feed.id}`],now,result.status==='fulfilled'?{records:result.value.length}:{error:result.reason.message})});
  const profileResult=news.at(-1);
@@ -291,10 +296,36 @@ async function enrichContext(snapshot,fetcher,now){
  for(const coin of radarCoins){const current=byId.get(coin.id);if(current){coin.savedContext=current.savedContext;coin.contextCheckedAt=current.contextCheckedAt}}
  return {articles:articles.length,profiles:profiles.length,checked:queue.length,failedLookups:queue.filter(coin=>coin.contextError).length};
 }
-export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[]}={}){
+export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[],candidateTokens=null}={}){
  const previous=await readSnapshot(filename),feeds={...previous.feeds};
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
+ // Wallet-led discoveries share the existing exact-contract market batch.
+ // Only unknown contracts receive a lookup; admission still requires liquidity.
+ let candidates=candidateTokens||[];
+ if(candidateTokens===null)try{candidates=JSON.parse(process.env.MEME_STREAM_TOKEN_CANDIDATES||'[]')}catch{}
+ const known=new Set([...(previous.coins||[]),...(previous.radarCoins||[])].map(c=>tokenKey(c.id)));
+ const nominated=Array.isArray(candidates)?[...new Map(candidates.filter(row=>
+  typeof row.token==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(row.token)&&
+  now-row.lastBuyAt>=0&&now-row.lastBuyAt<=86400000&&!known.has(`solana:${row.token}`)).map(row=>[row.token,row])).values()].slice(0,30):[];
+ const nominationWork=(async()=>{
+  if(!nominated.length)return [];
+  try{
+   const response=await fetcher('https://api.dexscreener.com/tokens/v1/solana/'+nominated.map(row=>encodeURIComponent(row.token)).join(','),{signal:AbortSignal.timeout(15000)});
+   if(!response.ok)throw new Error(`Wallet discovery HTTP ${response.status}`);
+   const pairs=await response.json();if(!Array.isArray(pairs))throw new Error('Invalid wallet-discovery market response');
+   const seeds=nominated.flatMap(row=>{
+    const pair=pairs.filter(pair=>pair.chainId==='solana'&&pair.baseToken?.address===row.token)
+     .sort((a,b)=>(b.liquidity?.usd??0)-(a.liquidity?.usd??0))[0];
+    return pair?[{id:`solana:${row.token}`,network:'solana',chain:'Solana',contract_address:row.token,
+     contract_verified:true,name:pair.baseToken.name||pair.baseToken.symbol||'Token',symbol:pair.baseToken.symbol||'?',
+     poolCreated:Number(pair.pairCreatedAt)||null,walletEvidenceAt:row.lastBuyAt}]:[];
+   });
+   const result=refreshMarket(seeds,pairs,now);
+   feeds.wallet_token_discovery=feedStatus(feeds.wallet_token_discovery,now,{records:result.length});
+   return result;
+  }catch(error){feeds.wallet_token_discovery=feedStatus(feeds.wallet_token_discovery,now,{error:error.message});return []}
+ })();
  // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
  let tracked=[],indexedCoins=[],launch,launchPools=[];
  const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length+RADAR_NETWORKS.filter(n=>n.priorityTrending).length,betweenPasses:async({incoming,trending})=>{
@@ -338,7 +369,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  }});
  // Dexscreener progresses independently while Gecko waits or backs off.
  const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
- const [{incoming,trending,topPools},retained]=await Promise.all([discovery,retainedRefresh]);
+ const [{incoming,trending,topPools},retained,walletCoins]=await Promise.all([discovery,retainedRefresh,nominationWork]);
  previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
  let coins=mergeCoins(coinsFromDiscovery,[...trending,...indexedCoins,...launchPools],now);
@@ -346,14 +377,18 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const curveIds=new Set(launch.tokens.filter(t=>normalizeLaunchpad(t.attributes?.launchpad_details)?.completed===false).map(t=>`${String(t.id).split('_')[0]}:${t.attributes.address}`));
  coins=mergeCoins(coins,launch.pools.filter(c=>curveIds.has(c.id)).map(c=>({...c,launchpadSource:'verified-curve'})),now);
  coins=refreshLaunchpad(coins,launch.tokens,now).map(coin=>launch.checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
- let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked],coins,now);
+ let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked,...walletCoins],coins,now);
  const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
  market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests+launch.attemptedRequests;
  coins=market.coins;radarCoins=market.radarCoins;
  const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools','launchpad_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
  const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
- const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
+ const tweetCoins=NETWORKS.flatMap(network=>feeds[`${network.id}_trending`]?.error
+  ? (previous.tweetCoins||[]).filter(coin=>coin.network===network.id)
+  : trending.filter(coin=>coin.network===network.id).slice(0,30));
+ const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,
+ tweetCoins,articles:previous.articles||[],lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
   discovery:{status:discoveryStatus,completedAt:now,coins:coins.length,radarCoins:radarCoins.length},
   market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs,selectedContracts:retained.selected,refreshLimit:1800,priorityContracts:priorityIds.length},
   context:{status:'pending'},

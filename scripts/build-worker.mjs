@@ -10,11 +10,14 @@ for(const entry of await readdir('dist',{withFileTypes:true})){
 }
 if(!assets['/index.html']||!assets['/narratives.html'])throw new Error('Missing page');
 const proxy=await readFile('worker/market.mjs','utf8');
-const source=proxy+'\nconst assets='+JSON.stringify(assets)+';\n'+`
+const dexProxy=await readFile('worker/dex-market.mjs','utf8');
+const source=proxy+'\n'+dexProxy+'\nconst assets='+JSON.stringify(assets)+';\n'+`
 const market=createMarketProxy();
+const dex=createDexProxy();
 export default {async fetch(request){
   const url=new URL(request.url);
   if(url.pathname.startsWith('/api/market/'))return market(request);
+  if(url.pathname.startsWith('/api/dex/'))return dex(request);
   if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
   if(url.pathname==='/guide'||url.pathname==='/guide.html')return Response.redirect(new URL('/model',url),308);
   const aliases={'/':'/order-flow.html','/narratives':'/narratives.html','/model':'/model.html','/meme-101':'/meme-101.html','/meme-101a':'/meme-101.html','/meme-101b':'/meme-101b.html','/meme-101c':'/meme-101c.html','/meme-303':'/meme-303.html','/meme-303a':'/meme-303a.html','/meme-303b':'/meme-303b.html','/learn':'/learn.html','/meme-202a':'/meme-202a.html','/meme-202b':'/meme-202b.html'};

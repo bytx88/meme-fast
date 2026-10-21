@@ -79,13 +79,15 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
                 "message": "RSS retry cooldown is active.", "posts": [],
                 "nextRefreshAt": cache["lastAttemptAt"] + FRESH_MS}
 
-    found, errors = {}, []
+    found, errors, observed_at = {}, [], now_ms
     labels = {"contract query": ("exact", "Exact contract in indexed title"),
               "configured alias query": ("lead", "Configured alias in indexed title; contract unverified"),
               "name query; contract unverified": ("lead", "Token name in indexed title; contract unverified")}
     for term, reason in target["terms"]:
         try:
-            for post in parse_feed(fetcher(search_url(term)), now_ms):
+            body = fetcher(search_url(term))
+            observed_at = min(observed_at, getattr(body, 'observed_at', now_ms))
+            for post in parse_feed(body, now_ms):
                 if not title_matches(post["title"], term):
                     continue
                 current = found.get(post["guid"])
@@ -112,7 +114,7 @@ def collect_coin_evidence(snapshot, config, token_id, cache_dir, fetcher=fetch_f
     previous = [row for row in posts if row["publishedAt"] < now_ms - 6 * HOUR_MS]
     report = {"version": REPORT_VERSION, "id": token_id,
               "status": "partial" if errors else "connected", "source": "google-news-rss",
-              "sampledAt": now_ms, "lastAttemptAt": now_ms,
+              "sampledAt": observed_at, "lastAttemptAt": now_ms,
               "coverage": "Google News RSS index of x.com; visible title matches only; incomplete sample; alias and name matches do not prove a contract link",
               "queries": [{"term": term, "reason": reason} for term, reason in target["terms"]],
               "posts6h": len(current), "previousPosts6h": len(previous),

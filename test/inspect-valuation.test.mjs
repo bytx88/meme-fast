@@ -6,6 +6,15 @@ const token={network:'solana',address,symbol:'PUMP',name:'Pump'};
 const key=`solana:${address}`;
 function pool(price,cap,liquidity=27000000){return {attributes:{address:'pump-usdc',reserve_in_usd:liquidity,base_token_price_usd:price,market_cap_usd:cap},relationships:{base_token:{data:{id:`solana_${address}`}}}}}
 const load=(selected,pools,valuation)=>loadListings([selected],async path=>({data:path.includes('/tokens/')?pools:[]}),()=>{},()=>true,()=>{},valuation);
+
+test('Shared-source caches retain original valuation and swap observation times',async()=>{
+ const result=await loadListings([token],async path=>({data:path.includes('/tokens/')?[pool(.006,2.77e9)]:[],
+  _sourceObservedAt:path.includes('/tokens/')?1200:1234}));
+ assert.equal(result.listings[0].price.fetchedAt,1200);
+ assert.equal(result.listings[0].marketCap.fetchedAt,1200);
+ assert.equal(result.pools[0].observedAt,1234);
+ assert.equal(result.observedAt,1234);
+});
 test('PUMP refresh cannot use cached $26.31 / $12.2T hints over fresh pool values',async()=>{
  const selected={...token,poolHints:[pool(26.31,12.2e12,28000000)]};
  const result=await load(selected,[pool(.006,2.77e9)]);

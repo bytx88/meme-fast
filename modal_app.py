@@ -29,7 +29,7 @@ if not RUNNING_IN_MODAL and not (LOCAL_DIST / "index.html").is_file():
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .env({"MEME_FAST_ASSET_REVISION": ASSET_REVISION})
+    .env({"MEME_FAST_ASSET_REVISION": ASSET_REVISION, "MEME_SHARED_SOURCES": "1"})
     .apt_install("nodejs")
     .pip_install("fastapi>=0.111.0", "httpx>=0.27.0", "truststore>=0.10.0")
     .add_local_dir(DIST_SOURCE, remote_path=REMOTE_DIST, copy=True)
@@ -47,6 +47,187 @@ balance_watches = modal.Dict.from_name("meme-fast-balance-watches", create_if_mi
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
 balance_requests = modal.Dict.from_name("meme-fast-balance-requests", create_if_missing=True)
 smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_if_missing=True)
+source_volume = modal.Volume.from_name("meme-fast-source-stream", create_if_missing=True)
+stream_volume = modal.Volume.from_name("meme-fast-data-stream", create_if_missing=True)
+
+
+@app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
+@modal.concurrent(max_inputs=1)
+def read_gecko_source(path):
+    import sys
+    import httpx
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.source_stream import source_session, paced_get, gecko_path
+    path = gecko_path(path)
+    session = source_session('/sources/gecko', source_volume)
+    stream = session.stream()
+    ttl = 900 if path.split('?', 1)[0].endswith('/info') else 30 if path.endswith('/trades') else 60
+    if '/ohlcv/' in path:
+        ttl = 300
+    try:
+        def fetch():
+            with httpx.Client(timeout=15, follow_redirects=False) as client:
+                response = paced_get(session, client, 'https://api.geckoterminal.com/api/v2' + path, 4.5,
+                                     headers={'accept': 'application/json'})
+                body = response.json()
+                if not isinstance(body, dict) or not isinstance(body.get('data'), (list, dict)):
+                    raise ValueError('Invalid market source response')
+                return body
+        reply = stream.get('gecko:request', path, fetch, ttl)
+        return dict(status=200, body=dict(reply['value'], _sourceObservedAt=reply['observedAt']))
+    except Exception:
+        import time
+        cooldown = stream.cooldowns().get(('api.geckoterminal.com', 'get'), 0) - time.time()
+        return dict(status=429 if cooldown > 0 else 503, body={'error':'Shared market source unavailable'},
+                    retryAfter=max(1, int(cooldown)))
+    finally:
+        session.finish()
+
+
+@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@modal.concurrent(max_inputs=1)
+def read_social_source(url):
+    import sys
+    from urllib.parse import urlparse, parse_qsl
+    import httpx
+    import xml.etree.ElementTree as ET
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.source_stream import source_session, paced_get
+    target = urlparse(url)
+    if (target.scheme != 'https' or target.netloc != 'news.google.com' or target.path != '/rss/search'
+            or target.fragment or len(url) > 1500 or set(dict(parse_qsl(target.query))) - {'q', 'hl', 'gl', 'ceid'}):
+        raise ValueError('Unsupported social source')
+    session = source_session('/sources/rss', source_volume)
+    stream = session.stream()
+    try:
+        def fetch():
+            with httpx.Client(timeout=20, follow_redirects=True) as client:
+                response = paced_get(session, client, url, 1,
+                                     headers={'User-Agent': 'Mozilla/5.0 (compatible; MemeFastRSS/1.0)'})
+                if ET.fromstring(response.content).tag != 'rss':
+                    raise ValueError('Invalid RSS source response')
+                return response.content.decode('utf-8')
+        return stream.get('rss:search', sorted(parse_qsl(target.query)), fetch, 300)
+    finally:
+        session.finish()
+
+
+@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@modal.concurrent(max_inputs=1)
+def read_market_source(network, addresses, scope='quotes'):
+    import sys
+    import httpx
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.source_stream import source_session, dex_tokens, dex_pools, paced_get
+    if scope not in ('quotes', 'pools') or scope == 'pools' and len(addresses) != 1:
+        raise ValueError('Invalid token source scope')
+    search = network == 'search'
+    if network not in ('solana', 'base', 'robinhood', 'bsc', 'ethereum', 'arbitrum', 'optimism', 'polygon', 'avalanche', 'search'):
+        raise ValueError('Unsupported market network')
+    if search:
+        if not isinstance(addresses, list) or len(addresses) != 1 or not isinstance(addresses[0], str) or not 1 <= len(addresses[0].strip()) <= 160:
+            raise ValueError('Invalid market search')
+    elif not isinstance(addresses, list) or not 1 <= len(addresses) <= 30 or any(
+            not isinstance(address, str) or not re.fullmatch(r'[A-Za-z0-9]{20,100}', address) for address in addresses):
+        raise ValueError('Invalid token addresses')
+    if network not in ('solana', 'search'):
+        addresses = [address.lower() for address in addresses]
+    session = source_session('/sources/dex', source_volume)
+    stream = session.stream()
+    try:
+        with httpx.Client(timeout=15, follow_redirects=False) as client:
+            if search:
+                def search_tokens():
+                    response = paced_get(session, client, 'https://api.dexscreener.com/latest/dex/search', .3, params={'q': addresses[0]})
+                    body = response.json()
+                    if not isinstance(body.get('pairs'), list):
+                        raise ValueError('Invalid market search response')
+                    return body
+                return stream.get('dex:search', addresses, search_tokens, 60)
+            if scope == 'pools':
+                def fetch_pools(chain, address):
+                    response = paced_get(session, client, 'https://api.dexscreener.com/token-pairs/v1/' + chain + '/' + address, .3)
+                    body = response.json()
+                    if not isinstance(body, list):
+                        raise ValueError('Invalid token pool response')
+                    return body
+                return dex_pools(stream, network, addresses[0], fetch_pools)
+            def fetch(chain, contracts):
+                response = paced_get(session, client, 'https://api.dexscreener.com/tokens/v1/' + chain + '/' + ','.join(contracts), .3)
+                body = response.json()
+                if not isinstance(body, list):
+                    raise ValueError('Invalid token market response')
+                return body
+            return dex_tokens(stream, network, addresses, fetch)
+    finally:
+        session.finish()
+
+
+@app.function(timeout=240, max_containers=1, memory=512,
+              volumes={'/stream': stream_volume, '/history': history_volume, '/smartness': smartness_volume})
+@modal.concurrent(max_inputs=1)
+def collect_data_stream():
+    import sys
+    import json
+    import httpx
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.data_stream import collect
+    from worker.public_rpc import public_rpc
+    from worker.smartness import read_report
+    stream_volume.reload()
+    history_volume.reload()
+    smartness_volume.reload()
+    def saved(name):
+        try:
+            return json.loads(Path('/history', name).read_text())
+        except (OSError, ValueError):
+            return {}
+    with httpx.Client(timeout=12) as client:
+        report = collect('/stream', saved('coins.json'), saved('followed-wallets.json'),
+                         read_report('/smartness'), rpc=public_rpc(client))
+    stream_volume.commit()
+    return dict(updatedAt=report['updatedAt'], tokens=len(report['tokens']), wallets=len(report['wallets']))
+
+
+@app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
+@modal.concurrent(max_inputs=1)
+def read_source(provider, method, params):
+    """One paced, cached provider owner for all wallet consumers."""
+    import httpx
+    import sys
+    import time
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.source_stream import source_session, RPC_TTL
+    if provider != 'solana' or method not in RPC_TTL or not isinstance(params, list):
+        raise ValueError('Unsupported source request')
+    from worker.public_rpc import public_rpc
+    session = source_session('/sources/solana', source_volume)
+    stream = session.stream()
+    blocked = stream.cooldowns()
+    old_blocked = dict(blocked)
+    try:
+        with httpx.Client(timeout=12) as client:
+            rpc = public_rpc(client, shared=False, blocked=blocked, clock=time.time)
+            # Latest-eight activity and latest-forty ledger reads reuse one page.
+            requested_limit = None
+            if method == 'getSignaturesForAddress' and len(params) == 2 and isinstance(params[1], dict):
+                requested_limit = params[1].get('limit', 40)
+                if type(requested_limit) is int and 0 < requested_limit <= 40 and not any(k in params[1] for k in ('before', 'until')):
+                    params = [params[0], dict(params[1], limit=40)]
+                else:
+                    requested_limit = None
+            result = stream.get('solana:' + method, params, lambda: rpc(method, params), RPC_TTL[method])
+            if requested_limit is not None and isinstance(result['value'], list):
+                result['value'] = result['value'][:requested_limit]
+            return result
+    finally:
+        stream.save_cooldowns(blocked)
+        session.finish(force=blocked != old_blocked)
 
 
 def dispatch_smart_collection():
@@ -57,7 +238,7 @@ def dispatch_smart_collection():
 
 
 @app.function(timeout=1200, max_containers=1,
-              volumes={"/smart": smart_volume, "/smartness": smartness_volume, "/history": history_volume})
+              volumes={"/smart": smart_volume, "/smartness": smartness_volume, "/history": history_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
     try:
@@ -100,7 +281,14 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
         holdings = json.loads(Path('/history/followed-wallets.json').read_text())
     except (OSError, ValueError):
         holdings = {}
-    plan = seeds.prepare('/smart', registry, read_ledger('/smartness'), watches, holdings, now)
+    from worker.data_stream import read as read_stream
+    stream_volume.reload()
+    stream = read_stream('/stream')
+    active_tokens = None
+    if (0 <= now - (stream.get('marketAt') or 0) < 15 * 60000
+            and stream.get('coverage', {}).get('freshMarketsByNetwork', {}).get('solana', 0) > 0):
+        active_tokens = {key.split(':', 1)[1] for key in stream['tokens'] if key.startswith('solana:')}
+    plan = seeds.prepare('/smart', registry, read_ledger('/smartness'), watches, holdings, now, active_tokens=active_tokens)
     smart_volume.commit()
     job = seeds.choose_job(plan, watches, now)
     result = None
@@ -120,7 +308,8 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
                   sum(row['status'] == 'ok' for row in report['wallets'])), '/', len(report['wallets']), flush=True)
         try:
             cohort = make_cohort(job['token'], registry, job['scope'])
-            result = collect_cycle('/smart', cohort=cohort, checkpoint=checkpoint, budget_seconds=900, pass_seconds=90)
+            result = collect_cycle('/smart', cohort=cohort, checkpoint=checkpoint, budget_seconds=900,
+                                   pass_seconds=90, holdings=holdings)
             seeds.checkpoint(plan, job, result, int(time.time() * 1000), finished=True)
             plan.pop('error', None)
         except Exception as error:
@@ -132,13 +321,19 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
             smart_volume.commit()
     # Keep the original archived group current, while honoring a token-wide pause.
     original = group()
-    paused = plan['tokens'].get(original['token'], {}).get('mode') == 'dormant'
-    if not paused and needs_refresh(read_report('/smart'), int(time.time() * 1000)):
-        collect_cycle('/smart', budget_seconds=35, pass_seconds=35, checkpoint=lambda _: smart_volume.commit())
+    original_policy = plan['tokens'].get(original['token'], {})
+    paused = original_policy.get('mode') == 'dormant' or original_policy.get('streamPaused')
+    legacy_requested = any(watch.get('token') == original['token'] and
+                           0 <= now - watch.get('requestedAt', 0) < 86400000 for watch in watches)
+    relevant = legacy_requested or original['token'] in (active_tokens or set()) or any(
+        row['token'] == original['token'] for row in plan['ranking'])
+    if relevant and not paused and needs_refresh(read_report('/smart'), int(time.time() * 1000)):
+        collect_cycle('/smart', budget_seconds=35, pass_seconds=35, holdings=holdings,
+                      checkpoint=lambda _: smart_volume.commit())
     return result or dict(ranking=len(plan['ranking']), monitored=len(plan['tokens']), error=plan.get('error'))
 
 
-@app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume})
+@app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smartness(evidence=None):
     import sys
@@ -153,6 +348,9 @@ def collect_smartness(evidence=None):
     report = read_report('/smartness')
     now = int(time.time() * 1000)
     registry = universe(registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,)), [value for _, value in wallet_universe_registry.items()])
+    from worker.data_stream import read as read_stream, collection_wallets
+    stream_volume.reload()
+    registry = collection_wallets(registry, read_stream('/stream'))
     if evidence is not None:
         from worker.smartness import ingest_evidence
         report, imported = ingest_evidence('/smartness', registry, evidence)
@@ -189,14 +387,18 @@ async def collect_macro_review():
     return public_report(report)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume})
+@app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_coins():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.coin_job import run_coin_job
-    return await run_coin_job(history_volume, refresh_priorities)
+    from worker.data_stream import read as read_stream
+    await stream_volume.reload.aio()
+    candidates = read_stream('/stream').get('tokenCandidates', [])
+    return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
+                              market_url=web.get_web_url().rstrip('/') + '/api/dex')
 
 
 @app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
@@ -255,7 +457,7 @@ def collect_meme_index():
 
 
 @app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1,
-              volumes={"/history": history_volume})
+              volumes={"/history": history_volume, '/stream': stream_volume})
 def collect_followed_wallets():
     import sys
     import time
@@ -268,10 +470,6 @@ def collect_followed_wallets():
     # Share the existing five-minute dispatch slot; keep balance-history writes
     # in their own single-writer function and Volume.
     try:
-        dispatch_smart_collection()
-    except Exception:
-        print('Smart wallet dispatch unavailable; on-visit collection remains available')
-    try:
         collect_smartness.spawn()
     except Exception:
         print('Smartness dispatch unavailable; manual trade scan remains available')
@@ -281,15 +479,36 @@ def collect_followed_wallets():
     registry = registry_wallets_with_retry(tracked_wallet_registry.items, (ResourceExhaustedError,))
     from worker.wallet_universe import universe
     registry = universe(registry, [value for _, value in wallet_universe_registry.items()])
+    from worker.data_stream import read as read_stream, collection_wallets
+    stream_volume.reload()
+    registry = collection_wallets(registry, read_stream('/stream'))
     note(f'registry completed ({len(registry)} wallets); reload started')
     history_volume.reload()
     note('reload completed; sampling started')
     # Keep provider work bounded independently of registry and Volume latency.
     # subprocess.run kills and reaps the child on timeout, before any commit.
-    report = collect_isolated("/history/followed-wallets.json", registry=registry)
+    stream = read_stream('/stream')
+    retain_mints = {key.split(':', 1)[1] for key in stream.get('tokens', []) if key.startswith('solana:')}
+    try:
+        now_ms = int(time.time()*1000)
+        interests = sorted([value for _,value in balance_watches.items()
+                            if 0 <= now_ms-value.get('requestedAt',0) < 86400000], key=lambda row:-row['requestedAt'])[:300]
+        retain_mints.update(row['token'] for row in interests)
+    except Exception:
+        retain_mints = None  # Missing interest coverage must not discard requested quantities.
+    report = collect_isolated("/history/followed-wallets.json", registry=registry, retain_mints=retain_mints)
     note('sampling completed; commit started')
     history_volume.commit()
     note('commit completed')
+    # Consumers reload the newly committed raw observations before fetching gaps.
+    try:
+        dispatch_smart_collection()
+    except Exception:
+        print('Smart wallet dispatch unavailable; on-visit collection remains available')
+    try:
+        collect_data_stream.spawn()
+    except Exception:
+        print('Shared stream dispatch unavailable; previous observations retained')
     summary = {"wallets": len(report["wallets"]),
                "available": sum(row["status"] == "ok" for row in report["wallets"]),
                "collection": report.get('collection'),
@@ -315,7 +534,7 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
-@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume})
+@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request
@@ -337,8 +556,8 @@ def web():
     from worker.snapshot_view import snapshot_view, snapshot_version
     history_lock = asyncio.Lock()
     async def fetch_market(target):
-        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
-            return await client.get(target, headers={"accept": "application/json"})
+        reply = await read_gecko_source.remote.aio(target.removeprefix('https://api.geckoterminal.com/api/v2'))
+        return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
     market_cache = MarketProxy(fetch_market)
     @web_app.get("/api/macro-review")
     async def macro_review():
@@ -517,11 +736,24 @@ def web():
     async def wallet_candidates(token: str = ''):
         import time
         from worker.wallet_discovery import discover, valid_address
+        if not token:
+            from worker.data_stream import read as read_stream
+            await stream_volume.reload.aio()
+            stream = read_stream('/stream')
+            selected = stream.get('windows', {}).get('1h', {}).get('tokens', [])
+            return JSONResponse(dict(tokens=[dict(address=row['contract_address'], symbol=row.get('symbol'))
+                for row in selected if row['network'] == 'solana'][:15], checkedAt=stream.get('updatedAt'),
+                source='Shared 1h token stream'), headers={'cache-control': 'no-store'})
         if token:
             try:
                 valid_address(token)
             except ValueError:
                 raise HTTPException(status_code=400, detail='Enter a valid Solana token contract')
+        from worker.data_stream import read as read_stream
+        await stream_volume.reload.aio()
+        shared = read_stream('/stream').get('holderReports', {}).get(token)
+        if shared and 0 <= time.time() * 1000 - shared.get('checkedAt', 0) < 300000:
+            return JSONResponse(shared, headers={'cache-control':'no-store'})
         async with candidate_lock:
             cached = candidate_cache.get(token)
             if cached and time.time() * 1000 - cached['checkedAt'] < 300000:
@@ -537,6 +769,22 @@ def web():
 
     activity_cache = {}
     activity_lock = asyncio.Lock()
+
+    @web_app.get('/api/data-stream/sources')
+    async def data_source_health():
+        from worker.source_stream import source_metrics
+        await source_volume.reload.aio()
+        return JSONResponse(dict(version=1, sources=source_metrics('/sources'),
+            note='Committed cache counters; warm source processes checkpoint every 30 seconds.'), headers={'cache-control':'no-store'})
+
+    @web_app.get('/api/data-stream')
+    async def data_stream(window: str = '1h'):
+        from worker.data_stream import read as read_stream, public_view
+        if window not in ('5m', '1h', '6h', '24h'):
+            raise HTTPException(status_code=400, detail='Choose 5m, 1h, 6h or 24h')
+        await stream_volume.reload.aio()
+        report = public_view(read_stream('/stream'), window)
+        return JSONResponse(report, headers={'cache-control': 'no-store'})
 
     @web_app.get('/api/wallet-activity')
     async def wallet_activity(address: str):
@@ -759,6 +1007,36 @@ def web():
         headers = {"cache-control": "public, max-age=300" if is_info and status == 200 else "no-store", "x-content-type-options": "nosniff"}
         headers.update(provider_headers)
         return Response(content, status_code=status, media_type="application/json", headers=headers)
+
+    @web_app.get('/api/dex/{dex_path:path}')
+    async def dex_source(dex_path: str, request: Request):
+        if dex_path == 'latest/dex/search' and set(request.query_params) == {'q'}:
+            query = request.query_params['q'].strip()
+            if not 1 <= len(query) <= 160:
+                raise HTTPException(status_code=400, detail='Invalid market search')
+            network, addresses = 'search', [query]
+        else:
+            match = re.fullmatch(r'(?:tokens/v1|token-pairs/v1)/([a-z0-9_-]+)/([A-Za-z0-9,]{20,3100})', dex_path)
+            if not match or request.query_params:
+                raise HTTPException(status_code=404, detail='Unknown token market endpoint')
+            network, addresses = match[1], match[2].split(',')
+        try:
+            report = await read_market_source.remote.aio(network, addresses,
+                scope='pools' if dex_path.startswith('token-pairs/v1/') else 'quotes')
+        except Exception:
+            raise HTTPException(status_code=503, detail='Shared token market source unavailable')
+        return JSONResponse(report['value'], headers={'cache-control':'no-store', 'x-data-observed-at':str(report['observedAt'])})
+
+    @web_app.get('/api/gecko/{market_path:path}')
+    async def shared_gecko(market_path: str, request: Request):
+        from worker.source_stream import gecko_path
+        try:
+            path = gecko_path('/' + market_path + ('?' + str(request.query_params) if request.query_params else ''))
+        except ValueError:
+            raise HTTPException(status_code=404, detail='Unknown market source endpoint')
+        reply = await read_gecko_source.remote.aio(path)
+        return JSONResponse(reply['body'], status_code=reply['status'], headers={
+            'cache-control':'no-store', **({'retry-after':str(reply['retryAfter'])} if 'retryAfter' in reply else {})})
 
     context_cache = {}
     context_sources = {

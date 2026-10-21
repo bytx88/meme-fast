@@ -1,9 +1,9 @@
 import {tokenActions as actions} from './token-actions.mjs?v=snipe-route-v1';
-import {FEEDS,NETWORKS,buildPublicView,fetchPublicSource,mergeArticles,compareSnapshots,safeURL} from './public-radar.mjs';
+import {FEEDS,NETWORKS,buildPublicView,compareSnapshots,safeURL} from './public-radar.mjs';
+import {loadSharedFeed} from './shared-feed.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
 import {SOURCE_KEY,loadSources} from './source-watchlist.mjs';
-import {feedStatus} from './source-coverage.mjs';
 import {loadXFactor} from './x-factor.mjs';
 import {buildTweetView,tweetSocialBadge,newsExcerpt,newsThumbnail,tweetCoinMetrics,tweetCoinOneLiner} from './tweet-view.mjs';
 import {fetchTweetContext} from './tweet-context.mjs';
@@ -93,16 +93,14 @@ async function refresh(){
  if(Date.now()-lastAttempt<60000){toast('Please allow one minute between refreshes.');return}
  loading=true;lastAttempt=Date.now();render();
  void refreshWallets();
- await Promise.allSettled([...FEEDS,...NETWORKS].map(async(s,index)=>{
-  // Stagger market requests to respect the public provider's request budget.
-  if(!s.url)await new Promise(resolve=>setTimeout(resolve,(index-FEEDS.length)*2200));
-   const old=sourceState.get(s.id);sourceState.set(s.id,{...old,status:'loading',lastAttempt:Date.now()});renderStatus();
-   try{const items=await fetchPublicSource(s),at=Date.now();sourceState.set(s.id,{...feedStatus(old,at,{records:items.length}),status:'loaded',count:items.length,at});
-   if(s.url){dataset.articles=mergeArticles(dataset.articles,items);save('meme-fast-public-articles-v1',dataset.articles)}
-   else {dataset.coins=[...dataset.coins.filter(c=>c.network!==s.id),...items];save('meme-fast-public-coins-v1',dataset.coins)}
-   }catch(error){sourceState.set(s.id,{...feedStatus(old,Date.now(),{error:error.message||'Could not reach feed.'}),status:'failed'})}
-  render();
- }));
+ try{
+  const feed=await loadSharedFeed();
+  dataset.articles=feed.articles;dataset.coins=feed.coins;
+  for(const [id,status]of feed.sources)sourceState.set(id,status);
+  save('meme-fast-public-articles-v1',dataset.articles);save('meme-fast-public-coins-v1',dataset.coins);
+ }catch(error){
+  for(const source of [...FEEDS,...NETWORKS])sourceState.set(source.id,{...sourceState.get(source.id),status:'failed',error:error.message});
+ }
  xFactorReport=await loadXFactor();
  loading=false;updateHistory();render();
 }

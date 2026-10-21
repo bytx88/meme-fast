@@ -67,7 +67,7 @@ def new_holders(report, now):
     return sum(a == 0 and b > 0 for a, b in zip(raw_amounts(baseline, count), raw_amounts(latest, count)))
 
 
-def rank_tokens(ledger, registry, reports, now):
+def rank_tokens(ledger, registry, reports, now, allowed_tokens=None):
     members = {r['address']: r for r in registry if r.get('smartMoney') is True}
     candidates, seen, valid = {}, set(), {}
     for event in ledger.get('events', []):
@@ -77,6 +77,8 @@ def rank_tokens(ledger, registry, reports, now):
                 or not isinstance(stamp, (int, float)) or not math.isfinite(stamp)
                 or not now - DAY <= stamp <= now or event.get('side') not in ('buy', 'sell')
                 or event.get('quote') not in ('SOL', 'USDC', 'USDT')):
+            continue
+        if allowed_tokens is not None and mint not in allowed_tokens:
             continue
         if mint not in valid:
             valid[mint] = valid_token(mint)
@@ -177,12 +179,20 @@ def observe(row, report, now):
         row['lastSnapshotAt'] = stamp
         values = raw_amounts(point, count)
         if values is not None and any(v is not None and v > 0 for v in values):
-            positive(row, stamp, now, 'Positive SmartMoney balance observed')
+            times = point.get('walletCheckedAt')
+            measured_at = max((at for value, at in zip(values, times) if value is not None and value > 0
+                               and type(at) in (int, float) and at <= stamp), default=stamp) if isinstance(times, list) else stamp
+            positive(row, measured_at, now, 'Positive SmartMoney balance observed')
         if not complete(point, count):
             continue
         row.update(lastCompleteAt=stamp, lastBalanceRaw=point['balanceRaw'])
         if int(point['balanceRaw']) != 0:
             continue
+        measured = point.get('walletCheckedAt')
+        if measured is not None and (len(measured) != count or any(
+                type(value) not in (int, float) or value < row['membershipAt']
+                or value > stamp or int(value // DAY) != int(stamp // DAY) for value in measured)):
+            continue  # Reusing yesterday's scan cannot certify today's zero.
         day = str(int(stamp // DAY))
         certificate = row.setdefault('zeroDays', {}).setdefault(day, dict(positive=False, firstAt=stamp))
         if certificate['positive'] or stamp <= row.get('lastPositiveAt', 0):
@@ -200,7 +210,7 @@ def observe(row, report, now):
     row['zeroDays'] = {d: v for d, v in row.get('zeroDays', {}).items() if int(d) >= now // DAY - 40}
 
 
-def prepare(directory, registry, ledger, watches, holdings, now):
+def prepare(directory, registry, ledger, watches, holdings, now, active_tokens=None):
     from worker.smart_wallets import make_cohort, read_report, group
     plan = load(directory)
     # Only exact membership reports can supply holder-growth ranking inputs.
@@ -210,7 +220,7 @@ def prepare(directory, registry, ledger, watches, holdings, now):
             reports[token] = read_report(directory, make_cohort(token, registry))
         except ValueError:
             continue
-    ranked = rank_tokens(ledger, registry, reports, now)
+    ranked = rank_tokens(ledger, registry, reports, now, allowed_tokens=active_tokens)
     plan.update(ranking=ranked[:TOP_LIMIT], rankedAt=now, ledgerAt=ledger.get('attemptedAt'), candidateCount=len(ranked),
                 smartWallets=sum(r.get('smartMoney') is True for r in registry))
     active = {r['token']: r for r in ranked[:TOP_LIMIT]}
@@ -231,6 +241,12 @@ def prepare(directory, registry, ledger, watches, holdings, now):
             row.update(mode='unavailable', reason='No eligible SmartMoney cohort')
             continue
         row.update(auto=token in active, rank=active.get(token, {}).get('rank'), symbol=active.get(token, {}).get('symbol') or row.get('symbol') or token[:8])
+        stream_paused = active_tokens is not None and token not in active_tokens and token not in visits and row['mode'] != 'dormant'
+        if stream_paused:
+            row['reason'] = 'Outside the current activity stream; history retained'
+        elif row.get('streamPaused'):
+            row['reason'] = 'Recent activity or Inspect interest resumed collection'
+        row['streamPaused'] = stream_paused
         if token in visits and visit_times[token] > (row.get('dormantAt') or 0):
             wake_inspect(row, now)
         if token in recent and recent[token]['lastBuyAt'] > row.get('lastBuyAt', 0):
@@ -255,7 +271,7 @@ def prepare(directory, registry, ledger, watches, holdings, now):
 def choose_job(plan, watches, now):
     manual, automatic, monitoring = [], [], []
     for token, row in plan['tokens'].items():
-        if row['mode'] == 'unavailable':
+        if row['mode'] == 'unavailable' or row.get('streamPaused'):
             continue
         interval = PROBE_INTERVAL if row['mode'] == 'dormant' else AUTO_INTERVAL if row.get('auto') else DAY
         check = plan['checks'].get(token + ':universe', {})

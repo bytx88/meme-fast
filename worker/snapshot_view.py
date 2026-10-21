@@ -115,6 +115,15 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
         return {"version": 1, "lastRun": snapshot.get("lastRun"), "coins": list(tokens.values())}
     if view == "health":
         return {field: snapshot.get(field) for field in ("revision", "lastRun", "feeds")}
+    if view == "tweet":
+        fields = ('id', 'name', 'symbol', 'network', 'chain', 'contract_address', 'contract_verified',
+                  'image_url', 'pool', 'dex', 'poolCreated', 'mc', 'fdv', 'liquidity', 'priceUsd', 'priceChange',
+                  'volume', 'volume5m', 'buyers', 'buys', 'sells', 'buys5m', 'sells5m',
+                  'fetchedAt', 'marketUpdatedAt', 'priceUpdatedAt')
+        return dict(version=1, **snapshot_version(snapshot), feeds=snapshot.get('feeds', {}),
+                    articles=[a for a in snapshot.get('articles', []) if now_ms - 72 * 3600000 <= a.get('time', 0) <= now_ms][:500],
+                    coins=[{key: c[key] for key in fields if key in c} for c in snapshot.get('tweetCoins', [])
+                           if now_ms - 24 * 3600000 <= c.get('fetchedAt', 0) <= now_ms][:120])
     if view == "name":
         key = _name_key(name)
         if not key or len(key) > 100:

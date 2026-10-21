@@ -32,7 +32,7 @@ const renderMCDetail=setupMCDetail();
 const $=id=>document.getElementById(id),api=createRequestClient();
 const candleHistory=createCandleHistory(path=>api(path,{priority:-2}),()=>render());
 const originalLegend=document.querySelector('.timeline-legend').innerHTML;
-const dexApi=createRequestClient({base:'https://api.dexscreener.com',interval:500,concurrency:2,timeout:8000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
+const dexApi=createRequestClient({base:'/api/dex',interval:500,concurrency:2,timeout:30000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});
 const money=formatUSD;
 const wholeMoney={format:formatUSD};
 const compact=formatUSD;
@@ -130,10 +130,10 @@ async function load(){
   }
   state.loadController?.abort();const controller=new AbortController();state.loadController=controller;
   const generation=++state.generation,tokens=[...state.tokens],hadData=state.pools.some(p=>p.status==='loaded');state.busy=true;state.loadError=false;state.progress='Fetching swaps…';$('refresh').disabled=true;$('charts').setAttribute('aria-busy','true');$('updated').textContent='Fetching swaps…';error('');render();
-  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;if(!hadData&&!viewData().smartActive)$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&!hadData){Object.assign(state,snapshot);state.fetched=Date.now();render()}},async token=>{const result=await dexApi(token.network==='solana'?'/token-pairs/v1/solana/'+encodeURIComponent(token.address):'/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints):null});
+  try{const result=await loadListings(tokens,(path,options)=>api(path,{...options,signal:controller.signal}),message=>{if(generation===state.generation){state.progress=message;if(!hadData&&!viewData().smartActive)$('updated').textContent=message}},()=>generation===state.generation,snapshot=>{if(generation===state.generation&&!hadData){Object.assign(state,snapshot);state.fetched=snapshot.observedAt||Date.now();render()}},async token=>{const result=await dexApi(token.network==='solana'?'/token-pairs/v1/solana/'+encodeURIComponent(token.address):'/latest/dex/search?q='+encodeURIComponent(token.address),{signal:controller.signal,priority:-1});const match=dexMatches(result.data,token.address).find(t=>listingKey(t)===listingKey(token));return match?marketCapSnapshot(token,match.poolHints,result._sourceObservedAt||Date.now()):null});
     if(!result||generation!==state.generation)return;
     if(hadData&&!result.pools.some(p=>p.status==='loaded')){state.loadError=true;error('Refresh failed. Showing the previous sample with its original update time.');return currentSummary()}
-    Object.assign(state,result);state.fetched=Date.now();state.cached=false;flowCache.write(state);flowHistory.record(result.trades);state.historyTrades=flowHistory.read(tokens.map(listingKey));render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
+    Object.assign(state,result);state.fetched=result.observedAt||Date.now();state.cached=false;flowCache.write(state);flowHistory.record(result.trades);state.historyTrades=flowHistory.read(tokens.map(listingKey));render();if(!result.pools.some(p=>p.status==='loaded')){const reason=result.listings.find(l=>l.error)?.error||result.pools.find(p=>p.error)?.error;if(reason)error(reason)}
     return currentSummary();
   }catch(e){if(generation===state.generation){state.loadError=true;render();error(e.message==='Failed to fetch'?'Cannot reach the data feed. It may be temporarily unavailable or rate-limited. Try again in a minute.':e.message)}return null}
   finally{if(generation===state.generation){state.busy=false;render();$('refresh').disabled=viewData().balanceActive?smartHoldings.summary().loading:false;$('charts').setAttribute('aria-busy','false')}}

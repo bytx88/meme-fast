@@ -5,10 +5,13 @@ import time
 PUBLIC_ENDPOINTS = ('https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com')
 
 
-def public_rpc(client, pause=time.sleep, clock=time.monotonic):
+def public_rpc(client, pause=time.sleep, clock=time.monotonic, shared=True, blocked=None):
+    if shared and os.getenv('MEME_SHARED_SOURCES') == '1':
+        from worker.source_stream import shared_rpc
+        return shared_rpc
     configured = os.getenv('SOLANA_WALLET_RPC_URL')
     endpoints = (configured,) if configured else PUBLIC_ENDPOINTS
-    blocked = {}
+    blocked = blocked if blocked is not None else {}
 
     def rpc(method, params):
         for endpoint in endpoints:

@@ -8,6 +8,7 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
   const listings=tokens.map(token=>({...token,key:listingKey(token),status:'loading',error:'',poolCount:0,successCount:0,discovered:false}));
   let skipped=0,active=0,discovered=0;
   const tasks=[];
+  const observationTime=()=>Math.min(...[...poolsByKey.values()].filter(pool=>pool.status==='loaded'&&pool.observedAt>0).map(pool=>pool.observedAt),Date.now());
   function updateStatus(listing) {
     if(!listing.discovered||!listing.poolCount)return;
     const pools=[...poolsByKey.values()].filter(p=>p.targets.some(t=>listingKey(t)===listing.key));
@@ -19,7 +20,7 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
     for(const listing of listings)updateStatus(listing);
     const completed=[...poolsByKey.values()].filter(p=>p.status!=='pending').length;
     progress(`Loaded ${completed}/${poolsByKey.size} pools · ${discovered}/${tokens.length} listings checked`);
-    onSnapshot({trades:[...trades],pools:[...poolsByKey.values()].map(p=>({...p,targets:[...p.targets]})),listings:listings.map(l=>({...l})),skipped});
+    onSnapshot({trades:[...trades],pools:[...poolsByKey.values()].map(p=>({...p,targets:[...p.targets]})),listings:listings.map(l=>({...l})),skipped,observedAt:observationTime()});
   }
   function normalize(pool,token,events) {
     for(const event of events){const trade=normalizeTrade(event,token.address,pool);if(trade)trades.push(trade);else skipped++}
@@ -29,6 +30,7 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       const result=await request(`/networks/${encodeURIComponent(pool.network)}/pools/${encodeURIComponent(pool.address)}/trades`,{priority:10});
       if(!isCurrent())return;
       pool.count=result.data.length;pool.status='loaded';rawTrades.set(pool.key,result.data);
+      pool.observedAt=Number.isFinite(result._sourceObservedAt)?Math.min(result._sourceObservedAt,Date.now()):Date.now();
       for(const token of pool.targets)normalize(pool,token,result.data);
     } catch(e) {if(!isCurrent())return;pool.failed=true;pool.status='failed';pool.error=e.message}
     snapshot();
@@ -46,8 +48,9 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       const unique=[...new Map(found.map(p=>[canonical(p.attributes.address),p])).values()].sort((a,b)=>(Number(b.attributes.reserve_in_usd)||0)-(Number(a.attributes.reserve_in_usd)||0)).slice(0,SAMPLE_LIMITS.poolsPerListing);
       // Lookup hints may be cached: use them for pool addresses, never live valuations.
       const valuationPools=result.data;
-      listing.price=tokenPriceSnapshot(token,valuationPools);
-      listing.marketCap=marketCapSnapshot(token,valuationPools);
+      const at=Number.isFinite(result._sourceObservedAt)?Math.min(result._sourceObservedAt,Date.now()):Date.now();
+      listing.price=tokenPriceSnapshot(token,valuationPools,at);
+      listing.marketCap=marketCapSnapshot(token,valuationPools,at);
       if(lookupMarketCap)tasks.push(async()=>{try{
         const cap=await lookupMarketCap(token),price=listing.price?.value;
         // Cross-check the fresh valuation against the independently fetched pool price.
@@ -78,5 +81,5 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
     pump();
   });
   if(!isCurrent())return null;
-  return {trades,pools:[...poolsByKey.values()],listings,skipped};
+  return {trades,pools:[...poolsByKey.values()],listings,skipped,observedAt:observationTime()};
 }
