@@ -1,9 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {loadSharedFeed} from '../dist/shared-feed.mjs';
+import {loadSharedFeed,reconcileSharedFeed} from '../dist/shared-feed.mjs';
 import {snapshotView} from '../worker/snapshot-view.mjs';
 
 const now=1800000000000;
+test('A failed shared source retains browser observations with their actual times',()=>{
+ const old={articles:[{id:'article',url:'https://decrypt.co/1',publisher:'Decrypt',time:now-1000}],coins:[{id:'s',network:'solana',fetchedAt:now-1000}]};
+ const failed={articles:[],coins:[],sources:new Map([['decrypt',{status:'failed'}],['solana',{status:'failed'}]])};
+ assert.deepEqual(reconcileSharedFeed(old,failed,now),old);
+ const recovered={...failed,sources:new Map([['decrypt',{status:'loaded'}],['solana',{status:'loaded'}]])};
+ assert.deepEqual(reconcileSharedFeed(old,recovered,now),{articles:[],coins:[]});
+});
 test('Tweet reads one shared snapshot with original source times, including failures',async()=>{
  const snapshot={lastRun:now,revision:'r',articles:[{time:now-1000,publisher:'Decrypt'}],
   tweetCoins:[{id:'solana:a',network:'solana',fetchedAt:now-2000,marketHistory:[{}]},

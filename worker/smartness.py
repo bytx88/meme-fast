@@ -257,9 +257,8 @@ def collect(directory, registry, rpc=None, now=None, pause=time.sleep, budget_se
     errors = 0
     metadata = dict(report.get('tokens', {}))
     try:
-        for wallet in sorted(registry, key=lambda row: (
-                row.get('collectionPriority', 0) if row['address'] in scans else -1,
-                scans.get(row['address'], {}).get('attemptedAt') or 0)):
+        from worker.data_stream import collection_order
+        for wallet in collection_order(registry,scans):
             if time.monotonic() >= deadline:
                 break
             owner = wallet['address']

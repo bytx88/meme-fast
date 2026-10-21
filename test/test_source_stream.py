@@ -1,10 +1,27 @@
 import tempfile
 import unittest
 from unittest.mock import patch
-from worker.source_stream import SourceStream, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics
+from worker.source_stream import SourceStream, dex_tokens, dex_pools, SourceSession, gecko_path, source_metrics, mint_from_wallet_cache
 
 
 class SourceStreamTests(unittest.TestCase):
+    def test_complete_program_cache_supplies_mint_reads_without_another_rpc(self):
+        from worker.shared_holdings import PROGRAMS
+        config={'encoding':'jsonParsed','commitment':'confirmed'}
+        positive={'context':{'slot':123},'value':[{'pubkey':'account','account':{'data':{'parsed':{'info':
+            {'owner':'owner','mint':'mint','tokenAmount':{'amount':'123','decimals':6}}}}}}]}
+        empty={'context':{'slot':124},'value':[]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:1010)
+            stream.store('solana:getTokenAccountsByOwner',['owner',{'programId':PROGRAMS[0]},config],positive,1000000,240)
+            self.assertIsNone(mint_from_wallet_cache(stream,['owner',{'mint':'mint'},config]))
+            stream.store('solana:getTokenAccountsByOwner',['owner',{'programId':PROGRAMS[1]},config],empty,1001000,240)
+            reply=mint_from_wallet_cache(stream,['owner',{'mint':'mint'},config])
+            self.assertEqual(reply['observedAt'],1000000)
+            self.assertEqual(reply['value']['context']['slot'],123)
+            self.assertEqual(len(reply['value']['value']),1)
+            self.assertEqual(mint_from_wallet_cache(stream,['owner',{'mint':'missing'},config])['value']['value'],[])
+            stream.close()
     def test_older_pool_evidence_does_not_replace_a_newer_shared_quote(self):
         with tempfile.TemporaryDirectory() as folder:
             stream = SourceStream(folder,clock=lambda:1100)

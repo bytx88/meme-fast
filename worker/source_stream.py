@@ -210,6 +210,29 @@ def shared_rpc(method, params):
     return value
 
 
+def mint_from_wallet_cache(stream, params):
+    """A pair of complete program scans can supply any exact-mint RPC read."""
+    from worker.shared_holdings import observe, PROGRAMS, MAX_AGE_MS
+    if (len(params) != 3 or not isinstance(params[1],dict) or set(params[1]) != {'mint'}
+            or params[2] != {'encoding':'jsonParsed','commitment':'confirmed'}):
+        return None
+    owner, mint = params[0], params[1]['mint']
+    saved = {program:stream.lookup('solana:getTokenAccountsByOwner',
+        [owner,{'programId':program},params[2]]) for program in PROGRAMS}
+    if not all(saved.values()):
+        return None
+    sampled = min(row['observedAt'] for row in saved.values())
+    if not 0 <= stream.clock()*1000-sampled < MAX_AGE_MS:
+        return None
+    observed = observe(owner,{program:{'result':row['value']} for program,row in saved.items()},sampled)
+    if observed is None:
+        return None
+    rows = [account for row in saved.values() for account in row['value']['value']
+            if account['account']['data']['parsed']['info']['mint'] == mint]
+    return dict(value={'context':{'slot':min(observed['programSlots'].values())},'value':rows},
+                observedAt=sampled,cache='projected-wallet-scan')
+
+
 def dex_tokens(stream, network, addresses, fetch):
     """Overlapping token batches reuse individual observations; misses batch once."""
     addresses = sorted(set(addresses))

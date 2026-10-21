@@ -119,8 +119,8 @@ def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
         fields = ('id', 'name', 'symbol', 'network', 'chain', 'contract_address', 'contract_verified',
                   'image_url', 'pool', 'dex', 'poolCreated', 'mc', 'fdv', 'liquidity', 'priceUsd', 'priceChange',
                   'volume', 'volume5m', 'buyers', 'buys', 'sells', 'buys5m', 'sells5m',
-                  'fetchedAt', 'marketUpdatedAt', 'priceUpdatedAt')
-        return dict(version=1, **snapshot_version(snapshot), feeds=snapshot.get('feeds', {}),
+                  'fetchedAt', 'marketUpdatedAt', 'priceUpdatedAt', 'streamScore', 'marketSource', 'marketSourceURL')
+        return dict(version=1, **snapshot_version(snapshot), feeds=snapshot.get('feeds', {}), marketFeeds=snapshot.get('tweetMarketFeeds', {}),
                     articles=[a for a in snapshot.get('articles', []) if now_ms - 72 * 3600000 <= a.get('time', 0) <= now_ms][:500],
                     coins=[{key: c[key] for key in fields if key in c} for c in snapshot.get('tweetCoins', [])
                            if now_ms - 24 * 3600000 <= c.get('fetchedAt', 0) <= now_ms][:120])

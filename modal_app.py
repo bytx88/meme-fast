@@ -95,8 +95,10 @@ def read_social_source(url):
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
     from worker.source_stream import source_session, paced_get
+    from worker.publisher_feed import SOURCES, publisher_json
     target = urlparse(url)
-    if (target.scheme != 'https' or target.netloc != 'news.google.com' or target.path != '/rss/search'
+    publisher = url in SOURCES.values()
+    if not publisher and (target.scheme != 'https' or target.netloc != 'news.google.com' or target.path != '/rss/search'
             or target.fragment or len(url) > 1500 or set(dict(parse_qsl(target.query))) - {'q', 'hl', 'gl', 'ceid'}):
         raise ValueError('Unsupported social source')
     session = source_session('/sources/rss', source_volume)
@@ -106,10 +108,13 @@ def read_social_source(url):
             with httpx.Client(timeout=20, follow_redirects=True) as client:
                 response = paced_get(session, client, url, 1,
                                      headers={'User-Agent': 'Mozilla/5.0 (compatible; MemeFastRSS/1.0)'})
+                if publisher:
+                    return publisher_json(response.content)
                 if ET.fromstring(response.content).tag != 'rss':
                     raise ValueError('Invalid RSS source response')
                 return response.content.decode('utf-8')
-        return stream.get('rss:search', sorted(parse_qsl(target.query)), fetch, 300)
+        return stream.get('publisher:feed' if publisher else 'rss:search',
+                          url if publisher else sorted(parse_qsl(target.query)), fetch, 300)
     finally:
         session.finish()
 
@@ -202,7 +207,7 @@ def read_source(provider, method, params):
     import time
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
-    from worker.source_stream import source_session, RPC_TTL
+    from worker.source_stream import source_session, RPC_TTL, mint_from_wallet_cache
     if provider != 'solana' or method not in RPC_TTL or not isinstance(params, list):
         raise ValueError('Unsupported source request')
     from worker.public_rpc import public_rpc
@@ -213,6 +218,10 @@ def read_source(provider, method, params):
     try:
         with httpx.Client(timeout=12) as client:
             rpc = public_rpc(client, shared=False, blocked=blocked, clock=time.time)
+            if method == 'getTokenAccountsByOwner':
+                derived = mint_from_wallet_cache(stream,params)
+                if derived is not None:
+                    return derived
             # Latest-eight activity and latest-forty ledger reads reuse one page.
             requested_limit = None
             if method == 'getSignaturesForAddress' and len(params) == 2 and isinstance(params[1], dict):
@@ -221,7 +230,8 @@ def read_source(provider, method, params):
                     params = [params[0], dict(params[1], limit=40)]
                 else:
                     requested_limit = None
-            result = stream.get('solana:' + method, params, lambda: rpc(method, params), RPC_TTL[method])
+            ttl = 240 if method == 'getTokenAccountsByOwner' and len(params) > 1 and 'programId' in params[1] else RPC_TTL[method]
+            result = stream.get('solana:' + method, params, lambda: rpc(method, params), ttl)
             if requested_limit is not None and isinstance(result['value'], list):
                 result['value'] = result['value'][:requested_limit]
             return result
@@ -397,8 +407,9 @@ async def collect_coins():
     from worker.data_stream import read as read_stream
     await stream_volume.reload.aio()
     candidates = read_stream('/stream').get('tokenCandidates', [])
+    web_url = await web.get_web_url.aio()
     return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
-                              market_url=web.get_web_url().rstrip('/') + '/api/dex')
+                              market_url=web_url.rstrip('/') + '/api/dex')
 
 
 @app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
@@ -777,6 +788,17 @@ def web():
         return JSONResponse(dict(version=1, sources=source_metrics('/sources'),
             note='Committed cache counters; warm source processes checkpoint every 30 seconds.'), headers={'cache-control':'no-store'})
 
+    @web_app.get('/api/publisher/{source_id}')
+    async def publisher_source(source_id: str):
+        from worker.publisher_feed import SOURCES
+        if source_id not in SOURCES:
+            raise HTTPException(status_code=404, detail='Unknown publisher source')
+        try:
+            report = await read_social_source.remote.aio(SOURCES[source_id])
+        except Exception:
+            raise HTTPException(status_code=503, detail='Shared publisher feed unavailable')
+        return JSONResponse(report['value'], headers={'cache-control':'no-store', 'x-data-observed-at':str(report['observedAt'])})
+
     @web_app.get('/api/data-stream')
     async def data_stream(window: str = '1h'):
         from worker.data_stream import read as read_stream, public_view
@@ -924,6 +946,13 @@ def web():
     @web_app.get("/api/new-coins")
     async def new_coins(request: Request):
         view = request.query_params.get("view", "")
+        if view == 'tweet':
+            async with history_lock:
+                await history_volume.reload.aio()
+                main = Path('/history/coins.json')
+                projection = Path('/history/coins.tweet.json')
+                if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
+                    return Response(projection.read_bytes(),media_type='application/json',headers={'cache-control':'no-store'})
         hours_text = request.query_params.get("hours", "120")
         if view == "coin" and hours_text not in ("1", "6", "12", "36", "120"):
             raise HTTPException(status_code=400, detail="Choose a supported Snipe time window")

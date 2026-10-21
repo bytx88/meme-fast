@@ -14,6 +14,10 @@ def project(filename):
     temporary = catalog.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(snapshot_view(snapshot, 'catalog'), separators=(',', ':')), encoding='utf-8')
     os.replace(temporary, catalog)
+    tweet = main.with_name('coins.tweet.json')
+    temporary = tweet.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(snapshot_view(snapshot,'tweet'),separators=(',',':')),encoding='utf-8')
+    os.replace(temporary,tweet)
     for hours in (1, 6, 12, 36, 120):
         projection = main.with_name(f'coins.snipe.v2.{hours}.json')
         temporary = projection.with_suffix('.json.tmp')

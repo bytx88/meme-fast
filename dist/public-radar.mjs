@@ -29,6 +29,7 @@ export function parsePools(data,network,now=Date.now()) {
   c.marketWindows=Object.fromEntries(['m5','h1','h6','h24'].map(window=>[window,{
    volume:numeric(a.volume_usd?.[window]),buys:numeric(a.transactions?.[window]?.buys),
    sells:numeric(a.transactions?.[window]?.sells),buyers:numeric(a.transactions?.[window]?.buyers)}]));
+  c.marketSource='GeckoTerminal';c.marketSourceURL=`https://www.geckoterminal.com/${network.id}/pools/${encodeURIComponent(c.pool)}`;
   if(c.volume5m!==null&&c.buys5m!==null&&c.sells5m!==null)c.marketUpdatedAt=now;
   if(c.priceUsd!==null)c.priceUpdatedAt=now;
   const poolValid=contractForCopy({...c,contract_address:c.pool})||['eth','robinhood'].includes(network.id)&&/^0x[a-fA-F0-9]{64}$/.test(c.pool);
@@ -72,12 +73,14 @@ export function buildPublicView(dataset,{hours=4,group='all',stage='all',query='
  const q=query.trim().toLowerCase(),stageMatch=s=>stage==='all'||stage==='unclassified'&&s===null||stage==='early'&&s!==null&&s<=2||stage==='conversion'&&s>=3&&s<=4||stage==='late'&&s>=5;
  const all=clusterNews(dataset.articles,now).map(n=>narrativeMetrics(n,hours,now));
  const trends=all.filter(n=>n.mentions&&(group==='all'||n.group===group)&&stageMatch(n.stage)&&(!q||`${n.title} ${n.summary} ${addressMatches(n,dataset.coins).map(c=>c.symbol+' '+c.name).join(' ')}`.toLowerCase().includes(q))).sort((a,b)=>b.score-a.score).slice(0,20).map((n,i)=>({...n,rank:i+1}));
- const coins=dataset.coins.filter(c=>(group==='all'||group===c.chain)&&stageMatch(null)&&(!q||`${c.symbol} ${c.name} ${c.contract_address}`.toLowerCase().includes(q))).sort((a,b)=>(b.buyers??-1)-(a.buyers??-1)).slice(0,20).map((c,i)=>({...c,rank:i+1}));
+ const coins=dataset.coins.filter(c=>(group==='all'||group===c.chain)&&stageMatch(null)&&(!q||`${c.symbol} ${c.name} ${c.contract_address}`.toLowerCase().includes(q))).sort((a,b)=>
+  Number.isFinite(a.streamScore)||Number.isFinite(b.streamScore)?(b.streamScore??-1)-(a.streamScore??-1):(b.buyers??-1)-(a.buyers??-1)).slice(0,20).map((c,i)=>({...c,rank:i+1}));
  const crossovers=trends.flatMap(n=>addressMatches(n,coins).map(c=>({id:n.id+':'+c.id,narrative:n,coin:c})));
  return {trends,coins,crossovers,all};
 }
 export async function fetchPublicSource(source,fetcher=fetch) {
- const url=source.url?`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`:`https://api.geckoterminal.com/api/v2/networks/${source.id}/trending_pools?include=base_token,quote_token&duration=1h`;
+ const shared=typeof process!=='undefined'&&process.env?.MEME_SHARED_MARKET_URL;
+ const url=source.url?(shared?shared.replace(/\/dex$/,'/publisher')+'/'+source.id:`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`):`https://api.geckoterminal.com/api/v2/networks/${source.id}/trending_pools?include=base_token,quote_token&duration=1h`;
  const response=await fetcher(url,{signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error(response.status===429?'Rate limited; try again later.':`Feed unavailable (HTTP ${response.status}).`);
  const data=await response.json();return source.url?parseNews(data,source):parsePools(data,source);

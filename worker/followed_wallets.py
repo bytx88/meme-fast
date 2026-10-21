@@ -10,8 +10,10 @@ import time
 from pathlib import Path
 if __package__:
     from worker.shared_holdings import observe
+    from worker.data_stream import collection_order
 else:
     from shared_holdings import observe
+    from data_stream import collection_order
 
 REGISTRY = Path(__file__).with_name('followed-wallets.json')
 PROGRAMS = ('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
@@ -139,12 +141,10 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220,
     report = awaiting(registry)
     sampled = {}
     try:
-        for row in sorted(report['wallets'], key=lambda entry: (
-                entry.get('collectionPriority', 0) if entry['address'] in previous else -1,
-                previous.get(entry['address'], {}).get('attemptedAt') or 0)):
+        for row in collection_order(report['wallets'],previous):
             owner = row['address']
             old = previous.get(owner, {})
-            recent = old.get('attemptedAt') and 0 <= now - old['attemptedAt'] < row.get('refreshAfterMs', 0)
+            recent = old.get('attemptedAt') and 0 <= now - old['attemptedAt'] < row.get('holdingsRefreshMs',row.get('refreshAfterMs', 0))
             if recent or time.monotonic() >= deadline:
                 old = previous.get(owner, {})
                 row.update(checkedAt=old.get('checkedAt'), attemptedAt=old.get('attemptedAt'), status=old.get('status', 'unavailable'), mints=old.get('mints', []), observation=old.get('observation'))

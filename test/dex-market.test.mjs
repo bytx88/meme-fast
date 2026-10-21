@@ -3,9 +3,20 @@ import assert from 'node:assert/strict';
 import {createDexProxy,dexMarketPath} from '../worker/dex-market.mjs';
 import {createProviderFetch} from '../worker/provider-fetch.mjs';
 import {marketRefreshInterval,selectMarketTargets} from '../worker/refresh-priority.mjs';
-import {refreshMarket,recordMarketHistory} from '../worker/coin-collector.mjs';
+import {refreshMarket,recordMarketHistory,sharedTweetMarket} from '../worker/coin-collector.mjs';
 
 const address='So11111111111111111111111111111111111111112';
+test('Tweet derives active old tokens from the shared market pool without borrowing unique-buyer counts',()=>{
+ const now=1800000000000,coin={id:'solana:'+address,network:'solana',contract_address:address,
+  marketUpdatedAt:now-1000,fetchedAt:now-1000,poolCreated:now-100*86400000,
+  liquidity:10000,volume:100000,buys:100,sells:50,buyers:100,marketSource:'DexScreener'};
+ const shared=sharedTweetMarket([], [coin], {},now);
+ assert.equal(shared.tweetCoins.length,1);assert.equal(shared.tweetCoins[0].buyers,null);
+ assert.equal(shared.tweetCoins[0].buys,100);assert.ok(shared.tweetCoins[0].streamScore>0);
+ assert.equal(shared.tweetMarketFeeds.solana.lastSuccess,now-1000);
+ const stale=sharedTweetMarket([],[],shared,now+1000);
+ assert.equal(stale.tweetCoins[0].fetchedAt,now-1000);assert.equal(stale.tweetMarketFeeds.solana.status,'failed');
+});
 test('A shared cached quote cannot overwrite a newer observation or create a new history sample',()=>{
  const now=1800000000000,coin={network:'solana',contract_address:address,marketUpdatedAt:now-1000,priceUsd:2};
  const pair={chainId:'solana',baseToken:{address},priceUsd:'1',_sourceObservedAt:now-2000};

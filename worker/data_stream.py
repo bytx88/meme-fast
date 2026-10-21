@@ -301,7 +301,9 @@ def project(snapshot, holdings, ledger, previous, now):
                 lastRelevantAt=max(latest['at'], candidate_wallets.get(owner, {}).get('lastRelevantAt', 0)))
     for owner,wallet in owners.items():
         stamp = wallet.get('checkedAt') or 0
-        if 0 <= now-stamp < 10*60000 and active.intersection(wallet.get('mints', [])):
+        # An earlier holding can nominate a fresh check; it does not enter the
+        # current holder ranking until its quantity is actually observed.
+        if 0 <= now-stamp < DAY and active.intersection(wallet.get('mints', [])):
             candidate_wallets[owner] = dict(candidate_wallets.get(owner, {}), address=owner, name=owner[:8],
                 source='Public', sources=['Public'], smartMoney=None, interested=False, code='',
                 lastRelevantAt=max(stamp,candidate_wallets.get(owner, {}).get('lastRelevantAt', 0)))
@@ -366,10 +368,29 @@ def collection_wallets(registry, stream, now=None):
     saved = {row['address']: dict(row) for row in registry}
     candidates = [row for row in stream.get('wallets', []) if 0 <= now - row.get('lastRelevantAt', 0) < DAY][:WALLET_LIMIT]
     for row in candidates:
-        saved.setdefault(row['address'], dict(row))
+        saved.setdefault(row['address'], dict(row,_streamDiscovered=True))
     active = {row['address'] for row in candidates}
     for row in saved.values():
         hot = row.get('interested') or row['address'] in active
-        row.update(collectionPriority=0 if hot else 1 if row.get('smartMoney') is True else 2,
-                   refreshAfterMs=300000 if hot else 1800000 if row.get('smartMoney') is True else 3600000)
+        row.update(collectionPriority=0 if row['address'] in active else 1 if row.get('interested') else 2 if row.get('smartMoney') is True else 3,
+                   refreshAfterMs=300000 if hot else 1800000 if row.get('smartMoney') is True else 3600000,
+                   holdingsRefreshMs=300000 if hot else 6*3600000 if row.get('smartMoney') is True else DAY)
     return list(saved.values())
+
+
+def collection_order(registry, previous):
+    # Reserve one initial discovery check, so a full hot queue cannot permanently
+    # prevent token -> wallet -> token expansion. Other candidate checks wait.
+    candidates = [row for row in registry if row.get('_streamDiscovered')
+                  and not previous.get(row['address'], {}).get('attemptedAt')]
+    reserved = min(candidates,key=lambda row:(row.get('lastRelevantAt',0),row['address']))['address'] if candidates else None
+    def priority(row):
+        old = previous.get(row['address'], {})
+        if row['address'] == reserved:
+            rank = -.5
+        elif row['address'] not in previous:
+            rank = 2 if row.get('_streamDiscovered') else -1
+        else:
+            rank = row.get('collectionPriority',0)
+        return rank, old.get('attemptedAt') or 0
+    return sorted(registry,key=priority)

@@ -25,6 +25,24 @@ def event(identity, quote='SOL', amount='1', stamp=NOW, side='buy'):
 
 
 class DataStreamTests(unittest.TestCase):
+    def test_one_discovery_turn_prevents_expansion_starvation_without_draining_the_hot_queue(self):
+        rows=[dict(address='hot',collectionPriority=0),dict(address='a',_streamDiscovered=True,lastRelevantAt=1),
+              dict(address='b',_streamDiscovered=True,lastRelevantAt=2)]
+        ordered=stream.collection_order(rows,{'hot':{'attemptedAt':100}})
+        self.assertEqual([r['address'] for r in ordered],['a','hot','b'])
+
+    def test_current_pool_wallets_take_priority_without_promoting_discovered_metadata(self):
+        registry=[dict(address='pool',smartMoney=False),dict(address='pin',interested=True),dict(address='saved',smartMoney=True)]
+        candidates=dict(wallets=[dict(address='pool',lastRelevantAt=NOW),dict(address='new',lastRelevantAt=NOW,smartMoney=None)])
+        rows={row['address']:row for row in stream.collection_wallets(registry,candidates,now=NOW)}
+        self.assertEqual(rows['pool']['collectionPriority'],0)
+        self.assertEqual(rows['pin']['collectionPriority'],1)
+        self.assertEqual(rows['pin']['holdingsRefreshMs'],300000)
+        self.assertEqual(rows['saved']['holdingsRefreshMs'],6*3600000)
+        self.assertTrue(rows['new']['_streamDiscovered'])
+        self.assertIsNone(rows['new']['smartMoney'])
+        self.assertFalse(rows['pool']['smartMoney'])
+
     def test_history_budget_preserves_each_wallets_current_and_window_anchors(self):
         balances = {str(i):dict(raw='1',decimals=6) for i in range(40)}
         history = {str(owner):[dict(at=NOW-i*300000,balances=balances) for i in reversed(range(300))]

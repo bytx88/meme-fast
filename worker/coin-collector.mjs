@@ -32,7 +32,7 @@ export function refreshMarket(coins,pairs,now=Date.now()){
   if(observedAt<(coin.marketUpdatedAt??0))return coin;
   const marketWindows=Object.fromEntries(['m5','h1','h6','h24'].map(window=>[window,{
    volume:amount(pair.volume?.[window]),buys:amount(pair.txns?.[window]?.buys),sells:amount(pair.txns?.[window]?.sells),buyers:null}]));
-  return {...coin,marketWindows,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?observedAt:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:observedAt,fetchedAt:observedAt};
+  return {...coin,marketSource:'DexScreener',marketSourceURL:safeURL(pair.url),marketWindows,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?observedAt:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),marketUpdatedAt:observedAt,fetchedAt:observedAt};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
@@ -46,6 +46,29 @@ export function recordMarketHistory(coins,now=Date.now()){
   if(!hourly.length||now-hourly.at(-1).at>=55*60000)hourly.push(sample);
   return {...coin,marketHistory:recent.slice(-48),marketHistoryHourly:hourly.slice(-120),recentVolume1h:recentVolume1h(recent)};
  });
+}
+
+export function sharedTweetMarket(coins,radarCoins,previous,now=Date.now()){
+ const rows=new Map();
+ for(const coin of [...coins,...radarCoins]){
+  const key=tokenKey(coin.id),old=rows.get(key),at=coin.marketUpdatedAt??coin.fetchedAt??0;
+  if(!old||at>(old.marketUpdatedAt??old.fetchedAt??0))rows.set(key,coin);
+ }
+ const tweetCoins=[],tweetMarketFeeds={};
+ for(const network of NETWORKS){
+  const measured=[...rows.values()].filter(c=>c.network===network.id&&now-(c.marketUpdatedAt??c.fetchedAt)>=0&&
+   now-(c.marketUpdatedAt??c.fetchedAt)<15*60000&&[c.volume,c.buys,c.sells].every(v=>amount(v)!==null))
+   .map(c=>({...c,volume:amount(c.volume),buys:amount(c.buys),sells:amount(c.sells),liquidity:amount(c.liquidity)}));
+  const eligible=measured.filter(c=>c.liquidity>=3000&&c.volume>=15000&&c.buys+c.sells>=50).map(c=>{
+   const streamScore=Math.log1p(c.volume)*(1+Math.min(c.volume/c.liquidity,10))*(.5+c.buys/(c.buys+c.sells));
+   return {...c,streamScore,buyers:c.marketSource==='DexScreener'?null:c.buyers};
+  }).sort((a,b)=>b.streamScore-a.streamScore||a.id.localeCompare(b.id)).slice(0,30);
+  const fresh=measured.length>0,old=previous.tweetMarketFeeds?.[network.id]||{};
+  tweetCoins.push(...(fresh?eligible:(previous.tweetCoins||[]).filter(c=>c.network===network.id)));
+  tweetMarketFeeds[network.id]={lastAttempt:now,lastSuccess:fresh?Math.max(...measured.map(c=>c.marketUpdatedAt??c.fetchedAt)):old.lastSuccess??null,
+   error:fresh?null:'No recent shared market observations for this chain.',records:eligible.length,status:fresh?'ok':'failed'};
+ }
+ return {tweetCoins,tweetMarketFeeds};
 }
 export function refreshLaunchpad(coins,tokens,now=Date.now()){
  const key=(network,address)=>`${network}:${network==='solana'?address:String(address).toLowerCase()}`;
@@ -384,11 +407,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools','launchpad_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
  const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
- const tweetCoins=NETWORKS.flatMap(network=>feeds[`${network.id}_trending`]?.error
-  ? (previous.tweetCoins||[]).filter(coin=>coin.network===network.id)
-  : trending.filter(coin=>coin.network===network.id).slice(0,30));
+ const {tweetCoins,tweetMarketFeeds}=sharedTweetMarket(coins,radarCoins,previous,now);
  const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,
- tweetCoins,articles:previous.articles||[],lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
+ tweetCoins,tweetMarketFeeds,articles:previous.articles||[],lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
   discovery:{status:discoveryStatus,completedAt:now,coins:coins.length,radarCoins:radarCoins.length},
   market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs,selectedContracts:retained.selected,refreshLimit:1800,priorityContracts:priorityIds.length},
   context:{status:'pending'},

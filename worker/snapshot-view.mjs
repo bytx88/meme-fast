@@ -39,8 +39,8 @@ export function snapshotView(snapshot,view='',ids=[],now=Date.now(),name='',hour
  }
  if(view==='health')return Object.fromEntries(['revision','lastRun','feeds'].map(field=>[field,snapshot[field]??null]));
  if(view==='tweet'){
-  const fields=['id','name','symbol','network','chain','contract_address','contract_verified','image_url','pool','dex','poolCreated','mc','fdv','liquidity','priceUsd','priceChange','volume','volume5m','buyers','buys','sells','buys5m','sells5m','fetchedAt','marketUpdatedAt','priceUpdatedAt'];
-  return {version:1,...snapshotVersion(snapshot),feeds:snapshot.feeds||{},
+  const fields=['id','name','symbol','network','chain','contract_address','contract_verified','image_url','pool','dex','poolCreated','mc','fdv','liquidity','priceUsd','priceChange','volume','volume5m','buyers','buys','sells','buys5m','sells5m','fetchedAt','marketUpdatedAt','priceUpdatedAt','streamScore','marketSource','marketSourceURL'];
+  return {version:1,...snapshotVersion(snapshot),feeds:snapshot.feeds||{},marketFeeds:snapshot.tweetMarketFeeds||{},
    articles:(snapshot.articles||[]).filter(a=>a.time>=now-72*3600000&&a.time<=now).slice(0,500),
    coins:(snapshot.tweetCoins||[]).filter(c=>c.fetchedAt>=now-24*3600000&&c.fetchedAt<=now).slice(0,120)
     .map(c=>Object.fromEntries(fields.filter(key=>key in c).map(key=>[key,c[key]])))};
