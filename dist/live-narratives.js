@@ -1,5 +1,5 @@
 import {tokenActions as actions} from './token-actions.mjs?v=snipe-route-v1';
-import {FEEDS,NETWORKS,buildPublicView,compareSnapshots,safeURL} from './public-radar.mjs';
+import {FEEDS,NETWORKS,buildPublicView,compareSnapshots,safeURL,mergeArticles} from './public-radar.mjs';
 import {loadSharedFeed,reconcileSharedFeed} from './shared-feed.mjs';
 import {contractForCopy,copyContract,axiomLink,fomoLink} from './contract-copy.mjs';
 import {chainMarker} from './chain-marker.mjs';
