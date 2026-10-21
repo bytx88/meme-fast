@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chart} from '../dist/market-delta.mjs';
+import {chart,compareReading,hourlyComparisons} from '../dist/market-delta.mjs';
 test('A single complete 1h reading renders immediately on a zero-centered chart',()=>{
  assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Meme \+2\.50%/);
  assert.match(chart([{at:2000000000000,meme:2.5,altDelta:-1.25}]),/Alt -1\.25%/);
@@ -22,4 +22,34 @@ test('BTC line uses its own scale and does not connect gaps or invent old histor
  const path=svg.match(/<path d="([^"]*)"[^>]*stroke="#f6b85a"/)[1];
  assert.equal((path.match(/M/g)||[]).length,2);
  assert.doesNotMatch(path,/NaN|L/);
+});
+
+test('Hourly comparison subtracts the 1H reading from 24 hours ago in percentage points',()=>{
+ const at=2000000000000,day=24*3600000;
+ const rows=[{at:at-day,meme:1,altDelta:-2,btcDelta:0.4},{at,meme:3,altDelta:-1,btcDelta:-0.1}];
+ assert.deepEqual(compareReading(rows),{at,baselineAt:at-day,meme:2,altDelta:1,btcDelta:-0.5});
+ assert.match(chart([compareReading(rows)],' pp'),/Meme \+2\.00 pp/);
+ assert.match(chart([compareReading(rows)],' pp'),/BTC -0\.50 pp/);
+});
+
+test('Comparison picks the closest historical reading and withholds missing history or BTC',()=>{
+ const at=2000000000000,day=24*3600000;
+ const current={at,meme:3,altDelta:2,btcDelta:1};
+ assert.equal(compareReading([current]),null);
+ assert.equal(compareReading([{at:at-day-11*60000,meme:1,altDelta:1},current]),null);
+ const result=compareReading([{at:at-day-4*60000,meme:9,altDelta:9},
+  {at:at-day+60000,meme:1,altDelta:1},current]);
+ assert.equal(result.meme,2);
+ assert.equal(result.btcDelta,null);
+ assert.match(chart([result],' pp'),/BTC —/);
+});
+
+test('Legacy five-minute history produces at most one comparison per UTC hour',()=>{
+ const hour=3600000,at=2000000000000-2000000000000%hour,day=24*hour;
+ const rows=[{at:at-day,meme:1,altDelta:1},{at:at-day+5*60000,meme:2,altDelta:2},
+  {at,meme:3,altDelta:3},{at:at+5*60000,meme:5,altDelta:5}];
+ const comparisons=hourlyComparisons(rows);
+ assert.equal(comparisons.length,1);
+ assert.equal(comparisons[0].at,at+5*60000);
+ assert.equal(comparisons[0].meme,3);
 });

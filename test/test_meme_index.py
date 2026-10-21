@@ -39,6 +39,18 @@ class FakeSources:
 
 
 class IndexTests(unittest.TestCase):
+    def test_collection_once_per_utc_hour_even_across_short_boundary(self):
+        hour = 2_000_000_000_000 // HOUR * HOUR
+        source = FakeSources(hour)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'index.json'
+            first = collect(path, source, hour + HOUR - 60_000)
+            skipped = collect(path, source, hour + HOUR - 30_000)
+            self.assertEqual(first['updatedAt'], skipped['updatedAt'])
+            next_hour = collect(path, source, hour + HOUR)
+            self.assertEqual(next_hour['updatedAt'], hour + HOUR)
+            self.assertEqual(len(next_hour['readings']), 2)
+
     def test_btc_uses_existing_feed_and_keeps_missing_values_unavailable(self):
         rows = [{'id': str(i + 100), 'rank': i + 2, 'symbol': str(i),
                  'market_cap_usd': '100', 'percent_change_1h': '2'} for i in range(25)]

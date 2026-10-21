@@ -481,7 +481,7 @@ def collect_jeanphil_monitor():
     print(result.stdout)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1,
+@app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1,
               secrets=[modal.Secret.from_name("meme-fast-fomolist")], volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 def collect_meme_index():

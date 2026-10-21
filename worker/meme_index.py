@@ -179,7 +179,7 @@ def collect(path, sources=None, now=None, checkpoint_commit=None):
             if 0 <= now - captured < REBALANCE:
                 report['boardCache'] = seed
                 report['boardAttemptAt'] = captured
-    if now - report.get('updatedAt', 0) < 240_000:
+    if report.get('updatedAt') and now // HOUR == report['updatedAt'] // HOUR:
         return report
     report['attemptedAt'] = now
     cache = {}
