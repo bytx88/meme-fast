@@ -10,6 +10,12 @@ test('known tokens deduplicate by chain and contract and reject unverified ident
  assert.equal(matchKnownTokens(known,'another')[0].network,'eth');
  assert.deepEqual(matchKnownTokens(known,'missing'),[]);
 });
+test('large collected catalogs retain early and late matches without a display-cap truncation',()=>{
+ const catalog=Array.from({length:22000},(_,i)=>({network:'base',address:'0x'+i.toString(16).padStart(40,'0'),symbol:`T${i}`,name:`Token ${i}`}));
+ const known=mergeKnownTokens(catalog);
+ assert.equal(known.length,22000);assert.equal(matchKnownTokens(known,'T0')[0].address,catalog[0].address);
+ assert.equal(matchKnownTokens(known,'T21999')[0].address,catalog.at(-1).address);
+});
 class Element{
  constructor(){this.events={};this.attributes={};this.children=[];this.hidden=true;this.value=''}
  addEventListener(name,fn){(this.events[name]??=[]).push(fn)}

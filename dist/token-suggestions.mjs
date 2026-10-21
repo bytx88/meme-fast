@@ -12,7 +12,7 @@ export function mergeKnownTokens(...groups){
     const key=network+':'+(address.startsWith('0x')?address.toLowerCase():address);
     tokens.set(key,{address,network,symbol,name});
   }
-  return [...tokens.values()].slice(-10000);
+  return [...tokens.values()];
 }
 export function matchKnownTokens(tokens,query,limit=12){
   const q=String(query).normalize('NFKC').trim().toLowerCase().replace(/^\$/,'');
