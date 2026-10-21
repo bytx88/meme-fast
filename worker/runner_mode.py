@@ -18,7 +18,8 @@ MINUTE = 60_000
 DAY = 24 * 60 * MINUTE
 FOLLOWUP = 3 * DAY
 SGT = dt.timezone(dt.timedelta(hours=8))
-POLICY = {'version': 1, 'historyDays': 14, 'minimumDailyCoverage': .9,
+POLICY = {'version': 2, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
+          'minimumRunnerEvents': 10, 'minimumThresholdEvents': 5, 'minimumPeriodCoverage': .9,
           'minimumValuationCoverage': .95, 'followupHours': 72,
           'confirmationMinutes': 15, 'trendChange': .2}
 
@@ -29,9 +30,9 @@ def number(value):
 
 
 def unknown(reason='Awaiting reliable Solana runner history'):
-    return {'version': 1, 'mode': 'Unknown', 'ready': False, 'reason': reason,
+    return {'version': 1, 'mode': 'Unknown', 'score': None, 'ready': False, 'reason': reason,
             'updatedAt': None, 'counts24h': {str(k): None for k in LEVELS},
-            'daily': [], 'reliableDays': 0, 'policy': POLICY,
+            'daily': [], 'reliableDays': 0, 'history': {'usable': False, 'periodHours': 1, 'comparablePeriods': 0, 'baselinePeriods': 0}, 'policy': POLICY,
             'scope': 'Observed Solana launchpad-token sample; not a market-wide census'}
 
 
@@ -40,9 +41,11 @@ def public_report(report, now=None):
     if not report:
         return unknown()
     report = dict(report)
+    if report.get('policy', {}).get('version') != POLICY['version']:
+        report.update(mode='Unknown', score=None, ready=False, reason='Awaiting a report using usable history and coverage')
     at = number(report.get('updatedAt'))
     if at is None or not 0 <= now - at <= 15 * MINUTE:
-        report.update(mode='Unknown', ready=False, reason='Runner collection is stale or unavailable')
+        report.update(mode='Unknown', score=None, ready=False, reason='Runner collection is stale or unavailable')
     return report
 
 
@@ -51,29 +54,83 @@ def day_start(now):
         hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
 
 
-def classify(days):
-    """Descriptive provisional rule, gated on 14 comparable, complete SGT days."""
-    if len(days) < 14 or not all(d['reliable'] for d in days[-14:]):
-        return 'Unknown', 'Need 14 consecutive complete SGT days with reliable coverage'
-    recent = days[-14:]
-    populations = [d['population'] for d in recent]
+def classify(periods):
+    """Two baseline observations plus a current, comparable observation.
+
+    Periods can be hourly, six-hourly or daily; elapsed calendar age is not a gate.
+    """
+    if len(periods) < POLICY['baselinePeriods'] + 1 or not all(p['reliable'] for p in periods):
+        return 'Unknown', 'Need two covered baseline periods and a comparable current period'
+    populations = [p['population'] for p in periods]
     if min(populations) <= 0 or max(populations) > min(populations) * 1.25:
         return 'Unknown', 'Observed token coverage changed too much for a comparable trend'
-    if sum(d['counts']['500000'] for d in recent) < 10:
+    if sum(p['counts']['500000'] for p in periods) < POLICY['minimumRunnerEvents']:
         return 'Unknown', 'Too few observed runners to establish a direction'
     labels = []
     for threshold in LEVELS:
-        values = [d['counts'][str(threshold)] for d in recent]
-        baseline = statistics.median(values)
-        yesterday, current = values[-2:]
-        if current > yesterday and current >= yesterday * 1.2:
+        values = [p['counts'][str(threshold)] for p in periods]
+        if sum(values) < POLICY['minimumThresholdEvents']:
+            continue  # Empty high-cap buckets cannot manufacture a neutral signal.
+        baseline = statistics.median(values[:-1])
+        previous, current = values[-2:]
+        if current > previous and current >= previous * (1 + POLICY['trendChange']):
             labels.append('Easy' if current >= baseline else 'Improving')
-        elif current < yesterday and current <= yesterday * .8:
+        elif current < previous and current <= previous * (1 - POLICY['trendChange']):
             labels.append('Cooling' if current >= baseline else 'Hard')
-    for label in ('Easy', 'Improving', 'Cooling', 'Hard'):
+        else:
+            labels.append('Balanced')
+    for label in ('Easy', 'Improving', 'Balanced', 'Cooling', 'Hard'):
         if labels.count(label) >= 3:
-            return label, 'At least three thresholds agree versus the previous complete SGT day'
-    return 'Unknown', 'Threshold counts do not yet show a consistent direction'
+            return label, 'At least three supported thresholds agree across comparable covered periods'
+    return 'Unknown', 'Threshold evidence is sparse or does not show a consistent direction'
+
+
+SCORES = {'Hard': 1, 'Cooling': 2, 'Balanced': 3, 'Improving': 4, 'Easy': 5}
+
+
+def period_summary(db, start, end):
+    slots = db.execute('SELECT reliable,population FROM coverage WHERE slot>=? AND slot<?',
+                       (start // (5 * MINUTE), end // (5 * MINUTE))).fetchall()
+    coverage = sum(r[0] for r in slots) / ((end - start) / (5 * MINUTE))
+    counts = {str(k): 0 for k in LEVELS}
+    counts.update({str(k): n for k, n in db.execute(
+        'SELECT threshold,COUNT(*) FROM events WHERE at>=? AND at<? GROUP BY threshold', (start, end))})
+    return {'startAt': start, 'endAt': end, 'counts': counts, 'coverage': coverage,
+            'population': statistics.median(r[1] for r in slots) if slots else 0,
+            'reliable': coverage >= POLICY['minimumPeriodCoverage']}
+
+
+def usable_history(db, now):
+    """Reuse retained event/coverage tables. Never bridge an unobserved gap."""
+    best = None
+    first = db.execute('SELECT MIN(slot) FROM coverage').fetchone()[0]
+    for hours in POLICY['periodHours']:
+        length = hours * 60 * MINUTE
+        end = ((now + 8 * 60 * MINUTE) // length) * length - 8 * 60 * MINUTE
+        periods = []
+        for offset in range(28):  # Bounded lookback, not a waiting requirement.
+            stop = end - offset * length
+            if first is None or first * 5 * MINUTE >= stop:
+                break
+            period = period_summary(db, stop - length, stop)
+            if not period['reliable']:
+                break
+            populations = [p['population'] for p in [period, *periods]]
+            if min(populations) <= 0 or max(populations) > min(populations) * 1.25:
+                break  # Older incompatible samples do not invalidate a usable recent run.
+            periods.insert(0, period)
+        mode, reason = classify(periods)
+        usable = (len(periods) >= POLICY['baselinePeriods'] + 1
+                  and all(p['reliable'] for p in periods)
+                  and mode != 'Unknown')
+        result = {'usable': usable, 'periodHours': hours, 'comparablePeriods': len(periods),
+                  'baselinePeriods': max(0, len(periods) - 1), 'periods': periods,
+                  'mode': mode, 'reason': reason}
+        if usable:
+            return result
+        if best is None or len(periods) >= best['comparablePeriods']:
+            best = result
+    return best
 
 
 def eligible(row):
@@ -167,7 +224,7 @@ def collect(snapshot, directory):
         days = []
         midnight = day_start(now)
         first_slot = db.execute('SELECT MIN(slot) FROM coverage').fetchone()[0]
-        for offset in range(14, 0, -1):
+        for offset in range(30, 0, -1):
             start = midnight - offset * DAY
             if first_slot is None or first_slot * 5 * MINUTE >= start + DAY:
                 continue
@@ -180,11 +237,12 @@ def collect(snapshot, directory):
             days.append({'date': dt.datetime.fromtimestamp(start / 1000, SGT).date().isoformat(),
                          'counts': counts, 'coverage': coverage,
                          'population': statistics.median(r[1] for r in slots) if slots else 0,
-                         'reliable': coverage >= POLICY['minimumDailyCoverage']})
+                         'reliable': coverage >= POLICY['minimumPeriodCoverage']})
         counts = {str(k): 0 for k in LEVELS}
         counts.update({str(k): n for k, n in db.execute(
             'SELECT threshold,COUNT(*) FROM events WHERE at>? AND at<=? GROUP BY threshold', (now - DAY, now))})
-        mode, reason = classify(days)
+        history = usable_history(db, now)
+        mode, reason = history['mode'], history['reason']
         if not reliable:
             mode, reason = 'Unknown', 'Current source or valuation coverage is incomplete'
         consecutive = 0
@@ -193,13 +251,15 @@ def collect(snapshot, directory):
                 break
             consecutive += 1
         report = {**unknown(), 'mode': mode, 'ready': mode != 'Unknown', 'reason': reason,
+                  'score': SCORES.get(mode), 'history': history,
                   'updatedAt': now, 'counts24h': counts, 'daily': days,
                   'reliableDays': consecutive,
                   'coverage': {'eligibleTokens': len(active), 'valuedTokens': valid,
                                'valuationFraction': fraction, 'sourcesOk': sources_ok,
                                'reliable': reliable},
                   'definition': 'Unique mints first observed crossing each market-cap threshold after a baseline below it; two distinct quotes within 15 minutes, liquidity at least $3K and positive 24H volume. Initial above-threshold tokens and repeat reclaims are excluded. Follow-up is 72 hours from admission; gaps remain unknown. Not first lifetime crossings or all Solana memes.',
-                  'classification': 'Provisional descriptive rule: 14 complete SGT days, at least 90% reliable five-minute slots per day and 95% fresh valuation coverage per slot; population variation at most 25%; at least 10 $500K runners. Three thresholds must agree on a daily count change of at least 20%; high/low uses the 14-day median. Not a validated trading signal.'}
+                  'classification': 'Provisional descriptive score: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. Compare adjacent equal-length 24H, 6H or 1H periods using existing covered history, with two earlier baseline periods. Each period needs at least 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage. Population variation is at most 25%, at least ten $500K events and five events at each of three agreeing thresholds. Daily history length alone never unlocks a score. Not a validated trading signal.'}
+
     destination = directory / 'runner-mode.json'
     temporary = destination.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(report, allow_nan=False), encoding='utf-8')

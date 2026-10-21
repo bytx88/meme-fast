@@ -47,8 +47,8 @@
 .market-btc-key{display:inline-block;width:15px;height:2px;background:#f6b85a;vertical-align:middle;margin-right:6px}
 
 .market-overview-values>span.market-mode-value{border-left:3px double #91b8ca80;padding-left:10px}
-.market-overview-values .mode-easy,.market-overview-values .mode-improving{color:#74e1c1}
-.market-overview-values .mode-hard,.market-overview-values .mode-cooling{color:#ff8c9e}
+.market-overview-values .mode-5,.market-overview-values .mode-4{color:#74e1c1}
+.market-overview-values .mode-1,.market-overview-values .mode-2{color:#ff8c9e}
 .market-runner-mode{border-top:1px solid #91b8ca38;padding:14px 0;margin-top:12px}
 .market-runner-mode h3{font-size:14px;display:flex;justify-content:space-between;gap:12px}
 .market-runner-mode h3 strong{color:#edf3fa}

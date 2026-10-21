@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from worker.runner_mode import (DAY, LEVELS, MINUTE, classify, collect, day_start,
-                                eligible, public_report, unknown)
+                                eligible, public_report, unknown, SCORES)
 
 NOW = 1_800_000_000_000
 
@@ -94,23 +94,58 @@ class RunnerModeTests(unittest.TestCase):
             self.assertFalse(result['daily'][0]['reliable'])
             self.assertEqual(json.loads((Path(folder)/'runner-mode.json').read_text())['mode'], 'Unknown')
 
-    def test_unknown_until_complete_comparable_history_then_descriptive_labels(self):
-        def days(values):
+    def test_scores_use_usable_periods_instead_of_elapsed_calendar_days(self):
+        def periods(values):
             return [{'reliable': True, 'population': 100,
                      'counts': {str(k): value for k in LEVELS}} for value in values]
-        for label, values in [('Easy', [3]*12+[3,6]), ('Improving', [10]*12+[2,3]),
-                              ('Hard', [5]*12+[3,1]), ('Cooling', [2]*12+[10,7])]:
-            self.assertEqual(classify(days(values))[0], label)
-        complete = days([3]*12+[3,6])
+        for score, label, values in [(5, 'Easy', [6, 6, 12]), (4, 'Improving', [10, 2, 3]),
+                                     (3, 'Balanced', [5, 5, 5]), (1, 'Hard', [6, 4, 2]),
+                                     (2, 'Cooling', [2, 10, 7])]:
+            mode, _ = classify(periods(values))
+            self.assertEqual(mode, label)
+            self.assertEqual(SCORES[mode], score)
+        complete = periods([6, 6, 12])
         self.assertEqual(classify(complete[:-1])[0], 'Unknown')
-        complete[2]['reliable'] = False
+        complete[1]['reliable'] = False
         self.assertEqual(classify(complete)[0], 'Unknown')
-        complete[2].update(reliable=True, population=200)
+        complete[1].update(reliable=True, population=200)
         self.assertEqual(classify(complete)[0], 'Unknown')
-        self.assertEqual(classify(days([3]*14))[0], 'Unknown')
-        report = {**unknown(), 'updatedAt': NOW, 'mode': 'Easy', 'ready': True}
-        self.assertEqual(public_report(report, NOW+16*MINUTE)['mode'], 'Unknown')
-        self.assertEqual(public_report(report, NOW-MINUTE)['mode'], 'Unknown')
+        sparse = periods([10, 10, 10])
+        for period in sparse:
+            period['counts'].update({'1000000': 0, '5000000': 0, '10000000': 0})
+        self.assertEqual(classify(sparse)[0], 'Unknown')
+        report = {**unknown(), 'updatedAt': NOW, 'mode': 'Easy', 'score': 5, 'ready': True}
+        self.assertIsNone(public_report(report, NOW+16*MINUTE)['score'])
+        self.assertIsNone(public_report(report, NOW-MINUTE)['score'])
+        old = {**report, 'policy': {'version': 1}}
+        self.assertFalse(public_report(old, NOW)['ready'])
+        self.assertIsNone(public_report(old, NOW)['score'])
+
+    def test_end_to_end_three_covered_hours_can_score_and_missing_coverage_withholds_it(self):
+        # Synthetic unit data only: 100 tracked mints, six/six/twelve new runners
+        # per hour, with distinct baseline and confirmation quotes for every mint.
+        start = NOW // (60 * MINUTE) * 60 * MINUTE
+        with tempfile.TemporaryDirectory() as folder:
+            for step in range(37):
+                at = start + step * 5 * MINUTE
+                winners = 0 if step == 0 else 6 if step < 13 else 12 if step < 25 else 24
+                rows = [coin(str(i), 20_000_000 if i < winners else 100_000, at) for i in range(100)]
+                report = collect(snapshot(rows, at), folder)
+            self.assertEqual(report['score'], 5)
+            self.assertEqual(report['history']['periodHours'], 1)
+            self.assertEqual(report['history']['comparablePeriods'], 3)
+            self.assertTrue(report['ready'])
+            with closing(sqlite3.connect(Path(folder)/'runner-mode.sqlite')) as db, db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 24 * 4)
+                db.execute('UPDATE coverage SET reliable=0 WHERE slot IN (?,?)',
+                           (start // (5*MINUTE) + 26, start // (5*MINUTE) + 27))
+            report = collect(snapshot(rows, at), folder)
+            self.assertEqual(report['mode'], 'Unknown')
+            self.assertIsNone(report['score'])
+            self.assertFalse(report['ready'])
+            # The new policy reuses every saved event, even when coverage fails.
+            with closing(sqlite3.connect(Path(folder)/'runner-mode.sqlite')) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 24 * 4)
 
 
 if __name__ == '__main__':

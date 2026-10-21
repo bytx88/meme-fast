@@ -1,4 +1,4 @@
-import {mountMarket} from './market-delta.mjs?v=market-mode-v1';
+import {mountMarket} from './market-delta.mjs?v=market-mode-v2';
 const address = 'BNoUUtinMiHdARMwEM6YXaNJ1MhGmTiJ4a5FmCgyJL8R';
 const header = document.querySelector('.masthead');
 
@@ -35,8 +35,8 @@ if (header) {
   market.type = 'button';
   market.className = 'market-overview';
   market.setAttribute('aria-haspopup', 'dialog');
-  market.setAttribute('aria-label', 'Market overview. Meme, Alt and BTC data unavailable. Mode Unknown. Open details');
-  if (!market.isConnected) market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span><span>Btc <b>—</b></span><span class="market-mode-value">Mode <b>Unknown</b></span></span>';
+  market.setAttribute('aria-label', 'Market overview. Meme, Alt and BTC data unavailable. Mode unavailable. Open details');
+  if (!market.isConnected) market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span><span>Btc <b>—</b></span><span class="market-mode-value">Mode <b>—</b></span></span>';
   if (!market.isConnected) header.querySelector('.site-nav')?.before(market);
   const marketDialog = document.createElement('dialog');
   marketDialog.className = 'donate-dialog market-overview-dialog';

@@ -1,0 +1,152 @@
+{
+  "auditedAt": "2026-10-21T16:49:10.183886+00:00",
+  "snapshots": [
+    {
+      "file": "coins.before-compact-preview.json",
+      "sha256": "599bf1ec655ec09355be5e0ae1a14eebe4b5d5105cda9678422b2a457cf3c64f",
+      "snapshotAt": 1790491988137,
+      "solanaMints": 774,
+      "eligibleMints": 645,
+      "scalarCaps": 7,
+      "historyPoints": 29912,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": [
+        1790346000000,
+        1790492100000
+      ]
+    },
+    {
+      "file": "final-stretch-audit.json",
+      "sha256": "c3bc48fc396f4a373f7b4b12fdd9e95f5fd797a148dcf5d0117abd2a454705f7",
+      "snapshotAt": 1791041117057,
+      "solanaMints": 16006,
+      "eligibleMints": 231,
+      "scalarCaps": 36,
+      "historyPoints": 232107,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": [
+        1790609720589,
+        1791041117057
+      ]
+    },
+    {
+      "file": "launchpad-live-verification-full.json",
+      "sha256": "aaae063783ab3fbd39c38b6fe898e9775537988e07d1ac4dde0e8c8761eda23d",
+      "snapshotAt": 1791042239493,
+      "solanaMints": 16022,
+      "eligibleMints": 573,
+      "scalarCaps": 35,
+      "historyPoints": 231941,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": [
+        1790610620180,
+        1791042239493
+      ]
+    },
+    {
+      "file": "launchpad-live-verification.json",
+      "sha256": "7fde9ab2a4577e49fd193bec227d313ac128860bfb1481119713c883d5f13f5b",
+      "snapshotAt": 1791042980474,
+      "solanaMints": 861,
+      "eligibleMints": 131,
+      "scalarCaps": 0,
+      "historyPoints": 0,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": null
+    },
+    {
+      "file": "live-snipe-check.json",
+      "sha256": "98107697ad0079bd6f6800b936153bb738a9ed4e9639faecf562fee985b96d09",
+      "snapshotAt": 1791094517171,
+      "solanaMints": 2108,
+      "eligibleMints": 327,
+      "scalarCaps": 0,
+      "historyPoints": 0,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": null
+    },
+    {
+      "file": "radar-layout-snapshot.json",
+      "sha256": "7c5135c1418c72a4ec7cc022412b1bd08f5dee34b787d7b0a84efa41c8c8d09a",
+      "snapshotAt": 1791095120414,
+      "solanaMints": 200,
+      "eligibleMints": 158,
+      "scalarCaps": 19,
+      "historyPoints": 15243,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": [
+        1790684717221,
+        1791095120414
+      ]
+    },
+    {
+      "file": "runner-history-live-coins.json",
+      "sha256": "47fd429ee1df19ca25f5716912ac82efdabcde6e6e6267d5b32d8fb8bebeea43",
+      "snapshotAt": 1792600520301,
+      "solanaMints": 6935,
+      "eligibleMints": 6328,
+      "scalarCaps": 5,
+      "historyPoints": 147293,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 195,
+      "historyRange": [
+        1792169117823,
+        1792600520301
+      ]
+    },
+    {
+      "file": "token-ranking-live-catalog.json",
+      "sha256": "c49be262c129bc8a6af08b664d8c114b4a51c2918cfde960532c21b1fcb4625d",
+      "snapshotAt": 1792557920899,
+      "solanaMints": 6820,
+      "eligibleMints": 0,
+      "scalarCaps": 4,
+      "historyPoints": 0,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": null
+    },
+    {
+      "file": "token-suggestions-live-catalog.json",
+      "sha256": "901a228458a5585183d3978b6875be96eaae39f61304804a862996ceab7eb56a",
+      "snapshotAt": 1792552221502,
+      "solanaMints": 6845,
+      "eligibleMints": 0,
+      "scalarCaps": 0,
+      "historyPoints": 0,
+      "timestampedHistoricalCaps": 0,
+      "atomicRunnerQuotes": 0,
+      "historyRange": null
+    }
+  ],
+  "duplicateCopies": [
+    "coins.before-hide-preview.json",
+    "coins.json"
+  ],
+  "ledger": {
+    "tokens": 6331,
+    "events": 0,
+    "coverage": 1,
+    "reliableSlots": 0,
+    "coverageRange": [
+      1792600500000,
+      1792600500000
+    ],
+    "history": {
+      "usable": false,
+      "periodHours": 1,
+      "comparablePeriods": 0,
+      "baselinePeriods": 0,
+      "periods": [],
+      "mode": "Unknown",
+      "reason": "Need two covered baseline periods and a comparable current period"
+    }
+  },
+  "conclusion": "Reuse the existing runner event/coverage ledger in place. Older scalar mc values lack dedicated valuation timestamps; market refresh historically changed fetchedAt/marketUpdatedAt without updating mc. Price-only histories, FDV, aggregate basket returns and duplicate copies do not establish crossing events or gap-free coverage. No unsupported records are imported."
+}
