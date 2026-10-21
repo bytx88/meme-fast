@@ -20,7 +20,7 @@ body.trader-ui .masthead .header-brand-group { gap: 2px; }
 body.trader-ui .masthead .brand { font-size: 16px; }
 body.trader-ui .masthead .site-disclaimer { font-size: 9px; }
 body.trader-ui .masthead .market-overview {
-  flex: 0 1 240px;
+  flex: 0 1 320px;
   min-height: 34px;
   padding: 3px 10px;
   border-radius: 6px;
@@ -240,7 +240,7 @@ body.trader-ui.inspect-depth .order-flow-page .tape-section > .chart-note { marg
 }
 @media (min-width: 851px) and (max-width: 1100px) {
   body.trader-ui main .masthead { height: 54px; min-height: 54px; flex-wrap: nowrap; padding: 4px 0; gap: 12px; }
-  body.trader-ui main .masthead .market-overview { flex: 0 1 240px; margin-left: 0; }
+  body.trader-ui main .masthead .market-overview { flex: 0 1 320px; margin-left: 0; }
   body.trader-ui main .masthead .site-nav { width: auto; flex-wrap: nowrap; order: initial; white-space: nowrap; gap: 2px; margin-left: auto; }
 }
 @media (max-width: 720px) {

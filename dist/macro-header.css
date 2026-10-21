@@ -15,7 +15,7 @@ body.macro-shell .masthead .header-brand-group { gap: 2px; }
 body.macro-shell .masthead .brand { font-size: 16px; }
 body.macro-shell .masthead .site-disclaimer { font-size: 9px; }
 body.macro-shell .masthead .market-overview {
-  flex: 0 1 240px;
+  flex: 0 1 320px;
   min-height: 34px;
   padding: 3px 10px;
   border-radius: 6px;
@@ -68,5 +68,5 @@ body.macro-shell .masthead .site-nav .contact-support {
 }
 
 @media(max-width:1100px){body.macro-shell .masthead{height:auto;min-height:54px;flex-wrap:wrap;gap:5px 10px;padding:6px 0}body.macro-shell .masthead .site-nav{width:100%;order:2;justify-content:flex-start;flex-wrap:wrap}body.macro-shell .masthead .market-overview{margin-left:auto}}
-@media(min-width:851px) and (max-width:1100px){body.macro-shell main .masthead{height:54px;min-height:54px;flex-wrap:nowrap;padding:4px 0;gap:12px}body.macro-shell main .masthead .market-overview{flex:0 1 240px;margin-left:0}body.macro-shell main .masthead .site-nav{width:auto;flex-wrap:nowrap;order:initial;white-space:nowrap;gap:2px;margin-left:auto}}
+@media(min-width:851px) and (max-width:1100px){body.macro-shell main .masthead{height:54px;min-height:54px;flex-wrap:nowrap;padding:4px 0;gap:12px}body.macro-shell main .masthead .market-overview{flex:0 1 320px;margin-left:0}body.macro-shell main .masthead .site-nav{width:auto;flex-wrap:nowrap;order:initial;white-space:nowrap;gap:2px;margin-left:auto}}
 @media(max-width:720px){body.macro-shell .masthead .site-nav a{padding:5px 7px}}

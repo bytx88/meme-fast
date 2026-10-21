@@ -47,7 +47,7 @@ body.macro-shell .site-nav{display:flex;align-items:center}
 body.macro-shell .site-nav a:hover{text-decoration:none;color:#f0f3f8}
 ${headerDensity.replaceAll('body.trader-ui','body.macro-shell')}
 @media(max-width:1100px){body.macro-shell .masthead{height:auto;min-height:54px;flex-wrap:wrap;gap:5px 10px;padding:6px 0}body.macro-shell .masthead .site-nav{width:100%;order:2;justify-content:flex-start;flex-wrap:wrap}body.macro-shell .masthead .market-overview{margin-left:auto}}
-@media(min-width:851px) and (max-width:1100px){body.macro-shell main .masthead{height:54px;min-height:54px;flex-wrap:nowrap;padding:4px 0;gap:12px}body.macro-shell main .masthead .market-overview{flex:0 1 240px;margin-left:0}body.macro-shell main .masthead .site-nav{width:auto;flex-wrap:nowrap;order:initial;white-space:nowrap;gap:2px;margin-left:auto}}
+@media(min-width:851px) and (max-width:1100px){body.macro-shell main .masthead{height:54px;min-height:54px;flex-wrap:nowrap;padding:4px 0;gap:12px}body.macro-shell main .masthead .market-overview{flex:0 1 320px;margin-left:0}body.macro-shell main .masthead .site-nav{width:auto;flex-wrap:nowrap;order:initial;white-space:nowrap;gap:2px;margin-left:auto}}
 @media(max-width:720px){body.macro-shell .masthead .site-nav a{padding:5px 7px}}
 `;
 const headerFile='dist/macro-header.css',oldHeader=await readFile(headerFile,'utf8').catch(()=>null);

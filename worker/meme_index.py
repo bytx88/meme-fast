@@ -30,6 +30,16 @@ def identity(chain, address):
 
 def alt_observation(rows, now):
     """One-hour cap-weighted return of 25 large alts from a bounded 50-row feed."""
+    btc_change = None
+    for row in rows:
+        if str(row.get('id')) == '90' and row.get('symbol') == 'BTC':
+            try:
+                value = float(row['percent_change_1h'])
+                if math.isfinite(value) and value > -100:
+                    btc_change = value
+            except (KeyError, TypeError, ValueError):
+                pass
+            break
     eligible = []
     for row in rows:
         cap = number(row.get('market_cap_usd'))
@@ -47,7 +57,7 @@ def alt_observation(rows, now):
     current = sum(cap for _, cap, _ in selected)
     prior = sum(cap / (1 + change / 100) for _, cap, change in selected)
     return {'value': current, 'hourChange': (current / prior - 1) * 100,
-            'providerAt': now, 'source': 'CoinLore top 25 alts'}
+            'providerAt': now, 'source': 'CoinLore top 25 alts', 'btcDelta': btc_change}
 
 
 
@@ -130,7 +140,7 @@ def record_reading(report, now, quotes, alt):
     if any(value is None or not math.isfinite(value) or value <= -90 for value in changes):
         raise ValueError('One-hour meme price change unavailable')
     report.setdefault('readings', []).append({'at': now,
-        'meme': sum(changes) / 10, 'altDelta': alt['hourChange']})
+        'meme': sum(changes) / 10, 'altDelta': alt['hourChange'], 'btcDelta': alt.get('btcDelta')})
     report['readings'] = [row for row in report['readings'] if now - row['at'] <= 30 * 24 * HOUR]
     report['readingAt'] = now
     report['altMethod'] = alt['source']

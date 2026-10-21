@@ -39,15 +39,30 @@ class FakeSources:
 
 
 class IndexTests(unittest.TestCase):
+    def test_btc_uses_existing_feed_and_keeps_missing_values_unavailable(self):
+        rows = [{'id': str(i + 100), 'rank': i + 2, 'symbol': str(i),
+                 'market_cap_usd': '100', 'percent_change_1h': '2'} for i in range(25)]
+        btc = {'id': '90', 'rank': 1, 'symbol': 'BTC',
+               'market_cap_usd': '100000', 'percent_change_1h': '-0.75'}
+        result = alt_observation([btc, *rows], 2000000000000)
+        self.assertEqual(result['btcDelta'], -0.75)
+        self.assertAlmostEqual(result['hourChange'], 2)
+        self.assertEqual(result['value'], 2500)
+        for invalid in (None, 'NaN', 'Infinity', '-100', 'invalid'):
+            self.assertIsNone(alt_observation([{**btc, 'percent_change_1h': invalid}, *rows], 1)['btcDelta'])
+        self.assertIsNone(alt_observation(rows, 1)['btcDelta'])
+        self.assertEqual(alt_observation([{**btc, 'percent_change_1h': '0'}, *rows], 1)['btcDelta'], 0)
+
     def test_one_hour_reading_uses_current_provider_change(self):
         now = 2_000_000_000_000
         basket = candidates(board(now), now)
         report = {'basket': basket}
         quotes = {t['id']: {'price': 10, 'h1': 2.0} for t in basket}
-        alt = {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts'}
+        alt = {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts', 'btcDelta': -0.75}
         record_reading(report, now, quotes, alt)
         self.assertEqual(report['readings'][0]['meme'], 2)
         self.assertEqual(report['readings'][0]['altDelta'], 1)
+        self.assertEqual(report['readings'][0]['btcDelta'], -0.75)
         self.assertEqual(report['readingAt'], now)
 
     def test_broad_alt_sample_excludes_btc_eth_and_stables(self):
