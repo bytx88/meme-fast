@@ -118,6 +118,12 @@ Collectors scale down after two idle seconds once their writes are committed. Sh
 
 Mode and data-stream workers request the standard 128 MiB of memory instead of 1,024/512 MiB. These are reservations, not hard limits; Modal still bills higher actual usage. The Robinhood catalog adds an ordered refresh index on its next scan to select the same 60 due pools without sorting the full catalog. Existing pool records and cursors are retained. Assess savings from subsequent Modal usage, since cumulative cycle totals include earlier deployments.
 
+The scheduled Node collector reaches the existing shared Modal source owners through a temporary loopback HTTP bridge in its own container. Background collection therefore does not wake the public web worker for provider forwarding. The same provider budgets, cache ownership, retry headers and source observation times apply. Publisher contract/name matching prepares article text and address indexes once per run instead of rescanning each article for every retained token.
+
+Source caches index expiry and sampled-size accounting so pruning does not reread every cached JSON body after each write. The same 2,000-response / 32-million-character bound and oldest-sample eviction still apply. Shared Dex and RPC reads create HTTP clients only when a provider fetch is needed; hits, compatible projections and retained backoff avoid TLS setup.
+
+`/api/collector-health` records `marketTransport` and `processCpuSeconds` for verification. CPU seconds cover the controller and completed child processes before the final Volume commit; remote source workers and reservation billing are separate. Snapshot API projections reload the mounted revision before selection, retaining the small-response path without indefinitely serving a warm worker's older files.
+
 ## Update GitHub and Modal on Windows
 
 Double-click `update-github-and-modal.bat`. It validates the app, commits all non-ignored project changes on `main`, pushes `origin` to `bytx88/meme-fast`, and then deploys `modal_app.py` using the `bytx24` Modal profile. A failed check or push stops deployment; a failed Modal deployment leaves the successful GitHub push intact. It never force-pushes or changes your global Modal profile.

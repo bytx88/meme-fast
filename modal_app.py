@@ -173,37 +173,37 @@ def read_market_source(network, addresses, scope='quotes'):
     session = source_session('/sources/dex', source_volume)
     stream = session.stream()
     try:
-        with httpx.Client(timeout=15, follow_redirects=False) as client:
-            if profiles:
-                def fetch_profiles():
-                    body = paced_get(session,client,'https://api.dexscreener.com/token-profiles/latest/v1',.3).json()
-                    if not isinstance(body,list):
-                        raise ValueError('Invalid token profiles')
-                    return body
-                return stream.get('dex:profiles',[],fetch_profiles,900)
-            if search:
-                def search_tokens():
-                    response = paced_get(session, client, 'https://api.dexscreener.com/latest/dex/search', .3, params={'q': addresses[0]})
-                    body = response.json()
-                    if not isinstance(body.get('pairs'), list):
-                        raise ValueError('Invalid market search response')
-                    return body
-                return stream.get('dex:search', addresses, search_tokens, 60)
-            if scope == 'pools':
-                def fetch_pools(chain, address):
-                    response = paced_get(session, client, 'https://api.dexscreener.com/token-pairs/v1/' + chain + '/' + address, .3)
-                    body = response.json()
-                    if not isinstance(body, list):
-                        raise ValueError('Invalid token pool response')
-                    return body
-                return dex_pools(stream, network, addresses[0], fetch_pools)
-            def fetch(chain, contracts):
-                response = paced_get(session, client, 'https://api.dexscreener.com/tokens/v1/' + chain + '/' + ','.join(contracts), .3)
-                body = response.json()
+        def fetch_json(url, **options):
+            # Cache hits and projections do not need a connection or TLS setup.
+            with httpx.Client(timeout=15, follow_redirects=False) as client:
+                return paced_get(session, client, url, .3, **options).json()
+        if profiles:
+            def fetch_profiles():
+                body = fetch_json('https://api.dexscreener.com/token-profiles/latest/v1')
                 if not isinstance(body, list):
-                    raise ValueError('Invalid token market response')
+                    raise ValueError('Invalid token profiles')
                 return body
-            return dex_tokens(stream, network, addresses, fetch)
+            return stream.get('dex:profiles', [], fetch_profiles, 900)
+        if search:
+            def search_tokens():
+                body = fetch_json('https://api.dexscreener.com/latest/dex/search', params={'q': addresses[0]})
+                if not isinstance(body.get('pairs'), list):
+                    raise ValueError('Invalid market search response')
+                return body
+            return stream.get('dex:search', addresses, search_tokens, 60)
+        if scope == 'pools':
+            def fetch_pools(chain, address):
+                body = fetch_json('https://api.dexscreener.com/token-pairs/v1/' + chain + '/' + address)
+                if not isinstance(body, list):
+                    raise ValueError('Invalid token pool response')
+                return body
+            return dex_pools(stream, network, addresses[0], fetch_pools)
+        def fetch(chain, contracts):
+            body = fetch_json('https://api.dexscreener.com/tokens/v1/' + chain + '/' + ','.join(contracts))
+            if not isinstance(body, list):
+                raise ValueError('Invalid token market response')
+            return body
+        return dex_tokens(stream, network, addresses, fetch)
     finally:
         session.finish()
 
@@ -254,27 +254,29 @@ def read_source(provider, method, params):
     blocked = stream.cooldowns()
     old_blocked = dict(blocked)
     try:
-        with httpx.Client(timeout=12) as client:
-            rpc = public_rpc(client, shared=False, blocked=blocked, clock=time.time)
-            if method == 'getTokenAccountsByOwner':
-                derived = mint_from_wallet_cache(stream,params)
-                if derived is not None:
-                    return derived
-            if method == 'getMultipleAccounts':
-                return multiple_accounts(stream, params, lambda request: rpc(method, request), RPC_TTL[method])
-            # Latest-eight activity and latest-forty ledger reads reuse one page.
-            requested_limit = None
-            if method == 'getSignaturesForAddress' and len(params) == 2 and isinstance(params[1], dict):
-                requested_limit = params[1].get('limit', 40)
-                if type(requested_limit) is int and 0 < requested_limit <= 40 and not any(k in params[1] for k in ('before', 'until')):
-                    params = [params[0], dict(params[1], limit=40)]
-                else:
-                    requested_limit = None
-            ttl = 240 if method == 'getTokenAccountsByOwner' and len(params) > 1 and 'programId' in params[1] else RPC_TTL[method]
-            result = stream.get('solana:' + method, params, lambda: rpc(method, params), ttl)
-            if requested_limit is not None and isinstance(result['value'], list):
-                result['value'] = result['value'][:requested_limit]
-            return result
+        def fetch(request):
+            # Construct the provider client only after retained data misses.
+            with httpx.Client(timeout=12) as client:
+                return public_rpc(client, shared=False, blocked=blocked, clock=time.time)(method, request)
+        if method == 'getTokenAccountsByOwner':
+            derived = mint_from_wallet_cache(stream,params)
+            if derived is not None:
+                return derived
+        if method == 'getMultipleAccounts':
+            return multiple_accounts(stream, params, fetch, RPC_TTL[method])
+        # Latest-eight activity and latest-forty ledger reads reuse one page.
+        requested_limit = None
+        if method == 'getSignaturesForAddress' and len(params) == 2 and isinstance(params[1], dict):
+            requested_limit = params[1].get('limit', 40)
+            if type(requested_limit) is int and 0 < requested_limit <= 40 and not any(k in params[1] for k in ('before', 'until')):
+                params = [params[0], dict(params[1], limit=40)]
+            else:
+                requested_limit = None
+        ttl = 240 if method == 'getTokenAccountsByOwner' and len(params) > 1 and 'programId' in params[1] else RPC_TTL[method]
+        result = stream.get('solana:' + method, params, lambda: fetch(params), ttl)
+        if requested_limit is not None and isinstance(result['value'], list):
+            result['value'] = result['value'][:requested_limit]
+        return result
     finally:
         stream.save_cooldowns(blocked)
         session.finish(force=blocked != old_blocked)
@@ -445,6 +447,7 @@ async def collect_coins():
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.coin_job import run_coin_job
+    from worker.collector_sources import CollectorSources
     from worker.data_stream import read as read_stream
     try:
         # Reuse the existing schedule slot, while running Mode in a separate
@@ -454,9 +457,10 @@ async def collect_coins():
         print('Runner Mode dispatch failed: '+type(exc).__name__, flush=True)
     await stream_volume.reload.aio()
     candidates = read_stream('/stream').get('tokenCandidates', [])
-    web_url = await web.get_web_url.aio()
-    return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
-                              market_url=web_url.rstrip('/') + '/api/dex')
+    async with CollectorSources(read_market_source.remote.aio, read_gecko_source.remote.aio,
+                                read_context_source.remote.aio, read_social_source.remote.aio) as market_url:
+        return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
+                                  market_url=market_url)
 
 
 @app.function(timeout=360, max_containers=1, memory=128, scaledown_window=COLLECTOR_IDLE_SECONDS,
@@ -640,13 +644,16 @@ def web():
     async def macro_review():
         return JSONResponse(await collect_macro_review.remote.aio(), headers={"cache-control": "no-store"})
 
+    def loaded_snapshot():
+        try:
+            return json.loads(Path("/history/coins.json").read_text())
+        except FileNotFoundError:
+            return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+
     async def load_snapshot():
         async with history_lock:
             await history_volume.reload.aio()
-            try:
-                return json.loads(Path("/history/coins.json").read_text())
-            except FileNotFoundError:
-                return {"version": 2, "coins": [], "radarCoins": [], "lastRun": None, "feeds": {}}
+            return loaded_snapshot()
 
     @web_app.get("/api/collector-health")
     async def collector_health():
@@ -1024,23 +1031,24 @@ def web():
     @web_app.get("/api/new-coins")
     async def new_coins(request: Request):
         view = request.query_params.get("view", "")
-        if view == 'tweet':
-            async with history_lock:
-                await history_volume.reload.aio()
-                main = Path('/history/coins.json')
-                projection = Path('/history/coins.tweet.json')
-                if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
-                    return Response(projection.read_bytes(),media_type='application/json',headers={'cache-control':'no-store'})
         hours_text = request.query_params.get("hours", "120")
         if view == "coin" and hours_text not in ("1", "6", "12", "36", "120"):
             raise HTTPException(status_code=400, detail="Choose a supported Snipe time window")
-        if view in ("coin", "health", "catalog"):
-            main = Path("/history/coins.json")
-            projection = Path(f"/history/coins.snipe.v2.{hours_text}.json") if view == "coin" else Path("/history/coins.catalog.v2.json" if view == "catalog" else "/history/coins.health.json")
-            if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
-                return Response(projection.read_bytes(), media_type="application/json",
-                                headers={"cache-control": "no-store"})
-        snapshot = await load_snapshot()
+        async with history_lock:
+            # Refresh the mounted revision before choosing its cheap projection.
+            # Otherwise a warm container can keep serving an internally coherent
+            # old main/projection pair indefinitely. Fallback shares this reload.
+            await history_volume.reload.aio()
+            if view in ("coin", "health", "catalog", "tweet"):
+                main = Path("/history/coins.json")
+                projection = Path(f"/history/coins.snipe.v2.{hours_text}.json") if view == "coin" else Path({
+                    "catalog": "/history/coins.catalog.v2.json", "health": "/history/coins.health.json",
+                    "tweet": "/history/coins.tweet.json",
+                }[view])
+                if main.exists() and projection.exists() and projection.stat().st_mtime_ns >= main.stat().st_mtime_ns:
+                    return Response(projection.read_bytes(), media_type="application/json",
+                                    headers={"cache-control": "no-store"})
+            snapshot = loaded_snapshot()
         try:
             payload = snapshot_view(snapshot, view, request.query_params.getlist("id"), name=request.query_params.get("name", ""), hours=int(hours_text) if view == "coin" else 120)
         except ValueError as exc:

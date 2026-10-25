@@ -313,6 +313,11 @@ class SourceStream:
         self.db.execute('CREATE TABLE IF NOT EXISTS metrics (name TEXT PRIMARY KEY, hits INTEGER DEFAULT 0, requests INTEGER DEFAULT 0, failures INTEGER DEFAULT 0)')
         self.db.execute('CREATE TABLE IF NOT EXISTS cooldowns (endpoint TEXT, method TEXT, until REAL, PRIMARY KEY(endpoint,method))')
         self.db.execute('CREATE TABLE IF NOT EXISTS failed_reads (key TEXT PRIMARY KEY, expires REAL)')
+        # Prune after each write without rereading up to 32 MB of JSON text.
+        # The expression index preserves LENGTH(body)'s existing size contract.
+        self.db.execute('CREATE INDEX IF NOT EXISTS responses_expires ON responses(expires)')
+        self.db.execute('CREATE INDEX IF NOT EXISTS responses_prune ON responses(sampled,LENGTH(body),key)')
+        self.db.execute('CREATE INDEX IF NOT EXISTS failed_reads_expires ON failed_reads(expires,key)')
 
     def close(self):
         self.db.close()

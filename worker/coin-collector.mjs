@@ -1,7 +1,7 @@
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,addressMatches,safeURL,mergeArticles} from '../dist/public-radar.mjs';
+import {NETWORKS,RADAR_NETWORKS,FEEDS,parsePools,fetchPublicSource,safeURL,mergeArticles} from '../dist/public-radar.mjs';
 import {sourcesFor,storyParagraph,bestSearchLead} from '../dist/coin-context.mjs';
 import {normalizeLaunchpad} from '../dist/coin-stages.mjs';
 import {evaluatePostMigration,evaluateLaterRecovery,observationStart,outcomeCoverage,POST_MIGRATION_WINDOW_MS,EARLY_AGE_LIMIT_MS,LATE_RECOVERY_WINDOW_MS} from '../dist/post-migration.mjs';
@@ -305,6 +305,35 @@ async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],m
  return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length};
 }
 
+export function contextArticleIndex(articles){
+ const solana=new Map(),evm=new Map();
+ const prepared=articles.map(article=>{
+  const raw=article.title+' '+article.summary+' '+article.url;
+  // Extract each post's exact addresses once, using addressMatches' boundaries
+  // and chain-specific case rules. A repeated address still selects one post.
+  for(const [index,addresses] of [
+   [solana,new Set(raw.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/g)||[])],
+   [evm,new Set((raw.match(/(?<![a-zA-Z0-9])0x[a-fA-F0-9]{40}\b/g)||[]).map(address=>address.toLowerCase()))],
+  ])for(const address of addresses){
+   if(!index.has(address))index.set(address,[]);
+   index.get(address).push(article);
+  }
+  const text=(article.title+' '+article.summary).toLowerCase();
+  return {article,text,words:new Set(text.split(/[^a-z0-9]+/))};
+ });
+ return {
+  exact(coin){
+   const index=coin.chain==='Solana'?solana:evm;
+   const address=coin.chain==='Solana'?coin.contract_address:coin.contract_address?.toLowerCase();
+   return index.get(address)||[];
+  },
+  related(coin){
+   const name=coin.name.toLowerCase(),symbol=coin.symbol.toLowerCase();
+   return prepared.filter(row=>name.length>=4&&row.text.includes(name)||symbol.length>=4&&row.words.has(symbol)).map(row=>row.article);
+  },
+ };
+}
+
 async function enrichContext(snapshot,fetcher,now){
  const {coins,radarCoins,feeds}=snapshot;
  const news=await Promise.allSettled([...FEEDS.map(feed=>fetchPublicSource(feed,fetcher)),(async()=>{
@@ -320,18 +349,18 @@ async function enrichContext(snapshot,fetcher,now){
  feeds.dex_profiles=feedStatus(feeds.dex_profiles,now,profileResult.status==='fulfilled'?{records:profiles.length}:{error:profileResult.reason.message});
  const coinIds=new Set(coins.map(c=>c.id));
  const contextTargets=[...coins,...radarCoins.filter(c=>!coinIds.has(c.id))];
+ const articleIndex=contextArticleIndex(articles);
  for(const coin of contextTargets){
   const exactProfile=profiles.find(p=>p.chainId===coin.network&&(coin.network==='solana'?p.tokenAddress===coin.contract_address:String(p.tokenAddress).toLowerCase()===coin.contract_address.toLowerCase()));
   coin.image_url=safeURL(exactProfile?.icon)||coin.image_url||null;
-  const matches=articles.filter(a=>addressMatches({posts:[a]},[coin]).length);
+  const matches=articleIndex.exact(coin);
   if(matches.length)coin.savedContext={kind:'verified',articles:matches.slice(0,2)};
   if(!coin.savedContext){
    const profile=exactProfile&&(exactProfile.description?.trim()||exactProfile.links?.some(l=>/x\.com|twitter\.com/i.test(l.url||'')))?exactProfile:null;
    if(profile)coin.savedContext={kind:'verified',profile};
   }
   if(!coin.savedContext){
-   const name=coin.name.toLowerCase(),symbol=coin.symbol.toLowerCase();
-   const related=articles.filter(a=>{const text=(a.title+' '+a.summary).toLowerCase();return name.length>=4&&text.includes(name)||symbol.length>=4&&text.split(/[^a-z0-9]+/).includes(symbol)});
+   const related=articleIndex.related(coin);
    if(related.length)coin.savedContext={kind:'rss',articles:related.slice(0,2)};
   }
  }

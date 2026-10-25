@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 
 class RunnerDispatchTests(unittest.IsolatedAsyncioTestCase):
@@ -14,9 +15,13 @@ class RunnerDispatchTests(unittest.IsolatedAsyncioTestCase):
         async def reload():
             calls.append('stream')
         async def url():
-            return 'https://test'
+            self.fail('Scheduled collection must not wake the public web application')
         async def main(*args, **kwargs):
             calls.append('main')
+            target = urlsplit(kwargs['market_url'])
+            self.assertEqual(target.scheme, 'http')
+            self.assertEqual(target.hostname, '127.0.0.1')
+            self.assertEqual(target.path, '/api/dex')
             return {'status': 'test'}
         with patch.object(modal_app, 'collect_runner_mode', SimpleNamespace(spawn=SimpleNamespace(aio=dispatch))), \
              patch.object(modal_app, 'stream_volume', SimpleNamespace(reload=SimpleNamespace(aio=reload))), \

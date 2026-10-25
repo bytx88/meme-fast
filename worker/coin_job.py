@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from worker.refresh_priority import PRIORITY_TTL
 
 DESIGN_VERSION = 3
@@ -116,6 +117,7 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
     limits = dict(DEFAULT_BUDGETS)
     limits.update(budgets or {})
     started, started_at = time.monotonic(), int(time.time()*1000)
+    started_cpu = os.times()
     deadline = started+limits['total']
     health_path = Path(root)/'coin-job-health.json'
     snapshot_path = Path(root)/'coins.json'
@@ -240,6 +242,9 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
                       limits['cleanup'], 'all writers shutdown')
         note('all writers closed')
 
+    finished_cpu = os.times()
+    process_cpu = sum(getattr(finished_cpu, key) - getattr(started_cpu, key)
+                      for key in ('user', 'system', 'children_user', 'children_system'))
     report = {'version': DESIGN_VERSION,
               'codeSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'startedAt': started_at,
@@ -249,6 +254,10 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
               'error': str(failure) if failure else None,
               'consecutiveFailures': previous_health.get('consecutiveFailures', 0)+1 if failure else 0,
               'lastSuccessAt': previous_health.get('lastSuccessAt') if failure else int(time.time()*1000),
+              'marketTransport': 'loopback' if urlsplit(market_url).hostname == '127.0.0.1' else 'web' if market_url else 'direct',
+              # Controller plus reaped children, before the final Volume commit;
+              # remote source owners and Modal reservation billing are separate.
+              'processCpuSeconds': round(process_cpu, 3),
               'elapsedSeconds': round(time.monotonic()-started, 1)}
     await bounded(asyncio.to_thread(write_report, health_path, report), limits['report'], 'health write')
     await stage('commit', volume.commit.aio(), reserve=False)
