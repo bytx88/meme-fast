@@ -31,7 +31,7 @@ export function chart(rows,unit='%'){
 export function runnerMode(report,now=Date.now()){
  const score=report?.score;
  return report?.ready===true&&report?.coverage?.reliable===true&&report?.coverage?.reservedPass===true&&report?.history?.usable===true&&
-  (report?.history?.provisional===true?report.history.periodHours===1&&report.history.comparablePeriods===2&&report.history.baselinePeriods===1&&report.history.matchedTokens>=50:report?.history?.comparablePeriods>=3&&report?.history?.baselinePeriods>=2)&&report?.policy?.version===5&&
+  (report?.history?.provisional===true?report.history.periodHours===1&&report.history.comparablePeriods===2&&report.history.baselinePeriods===1&&report.history.matchedTokens>=50:report?.history?.comparablePeriods>=3&&report?.history?.baselinePeriods>=2)&&report?.policy?.version===6&&
   Number.isFinite(report.updatedAt)&&now-report.updatedAt>=0&&now-report.updatedAt<=15*60000&&
   Number.isInteger(score)&&score>=1&&score<=5?String(score):'—';
 }

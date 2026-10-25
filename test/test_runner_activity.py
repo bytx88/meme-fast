@@ -116,6 +116,23 @@ class ActivityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['coverage']['valuedTokens'], 50)
             self.assertEqual(result['coverage']['observedTokens'], 80)
 
+    async def test_fresh_cached_quotes_cover_real_slots_without_new_quote_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            at = NOW
+            async def fetch(addresses):
+                source_at = NOW+((at-NOW)//(10*MINUTE))*10*MINUTE
+                return reply(addresses, source_at)
+            for step in range(25):
+                at = NOW+step*5*MINUTE
+                result = await sample(directory, candidates() if step == 0 else {}, fetch, now=at)
+            self.assertEqual(result['score'], 1)
+            self.assertTrue(result['history']['provisional'])
+            self.assertEqual(result['history']['matchedTokens'], 80)
+            with closing(sqlite3.connect(Path(directory)/'runner-mode.sqlite')) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM monitor_token_slots').fetchone()[0], 80*25)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM monitor_observations').fetchone()[0], 80*13)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM monitor_events').fetchone()[0], 0)
+
     async def test_activity_clears_pending_confirmation_and_real_caps_resume(self):
         with tempfile.TemporaryDirectory() as directory:
             at, cap, omit = NOW, 100000, False

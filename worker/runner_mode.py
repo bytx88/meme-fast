@@ -18,7 +18,7 @@ MINUTE = 60_000
 DAY = 24 * 60 * MINUTE
 FOLLOWUP = 3 * DAY
 SGT = dt.timezone(dt.timedelta(hours=8))
-POLICY = {'version': 5, 'provisionalBaselinePeriods': 1, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
+POLICY = {'version': 6, 'provisionalBaselinePeriods': 1, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
           'minimumRunnerEvents': 10, 'minimumThresholdEvents': 5, 'minimumPeriodCoverage': .9,
           'minimumValuationCoverage': .95, 'minimumObservationCoverage': .95, 'followupHours': 72,
           'confirmationMinutes': 15, 'trendChange': .2}
@@ -163,10 +163,15 @@ def provisional_history(db, now):
     start = max(first * 5 * MINUTE // hour * hour, end - 7 * DAY)
     def observed_mints(period):
         return {mint for mint, slots in db.execute(
-            'SELECT mint,COUNT(DISTINCT CAST(at / ? AS INTEGER)) FROM '
-            '(SELECT mint,at FROM monitor_observations UNION ALL SELECT mint,at FROM monitor_inactive_observations) '
-            'WHERE at>=? AND at<? GROUP BY mint',
-            (5 * MINUTE, period['startAt'], period['endAt']))
+            'SELECT mint,COUNT(DISTINCT slot) FROM ('
+            'SELECT mint,slot FROM monitor_token_slots WHERE slot>=? AND slot<? '
+            'UNION ALL SELECT mint,CAST(received_at / ? AS INTEGER) FROM monitor_observations '
+            'WHERE received_at>=? AND received_at<? '
+            'UNION ALL SELECT mint,CAST(received_at / ? AS INTEGER) FROM monitor_inactive_observations '
+            'WHERE received_at>=? AND received_at<?) GROUP BY mint',
+            (period['startAt']//(5*MINUTE), period['endAt']//(5*MINUTE),
+             5*MINUTE, period['startAt'], period['endAt'],
+             5*MINUTE, period['startAt'], period['endAt']))
             if slots / 12 >= POLICY['minimumPeriodCoverage']}
     latest_mints = observed_mints(latest)
     for old_start in range(start, end-hour, hour):
@@ -257,6 +262,12 @@ def collect(snapshot, directory):
                 mint TEXT NOT NULL, at INTEGER NOT NULL, received_at INTEGER NOT NULL,
                 token_reserve REAL NOT NULL, volume REAL NOT NULL, source TEXT NOT NULL,
                 PRIMARY KEY(mint,at));
+            CREATE TABLE IF NOT EXISTS monitor_token_slots (
+                mint TEXT NOT NULL, slot INTEGER NOT NULL, observed_at INTEGER NOT NULL,
+                source_at INTEGER NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(mint,slot));
+            CREATE INDEX IF NOT EXISTS monitor_token_slot_time ON monitor_token_slots(slot);
+            CREATE INDEX IF NOT EXISTS monitor_observation_received ON monitor_observations(received_at);
+            CREATE INDEX IF NOT EXISTS monitor_inactive_received ON monitor_inactive_observations(received_at);
         ''')
         # Admit all eligible discoveries, including records with missing caps.
         db.executemany(f'INSERT OR IGNORE INTO {token_table}(mint,admitted) VALUES (?,?)',
@@ -268,6 +279,7 @@ def collect(snapshot, directory):
         active = db.execute(f'SELECT mint,admitted,last_at,seen,pending FROM {token_table} WHERE admitted>?',
                             (now - FOLLOWUP,)).fetchall()
         valid, inactive = 0, 0
+        sampled_slots = []
         gaps = {}
         for mint, admitted, last_at, seen, pending_json in active:
             quote = (rows.get(mint) or {}).get('runnerMarket') or {}
@@ -280,6 +292,7 @@ def collect(snapshot, directory):
                     and (last_at is None or at >= last_at)
                     and number(quote.get('tokenReserveUsd')) is not None and volume == 0):
                 inactive += 1
+                sampled_slots.append((mint, now//(5*MINUTE), now, int(at), 'zero-volume'))
                 db.execute('INSERT OR IGNORE INTO monitor_inactive_observations VALUES (?,?,?,?,?,?)',
                            (mint, int(at), now, number(quote['tokenReserveUsd']), volume, quote['source']))
                 # Missing caps cannot set threshold bits, initialise a valuation,
@@ -293,6 +306,7 @@ def collect(snapshot, directory):
                 continue
             valid += 1
             if managed:
+                sampled_slots.append((mint, now//(5*MINUTE), now, int(at), 'valuation'))
                 db.execute('INSERT OR IGNORE INTO monitor_observations VALUES (?,?,?,?,?,?)',
                            (mint, int(at), now, cap, liquidity, volume))
             if last_at is not None and at <= last_at:
@@ -328,6 +342,10 @@ def collect(snapshot, directory):
         fraction = valid / len(active) if active else 0
         observed_fraction = (valid + inactive) / len(active) if active else 0
         reliable = bool(active) and sources_ok and observed_fraction >= POLICY['minimumObservationCoverage']
+        if managed and sources_ok:
+            # A real sampling pass may reuse a still-fresh source observation.
+            # Log the sampling slot, without creating another quote or crossing.
+            db.executemany('INSERT OR IGNORE INTO monitor_token_slots VALUES (?,?,?,?,?)', sampled_slots)
         # Idempotent five-minute slots. Reruns cannot manufacture coverage.
         db.execute(f'INSERT OR IGNORE INTO {coverage_table} VALUES (?,?,?)',
                    (now // (5 * MINUTE), int(reliable), len(active)))
@@ -381,6 +399,7 @@ def collect(snapshot, directory):
         with closing(sqlite3.connect(directory/'runner-mode.sqlite')) as cleanup, cleanup:
             cleanup.execute('DELETE FROM monitor_observations WHERE at<?', (now-7*DAY,))
             cleanup.execute('DELETE FROM monitor_inactive_observations WHERE at<?', (now-7*DAY,))
+            cleanup.execute('DELETE FROM monitor_token_slots WHERE slot<?', ((now-7*DAY)//(5*MINUTE),))
     destination = directory / 'runner-mode.json'
     temporary = destination.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(report, allow_nan=False), encoding='utf-8')

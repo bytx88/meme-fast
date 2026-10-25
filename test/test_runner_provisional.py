@@ -9,8 +9,9 @@ class ProvisionalTests(unittest.TestCase):
         db = sqlite3.connect(':memory:')
         db.executescript('''
             CREATE TABLE monitor_coverage(slot INTEGER PRIMARY KEY,reliable INTEGER,population INTEGER);
-            CREATE TABLE monitor_observations(mint TEXT,at INTEGER);
-            CREATE TABLE monitor_inactive_observations(mint TEXT,at INTEGER);
+            CREATE TABLE monitor_observations(mint TEXT,at INTEGER,received_at INTEGER);
+            CREATE TABLE monitor_token_slots(mint TEXT,slot INTEGER,observed_at INTEGER,source_at INTEGER,kind TEXT);
+            CREATE TABLE monitor_inactive_observations(mint TEXT,at INTEGER,received_at INTEGER);
             CREATE TABLE monitor_events(mint TEXT,threshold INTEGER,at INTEGER);
         ''')
         return db
@@ -19,8 +20,8 @@ class ProvisionalTests(unittest.TestCase):
         for slot in range(12):
             at = (index * 60 + slot * 5) * MINUTE
             db.execute('INSERT INTO monitor_coverage VALUES (?,?,?)', (at // (5*MINUTE), 1, population))
-            db.executemany('INSERT INTO monitor_observations VALUES (?,?)',
-                           [(str(i), at) for i in range(population-missing)])
+            db.executemany('INSERT INTO monitor_observations VALUES (?,?,?)',
+                           [(str(i), at, at) for i in range(population-missing)])
 
     def test_oldest_covered_hour_and_latest_complete_hour_skip_gap_and_partial(self):
         db = self.database()
@@ -61,3 +62,11 @@ class ProvisionalTests(unittest.TestCase):
         result = provisional_history(db, 300*MINUTE)
         self.assertEqual(result['mode'], 'Hard')
         self.assertEqual(result['periods'][-1]['counts']['500000'], 0)
+
+    def test_late_received_quotes_do_not_backfill_earlier_coverage(self):
+        db = self.database()
+        self.hour(db, 1)
+        self.hour(db, 4)
+        db.execute('UPDATE monitor_observations SET received_at=received_at+? WHERE at<?',
+                   (60*MINUTE, 120*MINUTE))
+        self.assertFalse(provisional_history(db, 300*MINUTE)['usable'])
