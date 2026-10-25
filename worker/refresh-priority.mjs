@@ -24,7 +24,7 @@ export function marketRefreshInterval(coin,now=Date.now()){
   Number(row.volume)>=volume&&Number(row.buys)+Number(row.sells)>=trades;
  if(coin.launchpad?.completed===false||now-(coin.firstSeen??coin.firstSeenRadarAt??0)<3600000||
   now-(coin.walletEvidenceAt??0)<3600000||active(m5,500,5)||active(windows.h1,5000,10))return 300000;
- if(active(windows.h6,15000,25)||active(windows.h24,15000,50))return 1800000;
+ if(active(windows.h6,15000,25)||active(windows.h24,15000,50))return 600000;
  // Keep records without spending the hot-stream budget on inactive markets.
  // Discovery can reactivate them; explicit saved interests retain priority.
  if(m5.volume===0&&m5.buys===0&&m5.sells===0&&windows.h24?.volume===0)return Infinity;

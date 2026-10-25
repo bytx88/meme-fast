@@ -14,6 +14,14 @@ from unittest.mock import patch
 
 
 class CoinJobTests(unittest.IsolatedAsyncioTestCase):
+    async def wait_for_fixture_ready(self, path):
+        # Process creation can return before Python finishes startup on Windows.
+        # Bound fixture startup separately from the operation being exercised.
+        async def ready():
+            while not path.exists():
+                await asyncio.sleep(.01)
+        await asyncio.wait_for(ready(), 10)
+
     async def test_volume_congestion_fits_default_deadlines(self):
         # Model the observed 60s+ commit, 45s+ reload and a slow checkpoint read
         # without making a regression test wait minutes for real storage.
@@ -66,7 +74,9 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
             before=time.monotonic()
             with self.assertRaisesRegex(RuntimeError,'collect exceeded'):
                 await run_coin_job(volume,priorities,root=folder,commands=commands,budgets={'collect':.1},log=lambda *args,**kw:None)
-            self.assertLess(time.monotonic()-before,2)
+            # Windows interpreter startup can take several seconds under load.
+            # This still fails if either ten-second sleeper is awaited to exit.
+            self.assertLess(time.monotonic()-before,8)
             self.assertEqual(len(commits),2)
             report=json.loads((Path(folder)/'coin-job-health.json').read_text())
             self.assertEqual(report['status'],'failed')
@@ -89,14 +99,32 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
     async def test_timeout_with_fresh_checkpoint_is_degraded_and_committed(self):
         with tempfile.TemporaryDirectory() as folder:
             commits=[]
+            ready=Path(folder)/'checkpoint.ready'
+            timed_out=[]
             async def commit(): commits.append(True)
-            report=await self.exercise(folder,self.checkpoint_command(folder)+'time.sleep(10)',
-                                       budgets={'collect':2},commit=commit)
+            real_finish=Child.finish
+            async def timeout_after_checkpoint(child, seconds, name):
+                if name!='collect':
+                    return await real_finish(child, seconds, name)
+                await self.wait_for_fixture_ready(ready)
+                self.assertEqual(json.loads((Path(folder)/'coins.json').read_text())['revision'], 'test:1')
+                self.assertIsNone(child.process.returncode)
+                timed_out.append(child)
+                raise StageTimeout('collect_coins: collect exceeded controlled fixture deadline')
+            command=(self.checkpoint_command(folder)+
+                     f'Path({str(ready)!r}).write_text("ready");time.sleep(10)')
+            # Trigger the timeout only after the real child publishes its file;
+            # run_coin_job still performs real process shutdown and recovery.
+            with patch.object(Child, 'finish', timeout_after_checkpoint):
+                report=await self.exercise(folder,command,budgets={'collect':20},commit=commit)
             self.assertEqual(report['status'],'degraded')
             self.assertEqual(report['snapshot']['revision'],'test:1')
             self.assertEqual(report['consecutiveFailures'],0)
             self.assertEqual(len(commits),1)
             self.assertIn('Fresh checkpoint',report['warnings'][0])
+            self.assertEqual(len(timed_out),1)
+            self.assertTrue(timed_out[0].closed)
+            self.assertIsNotNone(timed_out[0].process.returncode)
 
     async def test_projection_failure_uses_fresh_main_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -139,13 +167,18 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
             await task
 
     async def test_large_output_does_not_deadlock(self):
-        child=Child()
-        try:
-            await child.start([sys.executable,'-c','import sys;sys.stdout.write("x"*1000000);sys.stderr.write("e"*1000000)'])
-            result=await child.finish(3,'large output')
-            self.assertEqual(len(result),4000)
-        finally:
-            await child.close(1)
+        with tempfile.TemporaryDirectory() as folder:
+            ready=Path(folder)/'output.ready'
+            child=Child()
+            try:
+                command=(f'import sys;from pathlib import Path;Path({str(ready)!r}).write_text("ready");'
+                         'sys.stdout.write("x"*1000000);sys.stderr.write("e"*1000000)')
+                await child.start([sys.executable,'-c',command])
+                await self.wait_for_fixture_ready(ready)
+                result=await child.finish(3,'large output')
+                self.assertEqual(len(result),4000)
+            finally:
+                await child.close(1)
 
     def test_health_detects_missing_and_stale_runs(self):
         self.assertTrue(public_job_health({},1000)['stale'])

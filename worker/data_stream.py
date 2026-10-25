@@ -221,10 +221,11 @@ def project(snapshot, holdings, ledger, previous, now):
         candidates = {}
         observed_wallets, observed_times = 0, []
         report = holder_reports.get(mint, {})
-        if 0 <= now - report.get('checkedAt', 0) < 15 * 60000:
-            observed_times.append(report['checkedAt'])
+        report_at = report.get('observedAt', report.get('checkedAt', 0))
+        if 0 <= now - report_at < 15 * 60000:
+            observed_times.append(report_at)
             for row in report.get('candidates', []):
-                candidates[row['address']] = dict(row, observedAt=report['checkedAt'], coverage='sampled-largest-token-accounts')
+                candidates[row['address']] = dict(row, observedAt=report_at, coverage='sampled-largest-token-accounts')
         for owner, point in current_points.items():
             saved = point_balance(point,mint,coverage_sets)
             if not saved or not 0 <= now - point['at'] < 10 * 60000:
@@ -246,7 +247,7 @@ def project(snapshot, holdings, ledger, previous, now):
             windows[window]['holders'][key] = largest
             windows[window]['holderCoverage'][key] = dict(status='sampled' if observed_times else 'unavailable',
                 completeWalletScans=observed_wallets, sampledLargestAccounts=report.get('sampledAccounts')
-                if 0 <= now - report.get('checkedAt', 0) < 15 * 60000 else None,
+                if 0 <= now - report_at < 15 * 60000 else None,
                 lastObservedAt=max(observed_times, default=None), exhaustive=False)
             flows = {}
             for event in events:
@@ -283,12 +284,13 @@ def project(snapshot, holdings, ledger, previous, now):
             windows[window]['accumulators'][key] = accumulators[:100]
     candidate_wallets = {}
     for mint, report in holder_reports.items():
-        if not 0 <= now - report.get('checkedAt', 0) < 3600000:
+        report_at = report.get('observedAt', report.get('checkedAt', 0))
+        if not 0 <= now - report_at < 3600000:
             continue
         for row in report.get('candidates', []):
             candidate_wallets[row['address']] = dict(address=row['address'], name=row['address'][:8],
                 source='Public', sources=['Public'], smartMoney=None, interested=False, code='',
-                discoveryToken=mint, lastRelevantAt=report['checkedAt'])
+                discoveryToken=mint, lastRelevantAt=report_at)
     for event in events:
         if event['mint'] in active:
             candidate_wallets[event['address']] = dict(candidate_wallets.get(event['address'], {}),

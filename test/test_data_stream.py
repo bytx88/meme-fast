@@ -160,6 +160,19 @@ class DataStreamTests(unittest.TestCase):
         self.assertIsNone(report['windows']['1h']['accumulators'][KEY][0]['holdingChangeRaw'])
         self.assertEqual(report['history'][OWNER][0]['at'], NOW)
 
+    def test_holder_rankings_use_source_observation_age_instead_of_cache_check_time(self):
+        observed_at = NOW-60000
+        previous = {'holderReports': {MINT: dict(checkedAt=NOW, observedAt=observed_at, sampledAccounts=1,
+            candidates=[dict(address=OWNER, balanceRaw='123', decimals=6)])}}
+        report = stream.project({'coins':[token()]}, {}, {}, previous, NOW)
+        self.assertEqual(report['windows']['1h']['holders'][KEY][0]['observedAt'], observed_at)
+        self.assertEqual(report['windows']['1h']['holderCoverage'][KEY]['lastObservedAt'], observed_at)
+        self.assertEqual(report['wallets'][0]['lastRelevantAt'], observed_at)
+        previous['holderReports'][MINT]['observedAt'] = NOW-15*60000
+        expired = stream.project({'coins':[token()]}, {}, {}, previous, NOW)
+        self.assertEqual(expired['windows']['1h']['holders'][KEY], [])
+        self.assertEqual(expired['windows']['1h']['holderCoverage'][KEY]['status'], 'unavailable')
+
     def test_candidate_enrolment_preserves_user_wallet_metadata(self):
         registry = [dict(address=OWNER, name='My name', smartMoney=True, interested=True)]
         result = stream.collection_wallets(registry, {'wallets': [dict(address=OWNER, name='Candidate', smartMoney=None)]})

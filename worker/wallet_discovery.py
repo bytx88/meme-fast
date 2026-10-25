@@ -1,5 +1,6 @@
 """Public research candidates; large holders are never verified Smart Money labels."""
 import time
+import math
 from collections import defaultdict
 from worker.followed_wallets import validate_wallet, PROGRAMS
 from worker.smartness import decode58, SYSTEM
@@ -30,13 +31,23 @@ def on_curve(address):
 
 def holder_candidates(mint, rpc, now=None):
     valid_address(mint)
-    largest = rpc('getTokenLargestAccounts', [mint, {'commitment': 'confirmed'}])
+    checked_at = int(time.time()*1000) if now is None else now
+    observed = [checked_at]
+    def source(method, params):
+        payload = rpc(method, params)
+        if isinstance(payload, dict) and '_sourceObservedAt' in payload:
+            stamp = payload['_sourceObservedAt']
+            if type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0:
+                raise ValueError('Public holder observation time unavailable')
+            observed.append(stamp)
+        return payload
+    largest = source('getTokenLargestAccounts', [mint, {'commitment': 'confirmed'}])
     rows = largest.get('value') if isinstance(largest, dict) else None
     if not isinstance(rows, list):
         raise ValueError('Public holder data unavailable')
     rows = rows[:20]
     if not rows:
-        return dict(token=mint, checkedAt=now or int(time.time()*1000), candidates=[], sampledAccounts=0, excludedAccounts=0)
+        return dict(token=mint, checkedAt=checked_at, observedAt=min(observed), candidates=[], sampledAccounts=0, excludedAccounts=0)
     config = {'encoding': 'jsonParsed', 'commitment': 'confirmed'}
     slot = largest.get('context', {}).get('slot')
     if isinstance(slot, int):
@@ -44,7 +55,7 @@ def holder_candidates(mint, rpc, now=None):
     account_addresses = [valid_address(row['address']) for row in rows]
     if len(set(account_addresses)) != len(account_addresses):
         raise ValueError('Duplicate token accounts in public holder response')
-    payload = rpc('getMultipleAccounts', [account_addresses, config])
+    payload = source('getMultipleAccounts', [account_addresses, config])
     accounts = payload.get('value') if isinstance(payload, dict) else None
     if not isinstance(accounts, list) or len(accounts) != len(rows):
         raise ValueError('Public token account resolution unavailable')
@@ -73,7 +84,7 @@ def holder_candidates(mint, rpc, now=None):
     # System-owned authorities only; executable accounts and program custody are excluded.
     addresses = sorted(owners, key=lambda owner: (-owners[owner], owner))
     if addresses:
-        resolved = rpc('getMultipleAccounts', [addresses, config])
+        resolved = source('getMultipleAccounts', [addresses, config])
         values = resolved.get('value') if isinstance(resolved, dict) else None
         if not isinstance(values, list) or len(values) != len(addresses):
             raise ValueError('Public owner resolution unavailable')
@@ -88,7 +99,9 @@ def holder_candidates(mint, rpc, now=None):
             continue
         candidates.append(dict(address=owner, balanceRaw=str(owners[owner]), balance=owners[owner]/10**places,
                                decimals=places, label='Public holder candidate', source='Public', discoveryToken=mint))
-    return dict(token=mint, checkedAt=now or int(time.time()*1000), candidates=candidates[:10],
+    observed_at = min(observed)
+    return dict(token=mint, checkedAt=checked_at, observedAt=observed_at,
+                candidates=[dict(row, observedAt=observed_at) for row in candidates[:10]],
                 sampledAccounts=len(rows), excludedAccounts=excluded,
                 coverage='Up to 10 signing-wallet candidates from 20 largest token accounts. Program authorities are excluded. Balances cover sampled accounts only. Holding size does not verify skill, identity or profitability.')
 

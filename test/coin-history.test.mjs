@@ -74,6 +74,37 @@ test('Radar accepts older trending pools without changing Coin intake and retain
  assert.equal(again.firstSeenRadarAt,now);
  assert.equal(mergeRadarCoins([again],[],[],now+RETENTION_MS+1).length,0);
 });
+
+test('discovery merges preserve the newest coherent market observation for Coin and Radar',()=>{
+ const now=1800000000000;
+ const market={pool:'fresh-pool',dex:'fresh-dex',marketUpdatedAt:now-1000,fetchedAt:now-1000,
+  priceUsd:2,priceUpdatedAt:now-1000,liquidity:9000,mc:100000,volume:90000,volume5m:900,
+  buys:90,sells:30,buys5m:9,sells5m:3,buyers:null,priceChange:8,priceChange1h:-2,
+  marketSource:'DexScreener',marketSourceURL:'https://dexscreener.com/solana/fresh-pool',
+  marketWindows:{h1:{volume:10000,buys:12,sells:4}},runnerMarket:{at:now-1000,cap:100000}};
+ const previous={id:'solana:one',network:'solana',contract_address:'one',firstSeen:now-600000,
+  lastSeenRadarAt:now-600000,poolCreated:now-3600000,...market};
+ const older={id:previous.id,network:'solana',contract_address:'one',name:'Updated metadata',
+  pool:'old-pool',dex:'old-dex',poolCreated:previous.poolCreated,liquidity:4000,
+  marketUpdatedAt:now-300000,fetchedAt:now-300000,priceUpdatedAt:now-300000,
+  priceUsd:1,volume:40000,volume5m:400,buys:40,sells:20,buys5m:4,sells5m:2,
+  priceChange:1,priceChange1h:1,fdv:999999,marketSource:'GeckoTerminal',
+  marketSourceURL:'https://www.geckoterminal.com/solana/pools/old-pool',marketWindows:{h1:{volume:5000,buys:10,sells:2}}};
+ for(const merge of [(old,row)=>mergeCoins([old],[row],now)[0],(old,row)=>mergeRadarCoins([old],[row],[],now)[0]]){
+  const preserved=merge(previous,older);
+  assert.deepEqual(Object.fromEntries(Object.keys(market).map(key=>[key,preserved[key]])),market);
+  assert.equal('fdv' in preserved,false,'an absent field must not be borrowed from a different pool observation');
+  assert.equal(preserved.name,'Updated metadata');
+  const newer=merge(previous,{...older,marketUpdatedAt:now,fetchedAt:now,priceUpdatedAt:now});
+  assert.equal(newer.pool,'old-pool');
+  assert.equal(newer.marketUpdatedAt,now);
+  assert.equal(newer.priceUsd,1);
+  assert.deepEqual(newer.runnerMarket,market.runnerMarket,'independently observed Mode quotes survive a newer pool observation');
+  const quoted=merge(previous,{...older,runnerMarket:{at:now,cap:120000}});
+  assert.deepEqual(quoted.runnerMarket,{at:now,cap:120000});
+  assert.equal(quoted.pool,market.pool);
+ }
+});
 test('tracked CASHED remains in a full Radar universe',()=>{
  const now=1800000000000;
  const previous=Array.from({length:200},(_,i)=>({id:`base:0x${i.toString(16).padStart(40,'0')}`,network:'base',contract_address:`0x${i.toString(16).padStart(40,'0')}`,liquidity:4000,lastSeenRadarAt:now-1000}));
@@ -103,13 +134,13 @@ test('collector fetches tracked Robinhood CASHED into Radar only',async()=>{
   assert.equal(snapshot.feeds.robinhood_tracked.error,null);
  }finally{await rm(dir,{recursive:true,force:true})}
 });
-test('tracked Robinhood contract uses Dexscreener when GeckoTerminal is rate limited',async()=>{
+test('tracked Robinhood fallback preserves shared quote age, provenance and all measured windows',async()=>{
  const dir=await mkdtemp(path.join(tmpdir(),'meme-robinhood-fallback-')),file=path.join(dir,'coins.json');
- const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24',now=1800000000000;
+ const contract='0x6249519883b8d7ccf915dfcd6c0442984dae9d24',now=1800000000000,observedAt=now-120000;
  const json=data=>({ok:true,json:async()=>data});
  const fetcher=async url=>{
   if(url.includes(`/networks/robinhood/tokens/${contract}/pools`))return {ok:false,status:429};
-  if(url.includes(`dexscreener.com/tokens/v1/robinhood/${contract}`))return json([{chainId:'robinhood',pairAddress:'0x'+'a'.repeat(64),baseToken:{address:contract,name:'Cashed Money',symbol:'CASHED'},liquidity:{usd:201900},volume:{h24:5500000,m5:2270},txns:{h24:{buys:100,sells:80},m5:{buys:8,sells:3}},pairCreatedAt:now-7*86400000,priceUsd:'0.0064'}]);
+  if(url.includes(`dexscreener.com/tokens/v1/robinhood/${contract}`))return json([{chainId:'robinhood',pairAddress:'0x'+'a'.repeat(64),baseToken:{address:contract,name:'Cashed Money',symbol:'CASHED'},liquidity:{usd:201900},marketCap:640000,fdv:1280000,volume:{h24:5500000,h6:120000,h1:25000,m5:2270},txns:{h24:{buys:100,sells:80},h6:{buys:40,sells:30},h1:{buys:12,sells:10},m5:{buys:8,sells:3}},pairCreatedAt:now-7*86400000,priceUsd:'0.0064',priceChange:{h1:-2.5},_sourceObservedAt:observedAt}]);
   if(url.includes('/networks/')&&(url.includes('/new_pools')||url.includes('/trending_pools')))return json({data:[],included:[]});
   if(url.includes('dexscreener.com/tokens/v1/'))return json([]);
   if(url.includes('token-profiles/latest/v1'))return json([]);
@@ -117,7 +148,17 @@ test('tracked Robinhood contract uses Dexscreener when GeckoTerminal is rate lim
  };
  try{
   const snapshot=await collect(file,{now,fetcher});
-  assert.equal(snapshot.radarCoins.find(coin=>coin.contract_address===contract)?.pool,'0x'+'a'.repeat(64));
+  const coin=snapshot.radarCoins.find(coin=>coin.contract_address===contract);
+  assert.equal(coin?.pool,'0x'+'a'.repeat(64));
+  assert.equal(coin.fetchedAt,observedAt);
+  assert.equal(coin.marketUpdatedAt,observedAt);
+  assert.equal(coin.priceUpdatedAt,observedAt);
+  assert.equal(coin.marketSource,'DexScreener');
+  assert.equal(coin.mc,640000);
+  assert.equal(coin.fdv,1280000);
+  assert.equal(coin.priceChange1h,-2.5);
+  assert.deepEqual(coin.marketWindows.h1,{volume:25000,buys:12,sells:10,buyers:null});
+  assert.deepEqual(coin.marketWindows.h6,{volume:120000,buys:40,sells:30,buyers:null});
   assert.equal(snapshot.feeds.robinhood_tracked.error,null);
  }finally{await rm(dir,{recursive:true,force:true})}
 });

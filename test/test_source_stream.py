@@ -5,6 +5,75 @@ from worker.source_stream import SourceStream, SourceUnavailable, dex_tokens, de
 
 
 class SourceStreamTests(unittest.TestCase):
+    def test_malformed_dex_observations_back_off_without_poisoning_cache_and_recover(self):
+        valid = {'chainId':'solana', 'baseToken':{'address':'A'}, 'quoteToken':{'address':'Q'}}
+        invalids = [{}, [None], [{}], [dict(valid, baseToken=None)],
+                    [dict(valid, baseToken={'address':None})], [dict(valid, quoteToken=None)]]
+        for scope in ('quotes', 'pools'):
+            for invalid in invalids:
+                with self.subTest(scope=scope, invalid=invalid), tempfile.TemporaryDirectory() as folder:
+                    clock, calls = [1000], []
+                    stream = SourceStream(folder, clock=lambda:clock[0], failure_ttl=30)
+                    def fetch(*args):
+                        calls.append(args)
+                        return invalid if len(calls)==1 else [valid]
+                    def read():
+                        return (dex_tokens(stream, 'solana', ['A'], fetch) if scope=='quotes'
+                                else dex_pools(stream, 'solana', 'A', fetch))
+                    with self.assertRaises(ValueError):read()
+                    self.assertEqual(stream.db.execute('SELECT count(*) FROM responses').fetchone()[0], 0)
+                    namespace = 'dex:batch' if scope=='quotes' else 'dex:pools'
+                    self.assertEqual(stream.metrics()[namespace], dict(hits=0, requests=1, failures=1))
+                    clock[0] += 10
+                    with self.assertRaises(SourceUnavailable) as caught:read()
+                    self.assertEqual(caught.exception.retry_after, 20)
+                    self.assertEqual(len(calls), 1)
+                    clock[0] += 20
+                    recovered = read()
+                    self.assertEqual(recovered['value'][0]['baseToken']['address'], 'A')
+                    self.assertEqual(recovered['observedAt'], 1030000)
+                    self.assertEqual(len(calls), 2)
+                    self.assertEqual(read()['observedAt'], recovered['observedAt'])
+                    self.assertEqual(len(calls), 2)
+                    stream.close()
+
+    def test_dex_valid_empty_observation_remains_reusable(self):
+        for scope in ('quotes', 'pools'):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as folder:
+                calls = []
+                stream = SourceStream(folder, clock=lambda:1000, failure_ttl=30)
+                def fetch(*args):calls.append(args);return []
+                def read():
+                    return (dex_tokens(stream, 'solana', ['A'], fetch) if scope=='quotes'
+                            else dex_pools(stream, 'solana', 'A', fetch))
+                self.assertEqual(read()['value'], [])
+                self.assertEqual(read()['value'], [])
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(stream.db.execute('SELECT count(*) FROM failed_reads').fetchone()[0], 0)
+                stream.close()
+
+    def test_dex_rejects_old_unvalidated_batch_and_pool_cache_without_resetting_valid_quotes(self):
+        pair = {'chainId':'solana', 'baseToken':{'address':'A'}}
+        for scope in ('quotes', 'pools'):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as folder:
+                stream = SourceStream(folder, clock=lambda:1000)
+                namespace = 'dex:batch' if scope=='quotes' else 'dex:pools'
+                legacy = ['solana', ['A']] if scope=='quotes' else ['solana', 'A']
+                stream.store(namespace, legacy, [None], 1000000, 300)
+                calls = []
+                def fetch(*args):calls.append(args);return [pair]
+                report = (dex_tokens(stream, 'solana', ['A'], fetch) if scope=='quotes'
+                          else dex_pools(stream, 'solana', 'A', fetch))
+                self.assertEqual(report['value'][0]['baseToken']['address'], 'A')
+                self.assertEqual(len(calls), 1)
+                stream.close()
+        with tempfile.TemporaryDirectory() as folder:
+            stream = SourceStream(folder, clock=lambda:1000)
+            stream.store('dex:token', ['solana', 'A'], [pair], 990000, 300)
+            reused = dex_tokens(stream, 'solana', ['A'], lambda *args:self.fail('valid quote should remain shared'))
+            self.assertEqual(reused['observedAt'], 990000)
+            stream.close()
+
     def test_broad_scan_backoff_does_not_block_an_exact_mint_coverage_miss(self):
         from worker.shared_holdings import PROGRAMS
         config={'encoding':'jsonParsed','commitment':'confirmed'}

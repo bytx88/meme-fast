@@ -125,6 +125,22 @@ class HistoryExpansionTests(unittest.TestCase):
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_candidate_observation_preserves_cached_source_age_and_check_time(self):
+        mint = balances.group()['token']
+        owner = balances.group()['wallets'][0]['address']
+        account = dict(owner=PROGRAMS[0], data=dict(parsed=dict(info=dict(owner=owner, mint=mint,
+            state='initialized', tokenAmount=dict(amount='100', decimals=6)))))
+        replies = iter([
+            dict(context=dict(slot=100), value=[dict(address=owner)], _sourceObservedAt=AT-45000),
+            dict(value=[account], _sourceObservedAt=AT-20000),
+            dict(value=[dict(owner='11111111111111111111111111111111', executable=False)], _sourceObservedAt=AT-10000)])
+        report = holder_candidates(mint, lambda *args: next(replies), now=AT)
+        self.assertEqual(report['checkedAt'], AT)
+        self.assertEqual(report['observedAt'], AT-45000)
+        self.assertEqual(report['candidates'][0]['observedAt'], AT-45000)
+        empty = holder_candidates(mint, lambda *args: dict(value=[], _sourceObservedAt=AT-60000), now=AT)
+        self.assertEqual(empty['observedAt'], AT-60000)
+
     def test_largest_token_accounts_resolve_deduplicate_and_filter_authorities(self):
         mint = balances.group()['token']
         owners = [row['address'] for row in balances.group()['wallets']]

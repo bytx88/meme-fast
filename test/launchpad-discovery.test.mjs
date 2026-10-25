@@ -47,3 +47,16 @@ test('saved refresh interests also check graduation for older unmeasured contrac
  const result=await collectLaunchpad(coins,async url=>{calls.push(url);return Response.json({data:[],included:[]})},now,{}, {priorityIds:[`solana:${address}`]});
  assert(calls[0].includes(address));assert(result.checked.has(`solana:${address}`));
 });
+
+test('cached token metadata and included curve pools preserve their original observation',async()=>{
+ const observedAt=now-240000,seed={id:`solana:${address}`,network:'solana',contract_address:address,firstSeen:now-86400000};
+ const completed={...token,attributes:{...token.attributes,launchpad_details:{graduation_percentage:100,completed:true}}};
+ const launch=await collectLaunchpad([seed],async()=>Response.json({data:[completed],included:[poolRow],_sourceObservedAt:observedAt}),now,{});
+ assert.equal(launch.pools[0].marketUpdatedAt,observedAt);
+ assert.equal(launch.pools[0].fetchedAt,observedAt);
+ const updated=refreshLaunchpad([seed],launch.tokens,now)[0];
+ assert.equal(updated.launchpadUpdatedAt,observedAt);
+ assert.equal(updated.graduationObservedAt,observedAt);
+ const newer={...seed,launchpad:{completed:false,graduationPercentage:99},launchpadUpdatedAt:now-60000};
+ assert.deepEqual(refreshLaunchpad([newer],launch.tokens,now)[0],newer);
+});

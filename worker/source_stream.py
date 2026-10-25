@@ -526,6 +526,23 @@ def mint_from_wallet_cache(stream, params):
                 observedAt=sampled,cache='projected-wallet-scan')
 
 
+def dex_pairs(value):
+    """Validate provider structure before recording a successful observation."""
+    if not isinstance(value, list):
+        raise ValueError('Invalid token market response')
+    for pair in value:
+        if (not isinstance(pair, dict) or not isinstance(pair.get('chainId'), str)
+                or not isinstance(pair.get('baseToken'), dict)
+                or not isinstance(pair['baseToken'].get('address'), str)
+                or not pair['baseToken']['address']):
+            raise ValueError('Invalid token market pair')
+        if 'quoteToken' in pair and (not isinstance(pair['quoteToken'], dict)
+                or not isinstance(pair['quoteToken'].get('address'), str)
+                or not pair['quoteToken']['address']):
+            raise ValueError('Invalid token market quote token')
+    return value
+
+
 def dex_tokens(stream, network, addresses, fetch):
     """Overlapping token batches reuse individual observations; misses batch once."""
     addresses = sorted(set(addresses))
@@ -535,13 +552,14 @@ def dex_tokens(stream, network, addresses, fetch):
     missing = [address for address, saved in cached.items() if saved is None]
     if missing:
         try:
-            reply = stream.get('dex:batch', [network, missing], lambda: fetch(network, missing), QUOTE_TTL)
+            # Older batch entries admitted any list before validating its rows.
+            # Existing per-token entries already passed the identity projection.
+            reply = stream.get('dex:batch', [2, network, missing],
+                               lambda: dex_pairs(fetch(network, missing)), QUOTE_TTL)
         except Exception:
             for address in missing:
                 stream.defer('dex:token',[network,address])
             raise
-        if not isinstance(reply['value'], list):
-            raise ValueError('Invalid token market response')
         for address in missing:
             key = address if network == 'solana' else address.lower()
             pairs = [pair for pair in reply['value'] if pair.get('chainId') == network
@@ -559,9 +577,8 @@ def dex_pools(stream, network, address, fetch):
     # The API distinguishes all pools from batch token quotes. Reuse is one-way:
     # a complete pool response can supply a quote; a batch quote cannot certify
     # pool-discovery completeness. https://docs.dexscreener.com/api/reference
-    reply = stream.get('dex:pools', [network, address], lambda: fetch(network, address), 60)
-    if not isinstance(reply['value'], list):
-        raise ValueError('Invalid token pool response')
+    reply = stream.get('dex:pools', [2, network, address],
+                       lambda: dex_pairs(fetch(network, address)), 60)
     key = address if network == 'solana' else address.lower()
     quote_pairs = [pair for pair in reply['value'] if pair.get('chainId') == network
                    and (pair.get('baseToken', {}).get('address', '') if network == 'solana'

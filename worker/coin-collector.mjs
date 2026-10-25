@@ -39,12 +39,16 @@ export function refreshMarket(coins,pairs,now=Date.now()){
 export function recordMarketHistory(coins,now=Date.now()){
  return coins.map(coin=>{
   const recentVolume1h=rows=>rows.filter(row=>row.at>=now-60*60000).reduce((total,row)=>total+(Number(row.volume5m)>0?Number(row.volume5m):0),0);
-  if(coin.marketUpdatedAt!==now)return {...coin,recentVolume1h:recentVolume1h(coin.marketHistory||[])};
-  const sample={at:now,priceUsd:coin.priceUpdatedAt===now?amount(coin.priceUsd):null,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
-  const recent=(coin.marketHistory||[]).filter(row=>row.at>now-RECENT_MARKET_MS&&row.at<now);
+  const at=coin.marketUpdatedAt,history=coin.marketHistory||[],hourlyHistory=coin.marketHistoryHourly||[];
+  const latest=Math.max(0,...[...history,...hourlyHistory].map(row=>Number.isFinite(row.at)?row.at:0));
+  // A shared cached observation may be new to this consumer. Record its source
+  // time once; do not turn reuse, stale replies or older quotes into new samples.
+  if(!Number.isFinite(at)||now-at<0||now-at>=15*60000||at<=latest)return {...coin,recentVolume1h:recentVolume1h(history)};
+  const sample={at,priceUsd:coin.priceUpdatedAt===at?amount(coin.priceUsd):null,liquidity:amount(coin.liquidity),volume5m:amount(coin.volume5m),buys5m:amount(coin.buys5m),sells5m:amount(coin.sells5m),volume24h:amount(coin.volume)};
+  const recent=history.filter(row=>row.at>now-RECENT_MARKET_MS&&row.at<at);
   recent.push(sample);
-  const hourly=(coin.marketHistoryHourly||[]).filter(row=>row.at>now-RETENTION_MS&&row.at<now);
-  if(!hourly.length||now-hourly.at(-1).at>=55*60000)hourly.push(sample);
+  const hourly=hourlyHistory.filter(row=>row.at>now-RETENTION_MS&&row.at<at);
+  if(!hourly.length||at-hourly.at(-1).at>=55*60000)hourly.push(sample);
   return {...coin,marketHistory:recent.slice(-48),marketHistoryHourly:hourly.slice(-120),recentVolume1h:recentVolume1h(recent)};
  });
 }
@@ -75,14 +79,16 @@ export function refreshLaunchpad(coins,tokens,now=Date.now()){
  const key=(network,address)=>`${network}:${network==='solana'?address:String(address).toLowerCase()}`;
  const byId=new Map(tokens.filter(token=>token.attributes?.address).map(token=>{
   const network=String(token.id||'').split('_')[0];
-  return [key(network,token.attributes.address),normalizeLaunchpad(token.attributes.launchpad_details)];
+  return [key(network,token.attributes.address),{launchpad:normalizeLaunchpad(token.attributes.launchpad_details),
+   observedAt:Math.min(now,amount(token._sourceObservedAt)??now)}];
  }));
  return coins.map(coin=>{
   const id=key(coin.network,coin.contract_address);
   if(!byId.has(id))return coin;
-  const launchpad=byId.get(id);
-  if(!launchpad)return {...coin,launchpad:coin.launchpad??null,launchpadUpdatedAt:now};
-  return {...coin,launchpad,launchpadUpdatedAt:now,graduationObservedAt:launchpad.completed?launchpad.completedAt??coin.graduationObservedAt??now:coin.graduationObservedAt};
+  const {launchpad,observedAt}=byId.get(id);
+  if(observedAt<(coin.launchpadUpdatedAt??0))return coin;
+  if(!launchpad)return {...coin,launchpad:coin.launchpad??null,launchpadUpdatedAt:observedAt};
+  return {...coin,launchpad,launchpadUpdatedAt:observedAt,graduationObservedAt:launchpad.completed?launchpad.completedAt??coin.graduationObservedAt??observedAt:coin.graduationObservedAt};
  });
 }
 export function selectPriceBackfills(coins,now=Date.now(),limit=8){
@@ -162,13 +168,33 @@ export function selectLaunchCandidates(coins,limit=120){
  [...coins].sort((a,b)=>(a.launchpadCheckedAt??0)-(b.launchpadCheckedAt??0)||b.firstSeen-a.firstSeen).forEach(add);
  return selected;
 }
+const MARKET_OBSERVATION_FIELDS=['pool','dex','mc','fdv','liquidity','priceUsd','priceUpdatedAt','volume','volume5m',
+ 'buyers','buys','sells','buys5m','sells5m','priceChange','priceChange1h','marketUpdatedAt','fetchedAt',
+ 'marketWindows','marketSource','marketSourceURL'];
+function mergeMarketObservation(previous,incoming){
+ const merged={...previous,...incoming};
+ if(!previous)return merged;
+ const before=amount(previous.marketUpdatedAt??previous.fetchedAt)??0,after=amount(incoming.marketUpdatedAt??incoming.fetchedAt)??0;
+ if(Math.max(before,after)<=0)return merged;
+ const observed=before>after?previous:incoming;
+ // Discovery can be served from a longer cache than exact-contract refreshes.
+ // Keep one pool's observation intact, including unknown fields and provenance.
+ for(const key of MARKET_OBSERVATION_FIELDS){
+  if(Object.hasOwn(observed,key))merged[key]=observed[key];
+  else delete merged[key];
+ }
+ // Mode's exact-contract quote has its own clock and coverage contract.
+ const runnerBefore=amount(previous.runnerMarket?.at)??0,runnerAfter=amount(incoming.runnerMarket?.at)??0;
+ if(runnerBefore>runnerAfter)merged.runnerMarket=previous.runnerMarket;
+ return merged;
+}
 export function mergeCoins(previous,incoming,now=Date.now()){
  const rows=new Map(previous.filter(c=>c.firstSeen>now-RETENTION_MS).map(c=>[c.id,c]));
  for(const coin of incoming){
   const old=rows.get(coin.id);
   if(!old&&!((coin.poolCreated>=now-36*3600000||coin.launchpadSource)&&coin.liquidity>=3000&&(coin.buys??0)+(coin.sells??0)>=5))continue;
   const created=[old?.poolCreated,coin.poolCreated].filter(value=>Number.isFinite(Number(value))&&Number(value)>0).map(Number);
-  rows.set(coin.id,{...old,...coin,poolCreated:created.length?Math.min(...created):coin.poolCreated,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
+  rows.set(coin.id,{...mergeMarketObservation(old,coin),poolCreated:created.length?Math.min(...created):coin.poolCreated,image_url:coin.image_url||old?.image_url||null,firstSeen:old?.firstSeen??now,savedContext:old?.savedContext??null});
  }
  return [...rows.values()];
 }
@@ -178,7 +204,7 @@ export function mergeRadarCoins(previous,incoming,coins,now=Date.now()){
   if(!coin.id||!coin.contract_address||!coin.network||amount(coin.liquidity)<3000)continue;
   const old=rows.get(coin.id);
   const richer=(key)=>(old?.[key]?.length||0)>(coin[key]?.length||0)?old[key]:coin[key]||old?.[key]||[];
-  rows.set(coin.id,{...old,...coin,firstSeenRadarAt:old?.firstSeenRadarAt??now,lastSeenRadarAt:now,
+  rows.set(coin.id,{...mergeMarketObservation(old,coin),firstSeenRadarAt:old?.firstSeenRadarAt??now,lastSeenRadarAt:now,
    marketHistory:richer('marketHistory'),marketHistoryHourly:richer('marketHistoryHourly'),
    savedContext:coin.savedContext??old?.savedContext??null});
  }
@@ -243,8 +269,8 @@ export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[],p
   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}?include=top_pools`,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error(`Launchpad data HTTP ${response.status}`);
   const payload=await response.json();
-  const tokens=Array.isArray(payload.data)?payload.data:[];
-  const pools=parsePools({data:(payload.included||[]).filter(p=>p.type==='pool'),included:tokens},NETWORKS.find(n=>n.id===network),now);
+  const tokens=Array.isArray(payload.data)?payload.data.map(token=>({...token,_sourceObservedAt:payload._sourceObservedAt})):[];
+  const pools=parsePools({data:(payload.included||[]).filter(p=>p.type==='pool'),included:tokens,_sourceObservedAt:payload._sourceObservedAt},NETWORKS.find(n=>n.id===network),now);
   return {tokens,pools};
  }));
  const launchTokens=launchResults.flatMap(r=>r.status==='fulfilled'?r.value.tokens:[]);
@@ -374,7 +400,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
   const pairs=await response.json();
   const pair=Array.isArray(pairs)?pairs.filter(pair=>pair.chainId===network.id&&pair.baseToken?.address?.toLowerCase()===token.contract.toLowerCase()&&/^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(pair.pairAddress||'')).sort((a,b)=>(b.liquidity?.usd??0)-(a.liquidity?.usd??0))[0]:null;
   if(!pair)throw new Error('Tracked contract has no eligible pool');
-  return [{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',symbol:pair.baseToken.symbol||'?',image_url:safeURL(pair.info?.imageUrl),network:network.id,chain:network.name,contract_address:token.contract,contract_verified:true,pool:pair.pairAddress,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv),volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),liquidity:amount(pair.liquidity?.usd),buys:amount(pair.txns?.h24?.buys),sells:amount(pair.txns?.h24?.sells),buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceUsd:amount(pair.priceUsd),priceChange:amount(pair.priceChange?.h24),priceChange1h:amount(pair.priceChange?.h1),fetchedAt:now,marketUpdatedAt:now,priceUpdatedAt:now}];
+  return refreshMarket([{id:`${network.id}:${token.contract}`,name:pair.baseToken.name||pair.baseToken.symbol||'Unknown token',
+   symbol:pair.baseToken.symbol||'?',network:network.id,chain:network.name,contract_address:token.contract,
+   contract_verified:true,poolCreated:amount(pair.pairCreatedAt),mc:amount(pair.marketCap),fdv:amount(pair.fdv)}],[pair],now);
  }));
  tracked=trackedResults.flatMap(result=>result.status==='fulfilled'?result.value:[]);
  trackedResults.forEach((result,index)=>{const key=`${TRACKED_RADAR_TOKENS[index].network}_tracked`;feeds[key]=feedStatus(feeds[key],now,result.status==='fulfilled'?{records:result.value.length}:{error:result.reason.message})});

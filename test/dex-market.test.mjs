@@ -17,7 +17,7 @@ test('Tweet derives active old tokens from the shared market pool without borrow
  const stale=sharedTweetMarket([],[],shared,now+1000);
  assert.equal(stale.tweetCoins[0].fetchedAt,now-1000);assert.equal(stale.tweetMarketFeeds.solana.status,'failed');
 });
-test('A shared cached quote cannot overwrite a newer observation or create a new history sample',()=>{
+test('A shared cached quote cannot overwrite a newer observation and keeps its original history time',()=>{
  const now=1800000000000,coin={network:'solana',contract_address:address,marketUpdatedAt:now-1000,priceUsd:2};
  const pair={chainId:'solana',baseToken:{address},priceUsd:'1',_sourceObservedAt:now-2000};
  assert.equal(refreshMarket([coin],[pair],now)[0],coin);
@@ -25,7 +25,34 @@ test('A shared cached quote cannot overwrite a newer observation or create a new
  const reused=refreshMarket([prior],[pair],now)[0];
  assert.equal(reused.marketUpdatedAt,now-2000);
  assert.equal(reused.priceUpdatedAt,now-2000);
- assert.equal(recordMarketHistory([reused],now)[0].marketHistory,undefined);
+ const saved=recordMarketHistory([reused],now)[0];
+ assert.equal(saved.marketHistory.length,1);
+ assert.equal(saved.marketHistory[0].at,now-2000);
+ assert.equal(saved.marketHistory[0].priceUsd,1);
+ assert.deepEqual(recordMarketHistory([saved],now+1000)[0].marketHistory,saved.marketHistory);
+});
+
+test('new shared observations advance history once without admitting stale or out-of-order quotes',()=>{
+ const now=1800000000000,at=now-60000;
+ const coin={network:'solana',contract_address:address,marketUpdatedAt:now-300000,
+  marketHistory:[{at:now-300000,volume5m:400}],marketHistoryHourly:[{at:now-3600000,volume5m:100}]};
+ const pair={chainId:'solana',baseToken:{address},_sourceObservedAt:at,priceUsd:'1',liquidity:{usd:9000},
+  volume:{m5:700,h24:12000},txns:{m5:{buys:8,sells:3}}};
+ const saved=recordMarketHistory(refreshMarket([coin],[pair],now),now)[0];
+ assert.deepEqual(saved.marketHistory.map(row=>row.at),[now-300000,at]);
+ assert.equal(saved.marketHistory.at(-1).priceUsd,1);
+ assert.equal(saved.recentVolume1h,1100);
+ assert.equal(saved.marketHistoryHourly.at(-1).at,at);
+ const repeat=recordMarketHistory([saved],now+1000)[0];
+ assert.deepEqual(repeat.marketHistory,saved.marketHistory);
+ assert.deepEqual(repeat.marketHistoryHourly,saved.marketHistoryHourly);
+ for(const marketUpdatedAt of [at-1,now-15*60000,now+1,NaN,undefined]){
+  const ignored=recordMarketHistory([{...saved,marketUpdatedAt}],now)[0];
+  assert.deepEqual(ignored.marketHistory,saved.marketHistory);
+  assert.deepEqual(ignored.marketHistoryHourly,saved.marketHistoryHourly);
+ }
+ const omitted=recordMarketHistory([{...coin,marketUpdatedAt:at,priceUsd:2,priceUpdatedAt:at-1}],now)[0];
+ assert.equal(omitted.marketHistory.at(-1).priceUsd,null);
 });
 test('Restricted token source normalizes searches and rejects arbitrary forwarding',()=>{
  assert.equal(dexMarketPath(new URL('https://site/api/dex/latest/dex/search?q=+cat+')),'latest/dex/search?q=cat');
@@ -63,6 +90,17 @@ test('Quiet markets leave the hot refresh queue while old launches can reactivat
  const active={...quiet,marketWindows:{m5:{volume:1000,buys:10,sells:5}}};
  assert.equal(marketRefreshInterval(active,now),300000);
  assert.equal(selectMarketTargets([active],[],[],now).length,1);
+});
+
+test('six-hour and daily trending markets refresh before shared evidence expires',()=>{
+ const now=1800000000000;
+ for(const [window,activity] of [['h6',{volume:15000,buys:20,sells:5}],['h24',{volume:15000,buys:25,sells:25}]]){
+  const coin={id:'solana:'+address,network:'solana',contract_address:address,firstSeen:now-86400000,
+   marketAttemptAt:now,marketUpdatedAt:now,marketWindows:{m5:{volume:0,buys:0,sells:0},[window]:activity}};
+  assert.equal(marketRefreshInterval(coin,now),600000);
+  assert.equal(selectMarketTargets([coin],[],[],now+600000).length,1);
+  assert.ok(marketRefreshInterval(coin,now)<15*60000);
+ }
 });
 
 
