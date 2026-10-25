@@ -45,3 +45,13 @@ test('A 429 pauses uncached work but cached data remains available',async()=>{
   let calls=0;const request=createRequestClient({interval:0,fetcher:async url=>{calls++;return url.endsWith('/cached')?response([]):{ok:false,status:429,headers:{get:()=>null}}}});
   await request('/cached');await assert.rejects(request('/limited'),/rate-limiting/);await assert.rejects(request('/another'),/rate-limiting/);await request('/cached');assert.equal(calls,2);
 });
+
+
+test('shared broker remains reachable after 429 so owner cache can serve another pool',async()=>{
+ let calls=0;
+ const request=createRequestClient({interval:0,broker:true,fetcher:async url=>{
+  calls++;return url.endsWith('/limited')?{ok:false,status:429,headers:{get:()=>null}}:response([]);
+ }});
+ await assert.rejects(request('/limited'),/rate-limiting/);
+ assert.deepEqual((await request('/another')).data,[]);assert.equal(calls,2);
+});

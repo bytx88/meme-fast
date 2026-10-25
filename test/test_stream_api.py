@@ -81,3 +81,32 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((await client.get('/api/context/read',params={'url':'http://localhost'})).status_code,400)
                 self.assertEqual(len(context_calls),2)
                 self.assertEqual((await client.get('/api/dex/arbitrary')).status_code, 404)
+
+
+    async def test_gecko_roles_admission_headers_and_market_method_projection(self):
+        import json
+        import modal_app
+        calls=[]
+        async def gecko(path, workload='interactive'):
+            calls.append((path,workload))
+            return ({'status':503,'body':{'error':'deferred'},'deferred':True,'retryAfter':8}
+                    if workload=='background' else {'status':200,'body':{'data':[],'_sourceObservedAt':1234}})
+        volume=SimpleNamespace(reload=SimpleNamespace(aio=ready))
+        with patch.object(modal_app,'history_volume',volume), \
+             patch.object(modal_app,'read_gecko_source',SimpleNamespace(remote=SimpleNamespace(aio=gecko))):
+            app=modal_app.web.local()
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                path='/networks/solana/pools/So11111111111111111111111111111111111111112/trades'
+                deferred=await client.get('/api/gecko'+path)
+                self.assertEqual(deferred.status_code,503)
+                self.assertEqual(deferred.headers['x-source-deferred'],'1')
+                self.assertEqual(deferred.headers['retry-after'],'8')
+                self.assertEqual((await client.get('/api/market'+path)).status_code,200)
+                self.assertEqual(calls,[(path,'background'),(path,'interactive')])
+                stored={'version':2,'method':'shared-trending-1h-v1','basket':[],'readings':[],
+                        'marketObservedAt':1234,'legacyMethods':{'private':'original'}}
+                with patch.object(Path,'read_text',return_value=json.dumps(stored)):
+                    response=await client.get('/api/meme-index')
+                self.assertEqual(response.json()['method'],stored['method'])
+                self.assertEqual(response.json()['marketObservedAt'],1234)
+                self.assertNotIn('legacyMethods',response.json())

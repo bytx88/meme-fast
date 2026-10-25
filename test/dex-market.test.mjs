@@ -64,3 +64,13 @@ test('Quiet markets leave the hot refresh queue while old launches can reactivat
  assert.equal(marketRefreshInterval(active,now),300000);
  assert.equal(selectMarketTargets([active],[],[],now).length,1);
 });
+
+
+test('shared enrichment carries signed one-hour returns with the market observation',()=>{
+ const now=1800000000000,coin={network:'solana',contract_address:address};
+ for(const change of [-2,0,3]){
+  const pair={chainId:'solana',baseToken:{address},priceChange:{h1:change,h24:12},_sourceObservedAt:now-60000};
+  const row=refreshMarket([coin],[pair],now)[0];
+  assert.equal(row.priceChange1h,change);assert.equal(row.marketUpdatedAt,now-60000);
+ }
+});

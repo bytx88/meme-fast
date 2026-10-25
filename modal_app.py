@@ -53,23 +53,25 @@ stream_volume = modal.Volume.from_name("meme-fast-data-stream", create_if_missin
 
 @app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
-def read_gecko_source(path):
+def read_gecko_source(path, workload='interactive'):
     import sys
     import httpx
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
-    from worker.source_stream import source_session, paced_get, gecko_path, gecko_response
+    from worker.source_stream import source_session, paced_get, gecko_path, gecko_response, gecko_ttl, admit_gecko, SourceDeferred
     path = gecko_path(path)
     session = source_session('/sources/gecko', source_volume)
     stream = session.stream()
-    ttl = 900 if path.split('?', 1)[0].endswith('/info') else 30 if path.endswith('/trades') else 60
-    if '/ohlcv/' in path:
-        ttl = 300
+    ttl = gecko_ttl(path)
     try:
         def fetch(target_path):
+            # Persist the budget with each outbound attempt, including failures.
+            if not stream.cooldowns():
+                admit_gecko(stream, workload)
+                session.force_commit = True
             with httpx.Client(timeout=15, follow_redirects=False) as client:
-                response = paced_get(session, client, 'https://api.geckoterminal.com/api/v2' + target_path, 4.5,
-                                     headers={'accept': 'application/json'})
+                response = paced_get(session, client, 'https://api.geckoterminal.com/api/v2' + target_path, 0,
+                                     headers={'accept': 'application/json;version=20230203'})
                 body = response.json()
                 if not isinstance(body, dict) or not isinstance(body.get('data'), (list, dict)):
                     raise ValueError('Invalid market source response')
@@ -80,7 +82,8 @@ def read_gecko_source(path):
         import time
         cooldown = stream.cooldowns().get(('api.geckoterminal.com', 'get'), 0) - time.time()
         return dict(status=429 if cooldown > 0 else 503, body={'error':'Shared market source unavailable'},
-                    retryAfter=max(1, int(cooldown), getattr(error,'retry_after',0)))
+                    retryAfter=max(1, int(cooldown), getattr(error,'retry_after',0)),
+                    deferred=isinstance(error, SourceDeferred))
     finally:
         session.finish()
 
@@ -460,7 +463,9 @@ async def collect_runner_mode():
     async def quotes(addresses):
         return await read_market_source.remote.aio('solana', addresses)
     async def activity(addresses):
-        return await read_gecko_source.remote.aio('/networks/solana/tokens/multi/' + ','.join(addresses))
+        from worker.source_stream import background_gecko
+        return await background_gecko(lambda: read_gecko_source.remote.aio(
+            '/networks/solana/tokens/multi/' + ','.join(addresses), workload='background'))
     return await run_job(history_volume, quotes, fetch_activity=activity)
 
 
@@ -504,16 +509,17 @@ def collect_jeanphil_monitor():
 
 
 @app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1,
-              secrets=[modal.Secret.from_name("meme-fast-fomolist")], volumes={"/history": history_volume})
+              volumes={"/history": history_volume, "/stream": stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_meme_index():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.meme_index import collect
+    stream_volume.reload()
     history_volume.reload()
     try:
-        report = collect("/history/meme-index.json", checkpoint_commit=history_volume.commit)
+        report = collect("/history/meme-index.json")
     finally:
         history_volume.commit()
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
@@ -621,7 +627,7 @@ def web():
     async def fetch_market(target):
         reply = await read_gecko_source.remote.aio(target.removeprefix('https://api.geckoterminal.com/api/v2'))
         return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
-    market_cache = MarketProxy(fetch_market)
+    market_cache = MarketProxy(fetch_market, broker=True)
     @web_app.get("/api/macro-review")
     async def macro_review():
         return JSONResponse(await collect_macro_review.remote.aio(), headers={"cache-control": "no-store"})
@@ -942,9 +948,8 @@ def web():
             await history_volume.reload.aio()
             try:
                 saved = json.loads(Path("/history/meme-index.json").read_text())
-                fields = ("version", "basket", "samples", "readings", "readingAt", "updatedAt",
-                          "attemptedAt", "rebalancedAt", "error", "quotes", "altProviderAt", "altMethod")
-                report = {field: saved[field] for field in fields if field in saved}
+                from worker.meme_index import public_report
+                report = public_report(saved)
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "basket": [], "samples": [], "readings": [],
                           "error": "Awaiting first collection"}
@@ -1128,9 +1133,10 @@ def web():
             path = gecko_path('/' + market_path + ('?' + str(request.query_params) if request.query_params else ''))
         except ValueError:
             raise HTTPException(status_code=404, detail='Unknown market source endpoint')
-        reply = await read_gecko_source.remote.aio(path)
+        reply = await read_gecko_source.remote.aio(path, workload='background')
         return JSONResponse(reply['body'], status_code=reply['status'], headers={
-            'cache-control':'no-store', **({'retry-after':str(reply['retryAfter'])} if 'retryAfter' in reply else {})})
+            'cache-control':'no-store', **({'x-source-deferred':'1'} if reply.get('deferred') else {}),
+            **({'retry-after':str(reply['retryAfter'])} if 'retryAfter' in reply else {})})
 
     from worker.context_source import SOURCES as context_sources, context_target
 

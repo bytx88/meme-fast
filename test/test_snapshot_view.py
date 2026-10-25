@@ -190,3 +190,23 @@ class MarketProxyTests(unittest.IsolatedAsyncioTestCase):
         gate.set()
         self.assertEqual((await second)[0], 200)
         self.assertEqual(proxy.inflight, {})
+
+
+class BrokerCacheTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cooldown_does_not_hide_shared_cache_and_observation_limits_local_ttl(self):
+        import httpx
+        now=[1000];calls=[]
+        async def fetch(url):
+            calls.append(url)
+            if url.endswith('/bad'):
+                return httpx.Response(429,headers={'retry-after':'60'})
+            return httpx.Response(200,json={'data':[],'_sourceObservedAt':990000})
+        proxy=MarketProxy(fetch,clock=lambda:now[0],broker=True)
+        self.assertEqual((await proxy.get('/bad'))[0],429)
+        self.assertEqual((await proxy.get('/networks/solana/pools/A/trades'))[0],200)
+        now[0]=1049
+        self.assertEqual((await proxy.get('/networks/solana/pools/A/trades'))[0],200)
+        self.assertEqual(len(calls),2)
+        now[0]=1051
+        self.assertEqual((await proxy.get('/networks/solana/pools/A/trades'))[0],200)
+        self.assertEqual(len(calls),3)

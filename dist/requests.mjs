@@ -1,7 +1,7 @@
 const abortError=()=>new DOMException('Request canceled','AbortError');
 const limited=()=>new Error('The data provider is rate-limiting requests. Cached results remain available; try again in a minute.');
 
-export function createRequestClient({base='/api/market',fetcher=fetch,interval=2100,concurrency=3,timeout=15000,decode=value=>value}={}) {
+export function createRequestClient({base='/api/market',fetcher=fetch,interval=2100,concurrency=3,timeout=15000,decode=value=>value,broker=false}={}) {
   const cache=new Map(),inFlight=new Map(),queue=[];
   let active=0,lastStart=-Infinity,timer=null,cooldownUntil=0;
   const ttl=path=>path.includes('/tokens/')||path.includes('/ohlcv/')?300000:path.includes('/search/')?60000:30000;
@@ -13,7 +13,7 @@ export function createRequestClient({base='/api/market',fetcher=fetch,interval=2
     const job=queue.shift();
     job.signal?.removeEventListener('abort',job.cancel);
     if(job.signal?.aborted){job.reject(abortError());pump();return}
-    if(Date.now()<cooldownUntil){job.reject(limited());pump();return}
+    if(!broker&&Date.now()<cooldownUntil){job.reject(limited());pump();return}
     active++;lastStart=Date.now();
     (async()=>{
       const signals=[AbortSignal.timeout(timeout)];if(job.signal)signals.push(job.signal);
@@ -29,7 +29,7 @@ export function createRequestClient({base='/api/market',fetcher=fetch,interval=2
       const observedAt=Number(response.headers?.get?.('x-data-observed-at'));
       if(Number.isFinite(observedAt)&&observedAt>0)value._sourceObservedAt=observedAt;
       if(job.signal?.aborted)throw abortError();
-      cache.delete(job.path);cache.set(job.path,{time:Date.now(),value});
+      cache.delete(job.path);cache.set(job.path,{time:broker&&Number.isFinite(value._sourceObservedAt)?Math.min(Date.now(),value._sourceObservedAt):Date.now(),value});
       if(cache.size>128)cache.delete(cache.keys().next().value);
       return value;
     })().then(job.resolve,e=>job.reject(e.name==='TimeoutError'?new Error('This pool took too long to respond. Other pools can still load.'):e.message==='Failed to fetch'?new Error('Cannot reach this data feed. It may be temporarily unavailable. Other listings can still load.'):e)).finally(()=>{active--;pump()});
@@ -39,7 +39,7 @@ export function createRequestClient({base='/api/market',fetcher=fetch,interval=2
     if(signal?.aborted)return Promise.reject(abortError());
     const old=cache.get(path);if(!force&&old&&Date.now()-old.time<ttl(path))return Promise.resolve(old.value);
     const previous=inFlight.get(path);if(previous&&previous.signal===signal)return previous.promise;
-    if(Date.now()<cooldownUntil)return Promise.reject(limited());
+    if(!broker&&Date.now()<cooldownUntil)return Promise.reject(limited());
     let job;
     const promise=new Promise((resolve,reject)=>{
       job={path,signal,priority,resolve,reject,cancel:()=>{const i=queue.indexOf(job);if(i>=0){queue.splice(i,1);reject(abortError());pump()}}};

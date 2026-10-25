@@ -106,3 +106,12 @@ test('the mounted widget renders every supported score independently of missing 
   }
  }finally{Object.assign(globalThis,saved)}
 });
+
+
+test('shared-pool meme history never compares across methodologies; benchmarks remain comparable',()=>{
+ const at=2000000000000,day=24*3600000;
+ const current={at,meme:2,altDelta:1,btcDelta:0,method:'shared-trending-1h-v1'};
+ const old={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fomo-most-held-v1'};
+ assert.deepEqual(compareReading([old,current]),{at,baselineAt:at-day,meme:null,altDelta:-1,btcDelta:-1});
+ assert.equal(compareReading([{...old,method:current.method},current]).meme,-6);
+});

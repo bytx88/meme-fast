@@ -18,6 +18,74 @@ class SourceUnavailable(ValueError):
         super().__init__('Shared source retry is deferred after an unsuccessful read')
 
 
+class SourceDeferred(ValueError):
+    """Admission delay, not a failed provider observation."""
+    def __init__(self, retry_after):
+        import math
+        self.retry_after = max(1, math.ceil(retry_after))
+        super().__init__('Shared market capacity reserved; retry later')
+
+
+def gecko_ttl(path):
+    from urllib.parse import urlsplit, parse_qs
+    target = urlsplit(path)
+    if target.path.endswith('/info'):
+        return 900
+    if target.path.endswith('/trades'):
+        return 60
+    query = parse_qs(target.query)
+    if '/ohlcv/' in target.path:
+        try:
+            if float(query.get('before_timestamp', ['inf'])[0]) < time.time()-3600:
+                return 3600
+        except ValueError:
+            pass
+    if query.get('page', ['1'])[0] != '1':
+        return 900
+    if target.path.endswith(('/new_pools','/trending_pools','/pools')) and not '/tokens/' in target.path:
+        return 600
+    return 300
+
+
+def admit_gecko(stream, workload='interactive', sleep=time.sleep):
+    """One rolling budget across all Gecko consumers, with two foreground slots.
+
+    Background callers wait outside the single source owner. Journal admission
+    before dispatch so failed requests also consume provider capacity.
+    """
+    if workload not in ('interactive', 'background'):
+        raise ValueError('Unknown market workload')
+    stream.db.execute('CREATE TABLE IF NOT EXISTS gecko_requests (at REAL, workload TEXT)')
+    now = stream.clock()
+    stream.db.execute('DELETE FROM gecko_requests WHERE at<=?', (now-60,))
+    rows = stream.db.execute('SELECT at,workload FROM gecko_requests ORDER BY at').fetchall()
+    delay = max(0, rows[-1][0]+7.5-now) if rows else 0
+    if len(rows) >= 8:
+        delay = max(delay, rows[-8][0]+60-now)
+    background = [at for at, role in rows if role == 'background']
+    if workload == 'background' and len(background) >= 6:
+        delay = max(delay, background[-6]+60-now)
+    stream.db.commit()
+    if delay > 0:
+        if workload == 'background':
+            raise SourceDeferred(delay)
+        sleep(delay)
+        return admit_gecko(stream, workload, sleep)
+    stream.db.execute('INSERT INTO gecko_requests VALUES (?,?)', (now, workload))
+    stream.db.commit()
+
+
+async def background_gecko(fetch, sleep=None):
+    """Retry admission outside the owner; the caller bounds the overall timeout."""
+    import asyncio
+    sleep = sleep or asyncio.sleep
+    for attempt in range(5):
+        reply = await fetch()
+        if not (reply.get('status') == 503 and reply.get('deferred') and attempt < 4):
+            return reply
+        await sleep(max(1, reply.get('retryAfter', 8)))
+
+
 def gecko_path(path):
     from urllib.parse import urlparse, parse_qsl, urlencode
     target = urlparse(path)
@@ -88,6 +156,8 @@ def gecko_response(stream, path, fetch, ttl=60):
             return body
         try:
             reply = stream.get('gecko:request', [2,route], validated_fetch, ttl)
+        except SourceDeferred:
+            raise
         except Exception:
             for address in missing:
                 stream.defer('gecko:entity',keys[address])
@@ -225,6 +295,10 @@ class SourceStream:
             self.prune()
             self.db.commit()
             return dict(value=value, observedAt=int(sampled * 1000), cache='miss')
+        except SourceDeferred:
+            self.db.execute('UPDATE metrics SET requests=requests-1 WHERE name=?', (namespace,))
+            self.db.commit()
+            raise
         except Exception:
             self.db.execute('UPDATE metrics SET failures=failures+1 WHERE name=?', (namespace,))
             if self.failure_ttl:

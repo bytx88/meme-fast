@@ -29,7 +29,7 @@ const flowCache=createFlowCache();
 const flowHistory=createFlowHistory();
 const renderTape=setupTape();
 const renderMCDetail=setupMCDetail();
-const $=id=>document.getElementById(id),api=createRequestClient();
+const $=id=>document.getElementById(id),api=createRequestClient({concurrency:2,timeout:45000,broker:true});
 const candleHistory=createCandleHistory(path=>api(path,{priority:-2}),()=>render());
 const originalLegend=document.querySelector('.timeline-legend').innerHTML;
 const dexApi=createRequestClient({base:'/api/dex',interval:500,concurrency:2,timeout:30000,decode:value=>({data:Array.isArray(value)?value:value.pairs})});

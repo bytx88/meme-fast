@@ -3,53 +3,92 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from datetime import datetime, timezone
-from worker.meme_index import HOUR, REBALANCE, advance, alt_observation, candidates, collect, public_report, record_reading
+from worker.meme_index import HOUR, METHOD, collect, public_report, alt_observation
 
-
-def board(now, offset=0):
-    return {'source': 'live-fomo', 'stale': False,
-            'capturedAt': datetime.fromtimestamp(now / 1000, timezone.utc).isoformat(),
-            'tokens': [{'rank': i + 1, 'network': 4663, 'holders': 100,
-                        'token': {'symbol': str(i), 'name': str(i), 'address': '0x' + format(i+offset, '040x')}} for i in range(10)]}
-
+NOW = 2_000_000_000_000
 
 class FakeSources:
-    def __init__(self, now):
-        self.now = now
-        self.calls = 0
-        self.price = 10
-        self.missing = False
-        self.fail_board = False
-
-    def board(self):
+    def __init__(self, now=NOW):
+        self.now, self.calls, self.alt_calls = now, 0, 0
+        self.stream = {'marketAt':now,'windows':{'1h':{'tokens':[
+            dict(id='solana:'+str(i), network='solana', contract_address=str(i), symbol=str(i),
+                 observedAt=now-60000, priceChange1h=change, marketSource='DexScreener')
+            for i,change in enumerate([-4,0,10])]}}}
+    def trending(self):
         self.calls += 1
-        if self.fail_board:
-            raise ValueError('FOMO unavailable')
-        return board(self.now, self.calls * 100)
-
-    def quotes(self, tokens, now):
-        if self.missing:
-            return {}
-        return {token['id']: {'price': self.price, 'liquidity': 20000,
-                'source': 'DexScreener', 'h1': 2.0, 'at': now} for token in tokens}
-
-    def alt(self, now, basket=None):
-        return {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts'}
-
+        return self.stream
+    def alt(self, now):
+        self.alt_calls += 1
+        return dict(hourChange=1,btcDelta=-.75,providerAt=now,source='CoinLore top 25 alts')
+    def advance(self, now):
+        self.stream['marketAt'] = now
+        for row in self.stream['windows']['1h']['tokens']:
+            row['observedAt'] = now-60000
 
 class IndexTests(unittest.TestCase):
-    def test_collection_once_per_utc_hour_even_across_short_boundary(self):
-        hour = 2_000_000_000_000 // HOUR * HOUR
-        source = FakeSources(hour)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'index.json'
-            first = collect(path, source, hour + HOUR - 60_000)
-            skipped = collect(path, source, hour + HOUR - 30_000)
-            self.assertEqual(first['updatedAt'], skipped['updatedAt'])
-            next_hour = collect(path, source, hour + HOUR)
-            self.assertEqual(next_hour['updatedAt'], hour + HOUR)
-            self.assertEqual(len(next_hour['readings']), 2)
+    def test_shared_pool_reuses_every_member_and_original_timestamp(self):
+        source = FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect(Path(folder)/'index.json',source,NOW)
+        self.assertIsNone(report['error'])
+        self.assertEqual(report['method'],METHOD)
+        self.assertEqual(len(report['basket']),3)
+        self.assertEqual(report['readings'][-1]['meme'],2)
+        self.assertEqual(report['marketObservedAt'],NOW-60000)
+        self.assertEqual([t['weight'] for t in report['basket']],[1/3]*3)
+        self.assertEqual(source.alt_calls,1)
+
+    def test_once_per_hour_and_membership_refreshes_each_hour(self):
+        source = FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            collect(path,source,NOW)
+            collect(path,source,NOW+1)
+            self.assertEqual(source.calls,1)
+            source.advance(NOW+HOUR)
+            source.stream['windows']['1h']['tokens'].pop()
+            later=collect(path,source,NOW+HOUR)
+            self.assertEqual(len(later['basket']),2)
+            self.assertEqual(later['readings'][-1]['meme'],-2)
+            self.assertEqual(len(later['readings']),2)
+
+    def test_missing_invalid_or_stale_member_withholds_complete_reading(self):
+        for invalid in (None,float('nan'),float('inf'),True,-101,'3'):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as folder:
+                source=FakeSources();path=Path(folder)/'index.json'
+                first=collect(path,source,NOW)
+                source.advance(NOW+HOUR)
+                source.stream['windows']['1h']['tokens'][0]['priceChange1h']=invalid
+                later=collect(path,source,NOW+HOUR)
+                self.assertEqual(later['readings'],first['readings'])
+                self.assertEqual(later['updatedAt'],NOW)
+                self.assertEqual(source.alt_calls,1)
+                self.assertIn('withheld',later['error'])
+        for mutate in (lambda s:s.update(marketAt=NOW-900000),
+                       lambda s:s.update(marketAt=NOW+1),
+                       lambda s:s['windows']['1h'].update(tokens=[]),
+                       lambda s:s['windows']['1h']['tokens'][0].update(observedAt=NOW+1),
+                       lambda s:s['windows']['1h']['tokens'][0].update(observedAt=NOW-900000),
+                       lambda s:s['windows']['1h']['tokens'][0].update(id='solana:1')):
+            with tempfile.TemporaryDirectory() as folder:
+                source=FakeSources();mutate(source.stream)
+                report=collect(Path(folder)/'index.json',source,NOW)
+                self.assertTrue(report['error'])
+                self.assertEqual(report['readings'],[])
+                self.assertEqual(source.alt_calls,0)
+
+    def test_migration_preserves_original_history_without_certifying_old_method(self):
+        old={'version':1,'basket':[{'id':'legacy'}],'readings':[{'at':NOW-24*HOUR,'meme':8,'altDelta':2}],
+             'snapshots':[{'private':'retained'}],'updatedAt':NOW}
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'index.json';path.write_text(json.dumps(old))
+            report=collect(path,FakeSources(),NOW)
+        self.assertEqual(report['legacyMethods']['fomo-most-held-v1'],old)
+        self.assertEqual(report['readings'][0]['method'],'fomo-most-held-v1')
+        self.assertEqual(report['readings'][-1]['method'],METHOD)
+        self.assertEqual(len(report['basket']),3)
+        self.assertNotIn('legacyMethods',public_report(report))
+        self.assertEqual(public_report(report)['method'],METHOD)
 
     def test_btc_uses_existing_feed_and_keeps_missing_values_unavailable(self):
         rows = [{'id': str(i + 100), 'rank': i + 2, 'symbol': str(i),
@@ -65,18 +104,6 @@ class IndexTests(unittest.TestCase):
         self.assertIsNone(alt_observation(rows, 1)['btcDelta'])
         self.assertEqual(alt_observation([{**btc, 'percent_change_1h': '0'}, *rows], 1)['btcDelta'], 0)
 
-    def test_one_hour_reading_uses_current_provider_change(self):
-        now = 2_000_000_000_000
-        basket = candidates(board(now), now)
-        report = {'basket': basket}
-        quotes = {t['id']: {'price': 10, 'h1': 2.0} for t in basket}
-        alt = {'value': 1000, 'hourChange': 1.0, 'providerAt': now, 'source': 'CoinLore top 25 alts', 'btcDelta': -0.75}
-        record_reading(report, now, quotes, alt)
-        self.assertEqual(report['readings'][0]['meme'], 2)
-        self.assertEqual(report['readings'][0]['altDelta'], 1)
-        self.assertEqual(report['readings'][0]['btcDelta'], -0.75)
-        self.assertEqual(report['readingAt'], now)
-
     def test_broad_alt_sample_excludes_btc_eth_and_stables(self):
         now = 2_000_000_000_000
         rows = [{'id': str(i), 'rank': i, 'symbol': 'USDT' if i == 0 else str(i),
@@ -87,74 +114,3 @@ class IndexTests(unittest.TestCase):
         rows.pop()
         with self.assertRaises(ValueError):
             alt_observation(rows, now)
-
-    def test_initial_seed_reuses_authenticated_response_without_fomo_request(self):
-        now = int(datetime(2026, 9, 29, 15, tzinfo=timezone.utc).timestamp() * 1000)
-        source = FakeSources(now)
-        with tempfile.TemporaryDirectory() as directory:
-            report = collect(Path(directory) / 'index.json', source, now)
-            self.assertEqual(source.calls, 0)
-            self.assertEqual(len(report['basket']), 10)
-
-    def test_compounding_requires_every_constituent(self):
-        now = 2_000_000_000_000
-        basket = candidates(board(now), now)
-        report = {'basket': basket}
-        quotes = {t['id']: {'price': 10} for t in basket}
-        advance(report, now, quotes, {'value': 1000, 'providerAt': now})
-        quotes[basket[0]['id']]['price'] = 20
-        advance(report, now+HOUR, quotes, {'value': 1100, 'providerAt': now})
-        self.assertAlmostEqual(report['samples'][-1]['index'], 110)
-        before = copy.deepcopy(report)
-        del quotes[basket[1]['id']]
-        with self.assertRaises(ValueError):
-            advance(report, now+2*HOUR, quotes, {'value': 1100, 'providerAt': now})
-        self.assertEqual(report, before)
-
-    def test_board_once_per_three_days_and_rebalance_continuity(self):
-        now = 2_000_000_000_000
-        source = FakeSources(now)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'index.json'
-            first = collect(path, source, now)
-            self.assertEqual(source.calls, 1)
-            source.price = 11
-            next_report = collect(path, source, now+HOUR)
-            self.assertEqual(source.calls, 1)
-            self.assertAlmostEqual(next_report['samples'][-1]['index'], 110)
-            source.now = now+REBALANCE
-            final = collect(path, source, source.now)
-            self.assertEqual(source.calls, 2)
-            self.assertNotEqual(first['basket'][0]['id'], final['basket'][0]['id'])
-            self.assertAlmostEqual(final['samples'][-1]['index'], 110)
-            self.assertEqual(len(final['snapshots']), 2)
-            self.assertNotIn('boardCache', public_report(final))
-
-    def test_failed_board_is_not_retried_by_five_minute_collector(self):
-        now = 2_000_000_000_000
-        source = FakeSources(now)
-        source.fail_board = True
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'index.json'
-            collect(path, source, now)
-            collect(path, source, now+HOUR)
-            self.assertEqual(source.calls, 1)
-
-    def test_missing_price_preserves_history_and_timestamp(self):
-        now = 2_000_000_000_000
-        source = FakeSources(now)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'index.json'
-            first = collect(path, source, now)
-            source.missing = True
-            later = collect(path, source, now+HOUR)
-            self.assertEqual(later['samples'], first['samples'])
-            self.assertEqual(later['updatedAt'], now)
-            self.assertTrue(later['error'])
-
-    def test_stale_leaderboard_is_rejected(self):
-        now = 2_000_000_000_000
-        data = board(now)
-        data['stale'] = True
-        with self.assertRaises(ValueError):
-            candidates(data, now)

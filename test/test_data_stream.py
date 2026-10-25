@@ -173,3 +173,11 @@ class DataStreamTests(unittest.TestCase):
         self.assertNotIn('history', stream.public_view(report))
         with self.assertRaises(ValueError):
             stream.public_view(report, '7d')
+
+
+    def test_ranked_pool_carries_signed_hour_change_and_original_provenance(self):
+        report=stream.project({'coins':[token(priceChange1h=-2.5,marketSource='DexScreener')]},{},{},{},NOW)
+        row=report['windows']['1h']['tokens'][0]
+        self.assertEqual(row['priceChange1h'],-2.5)
+        self.assertEqual(row['marketSource'],'DexScreener')
+        self.assertEqual(row['observedAt'],NOW)

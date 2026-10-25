@@ -12,7 +12,7 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
  const started=now(),states=new Map();
  const shared=Boolean(process.env.MEME_SHARED_MARKET_URL);
  const networkTimeout=shared?Math.max(timeoutMs,30000):timeoutMs;
- const defaults={'api.geckoterminal.com':{interval:shared?0:4500,limit:shared?200:36},'api.dexscreener.com':{interval:shared?0:300,limit:shared?200:100}};
+ const defaults={'api.geckoterminal.com':{interval:shared?0:7500,limit:shared?200:36},'api.dexscreener.com':{interval:shared?0:300,limit:shared?200:100}};
  const stateFor=host=>{
   if(!states.has(host))states.set(host,{tail:Promise.resolve(),next:0,count:0,cooldownUntil:Number(initial[host]?.cooldownUntil)||0});
   return states.get(host);
@@ -24,11 +24,11 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
    if(remaining<=0)throw new Error('Collection time budget reached; retained data kept');
    return direct(url,{...options,signal:AbortSignal.timeout(Math.max(1,Math.min(timeoutMs,remaining)))});
   }
-  const state=stateFor(host);
+  const state=stateFor(host),sharedGecko=shared&&host==='api.geckoterminal.com';
   const turn=state.tail.then(async()=>{
    const dispatch=async()=>{
    if(state.count>=policy.limit||now()-started>=budgetMs)throw new Error(`${host} collection budget reached; retained data kept`);
-   const wait=Math.max(0,state.next-now(),state.cooldownUntil-now());
+   const wait=Math.max(0,state.next-now(),sharedGecko?0:state.cooldownUntil-now());
    // Recover within this run when possible; never sleep beyond the collection deadline.
    if(wait>=budgetMs-(now()-started))throw new Error(`${host} rate-limit cooldown exceeds collection budget; retained data kept`);
    if(wait)await sleep(wait);
@@ -36,16 +36,23 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
    state.count++;state.next=now()+policy.interval;
    // Caller signals were created before queueing; use a fresh deadline here.
    const response=await direct(url,{...options,signal:AbortSignal.timeout(Math.max(1,Math.min(networkTimeout,budgetMs-(now()-started))))});
-   if(response.status===429){
+   if(response.status===429&&!sharedGecko){
     const header=response.headers?.get?.('retry-after'),seconds=header==null?NaN:Number(header);
     const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(header)-now();
     state.cooldownUntil=now()+Math.max(60000,Number.isFinite(delay)?delay:60000);
    }
    return response;
    };
-   const response=await dispatch();
+   let response=await dispatch();
+   // Admission waits happen here, leaving the shared owner free for Inspect.
+   for(let attempt=0;sharedGecko&&response.status===503&&response.headers?.get?.('x-source-deferred')==='1'&&attempt<4;attempt++){
+    const seconds=Number(response.headers.get('retry-after'));
+    const wait=Math.max(1000,Number.isFinite(seconds)?seconds*1000:7500);
+    if(wait>=budgetMs-(now()-started))return response;
+    await response.body?.cancel?.();await sleep(wait);response=await dispatch();
+   }
    // One retry after the provider's cooldown recovers transient limits without a burst.
-   if(response.status===429&&state.cooldownUntil-now()<budgetMs-(now()-started)){
+   if(response.status===429&&!sharedGecko&&state.cooldownUntil-now()<budgetMs-(now()-started)){
     await response.body?.cancel?.();
     return dispatch();
    }

@@ -133,6 +133,7 @@ def rank_market(tokens, window, now):
                            symbol=token.get('symbol'), name=token.get('name'), pool=token.get('pool'),
                            liquidity=liquidity, volume=volume, buys=buys, sells=sells,
                            uniqueBuyers=number(metrics.get('buyers')), turnover=turnover,
+                           priceChange1h=token.get('priceChange1h'), marketSource=token.get('marketSource'),
                            score=round(score, 6), observedAt=token.get('marketUpdatedAt') or token.get('fetchedAt')))
     ranked.sort(key=lambda row: (-row['score'], row['id']))
     return [dict(row, rank=index + 1) for index, row in enumerate(ranked[:TOKEN_LIMIT])]

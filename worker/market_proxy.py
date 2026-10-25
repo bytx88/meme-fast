@@ -8,7 +8,8 @@ from email.utils import parsedate_to_datetime
 
 
 class MarketProxy:
-    def __init__(self, fetcher, clock=time.time, max_entries=128):
+    def __init__(self, fetcher, clock=time.time, max_entries=128, broker=False):
+        self.broker = broker
         self.fetcher = fetcher
         self.clock = clock
         self.max_entries = max_entries
@@ -42,8 +43,12 @@ class MarketProxy:
                 raise ValueError("Invalid market response")
             if is_candles and not isinstance(payload["data"].get("attributes", {}).get("ohlcv_list"), list):
                 raise ValueError("Invalid candle response")
-            ttl = 900 if is_info else 30 if path.endswith("/trades") else 60 if path.startswith("/search/") else 300
-            self.cache[path] = (self.clock() + ttl, response.content)
+            ttl = 900 if is_info else 60 if path.endswith("/trades") else 60 if path.startswith("/search/") else 300
+            observed = payload.get('_sourceObservedAt')
+            expires = self.clock()+ttl
+            if self.broker and type(observed) in (int,float):
+                expires = min(expires, observed/1000+ttl)
+            self.cache[path] = (expires, response.content)
             self.cache.move_to_end(path)
             while len(self.cache) > self.max_entries:
                 self.cache.popitem(last=False)
@@ -65,7 +70,7 @@ class MarketProxy:
             if cached and cached[0] > self.clock():
                 self.cache.move_to_end(path)
                 return 200, cached[1], {}
-            if self.clock() < self.cooldown_until:
+            if not self.broker and self.clock() < self.cooldown_until:
                 retry = max(1, int(self.cooldown_until - self.clock()))
                 return 429, b'{"error":"The swap provider is busy. Try again in a minute."}', {"retry-after": str(retry)}
             task = self.inflight.get(path)

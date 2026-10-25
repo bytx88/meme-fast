@@ -341,3 +341,65 @@ class SourceStreamTests(unittest.TestCase):
             other = SourceStream(folder, clock=lambda: 1050)
             self.assertEqual(other.cooldowns(), {('endpoint', 'method'): 1100})
             other.close()
+
+
+class GeckoAdmissionTests(unittest.TestCase):
+    def test_background_reserves_two_slots_and_budget_survives_restart(self):
+        from worker.source_stream import admit_gecko, SourceDeferred
+        now=[1000.0]
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:now[0])
+            for _ in range(6):
+                admit_gecko(stream,'background');now[0]+=7.5
+            with self.assertRaises(SourceDeferred) as caught:
+                admit_gecko(stream,'background')
+            self.assertEqual(caught.exception.retry_after,15)
+            admit_gecko(stream)
+            now[0]+=7.5
+            stream.close()
+            stream=SourceStream(folder,clock=lambda:now[0])
+            admit_gecko(stream)
+            with self.assertRaises(SourceDeferred):
+                admit_gecko(stream,'background')
+            def sleep(delay):now[0]+=delay
+            admit_gecko(stream,sleep=sleep)
+            self.assertEqual(now[0],1060)
+            self.assertEqual(stream.db.execute('SELECT count(*) FROM gecko_requests').fetchone()[0],8)
+            stream.close()
+
+    def test_admission_deferral_does_not_poison_multi_entities_or_failures(self):
+        from worker.source_stream import SourceDeferred
+        path='/networks/solana/tokens/multi/A,B'
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,failure_ttl=30)
+            def defer(path):raise SourceDeferred(8)
+            with self.assertRaises(SourceDeferred):gecko_response(stream,path,defer)
+            self.assertEqual(stream.db.execute('SELECT count(*) FROM failed_reads').fetchone()[0],0)
+            self.assertEqual(stream.metrics()['gecko:request']['failures'],0)
+            self.assertEqual(stream.metrics()['gecko:request']['requests'],0)
+            def fetch(path):return {'data':[{'id':'solana_'+a,'type':'token'} for a in path.split('/')[-1].split(',')]}
+            self.assertEqual(gecko_response(stream,path,fetch)['cache'],'miss')
+            self.assertEqual(gecko_response(stream,path,defer)['cache'],'hit')
+            stream.close()
+
+    def test_ttl_matches_data_change_rate(self):
+        from worker.source_stream import gecko_ttl
+        self.assertEqual(gecko_ttl('/networks/solana/pools/A/trades'),60)
+        self.assertEqual(gecko_ttl('/networks/solana/tokens/A/info'),900)
+        self.assertEqual(gecko_ttl('/networks/solana/trending_pools?duration=1h'),600)
+        self.assertEqual(gecko_ttl('/networks/solana/new_pools?page=2'),900)
+        self.assertEqual(gecko_ttl('/networks/solana/tokens/multi/A'),300)
+
+
+class GeckoRetryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_mode_retries_admission_but_not_provider_failure(self):
+        from worker.source_stream import background_gecko
+        waits=[]
+        replies=iter([{'status':503,'deferred':True,'retryAfter':8},{'status':200,'body':{'data':[]}}])
+        async def fetch():return next(replies)
+        async def sleep(delay):waits.append(delay)
+        self.assertEqual((await background_gecko(fetch,sleep))['status'],200)
+        self.assertEqual(waits,[8])
+        async def limited():return {'status':429,'retryAfter':60}
+        self.assertEqual((await background_gecko(limited,sleep))['status'],429)
+        self.assertEqual(waits,[8])
