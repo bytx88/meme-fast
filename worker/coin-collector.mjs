@@ -350,9 +350,9 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
    return result;
   }catch(error){feeds.wallet_token_discovery=feedStatus(feeds.wallet_token_discovery,now,{error:error.message});return []}
  })();
- // Cover essential discovery, then launchpad checks and indexed pools before deeper pagination.
+ // Cover page one for every chain and market view before optional enrichment or deeper pagination.
  let tracked=[],indexedCoins=[],launch,launchPools=[];
- const discovery=discoverPools(fetcher,now,feeds,{initialCount:NETWORKS.length+RADAR_NETWORKS.filter(n=>n.priorityTrending).length,betweenPasses:async({incoming,trending})=>{
+ const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
  const retainedLaunchPools=(previous.coins||[]).filter(c=>c.launchpadSource&&c.firstSeen>now-RETENTION_MS);
  launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds,{launchPools:retainedLaunchPools,priorityIds});

@@ -140,3 +140,25 @@ test('shared Gecko recovers a transient provider cooldown without a second host 
   assert.equal(now,61000);assert.equal(calls,3);
  }finally{if(previous===undefined)delete process.env.MEME_SHARED_MARKET_URL;else process.env.MEME_SHARED_MARKET_URL=previous}
 });
+
+
+test('the actual collector reserves first-page trending coverage before optional Gecko work',async()=>{
+ const {collect}=await import('../worker/coin-collector.mjs');
+ const {mkdtemp,rm}=await import('node:fs/promises');
+ const {tmpdir}=await import('node:os');const path=await import('node:path');
+ const directory=await mkdtemp(path.join(tmpdir(),'meme-stream-priority-')),calls=[];
+ try{
+  const report=await collect(path.join(directory,'coins.json'),{now:1800000000000,fetcher:async url=>{
+   if(!url.includes('api.geckoterminal.com'))throw Error('other source unavailable');
+   calls.push(url);if(calls.length>10)throw Error('remaining background budget used');
+   return Response.json({data:[],included:[]});
+  }});
+  for(const network of ['solana','base','robinhood','bsc']){
+   assert.equal(report.feeds[network].returnedRecords??report.feeds[network].records,0);
+   assert.equal(report.feeds[network+'_trending'].status,'ok');
+  }
+  assert(calls.slice(0,10).every(url=>!url.includes('/dexes/')&&!url.includes('/tokens/')));
+  assert(calls[10].includes('/dexes/'));
+  assert.equal(report.feeds.launchpad_pools.status,'failed');
+ }finally{await rm(directory,{recursive:true,force:true})}
+});
