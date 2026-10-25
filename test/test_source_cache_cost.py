@@ -43,13 +43,26 @@ class SourceCacheCostTests(unittest.TestCase):
         self.assertIsNotNone(self.stream.db.execute('SELECT key FROM responses WHERE key=?', ('16',)).fetchone())
 
     def test_pruning_queries_use_covering_accounting_index_without_body_rescan_or_sort(self):
-        self.rows([('A', 1100, 900, '{"text":"retained"}')])
-        for query in ('SELECT COUNT(*),COALESCE(SUM(LENGTH(body)),0) FROM responses',
-                      'SELECT key,LENGTH(body) FROM responses ORDER BY sampled LIMIT 1'):
+        self.rows([(str(i), 1100, i, '{"text":"retained"}') for i in range(2001)])
+        statements = []
+        self.stream.db.set_trace_callback(statements.append)
+        try:
+            self.stream.prune()
+        finally:
+            self.stream.db.set_trace_callback(None)
+        # Inspect the actual production statements, including a real eviction.
+        queries = [sql for sql in statements if sql.startswith('SELECT ')]
+        self.assertEqual(len(queries), 2)
+        for query in queries:
             with self.subTest(query=query):
+                self.assertIn('INDEXED BY responses_prune', query)
                 plan = ' '.join(str(row[-1]) for row in self.stream.db.execute('EXPLAIN QUERY PLAN ' + query))
-                self.assertIn('USING COVERING INDEX responses_prune', plan)
+                # Older SQLite labels an expression-index scan USING INDEX.
+                self.assertRegex(plan, r'USING (?:COVERING )?INDEX responses_prune')
                 self.assertNotIn('TEMP B-TREE', plan)
+                bytecode = self.stream.db.execute('EXPLAIN ' + query).fetchall()
+                self.assertFalse(any(row[1] == 'Function' and str(row[5]).startswith('length(')
+                                     for row in bytecode), 'JSON length must come from the stored index expression')
         for table in ('responses', 'failed_reads'):
             plan = ' '.join(str(row[-1]) for row in self.stream.db.execute(
                 f'EXPLAIN QUERY PLAN DELETE FROM {table} WHERE expires<=?', (1000,)))

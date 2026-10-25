@@ -373,9 +373,10 @@ class SourceStream:
         self.db.execute('DELETE FROM responses WHERE expires<=?', (self.clock(),))
         self.db.execute('DELETE FROM failed_reads WHERE expires<=?',(self.clock(),))
         self.db.execute('DELETE FROM failed_reads WHERE key NOT IN (SELECT key FROM failed_reads ORDER BY expires DESC LIMIT 2000)')
-        count, size = self.db.execute('SELECT COUNT(*), COALESCE(SUM(LENGTH(body)),0) FROM responses').fetchone()
+        # SQLite 3.40 may otherwise scan JSON bodies instead of this index.
+        count, size = self.db.execute('SELECT COUNT(*), COALESCE(SUM(LENGTH(body)),0) FROM responses INDEXED BY responses_prune').fetchone()
         while count > 2000 or size > 32_000_000:
-            oldest = self.db.execute('SELECT key,LENGTH(body) FROM responses ORDER BY sampled LIMIT 1').fetchone()
+            oldest = self.db.execute('SELECT key,LENGTH(body) FROM responses INDEXED BY responses_prune ORDER BY sampled LIMIT 1').fetchone()
             self.db.execute('DELETE FROM responses WHERE key=?', (oldest[0],))
             count -= 1
             size -= oldest[1]
