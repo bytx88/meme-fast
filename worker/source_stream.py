@@ -113,6 +113,7 @@ def gecko_path(path):
 def gecko_response(stream, path, fetch, ttl=60):
     """Reuse overlapping multi reads without conflating different field contracts."""
     from urllib.parse import urlsplit
+    from worker.gecko_projection import index_entity, lookup_entity, seed_top_pools
     path = gecko_path(path)
     target = urlsplit(path)
     match = re.fullmatch(r'/networks/([\w-]+)/(tokens|pools)/multi/([A-Za-z0-9,]+)', target.path)
@@ -127,7 +128,17 @@ def gecko_response(stream, path, fetch, ttl=60):
     # Version the projected contract: older entries used case-sensitive IDs and
     # retained unrelated includes from the entire original batch.
     keys = {address:[2,network,kind,address,target.query] for address in addresses}
-    cached = {address:stream.lookup('gecko:entity', key) for address,key in keys.items()}
+    cached = {}
+    for address,key in keys.items():
+        try:
+            saved = stream.lookup('gecko:entity', key)
+        except SourceUnavailable:
+            saved = lookup_entity(stream, network, kind, address, target.query, ttl)
+            if saved is None:
+                raise
+        if saved is None:
+            saved = lookup_entity(stream, network, kind, address, target.query, ttl)
+        cached[address] = saved
     missing = [address for address in addresses if cached[address] is None]
     if missing:
         route = f'/networks/{network}/{kind}/multi/' + ','.join(missing)
@@ -172,6 +183,11 @@ def gecko_response(stream, path, fetch, ttl=60):
                 value['included'] = related_includes(rows,body['included'])
             stream.store('gecko:entity',keys[address],value,reply['observedAt'],ttl)
             cached[address] = dict(reply,value=value)
+    for address in addresses:
+        index_entity(stream, network, kind, address, target.query)
+        if kind == 'tokens':
+            observation = cached[address]
+            seed_top_pools(stream, network, observation['value'], observation['observedAt'], ttl, target.query)
     if kind == 'tokens' and target.query == 'include=top_pools':
         # The token-multi primary attributes already report aggregate activity.
         # Mode's bare token read can reuse those complete observations; token
@@ -186,6 +202,7 @@ def gecko_response(stream, path, fetch, ttl=60):
                     and 'h24' in attrs['volume_usd']):
                 stream.store('gecko:entity',[2,network,kind,address,''],dict(data=rows),
                              observation['observedAt'],min(ttl,300))
+                index_entity(stream, network, kind, address, '')
     bodies = [row['value'] for row in sorted(cached.values(),key=lambda row:row['observedAt'])]
     value = dict(bodies[0],data=[entity for body in bodies for entity in body['data']])
     if any('included' in body for body in bodies):
@@ -203,6 +220,7 @@ def seed_gecko_pools(stream, path, reply, ttl):
     a pool batch cannot certify a token's complete pool list.
     """
     from urllib.parse import urlsplit, parse_qsl, urlencode
+    from worker.gecko_projection import index_entity
     target = urlsplit(path)
     route = re.fullmatch(r'/networks/([\w-]+)/(?:new_pools|trending_pools|pools|'
                          r'dexes/[\w-]+/pools|tokens/[\w-]+/pools)', target.path)
@@ -259,6 +277,7 @@ def seed_gecko_pools(stream, path, reply, ttl):
                 value['included'] = related_includes([row],included)
             stream.store('gecko:entity',[2,network,'pools',canonical(address),scope],value,
                          reply['observedAt'],min(ttl,300))
+            index_entity(stream, network, 'pools', canonical(address), scope)
 
 
 def related_includes(rows, included):

@@ -14,7 +14,8 @@ NOW = 1_800_000_000_000 // (60*MINUTE) * (60*MINUTE)
 def candidates(count=80, at=NOW):
     return {'lastRun': at, 'coins': [
         {'network': 'solana', 'contract_address': f'mint{i}', 'dex': 'pumpfun',
-         'runnerMarket': {'at': at, 'cap': 100_000, 'liquidity': 10_000, 'volume24h': 50_000}}
+         'runnerMarket': {'at': at, 'cap': 100_000, 'liquidity': 10_000, 'volume24h': 50_000,
+                          'source': 'DexScreener'}}
         for i in range(count)], 'feeds': {'solana': {'status': 'failed'},
                                          'launchpad_pools': {'status': 'failed'}}}
 
@@ -29,6 +30,51 @@ def reply(addresses, at, missing_caps=(), quiet=(), cap=100_000):
 
 
 class RunnerSamplingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_missing_markets_are_pulled_without_extending_source_times(self):
+        with tempfile.TemporaryDirectory() as directory:
+            calls, at = [], NOW
+            async def fetch(addresses):
+                calls.append(list(addresses))
+                return reply(addresses, at)
+            result = await sample(directory, candidates(3), fetch, now=at)
+            self.assertEqual(calls, [])
+            self.assertEqual(result['coverage']['valuedTokens'], 3)
+            # An idempotent retry reuses the persisted values without making a
+            # provider call or turning the receive time into a new observation.
+            at += MINUTE
+            await sample(directory, {}, fetch, now=at)
+            self.assertEqual(calls, [])
+            roster = json.loads((Path(directory)/'runner-cohort.json').read_text())['members']
+            self.assertEqual({m['quote']['at'] for m in roster}, {NOW})
+            with closing(sqlite3.connect(Path(directory)/'runner-mode.sqlite')) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM monitor_observations').fetchone()[0], 3)
+            # At five minutes, only the newly shared mint avoids the refresh.
+            at = NOW+5*MINUTE
+            result = await sample(directory, candidates(1, at), fetch, now=at)
+            self.assertEqual(set(sum(calls, [])), {'mint1', 'mint2'})
+            self.assertEqual(result['cohort']['attemptedBatches'], 1)
+            self.assertTrue(result['coverage']['reservedPass'])
+            # The 15-minute valuation tolerance must not skip the next 5m pull.
+            calls.clear()
+            at += 5*MINUTE
+            await sample(directory, {}, fetch, now=at)
+            self.assertEqual(set(sum(calls, [])), {'mint0', 'mint1', 'mint2'})
+
+    async def test_partial_or_future_shared_quotes_do_not_certify_reuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            at, calls = NOW, []
+            async def fetch(addresses):
+                calls.append(list(addresses))
+                return reply(addresses, at)
+            await sample(directory, candidates(3), fetch, now=at)
+            at += 5*MINUTE
+            shared = candidates(3, at)
+            shared['coins'][0]['runnerMarket']['volume24h'] = None
+            shared['coins'][1]['runnerMarket']['at'] = at+1
+            shared['coins'][2]['runnerMarket']['at'] -= 5*MINUTE
+            await sample(directory, shared, fetch, now=at)
+            self.assertEqual(set(sum(calls, [])), {'mint0', 'mint1', 'mint2'})
+
     async def test_sparse_runner_scores_hard_but_source_or_history_gaps_stay_unknown(self):
         from worker.runner_mode import public_report
         with tempfile.TemporaryDirectory() as directory:
@@ -102,8 +148,7 @@ class RunnerSamplingTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['coverage']['valuationFraction'], 1)
             self.assertTrue(result['coverage']['reliable'])
             self.assertTrue(result['coverage']['reservedPass'])
-            self.assertLessEqual(max(map(len, calls)), 30)
-            self.assertEqual(len(calls), 3)
+            self.assertEqual(calls, [])  # Fresh common discovery already supplied these quotes.
             roster = json.loads((Path(directory)/'runner-cohort.json').read_text())['members']
             mints = [m['mint'] for m in roster]
             # No discovery records are needed to keep observing admitted mints.
@@ -111,6 +156,8 @@ class RunnerSamplingTests(unittest.IsolatedAsyncioTestCase):
             result = await sample(directory, {}, fetch, now=at)
             self.assertEqual(result['coverage']['eligibleTokens'], 80)
             self.assertTrue(result['coverage']['reliable'])
+            self.assertLessEqual(max(map(len, calls)), 30)
+            self.assertEqual(len(calls), 3)
             # Missing caps stay missing; large FDV must not repair the gap.
             at += 5*MINUTE
             async def partial(addresses):

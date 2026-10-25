@@ -13,9 +13,11 @@ import time
 from worker.runner_mode import eligible, collect
 from worker.runner_policy import (BOOTSTRAP, FOLLOWUP, HOURLY_ADMISSIONS, HOUR,
                                   LIMIT, MAX_CAP, MIN_LIQUIDITY, QUOTE_MAX_AGE,
-                                  number, fresh)
+                                  SAMPLE_INTERVAL, number, fresh)
+from worker.source_stream import QUOTE_TTL
 
 SCOPE = 'solana-observable-v1'
+REUSE_MAX_AGE = min(SAMPLE_INTERVAL, QUOTE_TTL*1000)
 
 
 def read(path, default):
@@ -38,6 +40,37 @@ def observable(quote, now, max_age=QUOTE_MAX_AGE):
     return (at is not None and fresh(at, now, max_age) and cap is not None and 0 < cap <= MAX_CAP
             and (number(quote.get('liquidity')) or 0) >= MIN_LIQUIDITY
             and (number(quote.get('volume24h')) or 0) > 0)
+
+
+def reusable(quote, now):
+    """Reuse one source observation for its normal five-minute cache lifetime.
+
+    The longer valuation tolerance is error coverage, not a reason to skip
+    scheduled observations. Preserve the original source time on every reuse.
+    """
+    if not isinstance(quote, dict):
+        return False
+    at = number(quote.get('at'))
+    if at is None or not 0 <= now-at < REUSE_MAX_AGE:
+        return False
+    if quote.get('status') == 'observed-nonqualifying':
+        return (quote.get('source') == 'GeckoTerminal'
+                and quote.get('evidence') == 'token-aggregate-activity'
+                and number(quote.get('cap')) is None
+                and number(quote.get('tokenReserveUsd')) is not None
+                and number(quote.get('volume24h')) == 0)
+    cap = number(quote.get('cap'))
+    return (quote.get('source') == 'DexScreener' and cap is not None and cap <= MAX_CAP
+            and number(quote.get('liquidity')) is not None
+            and number(quote.get('volume24h')) is not None)
+
+
+def supersedes_inactivity(quote, cached):
+    """Do not let old inactivity conceal a newer valuation or positive volume."""
+    return (isinstance(quote, dict) and quote.get('source') == 'DexScreener'
+            and (number(quote.get('at')) or 0) >= (number(cached.get('at')) or 0)
+            and (number(quote.get('cap')) is not None
+                 or (number(quote.get('volume24h')) or 0) > 0))
 
 
 def identity(mint):
@@ -133,13 +166,20 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
         raise ValueError('Unexpected runner cohort identity; preserve the stored roster')
     members = [m for m in cohort['members'] if started-m['admittedAt'] < FOLLOWUP]
     seen = set(cohort['seen'])
-    candidates = {}
+    candidates, shared_quotes = {}, {}
     for field in ('coins', 'radarCoins'):
         for row in snapshot.get(field, []):
-            if eligible(row) and row['contract_address'] not in seen:
-                quote = row.get('runnerMarket')
-                if observable(quote, started, HOUR):
-                    candidates[row['contract_address']] = row
+            if not eligible(row):
+                continue
+            mint, quote = row['contract_address'], row.get('runnerMarket')
+            if not isinstance(quote, dict):
+                continue
+            if (number(quote.get('at')) or 0) >= (number(shared_quotes.get(mint, {}).get('at')) or 0):
+                shared_quotes[mint] = quote
+            if mint not in seen and observable(quote, started, HOUR):
+                previous = candidates.get(mint, {}).get('runnerMarket', {})
+                if (number(quote.get('at')) or 0) >= (number(previous.get('at')) or 0):
+                    candidates[mint] = row
     # Stable hash order is independent of valuation, volume rank and outcome.
     ordered = sorted(candidates, key=lambda mint: hashlib.sha256(mint.encode()).digest())
     initial = not cohort['seen']
@@ -149,6 +189,19 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
     addresses = list(dict.fromkeys([m['mint'] for m in members] + probes))
     quotes = {m['mint']: m.get('quote', {}) for m in members}
     activity_cache = {m['mint']: m.get('activity', m.get('quote', {})) for m in members}
+    for mint in addresses:
+        shared = shared_quotes.get(mint, {})
+        shared_at = number(shared.get('at'))
+        if (shared.get('source') == 'DexScreener' and shared_at is not None
+                and 0 <= started-shared_at < REUSE_MAX_AGE
+                and shared_at >= (number(quotes.get(mint, {}).get('at')) or 0)):
+            quotes[mint] = shared
+        cached = activity_cache.get(mint, {})
+        if supersedes_inactivity(quotes.get(mint, {}), cached):
+            activity_cache.pop(mint, None)
+        elif reusable(cached, started) and not reusable(quotes.get(mint, {}), started):
+            quotes[mint] = cached
+    needed_quotes = [mint for mint in addresses if not reusable(quotes.get(mint, {}), started)]
     errors, active_errors, attempted, succeeded = [], [], 0, 0
     # Two outstanding requests at most; the shared owner still handles pacing,
     # caching and cooldowns for all consumers. No unpaced direct fallback.
@@ -161,8 +214,20 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
                 reply = await asyncio.wait_for(fetch_quotes(batch_addresses), 35)
                 received = int(clock() if now is None else now)
                 parsed = quotes_from_reply(reply, set(batch_addresses), received)
-                for mint in active.intersection(batch_addresses)-parsed.keys():
-                    parsed[mint] = {'at': received, 'cap': None, 'liquidity': None,
+                omitted = active.intersection(batch_addresses)-parsed.keys()
+                if omitted and number(reply.get('observedAt')) is None:
+                    raise ValueError('An omitted market requires a source observation time')
+                for mint in omitted:
+                    previous = quotes.get(mint, {})
+                    if (previous.get('source') == 'DexScreener'
+                            and number(previous.get('cap')) is None
+                            and (number(previous.get('volume24h')) or 0) > 0
+                            and fresh(number(previous.get('at')), received)):
+                        # An omission does not retract positive activity. Keep
+                        # that evidence so an older zero certificate cannot
+                        # hide a revival; it still supplies no valuation.
+                        continue
+                    parsed[mint] = {'at': number(reply.get('observedAt')), 'cap': None, 'liquidity': None,
                                     'volume24h': None, 'source': 'DexScreener',
                                     'status': 'not-returned'}
                 for mint, quote in parsed.items():
@@ -173,19 +238,26 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
                 errors.append('Shared Solana market batch unavailable or malformed')
                 if active.intersection(batch_addresses):
                     active_errors.append('Tracked cohort quote batch failed')
-    await asyncio.gather(*(batch(addresses[i:i+30]) for i in range(0,len(addresses),30)))
+    await asyncio.gather(*(batch(needed_quotes[i:i+30]) for i in range(0,len(needed_quotes),30)))
     # Only missing tracked valuations need the independent activity check.
     # Use the shared, paced Gecko owner; no provider bypass or per-token fanout.
-    missing = [mint for mint in active if number(quotes.get(mint, {}).get('cap')) is None]
+    missing = [mint for mint in addresses if mint in active and number(quotes.get(mint, {}).get('cap')) is None]
+    completed_quotes = int(clock() if now is None else now)
+    for mint in active:
+        if supersedes_inactivity(quotes.get(mint, {}), activity_cache.get(mint, {})):
+            activity_cache.pop(mint, None)
+    needed_activity = [mint for mint in missing if not reusable(activity_cache.get(mint, {}), completed_quotes)]
     activity_attempted, activity_confirmed = 0, 0
     if fetch_activity:
-        for i in range(0, len(missing), 30):
-            requested = missing[i:i+30]
+        for i in range(0, len(needed_activity), 30):
+            requested = needed_activity[i:i+30]
             activity_attempted += 1
             try:
                 reply = await asyncio.wait_for(fetch_activity(requested), 35)
                 received = int(clock() if now is None else now)
                 observed = activity_from_reply(reply, set(requested), received)
+                observed = {mint: quote for mint, quote in observed.items()
+                            if not supersedes_inactivity(quotes.get(mint, {}), quote)}
                 quotes.update(observed)
                 activity_cache.update(observed)
                 activity_confirmed += len(observed)

@@ -19,6 +19,57 @@ def activity(addresses, at, volume='0.0', reserve='1000'):
 
 
 class ActivityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reuses_only_fresh_inactivity_and_pulls_the_remaining_mint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            at, omitted, quote_calls, activity_calls = NOW, False, [], []
+            async def fetch(addresses):
+                quote_calls.append(list(addresses))
+                return reply([] if omitted else addresses, at)
+            async def independent(addresses):
+                activity_calls.append(list(addresses))
+                return activity([mint for mint in addresses if mint != 'mint2'], at)
+            await sample(directory, candidates(3), fetch, now=at)
+            at, omitted = NOW+5*MINUTE, True
+            await sample(directory, {}, fetch, now=at, fetch_activity=independent)
+            quote_calls.clear()
+            activity_calls.clear()
+            at += MINUTE
+            result = await sample(directory, {}, fetch, now=at, fetch_activity=independent)
+            self.assertEqual(quote_calls, [['mint2']])
+            self.assertEqual(activity_calls, [['mint2']])
+            self.assertEqual(result['coverage']['nonqualifyingTokens'], 2)
+            roster = json.loads((Path(directory)/'runner-cohort.json').read_text())['members']
+            self.assertEqual({m['quote']['at'] for m in roster if m['mint'] != 'mint2'}, {NOW+5*MINUTE})
+            with closing(sqlite3.connect(Path(directory)/'runner-mode.sqlite')) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM monitor_inactive_observations').fetchone()[0], 2)
+            quote_calls.clear()
+            activity_calls.clear()
+            at = NOW+10*MINUTE
+            await sample(directory, {}, fetch, now=at, fetch_activity=independent)
+            self.assertEqual(set(sum(quote_calls, [])), {'mint0', 'mint1', 'mint2'})
+            self.assertEqual(set(sum(activity_calls, [])), {'mint0', 'mint1', 'mint2'})
+
+    async def test_newer_positive_shared_activity_invalidates_cached_zero_before_fetch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            at, omitted = NOW, False
+            async def fetch(addresses):
+                return reply([] if omitted else addresses, at)
+            async def independent(addresses):
+                # A source cache can return an older independent observation.
+                return activity(addresses, NOW+5*MINUTE)
+            await sample(directory, candidates(1), fetch, now=at)
+            at, omitted = NOW+5*MINUTE, True
+            await sample(directory, {}, fetch, now=at, fetch_activity=independent)
+            at += MINUTE
+            revived = candidates(1, at)
+            revived['coins'][0]['runnerMarket']['cap'] = None
+            result = await sample(directory, revived, fetch, now=at, fetch_activity=independent)
+            self.assertEqual(result['coverage']['nonqualifyingTokens'], 0)
+            roster = json.loads((Path(directory)/'runner-cohort.json').read_text())['members']
+            self.assertNotIn('activity', roster[0])
+            self.assertEqual(roster[0]['quote']['at'], at)
+            self.assertEqual(roster[0]['quote']['volume24h'], 50_000)
+
     def test_only_fresh_exact_mint_zero_volume_records_qualify(self):
         self.assertEqual(set(activity_from_reply(activity(['mint'], NOW), {'mint'}, NOW)), {'mint'})
         for volume in (None, True, 'nan', '-1', '0.01'):
@@ -89,7 +140,7 @@ class ActivityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['coverage']['nonqualifyingTokens'], 1)
             async def revived(addresses):
                 return activity(addresses, at, volume='1')
-            at += MINUTE
+            at += 5*MINUTE
             result = await sample(directory, {}, fetch, now=at, fetch_activity=revived)
             self.assertEqual(result['coverage']['nonqualifyingTokens'], 0)
             async def failed(addresses):

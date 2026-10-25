@@ -1,6 +1,7 @@
 import {canonical,listingKey,uniqueListings,normalizeTrade,SAMPLE_LIMITS} from './core.mjs';
 import {marketCapSnapshot,tokenPriceSnapshot} from './market-cap.mjs?v=unit-price-v1';
 import {safeURL} from './public-radar.mjs';
+import {reusablePoolList} from './pool-evidence.mjs';
 
 // Read pools as soon as they are discovered, without waiting for other listings.
 export async function loadListings(input,request,progress=()=>{},isCurrent=()=>true,onSnapshot=()=>{},lookupMarketCap=null) {
@@ -39,7 +40,13 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
     const listing=listings[index];
     try {
       let result;
-      try {result=await request(`/networks/${encodeURIComponent(token.network)}/tokens/${encodeURIComponent(token.address)}/pools?include=base_token,quote_token`,{priority:0})}
+      const evidence=reusablePoolList(token);
+      try {
+        if(evidence?.provider==='GeckoTerminal')result={data:token.poolHints,_sourceObservedAt:evidence.observedAt};
+        // Dex pool membership does not certify Gecko coverage. Preserve the
+        // independent pool-list read whenever its complete evidence is missing.
+        else result=await request(`/networks/${encodeURIComponent(token.network)}/tokens/${encodeURIComponent(token.address)}/pools?include=base_token,quote_token`,{priority:0});
+      }
       catch(e){if(!isCurrent()||!token.poolHints?.length)throw e;result={data:[]};listing.discoveryWarning=e.message}
       if(!isCurrent())return;
       const exactToken=(result.included||[]).find(item=>item.type==='token'&&item.id?.startsWith(`${token.network}_`)&&canonical(item.attributes?.address)===canonical(token.address));
@@ -52,7 +59,11 @@ export async function loadListings(input,request,progress=()=>{},isCurrent=()=>t
       listing.price=tokenPriceSnapshot(token,valuationPools,at);
       listing.marketCap=marketCapSnapshot(token,valuationPools,at);
       if(lookupMarketCap)tasks.push(async()=>{try{
-        const cap=await lookupMarketCap(token),price=listing.price?.value;
+        // Discovery and higher-priority swap reads can wait in provider queues.
+        // Recheck the quote lifetime at use, rather than extending it by that wait.
+        const retained=reusablePoolList(token);
+        const retainedCap=retained?.provider==='DexScreener'?marketCapSnapshot(token,token.poolHints,retained.observedAt):null;
+        const cap=retainedCap?.price>0?retainedCap:await lookupMarketCap(token),price=listing.price?.value;
         // Cross-check the fresh valuation against the independently fetched pool price.
         // Reject mismatched units or anomalous pools instead of displaying a huge cap.
         if(isCurrent()&&cap?.tokenKey===listing.key&&Number.isFinite(cap.value)&&cap.value>0&&Number.isFinite(cap.price)&&cap.price>0&&(!price||cap.price/price>=.8&&cap.price/price<=1.25)){

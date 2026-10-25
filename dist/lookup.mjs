@@ -1,5 +1,6 @@
 import {canonical,listingKey,uniqueListings} from './core.mjs';
 import {safeURL} from './public-radar.mjs';
+import {certifyPoolList} from './pool-evidence.mjs';
 const chains={solana:'solana',ethereum:'eth',base:'base',bsc:'bsc',robinhood:'robinhood',arbitrum:'arbitrum',optimism:'optimism',polygon:'polygon_pos',avalanche:'avax'};
 export function isSolanaAddress(value){
   if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value))return false;
@@ -41,8 +42,21 @@ export function dexMatches(pairs,query){
 export async function lookupTokens(query,{gecko,dex,signal,onStatus=()=>{}}){
   const options={signal,priority:20};let lastError,successfulLookup=false;
   const attempts=isSolanaAddress(query)?[
-    ['Looking up the Solana contract…',async()=>dexMatches((await dex(`/token-pairs/v1/solana/${encodeURIComponent(query)}`,options)).data,query)],
-    ['Checking the direct token feed…',async()=>geckoMatches(await gecko(`/networks/solana/tokens/${encodeURIComponent(query)}/pools?include=base_token,quote_token`,options),query)]
+    ['Looking up the Solana contract…',async()=>{
+      const result=await dex(`/token-pairs/v1/solana/${encodeURIComponent(query)}`,options),tokens=dexMatches(result.data,query);
+      const complete=Array.isArray(result.data)&&result.data.every(pair=>pair?.chainId==='solana'&&
+        typeof pair.pairAddress==='string'&&/^[A-Za-z0-9]{1,100}$/.test(pair.pairAddress)&&
+        [pair.baseToken?.address,pair.quoteToken?.address].includes(query));
+      return complete?certifyPoolList(tokens,'DexScreener',result._sourceObservedAt):tokens;
+    }],
+    ['Checking the direct token feed…',async()=>{
+      const result=await gecko(`/networks/solana/tokens/${encodeURIComponent(query)}/pools?include=base_token,quote_token`,options);
+      const tokens=geckoMatches(result,query);
+      const complete=Array.isArray(result.data)&&result.data.every(pool=>
+        typeof pool?.attributes?.address==='string'&&/^[A-Za-z0-9]{1,100}$/.test(pool.attributes.address)&&
+        [pool.relationships?.base_token?.data?.id,pool.relationships?.quote_token?.data?.id].includes('solana_'+query));
+      return complete?certifyPoolList(tokens,'GeckoTerminal',result._sourceObservedAt):tokens;
+    }]
   ]:[
     ['Finding matching tokens…',async()=>geckoMatches(await gecko(`/search/pools?query=${encodeURIComponent(query)}&include=base_token,quote_token`,options),query)],
     ['Trying the alternate token feed…',async()=>dexMatches((await dex(`/latest/dex/search?q=${encodeURIComponent(query)}`,options)).data,query)]

@@ -241,6 +241,7 @@ def read_source(provider, method, params):
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
     from worker.source_stream import source_session, RPC_TTL, mint_from_wallet_cache
+    from worker.rpc_projection import multiple_accounts
     if provider != 'solana' or method not in RPC_TTL or not isinstance(params, list):
         raise ValueError('Unsupported source request')
     from worker.public_rpc import public_rpc
@@ -255,6 +256,8 @@ def read_source(provider, method, params):
                 derived = mint_from_wallet_cache(stream,params)
                 if derived is not None:
                     return derived
+            if method == 'getMultipleAccounts':
+                return multiple_accounts(stream, params, lambda request: rpc(method, request), RPC_TTL[method])
             # Latest-eight activity and latest-forty ledger reads reuse one page.
             requested_limit = None
             if method == 'getSignaturesForAddress' and len(params) == 2 and isinstance(params[1], dict):
