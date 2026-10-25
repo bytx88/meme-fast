@@ -117,13 +117,26 @@ test('shared Gecko admission waits outside source owner and cooldown does not bl
   const fetcher=createProviderFetch(async url=>{
    urls.push(url);calls++;
    return calls===1?new Response(null,{status:503,headers:{'x-source-deferred':'1','retry-after':'8'}}):
-    calls===2?new Response(null,{status:429,headers:{'retry-after':'60'}}):Response.json({data:[]});
+    calls<=3?new Response(null,{status:429,headers:{'retry-after':'60'}}):Response.json({data:[]});
   },{now:()=>now,sleep:async ms=>{now+=ms},initial:{'api.geckoterminal.com':{cooldownUntil:999999}}});
   assert.equal((await fetcher('https://api.geckoterminal.com/api/v2/networks/solana/new_pools')).status,429);
-  assert.equal(now,9000);
+  assert.equal(now,69000);
   assert.equal((await fetcher('https://api.geckoterminal.com/api/v2/networks/base/new_pools')).status,200);
-  assert.equal(now,9000);
+  assert.equal(now,69000);
   assert(urls.every(url=>url.startsWith('https://example.test/api/gecko/')));
-  assert.equal(calls,3);
+  assert.equal(calls,4);
+ }finally{if(previous===undefined)delete process.env.MEME_SHARED_MARKET_URL;else process.env.MEME_SHARED_MARKET_URL=previous}
+});
+
+
+test('shared Gecko recovers a transient provider cooldown without a second host gate',async()=>{
+ const previous=process.env.MEME_SHARED_MARKET_URL;process.env.MEME_SHARED_MARKET_URL='https://site/api/dex';
+ try{
+  let now=1000,calls=0;
+  const fetcher=createProviderFetch(async()=>++calls===1?new Response(null,{status:429,headers:{'retry-after':'60'}}):Response.json({data:[]}),{now:()=>now,sleep:async ms=>{now+=ms}});
+  assert.equal((await fetcher('https://api.geckoterminal.com/api/v2/networks/solana/new_pools')).status,200);
+  assert.equal(now,61000);assert.equal(calls,2);
+  await fetcher('https://api.geckoterminal.com/api/v2/networks/base/new_pools');
+  assert.equal(now,61000);assert.equal(calls,3);
  }finally{if(previous===undefined)delete process.env.MEME_SHARED_MARKET_URL;else process.env.MEME_SHARED_MARKET_URL=previous}
 });

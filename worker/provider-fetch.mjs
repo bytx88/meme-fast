@@ -45,9 +45,12 @@ export function createProviderFetch(direct=fetch,{now=Date.now,sleep=ms=>new Pro
    };
    let response=await dispatch();
    // Admission waits happen here, leaving the shared owner free for Inspect.
-   for(let attempt=0;sharedGecko&&response.status===503&&response.headers?.get?.('x-source-deferred')==='1'&&attempt<4;attempt++){
-    const seconds=Number(response.headers.get('retry-after'));
-    const wait=Math.max(1000,Number.isFinite(seconds)?seconds*1000:7500);
+   for(let attempt=0,limited=0;sharedGecko&&attempt<5;attempt++){
+    const deferred=response.status===503&&response.headers?.get?.('x-source-deferred')==='1';
+    if(!deferred&&!(response.status===429&&limited++===0))break;
+    const header=response.headers?.get?.('retry-after'),seconds=header==null?NaN:Number(header);
+    const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(header)-now();
+    const wait=Math.max(deferred?1000:60000,Number.isFinite(delay)?delay:deferred?7500:60000);
     if(wait>=budgetMs-(now()-started))return response;
     await response.body?.cancel?.();await sleep(wait);response=await dispatch();
    }
