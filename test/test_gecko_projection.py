@@ -166,6 +166,52 @@ class GeckoProjectionTests(unittest.TestCase):
             self.assertIsNone(lookup_entity(stream, 'solana', 'pools', 'A', 'include=base_token', 300))
             stream.close()
 
+    def test_cached_launch_replay_with_longer_ttl_preserves_pool_and_activity_expiry(self):
+        now = [1000]
+        token = resource('token', 'A', related={'top_pools': [reference('pool', 'P')]})
+        launch = {'data': [token], 'included': [resource('pool', 'P')]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream = SourceStream(folder, clock=lambda: now[0])
+            path = '/networks/solana/tokens/multi/A?include=top_pools'
+            gecko_response(stream, path, lambda _: launch, 60)
+            now[0] = 1050
+            gecko_response(stream, path, lambda _: self.fail('launch observation is still cached'), 300)
+            for kind, address in [('pools', 'P'), ('tokens', 'A')]:
+                key = stream.key('gecko:entity', [2, 'solana', kind, address, ''])
+                self.assertEqual(stream.db.execute('SELECT expires FROM responses WHERE key=?', (key,)).fetchone()[0], 1060)
+            now[0] = 1061
+            self.assertIsNone(stream.lookup('gecko:entity', [2, 'solana', 'pools', 'P', '']))
+            self.assertIsNone(stream.lookup('gecko:entity', [2, 'solana', 'tokens', 'A', '']))
+            stream.close()
+
+    def test_evicted_entity_rebuilt_from_cached_batch_keeps_batch_expiry(self):
+        now = [1000]
+        with tempfile.TemporaryDirectory() as folder:
+            stream = SourceStream(folder, clock=lambda: now[0])
+            path = '/networks/solana/pools/multi/A?include=base_token,quote_token'
+            gecko_response(stream, path, lambda _: pools(['A']), 60)
+            entity_key = stream.key('gecko:entity', [2, 'solana', 'pools', 'A', 'include=base_token%2Cquote_token'])
+            stream.db.execute('DELETE FROM responses WHERE key=?', (entity_key,))
+            now[0] = 1050
+            reply = gecko_response(stream, path, lambda _: self.fail('original batch remains cached'), 300)
+            self.assertEqual(reply['observedAt'], 1000000)
+            self.assertEqual(stream.db.execute('SELECT expires FROM responses WHERE key=?', (entity_key,)).fetchone()[0], 1060)
+            stream.close()
+
+    def test_cached_discovery_replay_with_longer_ttl_keeps_original_pool_expiry(self):
+        now = [1000]
+        with tempfile.TemporaryDirectory() as folder:
+            stream = SourceStream(folder, clock=lambda: now[0])
+            path = '/networks/solana/new_pools?include=base_token,quote_token'
+            gecko_response(stream, path, lambda _: pools(['A']), 60)
+            now[0] = 1050
+            gecko_response(stream, path, lambda _: self.fail('discovery remains cached'), 300)
+            entity_key = stream.key('gecko:entity', [2, 'solana', 'pools', 'A', 'include=base_token%2Cquote_token'])
+            self.assertEqual(stream.db.execute('SELECT expires FROM responses WHERE key=?', (entity_key,)).fetchone()[0], 1060)
+            now[0] = 1061
+            self.assertIsNone(stream.lookup('gecko:entity', [2, 'solana', 'pools', 'A', 'include=base_token%2Cquote_token']))
+            stream.close()
+
     def test_malformed_missing_includes_and_partial_primary_do_not_certify_projection(self):
         good = pools(['A'])
         mutations = [lambda body: body['data'][0]['attributes'].pop('quote_token_price_usd'),
@@ -203,6 +249,30 @@ class GeckoProjectionTests(unittest.TestCase):
             self.assertIsNone(stream.lookup('gecko:request', '/networks/solana/tokens/TokenP/pools?include=base_token,quote_token'))
             # Included token displays are never promoted into aggregate observations.
             self.assertIsNone(stream.lookup('gecko:entity', [2, 'solana', 'tokens', 'Quote', '']))
+            stream.close()
+
+    def test_mixed_launch_batch_keeps_each_pool_observation_time_and_expiry(self):
+        now = [1000]
+        def launch(address):
+            return {'data': [resource('token', address, related={'top_pools': [reference('pool', 'Pool' + address)]})],
+                    'included': [resource('pool', 'Pool' + address)]}
+        with tempfile.TemporaryDirectory() as folder:
+            stream = SourceStream(folder, clock=lambda: now[0])
+            gecko_response(stream, '/networks/solana/tokens/multi/A?include=top_pools', lambda _: launch('A'), 60)
+            now[0] = 1010
+            calls = []
+            def fetch(path):
+                calls.append(path)
+                return launch('B')
+            reply = gecko_response(stream, '/networks/solana/tokens/multi/A,B?include=top_pools', fetch, 300)
+            self.assertEqual(calls, ['/networks/solana/tokens/multi/B?include=top_pools'])
+            self.assertEqual(reply['observedAt'], 1000000)
+            for address, observed_at, expires in [('PoolA', 1000000, 1060), ('PoolB', 1010000, 1310)]:
+                key = [2, 'solana', 'pools', address, '']
+                self.assertEqual(stream.lookup('gecko:entity', key)['observedAt'], observed_at)
+                actual_expiry = stream.db.execute('SELECT expires FROM responses WHERE key=?',
+                                                (stream.key('gecko:entity', key),)).fetchone()[0]
+                self.assertEqual(actual_expiry, expires)
             stream.close()
 
     def test_partial_top_pool_or_missing_quote_only_certifies_what_was_observed(self):

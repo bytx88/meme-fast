@@ -49,6 +49,20 @@ def _cached(stream, namespace, parameters):
         return None
 
 
+def retained_ttl(stream, namespace, parameters, observed_at, ttl):
+    """Bound a replay by its retained observation's actual original expiry.
+
+    Read metadata only; a provider response larger than the bounded cache still
+    uses its original caller TTL. The caller captures this before other misses
+    can evict the retained record or consume the remaining freshness interval.
+    """
+    saved = stream.db.execute('SELECT expires,sampled FROM responses WHERE key=?',
+                              (stream.key(namespace, parameters),)).fetchone()
+    if saved and int(saved[1] * 1000) == observed_at:
+        return min(ttl, max(0, saved[0] - observed_at / 1000))
+    return ttl
+
+
 def _document(body):
     if (not isinstance(body, dict) or not isinstance(body.get('data'), list)
             or not isinstance(body.get('included', []), list)):

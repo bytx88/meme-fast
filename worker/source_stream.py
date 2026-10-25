@@ -113,13 +113,14 @@ def gecko_path(path):
 def gecko_response(stream, path, fetch, ttl=60):
     """Reuse overlapping multi reads without conflating different field contracts."""
     from urllib.parse import urlsplit
-    from worker.gecko_projection import index_entity, lookup_entity, seed_top_pools
+    from worker.gecko_projection import index_entity, lookup_entity, seed_top_pools, retained_ttl
     path = gecko_path(path)
     target = urlsplit(path)
     match = re.fullmatch(r'/networks/([\w-]+)/(tokens|pools)/multi/([A-Za-z0-9,]+)', target.path)
     if not match:
         reply = stream.get('gecko:request', path, lambda: fetch(path), ttl)
-        seed_gecko_pools(stream, path, reply, ttl)
+        source_ttl = retained_ttl(stream, 'gecko:request', path, reply['observedAt'], ttl)
+        seed_gecko_pools(stream, path, reply, source_ttl)
         return reply
     network, kind, addresses = match.groups()
     def canonical(address):
@@ -138,7 +139,8 @@ def gecko_response(stream, path, fetch, ttl=60):
                 raise
         if saved is None:
             saved = lookup_entity(stream, network, kind, address, target.query, ttl)
-        cached[address] = saved
+        cached[address] = (dict(saved, ttl=retained_ttl(stream, 'gecko:entity', key, saved['observedAt'], ttl))
+                           if saved is not None else None)
     missing = [address for address in addresses if cached[address] is None]
     if missing:
         route = f'/networks/{network}/{kind}/multi/' + ','.join(missing)
@@ -176,18 +178,19 @@ def gecko_response(stream, path, fetch, ttl=60):
                 stream.defer('gecko:entity',keys[address])
             raise
         body = reply['value']
+        source_ttl = retained_ttl(stream, 'gecko:request', [2,route], reply['observedAt'], ttl)
         for address in missing:
             rows = [row for row in body['data'] if canonical(row['id'][len(network)+1:]) == address]
             value = dict(body, data=rows)
             if 'included' in body:
                 value['included'] = related_includes(rows,body['included'])
-            stream.store('gecko:entity',keys[address],value,reply['observedAt'],ttl)
-            cached[address] = dict(reply,value=value)
+            stream.store('gecko:entity',keys[address],value,reply['observedAt'],source_ttl)
+            cached[address] = dict(reply,value=value,ttl=source_ttl)
     for address in addresses:
         index_entity(stream, network, kind, address, target.query)
         if kind == 'tokens':
             observation = cached[address]
-            seed_top_pools(stream, network, observation['value'], observation['observedAt'], ttl, target.query)
+            seed_top_pools(stream, network, observation['value'], observation['observedAt'], observation['ttl'], target.query)
     if kind == 'tokens' and target.query == 'include=top_pools':
         # The token-multi primary attributes already report aggregate activity.
         # Mode's bare token read can reuse those complete observations; token
@@ -201,7 +204,7 @@ def gecko_response(stream, path, fetch, ttl=60):
                     and 'total_reserve_in_usd' in attrs and isinstance(attrs.get('volume_usd'),dict)
                     and 'h24' in attrs['volume_usd']):
                 stream.store('gecko:entity',[2,network,kind,address,''],dict(data=rows),
-                             observation['observedAt'],min(ttl,300))
+                             observation['observedAt'],min(observation['ttl'],300))
                 index_entity(stream, network, kind, address, '')
     bodies = [row['value'] for row in sorted(cached.values(),key=lambda row:row['observedAt'])]
     value = dict(bodies[0],data=[entity for body in bodies for entity in body['data']])
