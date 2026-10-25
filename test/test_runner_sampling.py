@@ -29,6 +29,41 @@ def reply(addresses, at, missing_caps=(), quiet=(), cap=100_000):
 
 
 class RunnerSamplingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sparse_runner_scores_hard_but_source_or_history_gaps_stay_unknown(self):
+        from worker.runner_mode import public_report
+        with tempfile.TemporaryDirectory() as directory:
+            at, step = NOW, 0
+            async def fetch(addresses):
+                result = reply(addresses, at)
+                for pair in result['value']:
+                    if step >= 30 and pair['baseToken']['address'] == 'mint0':
+                        pair['marketCap'] = 600000
+                return result
+            for step in range(37):
+                at = NOW + step*5*MINUTE
+                result = await sample(directory, candidates() if step == 0 else {}, fetch, now=at)
+            self.assertEqual(result['counts24h']['500000'], 1)
+            self.assertTrue(result['history']['usable'])
+            self.assertEqual(result['score'], 1)
+            self.assertIn('Low sustained-runner activity', result['reason'])
+            self.assertEqual(public_report(result, at)['score'], 1)
+            self.assertIsNone(public_report(result, at+16*MINUTE)['score'])
+            self.assertIsNone(public_report({**result, 'policy': {'version': 6}}, at)['score'])
+            async def failed(addresses):
+                raise TimeoutError('test source failure')
+            at += 5*MINUTE
+            result = await sample(directory, {}, failed, now=at)
+            self.assertFalse(result['coverage']['reliable'])
+            self.assertIsNone(result['score'])
+            with closing(sqlite3.connect(Path(directory)/'runner-mode.sqlite')) as db, db:
+                db.execute('UPDATE monitor_coverage SET reliable=0 WHERE slot IN (?,?)',
+                           (NOW//(5*MINUTE)+26, NOW//(5*MINUTE)+27))
+            at += 5*MINUTE
+            result = await sample(directory, {}, fetch, now=at)
+            self.assertTrue(result['coverage']['reliable'])
+            self.assertFalse(result['history']['usable'])
+            self.assertIsNone(result['score'])
+
     async def test_legacy_history_is_retained_but_not_mixed_into_cohort_counts(self):
         with tempfile.TemporaryDirectory() as directory:
             row = candidates(1)['coins'][0]

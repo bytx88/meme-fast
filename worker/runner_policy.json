@@ -1,6 +1,6 @@
 {
   "policy": {
-    "version": 6,
+    "version": 7,
     "provisionalBaselinePeriods": 1,
     "minimumPopulation": 50,
     "cohortCapacity": 300,
@@ -12,6 +12,7 @@
     ],
     "minimumRunnerEvents": 10,
     "minimumThresholdEvents": 5,
+    "lowActivityMaximumCurrentEvents": 9,
     "minimumPeriodCoverage": 0.9,
     "minimumValuationCoverage": 0.95,
     "minimumObservationCoverage": 0.95,

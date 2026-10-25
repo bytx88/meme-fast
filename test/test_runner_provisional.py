@@ -51,7 +51,7 @@ class ProvisionalTests(unittest.TestCase):
             return [{'reliable': True, 'population': 60,
                      'counts': {str(k): n for k in LEVELS}} for n in values]
         for values, mode in (([6,12], 'Improving'), ([12,6], 'Cooling'),
-                             ([6,6], 'Balanced'), ([1,0], 'Hard'), ([1,2], 'Unknown')):
+                             ([6,6], 'Balanced'), ([1,0], 'Hard'), ([1,2], 'Hard')):
             self.assertEqual(classify(periods(values), provisional=True)[0], mode)
 
     def test_counts_are_restricted_to_same_tokens(self):
@@ -62,6 +62,17 @@ class ProvisionalTests(unittest.TestCase):
         result = provisional_history(db, 300*MINUTE)
         self.assertEqual(result['mode'], 'Hard')
         self.assertEqual(result['periods'][-1]['counts']['500000'], 0)
+
+    def test_two_matched_covered_hours_with_low_activity_can_score_hard(self):
+        db = self.database()
+        self.hour(db, 1)
+        self.hour(db, 4)
+        db.execute('INSERT INTO monitor_events VALUES (?,?,?)', ('0', 500000, 245*MINUTE))
+        result = provisional_history(db, 300*MINUTE)
+        self.assertTrue(result['usable'])
+        self.assertEqual(result['mode'], 'Hard')
+        self.assertEqual(result['matchedTokens'], 60)
+        self.assertIn('Low sustained-runner activity', result['reason'])
 
     def test_late_received_quotes_do_not_backfill_earlier_coverage(self):
         db = self.database()

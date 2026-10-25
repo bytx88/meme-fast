@@ -24,6 +24,39 @@ def snapshot(rows, at=NOW):
 
 
 class RunnerModeTests(unittest.TestCase):
+    def test_low_activity_scores_hard_only_with_complete_reliable_evidence(self):
+        def periods(current=1):
+            return [{'reliable': True, 'population': 60,
+                     'counts': {str(k): (current if i == 2 and k == LEVELS[0] else 0)
+                                for k in LEVELS}} for i in range(3)]
+        for current in (1, 9):
+            mode, reason = classify(periods(current))
+            self.assertEqual(mode, 'Hard')
+            self.assertIn('Low sustained-runner activity', reason)
+        self.assertEqual(classify(periods(10))[0], 'Unknown')
+        self.assertEqual(classify(periods()[:2])[0], 'Unknown')
+        for field, value in (('reliable', False), ('population', 49), ('population', 100)):
+            bad = periods()
+            bad[0][field] = value
+            self.assertEqual(classify(bad)[0], 'Unknown')
+        for missing in (None, -1, True, 0.5):
+            bad = periods()
+            bad[0]['counts']['10000000'] = missing
+            self.assertEqual(classify(bad)[0], 'Unknown')
+        bad = periods()
+        del bad[0]['counts']['10000000']
+        self.assertEqual(classify(bad)[0], 'Unknown')
+
+    def test_low_activity_does_not_override_conflicting_supported_thresholds(self):
+        for provisional, lower, higher in ((False, [3, 1, 2], [1, 3, 1]),
+                                             (True, [1, 4], [4, 1])):
+            periods = [{'reliable': True, 'population': 60,
+                        'counts': {'500000': a, '1000000': b, '5000000': 0, '10000000': 0}}
+                       for a, b in zip(lower, higher)]
+            mode, reason = classify(periods, provisional=provisional)
+            self.assertEqual(mode, 'Unknown')
+            self.assertIn('conflict', reason)
+
     def test_complete_period_and_rolling_counts_keep_their_boundary_rules(self):
         from worker.runner_ledger import event_counts, initialise
         from worker.runner_mode import daily_history, period_summary
@@ -143,7 +176,7 @@ class RunnerModeTests(unittest.TestCase):
         old = {**report, 'policy': {'version': 1}, 'classification': 'Old 14-day rule'}
         self.assertFalse(public_report(old, NOW)['ready'])
         self.assertIsNone(public_report(old, NOW)['score'])
-        self.assertEqual(public_report(old, NOW)['policy']['version'], 6)
+        self.assertEqual(public_report(old, NOW)['policy']['version'], 7)
         self.assertNotIn('historyDays', public_report(old, NOW)['policy'])
         self.assertNotIn('14', public_report(old, NOW)['classification'])
 

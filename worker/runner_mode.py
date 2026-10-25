@@ -20,7 +20,7 @@ from worker.runner_ledger import (event_counts, initialise, prune_observations,
 
 SGT = dt.timezone(dt.timedelta(hours=8))
 
-CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets are required. Initially, provisional Mode compares the oldest covered hour with the latest complete covered hour for the same observed tokens. Full Mode uses two baseline periods and a current covered 24H, 6H or 1H period. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh runner-observation coverage of the entire cohort: an actual market-cap valuation or independent exact-mint aggregate zero 24H volume. Inactive observations never supply a cap or crossing. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard; sparse positive or conflicting evidence stays unknown. Not a validated predictive signal.'
+CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets are required. Initially, provisional Mode compares the oldest covered hour with the latest complete covered hour for the same observed tokens. Full Mode uses two baseline periods and a current covered 24H, 6H or 1H period. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh runner-observation coverage of the entire cohort: an actual market-cap valuation or independent exact-mint aggregate zero 24H volume. Inactive observations never supply a cap or crossing. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard. When directional evidence is insufficient, low activity (at most nine confirmed crossings at every threshold in the latest period) is also Hard, provided supported thresholds do not disagree. Missing, unreliable or conflicting evidence stays unknown. Not a validated predictive signal.'
 
 
 def unknown(reason='Awaiting reliable Solana runner history'):
@@ -59,17 +59,21 @@ def classify(periods, provisional=False):
     Periods can be hourly, six-hourly or daily; elapsed calendar age is not a gate.
     """
     baseline_periods = POLICY['provisionalBaselinePeriods'] if provisional else POLICY['baselinePeriods']
-    if len(periods) < baseline_periods + 1 or not all(p['reliable'] for p in periods):
+    if len(periods) < baseline_periods + 1 or not all(isinstance(p, dict) and p.get('reliable') is True for p in periods):
         return 'Unknown', 'Need two covered baseline periods and a comparable current period'
-    populations = [p['population'] for p in periods]
-    if min(populations) < POLICY['minimumPopulation']:
+    populations = [number(p.get('population')) for p in periods]
+    if any(p is None or p < POLICY['minimumPopulation'] for p in populations):
         return 'Unknown', 'Need at least 50 tracked markets with comparable covered observations'
     if max(populations) > min(populations) * MAX_POPULATION_RATIO:
         return 'Unknown', 'Observed token coverage changed too much for a comparable trend'
+    if any(not isinstance(p.get('counts'), dict) or any(
+            not isinstance(p['counts'].get(str(k)), int)
+            or isinstance(p['counts'][str(k)], bool) or p['counts'][str(k)] < 0
+            for k in LEVELS) for p in periods):
+        return 'Unknown', 'Runner threshold counts are missing or invalid'
     if all(periods[-1]['counts'][str(k)] == 0 for k in LEVELS):
         return 'Hard', 'No sustained runners observed in the current adequately covered cohort period'
-    if sum(p['counts']['500000'] for p in periods) < POLICY['minimumRunnerEvents']:
-        return 'Unknown', 'Too few observed runners to establish a direction'
+    enough_runners = sum(p['counts']['500000'] for p in periods) >= POLICY['minimumRunnerEvents']
     labels = []
     for threshold in LEVELS:
         values = [p['counts'][str(threshold)] for p in periods]
@@ -83,9 +87,18 @@ def classify(periods, provisional=False):
             labels.append('Cooling' if provisional or current >= baseline else 'Hard')
         else:
             labels.append('Balanced')
-    for label in ('Easy', 'Improving', 'Balanced', 'Cooling', 'Hard'):
-        if labels.count(label) >= MIN_AGREEING_THRESHOLDS:
-            return label, 'At least three supported thresholds agree across comparable covered periods'
+    if enough_runners:
+        for label in ('Easy', 'Improving', 'Balanced', 'Cooling', 'Hard'):
+            if labels.count(label) >= MIN_AGREEING_THRESHOLDS:
+                return label, 'At least three supported thresholds agree across comparable covered periods'
+    # Low activity is an observed state, not a substitute for absent data or
+    # disagreement. Preserve the existing directional scores when supported.
+    if len(set(labels)) > 1:
+        return 'Unknown', 'Supported threshold evidence conflicts across comparable covered periods'
+    if all(periods[-1]['counts'][str(k)] <= POLICY['lowActivityMaximumCurrentEvents'] for k in LEVELS):
+        return 'Hard', 'Low sustained-runner activity in the current adequately covered cohort period; directional evidence is insufficient'
+    if not enough_runners:
+        return 'Unknown', 'Too few observed runners to establish a direction'
     return 'Unknown', 'Threshold evidence is sparse or does not show a consistent direction'
 
 

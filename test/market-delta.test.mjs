@@ -10,7 +10,7 @@ test('browser safety rules match the authoritative runner policy',async()=>{
  const now=2000000000000;
  const weakened={ready:true,score:1,updatedAt:now,
   coverage:{reliable:true,reservedPass:true},
-  policy:{version:6,minimumPopulation:1,provisionalBaselinePeriods:0},
+  policy:{version:7,minimumPopulation:1,provisionalBaselinePeriods:0},
   history:{usable:true,provisional:true,periodHours:1,comparablePeriods:1,baselinePeriods:0,matchedTokens:1}};
  assert.equal(runnerMode(weakened,now),'—');
 });
@@ -25,7 +25,7 @@ test('independent report failures recover on visible refresh and pause while hid
    let failing=true;
    const now=Date.now(),day=24*3600000;
    const delta={basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3},{at:now,meme:4,altDelta:6,btcDelta:8}]};
-   const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:6},counts24h:{},
+   const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:7},counts24h:{},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
    globalThis.fetch=async url=>{calls++;if(failing&&url===failedEndpoint)throw Error('test outage');
     return {ok:true,json:async()=>url==='/api/meme-index'?delta:runner}};
@@ -52,7 +52,7 @@ test('Mode details distinguish real valuations from no-volume observations',()=>
 });
 
 test('provisional Mode accepts two matched hours and rejects missing evidence',()=>{
- const now=Date.now(),report={updatedAt:now,ready:true,score:4,policy:{version:6},
+ const now=Date.now(),report={updatedAt:now,ready:true,score:4,policy:{version:7},
   coverage:{reliable:true,reservedPass:true},history:{usable:true,provisional:true,
    periodHours:1,comparablePeriods:2,baselinePeriods:1,matchedTokens:60}};
  assert.equal(runnerMode(report,now),'4');
@@ -116,10 +116,10 @@ test('Legacy five-minute history produces at most one comparison per UTC hour',(
 
 test('Mode shows 1–5 only for sufficient fresh evidence and a dash otherwise',()=>{
  const now=2000000000000;
- const report={updatedAt:now,ready:true,mode:'Easy',score:5,policy:{version:6},history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
+ const report={updatedAt:now,ready:true,mode:'Easy',score:5,policy:{version:7},history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
  assert.equal(runnerMode(null,now),'—');
  for(let score=1;score<=5;score++)assert.equal(runnerMode({...report,score},now),String(score));
- for(const change of [{updatedAt:now-16*60000},{updatedAt:now+1},{ready:false},{history:{usable:false}},{coverage:{reliable:false}},{score:0},{score:6},{score:2.5},{score:null},{policy:{version:1}}])assert.equal(runnerMode({...report,...change},now),'—');
+ for(const change of [{updatedAt:now-16*60000},{updatedAt:now+1},{ready:false},{history:{usable:false}},{coverage:{reliable:false}},{score:0},{score:6},{score:2.5},{score:null},{policy:{version:1}},{policy:{version:6}}])assert.equal(runnerMode({...report,...change},now),'—');
  const html=runnerDetails({counts24h:{500000:2,1000000:0},reason:'<unsafe>'});
  assert.match(html,/Solana Mode/);assert.match(html,/&lt;unsafe&gt;/);
  assert.match(html,/>0<\/b>/);assert.match(html,/not all Solana memes/);
@@ -134,7 +134,7 @@ test('the mounted widget renders every supported score independently of missing 
   globalThis.document={hidden:false,addEventListener(){}};
   globalThis.setInterval=()=>0;
   for(const score of [1,2,3,4,5,null]){
-   const report={version:1,updatedAt:Date.now(),ready:score!==null,score,policy:{version:6},
+   const report={version:1,updatedAt:Date.now(),ready:score!==null,score,policy:{version:7},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true},counts24h:{}};
    globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/runner-mode'?report:{basket:[],readings:[]}});
    const market={innerHTML:'',setAttribute(){}},body={innerHTML:''};
