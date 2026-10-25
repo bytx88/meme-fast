@@ -99,7 +99,9 @@ test('the mounted widget renders every supported score independently of missing 
    mountMarket(market,{querySelector:()=>body});
    assert.match(market.innerHTML,/Mode <b class="mode-unknown">—/);
    await new Promise(resolve=>setImmediate(resolve));
-   assert.ok(market.innerHTML.includes(`Mode <b class="mode-${score||'unknown'}">${score||'—'}</b>`));
+   const display=score?`${score} (${['','Hard','Cooling','Balanced','Improving','Easy'][score]})`:'—';
+   assert.ok(market.innerHTML.includes(`Mode <b class="mode-${score||'unknown'}">${display}</b>`));
+   assert.ok(body.innerHTML.includes(`Solana Mode <strong>${display}</strong>`));
    assert.match(body.innerHTML,/no fixed calendar waiting rule/);
   }
  }finally{Object.assign(globalThis,saved)}
