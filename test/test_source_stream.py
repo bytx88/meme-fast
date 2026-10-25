@@ -403,3 +403,136 @@ class GeckoRetryTests(unittest.IsolatedAsyncioTestCase):
         async def limited():return {'status':429,'retryAfter':60}
         self.assertEqual((await background_gecko(limited,sleep))['status'],429)
         self.assertEqual(waits,[8])
+
+
+class GeckoPoolReuseTests(unittest.TestCase):
+    @staticmethod
+    def body(addresses, network='solana'):
+        data=[];included=[]
+        for address in addresses:
+            token=network+'_Token'+address
+            data.append(dict(id=network+'_'+address,type='pool',attributes=dict(address=address,
+                base_token_price_usd='1',quote_token_price_usd='100',reserve_in_usd='10000',
+                volume_usd={'h1':'5000'},transactions={'h1':{'buys':10,'sells':5}},price_change_percentage={'h1':'2'}),
+                relationships={'base_token':{'data':{'id':token,'type':'token'}},
+                               'quote_token':{'data':{'id':network+'_Quote','type':'token'}}}))
+            included.append(dict(id=token,type='token',attributes={'address':'Token'+address}))
+        included.append(dict(id=network+'_Quote',type='token',attributes={'address':'Quote'}))
+        return dict(data=data,included=included,links={'next':'discovery-page-two'})
+
+    def test_discovery_supplies_overlapping_pool_batch_but_not_unrelated_includes(self):
+        now=[1000];calls=[]
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:now[0])
+            gecko_response(stream,'/networks/solana/trending_pools?duration=1h&include=quote_token,base_token',
+                           lambda _:self.body(['A','B']),600)
+            now[0]+=10
+            def fetch(path):
+                calls.append(path)
+                return self.body(['C'])
+            response=gecko_response(stream,'/networks/solana/pools/multi/B,C?include=base_token,quote_token',fetch,300)
+            self.assertEqual(calls,['/networks/solana/pools/multi/C?include=base_token%2Cquote_token'])
+            self.assertEqual(response['observedAt'],1000000)
+            self.assertEqual({r['id'] for r in response['value']['data']},{'solana_B','solana_C'})
+            self.assertNotIn('solana_TokenA',{r['id'] for r in response['value']['included']})
+            cached=gecko_response(stream,'/networks/solana/pools/multi/B?include=quote_token,base_token',
+                                  lambda _:self.fail('duplicate pool pull'),300)
+            self.assertEqual(cached['cache'],'hit')
+            self.assertNotIn('links',cached['value'])
+            stream.close()
+
+    def test_token_multi_aggregate_attributes_supply_mode_without_pool_metadata_request(self):
+        now=[1000]
+        token={'id':'solana_A','type':'token','attributes':{'address':'A','name':'Actual token',
+               'total_reserve_in_usd':'100','volume_usd':{'h24':'0'}},
+               'relationships':{'top_pools':{'data':[{'id':'solana_P','type':'pool'}]}}}
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:now[0])
+            rich={'data':[token],'included':[{'id':'solana_P','type':'pool'}]}
+            path='/networks/solana/tokens/multi/A?include=top_pools'
+            gecko_response(stream,path,lambda _:rich,300)
+            now[0]+=10
+            mode=gecko_response(stream,'/networks/solana/tokens/multi/A',lambda _:self.fail('duplicate aggregate pull'),300)
+            self.assertEqual(mode['value']['data'],[token])
+            self.assertNotIn('included',mode['value'])
+            self.assertEqual(mode['observedAt'],1000000)
+            now[0]=1301
+            calls=[]
+            def fetch(path):calls.append(path);return {'data':[token]}
+            gecko_response(stream,'/networks/solana/tokens/multi/A',fetch,300)
+            self.assertEqual(len(calls),1)
+            stream.close()
+
+    def test_partial_token_metadata_does_not_certify_aggregate_activity(self):
+        for attrs in ({'address':'A'}, {'address':'A','volume_usd':{'h24':'0'}},
+                      {'address':'wrong','total_reserve_in_usd':'1','volume_usd':{'h24':'0'}}):
+            with tempfile.TemporaryDirectory() as folder:
+                stream=SourceStream(folder)
+                body={'data':[{'id':'solana_A','type':'token','attributes':attrs}]}
+                gecko_response(stream,'/networks/solana/tokens/multi/A?include=top_pools',lambda _:body,300)
+                calls=[]
+                def fetch(path):calls.append(path);return body
+                gecko_response(stream,'/networks/solana/tokens/multi/A',fetch,300)
+                self.assertEqual(len(calls),1)
+                stream.close()
+
+    def test_cached_discovery_replay_does_not_extend_five_minute_pool_observation(self):
+        now=[1000]
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder,clock=lambda:now[0])
+            path='/networks/solana/new_pools?page=1&include=base_token,quote_token'
+            gecko_response(stream,path,lambda _:self.body(['A']),600)
+            now[0]=1299
+            gecko_response(stream,path,lambda _:self.fail('discovery still cached'),600)
+            now[0]=1301;calls=[]
+            def fetch(path):calls.append(path);return self.body(['A'])
+            renewed=gecko_response(stream,'/networks/solana/pools/multi/A?include=base_token,quote_token',fetch,300)
+            self.assertEqual(len(calls),1)
+            self.assertEqual(renewed['observedAt'],1301000)
+            stream.close()
+
+    def test_projection_keeps_query_contracts_and_complete_pool_lists_separate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            stream=SourceStream(folder)
+            gecko_response(stream,'/networks/solana/tokens/TokenA/pools?include=base_token,quote_token',
+                           lambda _:self.body(['A']),300)
+            calls=[]
+            def fetch(path):calls.append(path);return self.body(['A'])
+            gecko_response(stream,'/networks/solana/pools/multi/A?include=dex',fetch,300)
+            gecko_response(stream,'/networks/solana/tokens/TokenB/pools?include=base_token,quote_token',fetch,300)
+            self.assertEqual(len(calls),2)
+            # Included token identities do not certify token-aggregate activity.
+            def token_fetch(path):calls.append(path);return {'data':[{'id':'solana_TokenA','type':'token'}]}
+            gecko_response(stream,'/networks/solana/tokens/multi/TokenA',token_fetch,300)
+            self.assertEqual(len(calls),3)
+            stream.close()
+
+    def test_incomplete_or_malformed_discovery_does_not_certify_pool_batch(self):
+        import copy
+        good=self.body(['A'])
+        invalids=[]
+        for mutate in (lambda b:b['data'][0]['attributes'].pop('quote_token_price_usd'),
+                       lambda b:b.update(included=[]),
+                       lambda b:b['data'][0]['attributes'].update(address='wrong'),
+                       lambda b:b['data'][0].update(relationships={'base_token':{'data':True}})):
+            body=copy.deepcopy(good);mutate(body);invalids.append(body)
+        for invalid in invalids:
+            with self.subTest(body=invalid),tempfile.TemporaryDirectory() as folder:
+                stream=SourceStream(folder)
+                gecko_response(stream,'/networks/solana/new_pools?include=base_token,quote_token',lambda _:invalid,600)
+                calls=[]
+                def fetch(path):calls.append(path);return good
+                gecko_response(stream,'/networks/solana/pools/multi/A?include=base_token,quote_token',fetch,300)
+                self.assertEqual(len(calls),1)
+                stream.close()
+
+    def test_discovery_and_batch_share_evm_identity_without_lowercasing_solana(self):
+        for network,address,requested in [('base','0xAaBb','0xaabb'),('solana','ABC','abc')]:
+            with tempfile.TemporaryDirectory() as folder:
+                stream=SourceStream(folder)
+                gecko_response(stream,f'/networks/{network}/pools?include=base_token,quote_token',lambda _:self.body([address],network),600)
+                calls=[]
+                def fetch(path):calls.append(path);return self.body([requested],network)
+                gecko_response(stream,f'/networks/{network}/pools/multi/{requested}?include=base_token,quote_token',fetch,300)
+                self.assertEqual(len(calls),0 if network=='base' else 1)
+                stream.close()

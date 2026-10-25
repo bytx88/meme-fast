@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMarket} from '../dist/market-delta.mjs';
+import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
 
 test('Mode details distinguish real valuations from no-volume observations',()=>{
  const html=runnerDetails({coverage:{eligibleTokens:210,observedTokens:205,valuedTokens:143,nonqualifyingTokens:62}});
@@ -114,4 +114,14 @@ test('shared-pool meme history never compares across methodologies; benchmarks r
  const old={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fomo-most-held-v1'};
  assert.deepEqual(compareReading([old,current]),{at,baselineAt:at-day,meme:null,altDelta:-1,btcDelta:-1});
  assert.equal(compareReading([{...old,method:current.method},current]).meme,-6);
+});
+
+
+test('extreme shared input returns are disclosed without clipping or changing the method',()=>{
+ const method='shared-trending-1h-v1';
+ assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/2 provider-reported 1H returns/);
+ assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/Returns are not capped/);
+ assert.match(inputQualityNote({method,readings:[{method,meme:1e12}]}),/saved reading contains extreme/);
+ assert.equal(inputQualityNote({method,readings:[{method,meme:2,inputQuality:{extremeReturnCount:0}}]}),'');
+ assert.equal(inputQualityNote({method,readings:[{method:'old',meme:1e12}]}),'');
 });

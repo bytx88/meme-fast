@@ -1,4 +1,5 @@
 import copy
+import sys
 import json
 import tempfile
 import unittest
@@ -89,6 +90,39 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(len(report['basket']),3)
         self.assertNotIn('legacyMethods',public_report(report))
         self.assertEqual(public_report(report)['method'],METHOD)
+
+    def test_reading_retains_exact_inputs_privately_and_uses_small_public_index(self):
+        source=FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'index.json'
+            first=collect(path,source,NOW)
+            self.assertEqual([t['priceChange1h'] for t in first['basket']],[-4,0,10])
+            original=copy.deepcopy(first['basket'])
+            source.advance(NOW+HOUR)
+            source.stream['windows']['1h']['tokens'][0]['priceChange1h']=100
+            later=collect(path,source,NOW+HOUR)
+            self.assertEqual(later['basketHistory'][0]['tokens'],original)
+            self.assertNotEqual(later['basketHistory'][1]['tokens'],original)
+            projected=json.loads(path.with_suffix('.public.json').read_text())
+            self.assertNotIn('basketHistory',projected)
+            self.assertEqual(projected,public_report(later))
+            # A retry can repair the public index without another source read.
+            path.with_suffix('.public.json').unlink()
+            collect(path,source,NOW+HOUR+1)
+            self.assertTrue(path.with_suffix('.public.json').exists())
+            self.assertEqual(source.calls,2)
+
+    def test_extreme_return_diagnostic_preserves_all_values_and_avoids_sum_overflow(self):
+        for extreme in (1e308,sys.float_info.max):
+            source=FakeSources()
+            for row in source.stream['windows']['1h']['tokens']:row['priceChange1h']=extreme
+            with tempfile.TemporaryDirectory() as folder:
+                report=collect(Path(folder)/'index.json',source,NOW)
+            self.assertIsNone(report['error'])
+            self.assertEqual(report['readings'][-1]['meme'],extreme)
+            self.assertEqual(report['inputQuality']['extremeReturnCount'],3)
+            self.assertEqual([t['priceChange1h'] for t in report['basket']],[extreme]*3)
+            self.assertEqual(report['readings'][-1]['inputQuality'],report['inputQuality'])
 
     def test_btc_uses_existing_feed_and_keeps_missing_values_unavailable(self):
         rows = [{'id': str(i + 100), 'rank': i + 2, 'symbol': str(i),

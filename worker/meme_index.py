@@ -6,6 +6,7 @@ from pathlib import Path
 
 HOUR = 3_600_000
 METHOD = 'shared-trending-1h-v1'
+EXTREME_RETURN = 10_000  # Diagnostic only; reported returns are never clipped.
 
 ALT_EXCLUDE = {'BTC', 'ETH', 'USDT', 'USDC', 'DAI', 'USDE', 'PYUSD', 'FDUSD', 'TUSD',
                'USDD', 'FRAX', 'USDS', 'USD1', 'RLUSD', 'WBTC', 'WETH', 'STETH',
@@ -87,6 +88,7 @@ def collect(path, sources=None, now=None):
                   'readings':[dict(row,method=row.get('method','fomo-most-held-v1')) for row in legacy.get('readings',[])],
                   'legacyMethods':archives}
     if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR:
+        write_json(path.with_suffix('.public.json'),public_report(report))
         return report
     report['attemptedAt'] = now
     try:
@@ -109,29 +111,46 @@ def collect(path, sources=None, now=None):
             changes.append(change)
             basket.append(dict(id=key,chain=row['network'],address=row['contract_address'],
                 name=row.get('name'),symbol=row.get('symbol'),rank=row.get('rank'),
-                weight=1/len(rows),source='shared-trending-1h',priceSource=row.get('marketSource'),observedAt=at))
+                weight=1/len(rows),source='shared-trending-1h',priceSource=row.get('marketSource'),
+                observedAt=at,priceChange1h=change))
+        try:
+            average = math.fsum(change/len(changes) for change in changes)
+        except OverflowError:
+            scale = max(abs(change) for change in changes)
+            average = scale*(math.fsum(change/scale for change in changes)/len(changes))
         alt = sources.alt(now)
         oldest = min(row['observedAt'] for row in basket)
-        report['readings'].append(dict(at=now,meme=sum(changes)/len(changes),
+        quality = dict(extremeReturnThreshold=EXTREME_RETURN,
+                       extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in changes),
+                       minimumReturn=min(changes),maximumReturn=max(changes))
+        report['readings'].append(dict(at=now,meme=average,
             altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=METHOD,
-            constituents=len(basket),marketObservedAt=oldest))
+            constituents=len(basket),marketObservedAt=oldest,inputQuality=quality))
         report['readings'] = [row for row in report['readings'] if now-row['at'] <= 30*24*HOUR]
+        report['basketHistory'] = [row for row in report.get('basketHistory',[])
+                                  if 0 <= now-row['at'] <= 30*24*HOUR]
+        report['basketHistory'].append(dict(at=now,marketAt=stamp,tokens=basket))
         report.update(basket=basket,updatedAt=now,readingAt=now,rebalancedAt=now,
             poolUpdatedAt=stamp,marketObservedAt=oldest,altProviderAt=alt['providerAt'],
-            altMethod=alt['source'],error=None)
+            altMethod=alt['source'],inputQuality=quality,error=None)
     except Exception as exc:
         report['error'] = str(exc)[:120] if isinstance(exc,ValueError) else 'Market provider unavailable'
     path.parent.mkdir(parents=True,exist_ok=True)
+    write_json(path,report)
+    write_json(path.with_suffix('.public.json'),public_report(report))
+    return report
+
+
+def write_json(path, report):
     temp=path.with_suffix('.tmp')
     temp.write_text(json.dumps(report,allow_nan=False),encoding='utf-8')
     temp.replace(path)
-    return report
 
 
 def public_report(report):
     return {key:value for key,value in report.items() if key in (
         'version','method','basket','readings','updatedAt','attemptedAt','rebalancedAt',
-        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','error')}
+        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','error')}
 
 
 if __name__ == '__main__':

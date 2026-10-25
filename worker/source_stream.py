@@ -117,7 +117,9 @@ def gecko_response(stream, path, fetch, ttl=60):
     target = urlsplit(path)
     match = re.fullmatch(r'/networks/([\w-]+)/(tokens|pools)/multi/([A-Za-z0-9,]+)', target.path)
     if not match:
-        return stream.get('gecko:request', path, lambda: fetch(path), ttl)
+        reply = stream.get('gecko:request', path, lambda: fetch(path), ttl)
+        seed_gecko_pools(stream, path, reply, ttl)
+        return reply
     network, kind, addresses = match.groups()
     def canonical(address):
         return address.lower() if network != 'solana' and re.fullmatch(r'0x[0-9A-Fa-f]+',address) else address
@@ -170,6 +172,20 @@ def gecko_response(stream, path, fetch, ttl=60):
                 value['included'] = related_includes(rows,body['included'])
             stream.store('gecko:entity',keys[address],value,reply['observedAt'],ttl)
             cached[address] = dict(reply,value=value)
+    if kind == 'tokens' and target.query == 'include=top_pools':
+        # The token-multi primary attributes already report aggregate activity.
+        # Mode's bare token read can reuse those complete observations; token
+        # display objects included by a pool endpoint never enter this path.
+        for address in addresses:
+            observation = cached[address]
+            rows = observation['value']['data']
+            attrs = rows[0].get('attributes',{}) if len(rows)==1 else {}
+            if (isinstance(attrs,dict) and isinstance(attrs.get('address'),str)
+                    and canonical(attrs['address'])==address
+                    and 'total_reserve_in_usd' in attrs and isinstance(attrs.get('volume_usd'),dict)
+                    and 'h24' in attrs['volume_usd']):
+                stream.store('gecko:entity',[2,network,kind,address,''],dict(data=rows),
+                             observation['observedAt'],min(ttl,300))
     bodies = [row['value'] for row in sorted(cached.values(),key=lambda row:row['observedAt'])]
     value = dict(bodies[0],data=[entity for body in bodies for entity in body['data']])
     if any('included' in body for body in bodies):
@@ -177,6 +193,72 @@ def gecko_response(stream, path, fetch, ttl=60):
             for body in bodies for row in body.get('included',[])}.values())
     return dict(value=value,observedAt=min(row['observedAt'] for row in cached.values()),
                 cache='miss' if missing else 'hit')
+
+
+def seed_gecko_pools(stream, path, reply, ttl):
+    """A complete discovery row can supply a later exact pool batch.
+
+    Ranking, pagination and sort affect membership, not a pool's representation.
+    Included token objects cannot certify the richer token-multi contract, and
+    a pool batch cannot certify a token's complete pool list.
+    """
+    from urllib.parse import urlsplit, parse_qsl, urlencode
+    target = urlsplit(path)
+    route = re.fullmatch(r'/networks/([\w-]+)/(?:new_pools|trending_pools|pools|'
+                         r'dexes/[\w-]+/pools|tokens/[\w-]+/pools)', target.path)
+    params = dict(parse_qsl(target.query,keep_blank_values=True))
+    if not route or set(params)-{'include','page','sort','duration'}:
+        return
+    body = reply['value']
+    if (not isinstance(body,dict) or not isinstance(body.get('data'),list)
+            or not isinstance(body.get('included',[]),list)):
+        return
+    network = route[1]
+    included = body.get('included',[])
+    # Check the whole relationship graph before traversing it. A malformed or
+    # partial discovery response remains insufficient for projection reuse.
+    for row in [*body['data'],*included]:
+        if (not isinstance(row,dict) or not isinstance(row.get('type'),str)
+                or not isinstance(row.get('id'),str) or not isinstance(row.get('relationships',{}),dict)):
+            return
+        for rel in row.get('relationships',{}).values():
+            if not isinstance(rel,dict):
+                return
+            refs = rel.get('data')
+            for ref in refs if isinstance(refs,list) else [refs]:
+                if ref is not None and (not isinstance(ref,dict) or not isinstance(ref.get('id'),str)
+                                        or not isinstance(ref.get('type'),str)):
+                    return
+    include = params.get('include','')
+    scope = urlencode({'include':include}) if 'include' in params else ''
+    identities = {(row['type'],row['id']) for row in included}
+    for row in body['data']:
+        attrs = row.get('attributes')
+        if (row['type'] != 'pool' or not row['id'].startswith(network+'_') or not isinstance(attrs,dict)
+                or not {'address','base_token_price_usd','quote_token_price_usd','reserve_in_usd',
+                        'volume_usd','transactions','price_change_percentage'}.issubset(attrs)
+                or any(not isinstance(attrs[key],dict) for key in ('volume_usd','transactions','price_change_percentage'))):
+            continue
+        address = row['id'][len(network)+1:]
+        canonical = lambda value: value.lower() if network!='solana' and re.fullmatch(r'0x[0-9A-Fa-f]+',value) else value
+        if not isinstance(attrs['address'],str) or canonical(attrs['address']) != canonical(address):
+            continue
+        complete = True
+        for relation in include.split(',') if include else []:
+            rel = row.get('relationships',{}).get(relation)
+            if not isinstance(rel,dict) or 'data' not in rel:
+                complete = False
+                break
+            refs = rel['data']
+            if any((ref['type'],ref['id']) not in identities for ref in (refs if isinstance(refs,list) else [refs]) if ref is not None):
+                complete = False
+                break
+        if complete:
+            value = dict(data=[row])
+            if include:
+                value['included'] = related_includes([row],included)
+            stream.store('gecko:entity',[2,network,'pools',canonical(address),scope],value,
+                         reply['observedAt'],min(ttl,300))
 
 
 def related_includes(rows, included):

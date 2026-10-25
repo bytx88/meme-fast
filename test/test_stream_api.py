@@ -104,9 +104,23 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((await client.get('/api/market'+path)).status_code,200)
                 self.assertEqual(calls,[(path,'background'),(path,'interactive')])
                 stored={'version':2,'method':'shared-trending-1h-v1','basket':[],'readings':[],
-                        'marketObservedAt':1234,'legacyMethods':{'private':'original'}}
-                with patch.object(Path,'read_text',return_value=json.dumps(stored)):
+                        'marketObservedAt':1234,'legacyMethods':{'private':'original'},
+                        'basketHistory':[{'private':'retained'}]}
+                def public_only(path,**kwargs):
+                    self.assertEqual(str(path).replace('\\','/'),'/history/meme-index.public.json')
+                    return json.dumps(stored)
+                with patch.object(Path,'read_text',autospec=True,side_effect=public_only) as reader:
                     response=await client.get('/api/meme-index')
+                self.assertEqual(reader.call_count,1)
                 self.assertEqual(response.json()['method'],stored['method'])
                 self.assertEqual(response.json()['marketObservedAt'],1234)
                 self.assertNotIn('legacyMethods',response.json())
+                self.assertNotIn('basketHistory',response.json())
+                def fallback(path,**kwargs):
+                    if str(path).endswith('.public.json'):raise FileNotFoundError()
+                    return json.dumps(stored)
+                with patch.object(Path,'read_text',autospec=True,side_effect=fallback) as reader:
+                    response=await client.get('/api/meme-index')
+                self.assertEqual(reader.call_count,2)
+                self.assertEqual(response.json()['method'],stored['method'])
+                self.assertNotIn('basketHistory',response.json())

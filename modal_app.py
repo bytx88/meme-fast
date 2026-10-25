@@ -946,13 +946,15 @@ def web():
     async def meme_index():
         async with history_lock:
             await history_volume.reload.aio()
-            try:
-                saved = json.loads(Path("/history/meme-index.json").read_text())
-                from worker.meme_index import public_report
-                report = public_report(saved)
-            except (FileNotFoundError, ValueError):
-                report = {"version": 1, "basket": [], "samples": [], "readings": [],
-                          "error": "Awaiting first collection"}
+            from worker.meme_index import public_report
+            report = {"version": 2, "basket": [], "readings": [], "error": "Awaiting first collection"}
+            for name in ('meme-index.public.json','meme-index.json'):
+                try:
+                    saved = json.loads(Path('/history',name).read_text(encoding='utf-8'))
+                    report = public_report(saved)
+                    break
+                except (OSError, ValueError):
+                    continue
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/jeanphil-monitor")
