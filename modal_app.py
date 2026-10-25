@@ -459,7 +459,9 @@ async def collect_runner_mode():
     from worker.runner_sampling import run_job
     async def quotes(addresses):
         return await read_market_source.remote.aio('solana', addresses)
-    return await run_job(history_volume, quotes)
+    async def activity(addresses):
+        return await read_gecko_source.remote.aio('/networks/solana/tokens/multi/' + ','.join(addresses))
+    return await run_job(history_volume, quotes, fetch_activity=activity)
 
 
 @app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,

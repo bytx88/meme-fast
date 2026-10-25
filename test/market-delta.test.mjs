@@ -2,8 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMarket} from '../dist/market-delta.mjs';
 
+test('Mode details distinguish real valuations from no-volume observations',()=>{
+ const html=runnerDetails({coverage:{eligibleTokens:210,observedTokens:205,valuedTokens:143,nonqualifyingTokens:62}});
+ assert.match(html,/205\/210 tracked tokens freshly observed/);
+ assert.match(html,/143 valued/);
+ assert.match(html,/62 independently observed with zero 24H volume/);
+});
+
 test('provisional Mode accepts two matched hours and rejects missing evidence',()=>{
- const now=Date.now(),report={updatedAt:now,ready:true,score:4,policy:{version:4},
+ const now=Date.now(),report={updatedAt:now,ready:true,score:4,policy:{version:5},
   coverage:{reliable:true,reservedPass:true},history:{usable:true,provisional:true,
    periodHours:1,comparablePeriods:2,baselinePeriods:1,matchedTokens:60}};
  assert.equal(runnerMode(report,now),'4');
@@ -67,7 +74,7 @@ test('Legacy five-minute history produces at most one comparison per UTC hour',(
 
 test('Mode shows 1–5 only for sufficient fresh evidence and a dash otherwise',()=>{
  const now=2000000000000;
- const report={updatedAt:now,ready:true,mode:'Easy',score:5,policy:{version:4},history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
+ const report={updatedAt:now,ready:true,mode:'Easy',score:5,policy:{version:5},history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
  assert.equal(runnerMode(null,now),'—');
  for(let score=1;score<=5;score++)assert.equal(runnerMode({...report,score},now),String(score));
  for(const change of [{updatedAt:now-16*60000},{updatedAt:now+1},{ready:false},{history:{usable:false}},{coverage:{reliable:false}},{score:0},{score:6},{score:2.5},{score:null},{policy:{version:1}}])assert.equal(runnerMode({...report,...change},now),'—');
@@ -85,7 +92,7 @@ test('the mounted widget renders every supported score independently of missing 
   globalThis.document={hidden:false,addEventListener(){}};
   globalThis.setInterval=()=>0;
   for(const score of [1,2,3,4,5,null]){
-   const report={version:1,updatedAt:Date.now(),ready:score!==null,score,policy:{version:4},
+   const report={version:1,updatedAt:Date.now(),ready:score!==null,score,policy:{version:5},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true},counts24h:{}};
    globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/runner-mode'?report:{basket:[],readings:[]}});
    const market={innerHTML:'',setAttribute(){}},body={innerHTML:''};

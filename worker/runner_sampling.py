@@ -89,7 +89,39 @@ def quotes_from_reply(reply, addresses, now):
     return selected
 
 
-async def sample(directory, snapshot, fetch_quotes, now=None, clock=None):
+def activity_from_reply(reply, addresses, now):
+    """Exact-mint zero token volume can rule out qualification without a cap.
+
+    Do not turn an FDV, price or an omitted record into a market cap or zero.
+    """
+    if not isinstance(reply, dict) or reply.get('status') != 200:
+        raise ValueError('Independent activity source unavailable')
+    body = reply.get('body', {})
+    at = number(body.get('_sourceObservedAt'))
+    if at is None or not 0 <= now-at <= 15*MINUTE or not isinstance(body.get('data'), list):
+        raise ValueError('Independent activity observation is stale or malformed')
+    def metric(value):
+        try:
+            return number(float(value)) if not isinstance(value, bool) else None
+        except (ValueError, TypeError, OverflowError):
+            return None
+    result = {}
+    for row in body['data']:
+        attrs = row.get('attributes') or {}
+        mint = attrs.get('address')
+        if mint not in addresses or row.get('type') != 'token' or row.get('id') != 'solana_'+mint:
+            continue
+        liquidity = metric(attrs.get('total_reserve_in_usd'))
+        volume = metric((attrs.get('volume_usd') or {}).get('h24'))
+        if liquidity is None or volume is None or volume != 0:
+            continue
+        result[mint] = {'at': at, 'cap': None, 'liquidity': None, 'tokenReserveUsd': liquidity, 'volume24h': volume,
+                        'source': 'GeckoTerminal', 'receivedAt': now,
+                        'status': 'observed-nonqualifying', 'evidence': 'token-aggregate-activity'}
+    return result
+
+
+async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_activity=None):
     clock = clock or (lambda: int(time.time()*1000))
     started = int(clock() if now is None else now)
     directory = Path(directory)
@@ -116,6 +148,7 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None):
     active = {m['mint'] for m in members}
     addresses = list(dict.fromkeys([m['mint'] for m in members] + probes))
     quotes = {m['mint']: m.get('quote', {}) for m in members}
+    activity_cache = {m['mint']: m.get('activity', m.get('quote', {})) for m in members}
     errors, active_errors, attempted, succeeded = [], [], 0, 0
     # Two outstanding requests at most; the shared owner still handles pacing,
     # caching and cooldowns for all consumers. No unpaced direct fallback.
@@ -141,6 +174,35 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None):
                 if active.intersection(batch_addresses):
                     active_errors.append('Tracked cohort quote batch failed')
     await asyncio.gather(*(batch(addresses[i:i+30]) for i in range(0,len(addresses),30)))
+    # Only missing tracked valuations need the independent activity check.
+    # Use the shared, paced Gecko owner; no provider bypass or per-token fanout.
+    missing = [mint for mint in active if number(quotes.get(mint, {}).get('cap')) is None]
+    activity_attempted, activity_confirmed = 0, 0
+    if fetch_activity:
+        for i in range(0, len(missing), 30):
+            requested = missing[i:i+30]
+            activity_attempted += 1
+            try:
+                reply = await asyncio.wait_for(fetch_activity(requested), 35)
+                received = int(clock() if now is None else now)
+                observed = activity_from_reply(reply, set(requested), received)
+                quotes.update(observed)
+                activity_cache.update(observed)
+                activity_confirmed += len(observed)
+                # A successful active/omitted record invalidates the old
+                # no-volume certificate; never hide a reported revival.
+                for mint in set(requested)-observed.keys():
+                    activity_cache.pop(mint, None)
+            except Exception:
+                errors.append('Independent activity batch unavailable, stale or malformed')
+        completed_check = int(clock() if now is None else now)
+        for mint in missing:
+            cached = activity_cache.get(mint, {})
+            at = number(cached.get('at'))
+            if (quotes.get(mint, {}).get('status') == 'not-returned'
+                    and cached.get('status') == 'observed-nonqualifying'
+                    and at is not None and 0 <= completed_check-at <= 15*MINUTE):
+                quotes[mint] = cached
     completed = int(clock() if now is None else now)
     admitted = []
     allowance = min(LIMIT-len(members), BOOTSTRAP if initial else HOURLY_ADMISSIONS)
@@ -159,10 +221,16 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None):
     for member in members:
         if member['mint'] in quotes:
             member['quote'] = quotes[member['mint']]
+        cached = activity_cache.get(member['mint'], {})
+        if cached.get('status') == 'observed-nonqualifying':
+            member['activity'] = cached
+        else:
+            member.pop('activity', None)
     cohort.update(members=members, seen=sorted(seen), updatedAt=completed,
                   capacity=LIMIT, hourlyAdmissions=HOURLY_ADMISSIONS,
                   attemptedBatches=attempted, successfulBatches=succeeded,
                   admissionCandidates=len(candidates), errors=errors)
+    cohort.update(activityBatches=activity_attempted, activityConfirmed=activity_confirmed)
     # Persist the same roster on errors. Never remove a failed market early.
     atomic(path, cohort)
     rows = [{**identity(m['mint']), 'runnerMarket': m.get('quote', {})} for m in members]
@@ -178,13 +246,13 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None):
     return collect(observation, directory)
 
 
-async def run_job(volume, fetch_quotes, directory='/history', snapshot_path='/history/coins.json'):
+async def run_job(volume, fetch_quotes, directory='/history', snapshot_path='/history/coins.json', fetch_activity=None):
     """Separate scheduled writer: discovery delays cannot starve Mode quotes."""
     started = time.monotonic()
     await asyncio.wait_for(volume.reload.aio(), 60)
     snapshot = await asyncio.wait_for(asyncio.to_thread(load_candidates, Path(snapshot_path)), 15)
     try:
-        report = await asyncio.wait_for(sample(directory, snapshot, fetch_quotes), 150)
+        report = await asyncio.wait_for(sample(directory, snapshot, fetch_quotes, fetch_activity=fetch_activity), 150)
     except Exception:
         from worker.runner_mode import unknown
         report = unknown('Reserved Mode collection failed; previous ledger retained')

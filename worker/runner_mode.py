@@ -18,12 +18,12 @@ MINUTE = 60_000
 DAY = 24 * 60 * MINUTE
 FOLLOWUP = 3 * DAY
 SGT = dt.timezone(dt.timedelta(hours=8))
-POLICY = {'version': 4, 'provisionalBaselinePeriods': 1, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
+POLICY = {'version': 5, 'provisionalBaselinePeriods': 1, 'minimumPopulation': 50, 'cohortCapacity': 300, 'baselinePeriods': 2, 'periodHours': [24, 6, 1],
           'minimumRunnerEvents': 10, 'minimumThresholdEvents': 5, 'minimumPeriodCoverage': .9,
-          'minimumValuationCoverage': .95, 'followupHours': 72,
+          'minimumValuationCoverage': .95, 'minimumObservationCoverage': .95, 'followupHours': 72,
           'confirmationMinutes': 15, 'trendChange': .2}
 
-CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets are required. Initially, provisional Mode compares the oldest covered hour with the latest complete covered hour for the same observed tokens. Full Mode uses two baseline periods and a current covered 24H, 6H or 1H period. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh valuation coverage of the entire cohort. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard; sparse positive or conflicting evidence stays unknown. Not a validated predictive signal.'
+CLASSIFICATION = 'Descriptive score for a bounded rolling sample of observable Solana markets: 1 Hard, 2 Cooling, 3 Balanced, 4 Improving, 5 Easy; unknown has no score. All admitted mints remain tracked for 72 hours, including fallen or missing markets. At least 50 tracked markets are required. Initially, provisional Mode compares the oldest covered hour with the latest complete covered hour for the same observed tokens. Full Mode uses two baseline periods and a current covered 24H, 6H or 1H period. Each period needs 90% reliable five-minute slots; each slot needs 95% fresh runner-observation coverage of the entire cohort: an actual market-cap valuation or independent exact-mint aggregate zero 24H volume. Inactive observations never supply a cap or crossing. Discovery freshness is reported separately and does not certify market-wide coverage. A fully covered absence of sustained runners is Hard; sparse positive or conflicting evidence stays unknown. Not a validated predictive signal.'
 
 
 def number(value):
@@ -163,7 +163,8 @@ def provisional_history(db, now):
     start = max(first * 5 * MINUTE // hour * hour, end - 7 * DAY)
     def observed_mints(period):
         return {mint for mint, slots in db.execute(
-            'SELECT mint,COUNT(DISTINCT CAST(at / ? AS INTEGER)) FROM monitor_observations '
+            'SELECT mint,COUNT(DISTINCT CAST(at / ? AS INTEGER)) FROM '
+            '(SELECT mint,at FROM monitor_observations UNION ALL SELECT mint,at FROM monitor_inactive_observations) '
             'WHERE at>=? AND at<? GROUP BY mint',
             (5 * MINUTE, period['startAt'], period['endAt']))
             if slots / 12 >= POLICY['minimumPeriodCoverage']}
@@ -252,6 +253,10 @@ def collect(snapshot, directory):
                 mint TEXT NOT NULL, at INTEGER NOT NULL, received_at INTEGER NOT NULL,
                 cap REAL NOT NULL, liquidity REAL NOT NULL, volume REAL NOT NULL,
                 PRIMARY KEY(mint,at));
+            CREATE TABLE IF NOT EXISTS monitor_inactive_observations (
+                mint TEXT NOT NULL, at INTEGER NOT NULL, received_at INTEGER NOT NULL,
+                token_reserve REAL NOT NULL, volume REAL NOT NULL, source TEXT NOT NULL,
+                PRIMARY KEY(mint,at));
         ''')
         # Admit all eligible discoveries, including records with missing caps.
         db.executemany(f'INSERT OR IGNORE INTO {token_table}(mint,admitted) VALUES (?,?)',
@@ -262,12 +267,25 @@ def collect(snapshot, directory):
             db.execute("UPDATE monitor_tokens SET seen=seen | COALESCE((SELECT seen FROM tokens WHERE tokens.mint=monitor_tokens.mint),0) WHERE last_at IS NULL")
         active = db.execute(f'SELECT mint,admitted,last_at,seen,pending FROM {token_table} WHERE admitted>?',
                             (now - FOLLOWUP,)).fetchall()
-        valid = 0
+        valid, inactive = 0, 0
         gaps = {}
         for mint, admitted, last_at, seen, pending_json in active:
             quote = (rows.get(mint) or {}).get('runnerMarket') or {}
             at, cap = number(quote.get('at')), number(quote.get('cap'))
             liquidity, volume = number(quote.get('liquidity')), number(quote.get('volume24h'))
+            if (managed and cap is None and quote.get('status') == 'observed-nonqualifying'
+                    and quote.get('source') == 'GeckoTerminal'
+                    and quote.get('evidence') == 'token-aggregate-activity'
+                    and at is not None and 0 <= now-at <= 15*MINUTE
+                    and (last_at is None or at >= last_at)
+                    and number(quote.get('tokenReserveUsd')) is not None and volume == 0):
+                inactive += 1
+                db.execute('INSERT OR IGNORE INTO monitor_inactive_observations VALUES (?,?,?,?,?,?)',
+                           (mint, int(at), now, number(quote['tokenReserveUsd']), volume, quote['source']))
+                # Missing caps cannot set threshold bits, initialise a valuation,
+                # confirm a crossing, or connect confirmations across this gap.
+                db.execute("UPDATE monitor_tokens SET pending='{}' WHERE mint=?", (mint,))
+                continue
             if (at is None or not 0 <= now - at <= 15 * MINUTE or cap is None
                     or cap > 1e12 or liquidity is None or volume is None):
                 cause = 'missingQuote' if not quote else 'staleOrInvalidTime' if at is None or not 0 <= now-at <= 15*MINUTE else 'missingCap' if cap is None else 'invalidCap' if cap > 1e12 else 'missingLiquidityOrVolume'
@@ -308,7 +326,8 @@ def collect(snapshot, directory):
                          and (number(feeds[key].get('lastSuccess')) or 0) >= now - 15 * MINUTE
                          for key in (('runner_market',) if managed else ('solana', 'launchpad_pools', 'dex_market')))
         fraction = valid / len(active) if active else 0
-        reliable = bool(active) and sources_ok and fraction >= POLICY['minimumValuationCoverage']
+        observed_fraction = (valid + inactive) / len(active) if active else 0
+        reliable = bool(active) and sources_ok and observed_fraction >= POLICY['minimumObservationCoverage']
         # Idempotent five-minute slots. Reruns cannot manufacture coverage.
         db.execute(f'INSERT OR IGNORE INTO {coverage_table} VALUES (?,?,?)',
                    (now // (5 * MINUTE), int(reliable), len(active)))
@@ -338,7 +357,7 @@ def collect(snapshot, directory):
             history = provisional_history(db, now)
         mode, reason = history['mode'], history['reason']
         if not reliable:
-            mode, reason = 'Unknown', 'Current source or valuation coverage is incomplete'
+            mode, reason = 'Unknown', 'Current source or runner-observation coverage is incomplete'
         consecutive = 0
         for day in reversed(days):
             if not day['reliable']:
@@ -349,9 +368,11 @@ def collect(snapshot, directory):
                   'updatedAt': now, 'counts24h': counts, 'daily': days,
                   'reliableDays': consecutive,
                   'coverage': {'eligibleTokens': len(active), 'valuedTokens': valid,
+                               'observedTokens': valid + inactive, 'nonqualifyingTokens': inactive,
+                               'observationFraction': observed_fraction,
                                'valuationFraction': fraction, 'sourcesOk': sources_ok,
                                'reliable': reliable, 'gaps': gaps, 'reservedPass': managed},
-                  'cohort': ({key: snapshot['runnerCohort'].get(key) for key in ['id', 'startedAt', 'capacity', 'hourlyAdmissions', 'attemptedBatches', 'successfulBatches', 'admissionCandidates', 'errors']} if managed else None),
+                  'cohort': ({key: snapshot['runnerCohort'].get(key) for key in ['id', 'startedAt', 'capacity', 'hourlyAdmissions', 'attemptedBatches', 'successfulBatches', 'admissionCandidates', 'errors', 'activityBatches', 'activityConfirmed']} if managed else None),
                   'discovery': snapshot.get('runnerDiscovery'),
                   'definition': 'Unique mints first observed crossing each market-cap threshold after a baseline below it; two distinct quotes within 15 minutes, liquidity at least $3K and positive 24H volume. Initial above-threshold tokens and repeat reclaims are excluded. Follow-up is 72 hours from admission; gaps remain unknown. Not first lifetime crossings or all Solana memes.',
                   'classification': CLASSIFICATION}
@@ -359,6 +380,7 @@ def collect(snapshot, directory):
     if managed:
         with closing(sqlite3.connect(directory/'runner-mode.sqlite')) as cleanup, cleanup:
             cleanup.execute('DELETE FROM monitor_observations WHERE at<?', (now-7*DAY,))
+            cleanup.execute('DELETE FROM monitor_inactive_observations WHERE at<?', (now-7*DAY,))
     destination = directory / 'runner-mode.json'
     temporary = destination.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(report, allow_nan=False), encoding='utf-8')

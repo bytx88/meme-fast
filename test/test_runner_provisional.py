@@ -10,6 +10,7 @@ class ProvisionalTests(unittest.TestCase):
         db.executescript('''
             CREATE TABLE monitor_coverage(slot INTEGER PRIMARY KEY,reliable INTEGER,population INTEGER);
             CREATE TABLE monitor_observations(mint TEXT,at INTEGER);
+            CREATE TABLE monitor_inactive_observations(mint TEXT,at INTEGER);
             CREATE TABLE monitor_events(mint TEXT,threshold INTEGER,at INTEGER);
         ''')
         return db
