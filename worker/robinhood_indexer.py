@@ -42,6 +42,7 @@ def open_db(filename):
         CREATE INDEX IF NOT EXISTS pools_token1 ON pools(token1);
         CREATE INDEX IF NOT EXISTS pools_pool ON pools(pool);
         CREATE INDEX IF NOT EXISTS pools_checked ON pools(checked_at);
+        CREATE INDEX IF NOT EXISTS pools_refresh_order ON pools(checked_at, block DESC);
         CREATE TABLE IF NOT EXISTS cursors (
             source TEXT PRIMARY KEY, live INTEGER NOT NULL,
             backfill INTEGER NOT NULL, backfill_target INTEGER NOT NULL

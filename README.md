@@ -112,6 +112,12 @@ py -m modal deploy modal_app.py
 
 The Modal app is named `meme-fast`; its `web` function serves the frontend and the restricted GeckoTerminal proxy.
 
+### Container costs
+
+Collectors scale down after two idle seconds once their writes are committed. Shared source owners retain Modal's default idle window so the existing 30-second cache checkpoints and provider pacing remain unchanged. The web function handles up to 16 concurrent inputs per container, targets eight, scales to at most two containers, and shuts down after 30 idle seconds. Collection schedules and single-writer limits are unchanged.
+
+Mode and data-stream workers request the standard 128 MiB of memory instead of 1,024/512 MiB. These are reservations, not hard limits; Modal still bills higher actual usage. The Robinhood catalog adds an ordered refresh index on its next scan to select the same 60 due pools without sorting the full catalog. Existing pool records and cursors are retained. Assess savings from subsequent Modal usage, since cumulative cycle totals include earlier deployments.
+
 ## Update GitHub and Modal on Windows
 
 Double-click `update-github-and-modal.bat`. It validates the app, commits all non-ignored project changes on `main`, pushes `origin` to `bytx88/meme-fast`, and then deploys `modal_app.py` using the `bytx24` Modal profile. A failed check or push stops deployment; a failed Modal deployment leaves the successful GitHub push intact. It never force-pushes or changes your global Modal profile.

@@ -50,6 +50,10 @@ smartness_volume = modal.Volume.from_name("meme-fast-smartness-ledger", create_i
 source_volume = modal.Volume.from_name("meme-fast-source-stream", create_if_missing=True)
 stream_volume = modal.Volume.from_name("meme-fast-data-stream", create_if_missing=True)
 
+# Collectors publish before returning, so idle workers need no warm tail.
+# Source owners keep Modal's default idle window to preserve their batched caches.
+COLLECTOR_IDLE_SECONDS = 2
+
 
 @app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
@@ -204,7 +208,7 @@ def read_market_source(network, addresses, scope='quotes'):
         session.finish()
 
 
-@app.function(timeout=240, max_containers=1, memory=512,
+@app.function(timeout=240, max_containers=1, memory=128, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={'/stream': stream_volume, '/history': history_volume, '/smartness': smartness_volume})
 @modal.concurrent(max_inputs=1)
 def collect_data_stream():
@@ -283,7 +287,7 @@ def dispatch_smart_collection():
     return request_collection(balance_requests, collect_smart_wallets.spawn, int(time.time() * 1000))
 
 
-@app.function(timeout=1200, max_containers=1,
+@app.function(timeout=1200, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/smart": smart_volume, "/smartness": smartness_volume, "/history": history_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
@@ -379,7 +383,7 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     return result or dict(ranking=len(plan['ranking']), monitored=len(plan['tokens']), error=plan.get('error'))
 
 
-@app.function(timeout=240, max_containers=1, volumes={'/smartness': smartness_volume, '/stream': stream_volume})
+@app.function(timeout=240, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS, volumes={'/smartness': smartness_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smartness(evidence=None):
     import sys
@@ -418,7 +422,7 @@ def collect_smartness(evidence=None):
     return {'attemptedAt': report.get('attemptedAt'), 'events': len(report['events'])}
 
 
-@app.function(timeout=100, max_containers=1,
+@app.function(timeout=100, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/macro": macro_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_macro_review():
@@ -433,7 +437,7 @@ async def collect_macro_review():
     return public_report(report)
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, volumes={"/history": history_volume, '/stream': stream_volume})
+@app.function(schedule=modal.Period(minutes=5), timeout=600, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS, volumes={"/history": history_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_coins():
     import asyncio
@@ -455,7 +459,7 @@ async def collect_coins():
                               market_url=web_url.rstrip('/') + '/api/dex')
 
 
-@app.function(timeout=360, max_containers=1, memory=1024,
+@app.function(timeout=360, max_containers=1, memory=128, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_runner_mode():
@@ -472,7 +476,7 @@ async def collect_runner_mode():
     return await run_job(history_volume, quotes, fetch_activity=activity)
 
 
-@app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1,
+@app.function(schedule=modal.Period(minutes=30), timeout=300, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume})
 def collect_x_factor(target_limit=3):
     import subprocess
@@ -496,7 +500,7 @@ def collect_x_factor(target_limit=3):
 
 
 # Automatic Jean Phil monitoring is disabled; retain manual invocation and history.
-@app.function(timeout=120, max_containers=1,
+@app.function(timeout=120, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume})
 def collect_jeanphil_monitor():
     import subprocess
@@ -511,7 +515,7 @@ def collect_jeanphil_monitor():
     print(result.stdout)
 
 
-@app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1,
+@app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume, "/stream": stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_meme_index():
@@ -528,7 +532,7 @@ def collect_meme_index():
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
 
 
-@app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1,
+@app.function(schedule=modal.Period(minutes=5), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume, '/stream': stream_volume})
 def collect_followed_wallets():
     import sys
@@ -590,7 +594,7 @@ def collect_followed_wallets():
     return summary
 
 
-@app.function(timeout=120, max_containers=1, volumes={"/history": history_volume})
+@app.function(timeout=120, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS, volumes={"/history": history_volume})
 def collect_coin_evidence(token_id):
     import json
     import subprocess
@@ -606,7 +610,8 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
-@app.function(min_containers=0, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
+@app.function(min_containers=0, max_containers=2, scaledown_window=30, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
+@modal.concurrent(max_inputs=16, target_inputs=8)
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, HTTPException, Request

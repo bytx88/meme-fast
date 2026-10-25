@@ -71,6 +71,29 @@ class RobinhoodIndexerTest(unittest.TestCase):
             finally:
                 db.close()
 
+    def test_refresh_queue_keeps_null_first_order_and_limit_without_sorting_catalog(self):
+        now = 100_000_000
+        cutoff = now - 6 * 3600000
+        with tempfile.TemporaryDirectory() as directory, patch.object(indexer, "rpc", side_effect=RuntimeError("offline")):
+            db = indexer.open_db(Path(directory) / "pools.sqlite")
+            try:
+                rows = [(f"pool-{i}", "uniswap_v2", f"pool-{i}", "token0", "token1", i,
+                         None if i < 65 else cutoff - 1 if i < 85 else cutoff)
+                        for i in range(105)]
+                db.executemany("INSERT INTO pools (id, source, pool, token0, token1, block, checked_at) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+                selection = "SELECT id, pool, token0, token1 FROM pools WHERE checked_at IS NULL OR checked_at < ? ORDER BY checked_at NULLS FIRST, block DESC LIMIT 60"
+                plan = " ".join(row[3] for row in db.execute("EXPLAIN QUERY PLAN " + selection, (cutoff,)))
+                self.assertNotIn("TEMP B-TREE", plan)
+                first = indexer.scan(db, now=now)
+                self.assertEqual([row["pool"] for row in first["pools"]], [f"pool-{i}" for i in range(64, 4, -1)])
+                second = indexer.scan(db, now=now)
+                self.assertEqual([row["pool"] for row in second["pools"]],
+                                 [f"pool-{i}" for i in range(4, -1, -1)] + [f"pool-{i}" for i in range(84, 64, -1)])
+                self.assertEqual(indexer.scan(db, now=now)["pools"], [])
+                self.assertEqual(first["status"]["count"], 105)
+            finally:
+                db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
