@@ -24,6 +24,28 @@ def snapshot(rows, at=NOW):
 
 
 class RunnerModeTests(unittest.TestCase):
+    def test_complete_period_and_rolling_counts_keep_their_boundary_rules(self):
+        from worker.runner_ledger import event_counts, initialise
+        from worker.runner_mode import daily_history, period_summary
+        start = day_start(NOW)
+        with closing(sqlite3.connect(':memory:')) as db:
+            initialise(db)
+            for managed, table in ((False, 'events'), (True, 'monitor_events')):
+                for mint, at, threshold in (('start', start, 500000),
+                                             ('middle', start+MINUTE, 1000000),
+                                             ('end', start+DAY, 5000000)):
+                    db.execute(f'INSERT INTO {table} VALUES (?,?,?,?,?,?,?)',
+                               (mint, threshold, at, at, at, threshold, 10000))
+                coverage = 'monitor_coverage' if managed else 'coverage'
+                db.execute(f'INSERT INTO {coverage} VALUES (?,?,?)', (start//(5*MINUTE), 1, 60))
+                complete = period_summary(db, start, start+DAY, managed)
+                self.assertEqual(complete['counts'], {'500000': 1, '1000000': 1, '5000000': 0, '10000000': 0})
+                self.assertEqual(event_counts(db, start, start+DAY, managed, rolling=True),
+                                 {'500000': 0, '1000000': 1, '5000000': 1, '10000000': 0})
+                daily = daily_history(db, start+DAY, managed)[0]
+                for key in ('counts', 'coverage', 'population', 'reliable'):
+                    self.assertEqual(daily[key], complete[key])
+
     def test_both_provider_launchpad_identities_are_admitted(self):
         for dex in ('pumpfun', 'pumpswap', 'meteoradbc', 'pump-fun', 'pump-swap', 'meteora-dbc'):
             self.assertTrue(eligible({**coin(), 'dex': dex}))

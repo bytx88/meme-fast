@@ -1,5 +1,6 @@
 import {readFile,writeFile,readdir,mkdir} from 'node:fs/promises';
 import './render-shared-pages.mjs';
+import './render-runner-policy.mjs';
 // Embed the existing static app so every route ships with the Worker, without asset bindings.
 const assets={};
 for(const entry of await readdir('dist',{withFileTypes:true})){

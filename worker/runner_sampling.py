@@ -10,11 +10,11 @@ import os
 from pathlib import Path
 import time
 
-from worker.runner_mode import eligible, number, collect, MINUTE, FOLLOWUP
+from worker.runner_mode import eligible, collect
+from worker.runner_policy import (BOOTSTRAP, FOLLOWUP, HOURLY_ADMISSIONS, HOUR,
+                                  LIMIT, MAX_CAP, MIN_LIQUIDITY, QUOTE_MAX_AGE,
+                                  number, fresh)
 
-LIMIT = 300
-BOOTSTRAP = 150
-HOURLY_ADMISSIONS = 4
 SCOPE = 'solana-observable-v1'
 
 
@@ -31,12 +31,12 @@ def atomic(path, value):
     os.replace(tmp, path)
 
 
-def observable(quote, now, max_age=15*MINUTE):
+def observable(quote, now, max_age=QUOTE_MAX_AGE):
     if not isinstance(quote, dict):
         return False
     at, cap = number(quote.get('at')), number(quote.get('cap'))
-    return (at is not None and 0 <= now-at <= max_age and cap is not None and 0 < cap <= 1e12
-            and (number(quote.get('liquidity')) or 0) >= 3000
+    return (at is not None and fresh(at, now, max_age) and cap is not None and 0 < cap <= MAX_CAP
+            and (number(quote.get('liquidity')) or 0) >= MIN_LIQUIDITY
             and (number(quote.get('volume24h')) or 0) > 0)
 
 
@@ -98,7 +98,7 @@ def activity_from_reply(reply, addresses, now):
         raise ValueError('Independent activity source unavailable')
     body = reply.get('body', {})
     at = number(body.get('_sourceObservedAt'))
-    if at is None or not 0 <= now-at <= 15*MINUTE or not isinstance(body.get('data'), list):
+    if at is None or not fresh(at, now) or not isinstance(body.get('data'), list):
         raise ValueError('Independent activity observation is stale or malformed')
     def metric(value):
         try:
@@ -138,12 +138,12 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
         for row in snapshot.get(field, []):
             if eligible(row) and row['contract_address'] not in seen:
                 quote = row.get('runnerMarket')
-                if observable(quote, started, 60*MINUTE):
+                if observable(quote, started, HOUR):
                     candidates[row['contract_address']] = row
     # Stable hash order is independent of valuation, volume rank and outcome.
     ordered = sorted(candidates, key=lambda mint: hashlib.sha256(mint.encode()).digest())
     initial = not cohort['seen']
-    admission_due = initial or cohort.get('lastAdmissionHour') != started//(60*MINUTE)
+    admission_due = initial or cohort.get('lastAdmissionHour') != started//(HOUR)
     probes = ordered[:BOOTSTRAP if initial else 30] if admission_due and len(members)<LIMIT else []
     active = {m['mint'] for m in members}
     addresses = list(dict.fromkeys([m['mint'] for m in members] + probes))
@@ -201,7 +201,7 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
             at = number(cached.get('at'))
             if (quotes.get(mint, {}).get('status') == 'not-returned'
                     and cached.get('status') == 'observed-nonqualifying'
-                    and at is not None and 0 <= completed_check-at <= 15*MINUTE):
+                    and at is not None and fresh(at, completed_check)):
                 quotes[mint] = cached
     completed = int(clock() if now is None else now)
     admitted = []
@@ -216,7 +216,7 @@ async def sample(directory, snapshot, fetch_quotes, now=None, clock=None, fetch_
         # A failed source read can retry; successful admissions cannot exceed
         # the hourly quota by rerunning a completed sampling pass.
         if admitted or not errors:
-            cohort['lastAdmissionHour'] = started//(60*MINUTE)
+            cohort['lastAdmissionHour'] = started//(HOUR)
     members.extend(admitted)
     for member in members:
         if member['mint'] in quotes:

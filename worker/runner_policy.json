@@ -1,0 +1,47 @@
+{
+  "policy": {
+    "version": 6,
+    "provisionalBaselinePeriods": 1,
+    "minimumPopulation": 50,
+    "cohortCapacity": 300,
+    "baselinePeriods": 2,
+    "periodHours": [
+      24,
+      6,
+      1
+    ],
+    "minimumRunnerEvents": 10,
+    "minimumThresholdEvents": 5,
+    "minimumPeriodCoverage": 0.9,
+    "minimumValuationCoverage": 0.95,
+    "minimumObservationCoverage": 0.95,
+    "followupHours": 72,
+    "confirmationMinutes": 15,
+    "trendChange": 0.2
+  },
+  "levels": [
+    500000,
+    1000000,
+    5000000,
+    10000000
+  ],
+  "scores": {
+    "Hard": 1,
+    "Cooling": 2,
+    "Balanced": 3,
+    "Improving": 4,
+    "Easy": 5
+  },
+  "sampling": {
+    "intervalMinutes": 5,
+    "quoteMaxAgeMinutes": 15,
+    "bootstrap": 150,
+    "hourlyAdmissions": 4
+  },
+  "valuation": {
+    "maximumCap": 1000000000000,
+    "minimumLiquidity": 3000
+  },
+  "maximumPopulationRatio": 1.25,
+  "minimumAgreeingThresholds": 3
+}

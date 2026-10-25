@@ -1,6 +1,48 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
+import {readFile} from 'node:fs/promises';
+import {RUNNER_CONFIG} from '../dist/runner-policy.mjs';
+
+test('browser safety rules match the authoritative runner policy',async()=>{
+ const source=JSON.parse(await readFile(new URL('../worker/runner_policy.json',import.meta.url),'utf8'));
+ assert.deepEqual(RUNNER_CONFIG,source);
+ const now=2000000000000;
+ const weakened={ready:true,score:1,updatedAt:now,
+  coverage:{reliable:true,reservedPass:true},
+  policy:{version:6,minimumPopulation:1,provisionalBaselinePeriods:0},
+  history:{usable:true,provisional:true,periodHours:1,comparablePeriods:1,baselinePeriods:0,matchedTokens:1}};
+ assert.equal(runnerMode(weakened,now),'—');
+});
+
+test('independent report failures recover on visible refresh and pause while hidden',async()=>{
+ const saved={fetch:globalThis.fetch,document:globalThis.document,setInterval:globalThis.setInterval};
+ try{
+  let timer,onVisible,calls=0;
+  globalThis.document={hidden:false,addEventListener(name,callback){onVisible=callback}};
+  globalThis.setInterval=(callback,interval)=>{assert.equal(interval,60000);timer=callback;return 0};
+  for(const failedEndpoint of ['/api/meme-index','/api/runner-mode']){
+   let failing=true;
+   const now=Date.now(),day=24*3600000;
+   const delta={basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3},{at:now,meme:4,altDelta:6,btcDelta:8}]};
+   const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:6},counts24h:{},
+    history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
+   globalThis.fetch=async url=>{calls++;if(failing&&url===failedEndpoint)throw Error('test outage');
+    return {ok:true,json:async()=>url==='/api/meme-index'?delta:runner}};
+   const market={innerHTML:'',setAttribute(){}},body={innerHTML:''};
+   mountMarket(market,{querySelector:()=>body});
+   await new Promise(resolve=>setImmediate(resolve));
+   if(failedEndpoint==='/api/meme-index')assert.match(market.innerHTML,/mode-1">1 \(Hard\)/);
+   else{assert.match(market.innerHTML,/mode-unknown">—/);assert.match(market.innerHTML,/\+3\.00 pp/)}
+   globalThis.document.hidden=true;
+   const previous=calls;timer();assert.equal(calls,previous);
+   failing=false;globalThis.document.hidden=false;onVisible();
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.match(market.innerHTML,/mode-1">1 \(Hard\)/);
+   assert.match(market.innerHTML,/\+3\.00 pp/);
+  }
+ }finally{Object.assign(globalThis,saved)}
+});
 
 test('Mode details distinguish real valuations from no-volume observations',()=>{
  const html=runnerDetails({coverage:{eligibleTokens:210,observedTokens:205,valuedTokens:143,nonqualifyingTokens:62}});
