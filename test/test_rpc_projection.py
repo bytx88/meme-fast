@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import tempfile
 import unittest
@@ -14,6 +15,7 @@ def account(label='A', encoding='base64'):
 
 class RpcProjectionTests(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
         self.folder = tempfile.TemporaryDirectory()
         self.clock = [1000]
         self.stream = SourceStream(self.folder.name, clock=lambda: self.clock[0], failure_ttl=30)

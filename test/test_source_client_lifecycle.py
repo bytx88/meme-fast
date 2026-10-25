@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from worker.source_stream import SourceStream
 
 class SourceClientLifecycleTests(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
         import modal_app
         self.app = modal_app
         self.folder = tempfile.TemporaryDirectory()

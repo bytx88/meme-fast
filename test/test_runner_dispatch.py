@@ -1,4 +1,5 @@
 import ast
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -7,6 +8,10 @@ from urllib.parse import urlsplit
 
 
 class RunnerDispatchTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # Importing Modal selects a different global asyncio policy on Windows.
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
+
     async def test_mode_is_dispatched_before_discovery_and_reuses_existing_schedule(self):
         import modal_app
         calls = []

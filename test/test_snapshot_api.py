@@ -1,4 +1,5 @@
 """A warm API worker must reload before trusting a precomputed projection."""
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,9 @@ import httpx
 
 
 class SnapshotApiTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
+
     async def test_each_projected_view_reloads_without_parsing_the_large_snapshot(self):
         import modal_app
         names = {'coin': 'coins.snipe.v2.120.json', 'health': 'coins.health.json',

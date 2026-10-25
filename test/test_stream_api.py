@@ -15,6 +15,9 @@ async def ready(*args, **kwargs):
 
 
 class StreamApiTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
+
     async def test_runner_mode_returns_unknown_before_collection_and_when_stale(self):
         import json
         import modal_app
@@ -36,9 +39,7 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(response.json()['ready'])
 
     async def test_common_stream_routes_and_dex_use_saved_or_shared_data(self):
-        policy = asyncio.get_event_loop_policy()
         import modal_app
-        self.addCleanup(asyncio.set_event_loop_policy, policy)
         report = project({}, {}, {}, {}, 1800000000000)
         provider_calls = []
         async def market(network, addresses, scope='quotes'):
