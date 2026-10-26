@@ -100,6 +100,39 @@ def positive_mints(payload, owner):
     return mints
 
 
+def shared_wallet_read(owner, program, deadline):
+    """Leave time to save completed observations when a shared read stalls.
+
+    Modal admission and result retries can outlast an individual RPC timeout.
+    The daemon only owns its reply box; after expiry it cannot update the
+    report or Volume, and the sampling loop starts no further source reads.
+    """
+    import threading
+    completed = threading.Event()
+    reply = []
+    def read():
+        try:
+            if __package__:
+                from worker.source_stream import shared_rpc
+            else:
+                from source_stream import shared_rpc
+            reply.append((True, {'result': shared_rpc('getTokenAccountsByOwner',
+                [owner, {'programId': program}, {'encoding': 'jsonParsed', 'commitment': 'confirmed'}])}))
+        except Exception as error:
+            reply.append((False, error))
+        finally:
+            completed.set()
+    if time.monotonic() >= deadline:
+        raise TimeoutError('Wallet sampling budget exhausted')
+    threading.Thread(target=read, name='wallet-source-read', daemon=True).start()
+    if not completed.wait(max(0, deadline - time.monotonic())):
+        raise TimeoutError('Wallet sampling budget exhausted while waiting for shared source')
+    success, value = reply[0]
+    if not success:
+        raise value
+    return value
+
+
 def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220, retain_mints=None):
     started = time.monotonic()
     deadline = started + budget_seconds
@@ -110,22 +143,20 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220,
         previous = {row['address']: row for row in json.loads(path.read_text())['wallets']}
     except (OSError, ValueError, KeyError):
         previous = {}
+    client = None
     if fetcher is None:
-        import httpx
-        import ssl
-        import truststore
-        client = httpx.Client(timeout=15, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+        shared = os.getenv('MEME_SHARED_SOURCES') == '1'
+        if not shared:
+            import httpx
+            import ssl
+            import truststore
+            client = httpx.Client(timeout=15, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
         def fetcher(owner, program):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('Wallet sampling budget exhausted')
-            if os.getenv('MEME_SHARED_SOURCES') == '1':
-                if __package__:
-                    from worker.source_stream import shared_rpc
-                else:
-                    from source_stream import shared_rpc
-                return {'result': shared_rpc('getTokenAccountsByOwner', [owner, {'programId': program},
-                                            {'encoding': 'jsonParsed', 'commitment': 'confirmed'}])}
+            if shared:
+                return shared_wallet_read(owner, program, deadline)
             response = client.post(os.getenv('SOLANA_WALLET_RPC_URL', 'https://api.mainnet-beta.solana.com'),
                 timeout=min(15, remaining),
                 json={'jsonrpc': '2.0', 'id': 1, 'method': 'getTokenAccountsByOwner',
@@ -133,8 +164,6 @@ def collect(filename, fetcher=None, now=None, registry=None, budget_seconds=220,
                                  {'encoding': 'jsonParsed', 'commitment': 'confirmed'}]})
             response.raise_for_status()
             return response.json()
-    else:
-        client = None
     # The RPC budget starts after client/TLS setup; the parent process still
     # enforces the independent overall deadline, including setup and shutdown.
     deadline = time.monotonic() + budget_seconds

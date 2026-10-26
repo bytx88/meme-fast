@@ -1,6 +1,8 @@
 import json
+import os
 import tempfile
 import subprocess
+import sys
 import threading
 import time
 import unittest
@@ -17,6 +19,84 @@ def payload(owner, amounts):
 
 
 class WalletTests(unittest.TestCase):
+    def test_stalled_shared_read_saves_completed_wallets_without_partial_holdings(self):
+        release = threading.Event()
+        late_threads = []
+        calls = []
+        registry = [dict(name=owner, address=owner, code='F1') for owner in ('complete', 'partial', 'untouched')]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'report.json'
+            def observed(owner, program, mint):
+                value = payload(owner, [(mint, '1')] if program == PROGRAMS[0] else [])
+                value['result']['context'] = {'slot': 42}
+                for row in value['result']['value']:
+                    row['pubkey'] = owner + program
+                    row['account']['owner'] = program
+                    row['account']['data']['parsed']['info']['tokenAmount']['decimals'] = 0
+                return value
+            original = collect(path, lambda owner, program: observed(owner, program, 'OLD'),
+                               now=1000, registry=registry)
+            def shared(method, params):
+                owner, program = params[0], params[1]['programId']
+                calls.append((owner, program))
+                if owner == 'partial' and program == PROGRAMS[1]:
+                    late_threads.append(threading.current_thread())
+                    release.wait(5)
+                value = observed(owner, program, 'NEW')['result']
+                return dict(value, _sourceObservedAt=1500)
+            try:
+                with patch.dict(os.environ, {'MEME_SHARED_SOURCES': '1'}), \
+                        patch('worker.source_stream.shared_rpc', side_effect=shared), \
+                        patch('httpx.Client') as client:
+                    started = time.monotonic()
+                    report = collect(path, now=2000, registry=registry, budget_seconds=.2)
+                    self.assertLess(time.monotonic()-started, 2)
+                    client.assert_not_called()
+                self.assertEqual(calls, [(owner, program) for owner in ('complete', 'partial') for program in PROGRAMS])
+                complete, partial, untouched = report['wallets']
+                self.assertEqual(complete['status'], 'ok')
+                self.assertEqual(complete['mints'], ['NEW'])
+                self.assertEqual(complete['checkedAt'], 1500)
+                self.assertEqual(partial['status'], 'unavailable')
+                self.assertEqual(partial['mints'], ['OLD'])
+                self.assertEqual(partial['checkedAt'], 1000)
+                self.assertEqual(partial['observation'], original['wallets'][1]['observation'])
+                self.assertEqual(untouched, original['wallets'][2])
+                self.assertTrue(report['collection']['budgetReached'])
+                saved = path.read_text()
+            finally:
+                release.set()
+            # The late reply cannot mutate the report or its atomic saved file.
+            late_threads[0].join(1)
+            self.assertFalse(late_threads[0].is_alive())
+            self.assertEqual(path.read_text(), saved)
+            self.assertEqual(partial['mints'], ['OLD'])
+
+    def test_stalled_shared_read_does_not_keep_isolated_child_alive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'report.json'
+            registry = [dict(name='Test', address='owner', code='F1')]
+            collect(path, lambda owner, program: payload(owner, [('OLD', '1')]),
+                    now=1000, registry=registry)
+            script = '''
+import asyncio
+from worker import followed_wallets, source_stream
+from modal._utils.async_utils import synchronizer
+async def stalled(*args):
+    await asyncio.Event().wait()
+source_stream.shared_rpc = synchronizer.create_blocking(stalled)
+followed_wallets.collect(__import__('sys').argv[1], now=2000,
+    registry=[dict(name='Test', address='owner', code='F1')], budget_seconds=.1)
+'''
+            result = subprocess.run([sys.executable, '-c', script, str(path)],
+                env=dict(os.environ, MEME_SHARED_SOURCES='1'), capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(path.read_text())
+            self.assertEqual(report['wallets'][0]['mints'], ['OLD'])
+            self.assertEqual(report['wallets'][0]['checkedAt'], 1000)
+            self.assertEqual(report['wallets'][0]['status'], 'unavailable')
+            self.assertTrue(report['collection']['budgetReached'])
+
     def test_deadline_between_programs_preserves_complete_previous_holdings(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'report.json'
