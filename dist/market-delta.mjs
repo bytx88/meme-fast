@@ -10,42 +10,54 @@ const hasComponentComparison=row=>Boolean(row&&Object.hasOwn(row,'memeComparison
 const validReturn=value=>Number.isFinite(value)&&value>=-100&&value<=10000;
 const close=(left,right)=>Number.isFinite(left)&&Number.isFinite(right)&&Math.abs(left-right)<=1e-8*Math.max(1,Math.abs(left),Math.abs(right));
 const basketId=row=>row?.id||`${row?.chain}:${row?.address}`;
-function componentEvidence(row,basket){
- const size=fixedPresetSize(row?.method),engine=row?.memeComparison;
- if(!validMeme(row)||!Number.isFinite(row.at)||engine?.method!=='component-1h-vs24h-v2'||engine.at!==row.at||!Array.isArray(engine.components)||engine.components.length!==size)return null;
+function componentEvidence(row,basket,allowLegacy=false){
+ const size=fixedPresetSize(row?.method),engine=row?.memeComparison,coverage=row?.coverage;
+ const legacy=allowLegacy&&engine?.method==='component-1h-vs24h-v2';
+ if(size===null||!Number.isFinite(row.at)||(!legacy&&engine?.method!=='component-1h-vs24h-v3')||engine.at!==row.at||!Array.isArray(engine.components)||engine.components.length!==size)return null;
+ if(coverage?.totalTokens!==size||!Number.isInteger(coverage.includedTokens)||coverage.includedTokens<0||coverage.includedTokens>size||coverage.excludedTokens!==size-coverage.includedTokens)return null;
+ // Earlier complete active comparisons have the same denominator. Warming v2
+ // readings diluted existing members and cannot be reused as chart evidence.
+ if(legacy&&(!validMeme(row)||engine.components.some(component=>component?.status!=='active')))return null;
  const ids=engine.components.map(component=>component?.id);
  if(ids.some(id=>typeof id!=='string'||!id)||new Set(ids).size!==size)return null;
  if(basket!==undefined&&(!Array.isArray(basket)||basket.length!==size||new Set(basket.map(basketId)).size!==size||basket.some((member,index)=>ids[index]!==basketId(member))))return null;
- let active=0,warming=0,awaiting=0,delta=0,current=0;
+ const excluded=component=>['warming','pending'].includes(component?.status);
+ const denominator=engine.components.filter(component=>!excluded(component)).length;
+ if(!legacy&&engine.denominator!==denominator)return null;
+ let active=0,warming=0,awaiting=0,delta=0,current=0,qualified=0;
  for(const component of engine.components){
-  if(!close(component.weight,1/size)||!validReturn(component.currentReturn)||!Number.isFinite(component.currentObservedAt)||component.currentObservedAt<=0||row.at<component.currentObservedAt||row.at-component.currentObservedAt>=15*60000)return null;
+  if(!close(component.weight,excluded(component)||!denominator?0:1/denominator))return null;
   if(!['existing','added'].includes(component.kind)||component.kind==='existing'&&component.addedAt!==null||component.kind==='added'&&(!Number.isFinite(component.addedAt)||component.addedAt<=0||component.addedAt>row.at))return null;
+  const currentEligible=legacy||component.currentEligible;
+  if(!legacy&&typeof currentEligible!=='boolean')return null;
+  if(currentEligible){
+   if(!validReturn(component.currentReturn)||!Number.isFinite(component.currentObservedAt)||component.currentObservedAt<=0||row.at<component.currentObservedAt||row.at-component.currentObservedAt>=15*60000)return null;
+   qualified++;current+=component.currentReturn;
+  }else{
+   if(!excluded(component)||component.currentReturn!==null&&!Number.isFinite(component.currentReturn)||component.currentObservedAt!==null&&!Number.isFinite(component.currentObservedAt))return null;
+  }
   if(component.status==='active'){
    active++;
-   if(!validReturn(component.baselineReturn)||!['saved-h1','gecko-5m-close'].includes(component.baselineSource)||!Number.isFinite(component.baselineObservedAt)||Math.abs(component.baselineObservedAt-(component.currentObservedAt-24*HOUR))>10*60000||component.baselineWindowEndAt!==component.baselineObservedAt||component.baselineWindowStartAt!==component.baselineWindowEndAt-HOUR||!close(component.delta,component.currentReturn-component.baselineReturn))return null;
+   if(!currentEligible||!validReturn(component.baselineReturn)||!['saved-h1','gecko-5m-close'].includes(component.baselineSource)||!Number.isFinite(component.baselineObservedAt)||Math.abs(component.baselineObservedAt-(component.currentObservedAt-24*HOUR))>10*60000||component.baselineWindowEndAt!==component.baselineObservedAt||component.baselineWindowStartAt!==component.baselineWindowEndAt-HOUR||!close(component.delta,component.currentReturn-component.baselineReturn))return null;
   }else if(component.status==='warming'){
    warming++;
-   if(component.kind!=='added'||component.delta!==0||!validReturn(component.initialReturn)||component.baselineReturn!==component.initialReturn||component.baselineSource!=='initial-reference'||!Number.isFinite(component.firstAt)||component.firstAt<component.addedAt||!Number.isFinite(component.firstObservedAt)||component.firstObservedAt<=0||component.firstAt<component.firstObservedAt||component.firstAt-component.firstObservedAt>=15*60000||component.baselineObservedAt!==component.firstObservedAt||component.warmUntil!==component.firstAt+24*HOUR||row.at<component.firstAt||row.at>=component.warmUntil||component.baselineWindowStartAt!=null||component.baselineWindowEndAt!=null)return null;
+   if(component.kind!=='added'||component.reason!=='neutral_until_24h'||component.delta!==0||!validReturn(component.initialReturn)||component.baselineReturn!==component.initialReturn||component.baselineSource!=='initial-reference'||!Number.isFinite(component.firstAt)||component.firstAt<component.addedAt||!Number.isFinite(component.firstObservedAt)||component.firstObservedAt<=0||component.firstAt<component.firstObservedAt||component.firstAt-component.firstObservedAt>=15*60000||component.baselineObservedAt!==component.firstObservedAt||component.warmUntil!==component.firstAt+24*HOUR||row.at<component.firstAt||row.at>=component.warmUntil||component.baselineWindowStartAt!=null||component.baselineWindowEndAt!=null)return null;
+  }else if(component.status==='pending'){
+   warming++;
+   if(component.kind!=='added'||currentEligible||component.delta!==0||component.reason!=='awaiting_initial_quote'||['initialReturn','firstAt','firstObservedAt','warmUntil','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt'].some(key=>component[key]!==null))return null;
   }else if(component.status==='awaiting_history'){
    awaiting++;
-   if(component.kind!=='existing'||component.reason!=='missing_24h_baseline'||component.warmUntil!==null||['delta','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt'].some(key=>component[key]!==null))return null;
+   if(!currentEligible||component.kind!=='existing'||component.reason!=='missing_24h_baseline'||component.warmUntil!==null||['delta','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt'].some(key=>component[key]!==null))return null;
   }else return null;
   if(component.status!=='awaiting_history')delta+=component.delta;
-  current+=component.currentReturn;
  }
- if(engine.matchedMembers!==active||engine.warmingMembers!==warming||engine.awaitingHistoryMembers!==awaiting||engine.unavailableMembers!==0||active+warming+awaiting!==size||!close(current/size,row.meme)||(awaiting?engine.value!==null:!close(delta/size,engine.value)))return null;
+ if(qualified!==coverage.includedTokens||(qualified===size?(!validMeme(row)||!close(current/size,row.meme)):row.meme!==null))return null;
+ if(engine.matchedMembers!==active||engine.warmingMembers!==warming||engine.awaitingHistoryMembers!==awaiting||engine.unavailableMembers!==0||active+warming+awaiting!==size||(awaiting||!denominator?engine.value!==null:!close(delta/denominator,engine.value)))return null;
  return engine;
 }
-export function componentComparison(row,basket){
- const engine=componentEvidence(row,basket);
+export function componentComparison(row,basket,allowLegacy=false){
+ const engine=componentEvidence(row,basket,allowLegacy);
  return Number.isFinite(engine?.value)?engine:null;
-}
-export function incumbentCurrentReading(row,basket){
- const engine=componentEvidence(row,basket),fallback=row?.memeFallback,size=fixedPresetSize(row?.method);
- if(!engine||!engine.awaitingHistoryMembers||fallback?.method!=='incumbent-current-1h-v1'||fallback.denominator!==size||fallback.excludedWarming!==engine.warmingMembers||!validReturn(fallback.value)||!Array.isArray(fallback.memberIds))return null;
- const members=engine.components.filter(component=>component.status!=='warming');
- if(fallback.memberIds.length!==members.length||fallback.memberIds.some((id,index)=>id!==members[index].id)||!close(fallback.value,members.reduce((sum,component)=>sum+component.currentReturn,0)/size))return null;
- return fallback;
 }
 // Match the same observation time yesterday; allow legacy five-minute samples and collector jitter.
 export function compareReading(rows,current=rows?.at(-1)){
@@ -68,7 +80,7 @@ export function memeComparisons(rows,method,basket){
   if(!Number.isFinite(row.at))continue;
   let point;
   if(hasComponentComparison(row)){
-   const engine=componentComparison(row,row.method===method?basket:undefined);
+   const engine=componentComparison(row,row.method===method?basket:undefined,true);
    if(!engine)continue;
    const benchmarks=compareReading(rows,row);
    point={at:row.at,meme:engine.value,altDelta:benchmarks?.altDelta??null,btcDelta:benchmarks?.btcDelta??null};
@@ -97,7 +109,7 @@ export function inputQualityNote(report){
  const count=quality?.extremeReturnCount;
  if(!(Number.isInteger(count)&&count>0)&&!(Number.isFinite(last?.meme)&&Math.abs(last.meme)>10000))return '';
  const size=fixedPresetSize(report?.method);
- return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} ${size!==null?`These observations are unavailable for the Meme calculation. The complete reading is withheld until all ${size} preset members have fresh qualified quotes. Raw returns are retained below; they are not capped or replaced with zero.`:'The legacy Meme calculation is withheld. Only the manually managed fixed preset is used for new Meme readings.'}</p>`;
+ return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} ${size!==null?`These observations are unavailable for the Meme calculation. ${hasComponentComparison(last)?'The complete raw 1H average':'The complete reading'} is withheld until all ${size} preset members have fresh qualified quotes. Raw returns are retained below; they are not capped or replaced with zero.`:'The legacy Meme calculation is withheld. Only the manually managed fixed preset is used for new Meme readings.'}</p>`;
 }
 function marketState(report,failed,now=Date.now()){
   const last=report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||!Number.isFinite(last.at)||now<last.at||now-last.at>75*60000;
@@ -105,7 +117,6 @@ function marketState(report,failed,now=Date.now()){
   const memeReady=Boolean(ready)&&validMeme(last);
   const usesComponents=hasComponentComparison(last);
   const components=ready&&usesComponents?componentEvidence(last,report?.basket):null;
-  const fallback=ready&&usesComponents?incumbentCurrentReading(last,report?.basket):null;
   const memeHistory=(report?.readings||[]).filter(row=>validMeme(row)&&row.method===last?.method);
   const comparison=memeReady&&!usesComponents?compareReading(memeHistory,last):null;
   const baseline=comparison?memeHistory.find(row=>row.at===comparison.baselineAt):null;
@@ -115,13 +126,13 @@ function marketState(report,failed,now=Date.now()){
   const benchmarkComparison=benchmarkCurrent?compareReading(report.readings,benchmarkCurrent):null;
   const benchmarkBaseline=benchmarkComparison?report.readings.find(row=>row.at===benchmarkComparison.baselineAt):null;
   const meme=usesComponents?components?.value:memeReady&&validMeme(baseline)?comparison?.meme:null,alt=benchmarkComparison?.altDelta,btc=benchmarkComparison?.btcDelta;
-  const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):!isFixedMethod(report.method)?'Awaiting fixed preset calculation':!memeReady?'Incomplete preset data':usesComponents&&(!components||components.awaitingHistoryMembers&&!fallback)?'Component comparison unavailable':fallback?'Current 1H active · 24H baseline forming':components?.warmingMembers?`${components.warmingMembers} new member${components.warmingMembers===1?'':'s'} warming`:!Number.isFinite(meme)?'Awaiting fixed preset 24H baseline':report.error||!Number.isFinite(btc)?'Partial update':'Live';
-  return {last,ready,memeReady,comparison,baseline,status,meme,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components,fallback};
+  const pending=components?.components.filter(component=>component.status==='pending').length||0,warming=(components?.warmingMembers||0)-pending;
+  const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):!isFixedMethod(report.method)?'Awaiting fixed preset calculation':usesComponents&&!components?'Component comparison unavailable':!usesComponents&&!memeReady?'Incomplete preset data':components?.awaitingHistoryMembers?'Recovering 24H history':components?.warmingMembers?[warming?`${warming} new member${warming===1?'':'s'} warming`:'',pending?`${pending} new member${pending===1?'':'s'} awaiting initial quote`:''].filter(Boolean).join(' · '):!Number.isFinite(meme)?'Awaiting fixed preset 24H baseline':report.error||!Number.isFinite(btc)?'Partial update':'Live';
+  return {last,ready,memeReady,comparison,baseline,status,meme,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components};
 }
 
 function memeDisplay(state){
- const current=Boolean(state.fallback)||!state.usesComponents&&!Number.isFinite(state.meme)&&state.memeReady;
- return {current,value:state.fallback?state.fallback.value:current?state.last.meme:state.meme,unit:current?'%':' pp'};
+ return {value:state.meme,unit:' pp'};
 }
 
 // Keep extreme provider returns readable in the header; details retain the full value.
@@ -135,38 +146,40 @@ function headerPercent(value,unit){
 
 function marketOverview(state,mode){
  const {alt,btc}=state,meme=memeDisplay(state);
- return `<span class="market-overview-title">${meme.current?'MEME CURRENT 1H · ALT/BTC VS 24H AGO':'1H DELTA · VS 24H AGO'} <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme${meme.current?' · 1H':''} <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Btc <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span></span>`;
+ return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Btc <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span></span>`;
 }
 
 function memberComparisonDetails(component,validated){
  if(!component||typeof component!=='object')return '';
  if(!validated)return `<small>24H comparison unavailable${component.status==='unavailable'&&component.reason?`: ${esc(String(component.reason).replaceAll('_',' '))}`:''}.</small>`;
- if(component.status==='awaiting_history')return '<small>Current 1H active · 24H baseline forming. Existing member; no new-member warmup.</small>';
+ if(component.status==='awaiting_history')return '<small>Recovering 24H history. Existing member; no new-member warmup.</small>';
+ if(component.status==='pending')return '<small>Awaiting initial qualified quote · zero comparison weight. The 24H warmup has not started.</small>';
  if(component.status==='warming')return `<small>24H comparison: warming · neutral +0.00 pp. Initial reference copied from the first observed 1H return ${pct(component.initialReturn)} at ${esc(when(component.firstObservedAt))}; this is not a historical baseline. Neutral until ${esc(when(component.warmUntil))} (24H warmup).</small>`;
  const source=component.baselineSource==='saved-h1'?'saved 1H observation':'Gecko 5-minute closes';
  return `<small>24H comparison: ${pct(component.delta,' pp')} · baseline ${pct(component.baselineReturn)} observed ${esc(when(component.baselineObservedAt))} · source: ${source}. Historical 1H window ${esc(when(component.baselineWindowStartAt))}–${esc(when(component.baselineWindowEndAt))}.</small>`;
 }
 
 function marketDetails(report,state,modeDetails){
- const {last,ready,memeReady,comparison,baseline,status,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components,fallback}=state;
+ const {last,ready,memeReady,comparison,baseline,status,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components}=state;
  const display=memeDisplay(state);
  const size=fixedPresetSize(report?.method);
  const coverage=last?.coverage||report?.coverage;
  const covered=size!==null&&coverage?.totalTokens===size&&Number.isInteger(coverage?.includedTokens)&&Number.isInteger(coverage?.excludedTokens);
- const coverageText=covered?`${coverage.includedTokens}/${size} fresh qualified; ${coverage.excludedTokens} unavailable${coverage.includedTokens<size?'; complete Meme reading withheld':''}.`:'';
+ const coverageText=covered?`${coverage.includedTokens}/${size} fresh qualified; ${coverage.excludedTokens} unavailable${coverage.includedTokens<size?usesComponents?'; complete raw 1H average withheld':'; complete Meme reading withheld':''}.`:'';
  const presetLabel=size!==null?`Fixed ${size}-coin preset`:'Fixed preset';
  const members=(report?.basket||[]).map(t=>esc(t.symbol)).join(', ');
  const memberWeight=size!==null?1/size:null;
  const componentRows=components?.components||last?.memeComparison?.components;
  const comparisonMembers=new Map((Array.isArray(componentRows)?componentRows:[]).filter(component=>component&&typeof component.id==='string').map(component=>[component.id,component]));
- const componentSummary=usesComponents?components?`<p class="market-input-quality">Per-member comparison: ${components.matchedMembers}/${size} matched historical baselines · ${components.warmingMembers} warming${components.awaitingHistoryMembers?` · ${components.awaitingHistoryMembers} existing awaiting history`:""} · 0 unavailable.</p>${components.warmingMembers?'<p role="status">Warming members: only newly added contracts copy their first observed 1H return and stay neutral until 24H. This reference is not a real historical baseline. Their current quotes must remain fresh and qualified.</p>':''}`:'<p role="status">Component comparison evidence is incomplete or unavailable. Meme is withheld; an available raw 1H average does not replace the comparison.</p>':'';
- return `<p>${presetLabel} · equal weight · hourly · ${display.current?'Meme shows the active current 1H change (%). Alt and BTC show the difference versus their 1H readings 24 hours earlier, in percentage points (pp).':usesComponents?'Meme sums each member’s change in its 1H return versus its own 24H baseline, with neutral warmup only for a newly added member. Values are percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme${display.current?' · current 1H':''} <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ const pendingMembers=components?.components.filter(component=>component.status==='pending').length||0;
+ const componentSummary=usesComponents?components?`<p class="market-input-quality">Per-member comparison: ${components.matchedMembers}/${size} matched historical baselines · ${components.warmingMembers-pendingMembers} warming${pendingMembers?` · ${pendingMembers} awaiting initial quote`:""}${components.awaitingHistoryMembers?` · ${components.awaitingHistoryMembers} existing awaiting history`:""} · 0 unavailable.</p>${components.warmingMembers?'<p role="status">Warming members: only newly added contracts copy their first observed 1H return and stay neutral until 24H. This reference is not a real historical baseline. A pending addition waits for its first qualified quote before its 24H warmup begins. Missing quotes for an excluded addition do not interrupt existing members’ comparisons.</p>':''}`:'<p role="status">Component comparison evidence is incomplete or unavailable. Meme is withheld; an available raw 1H average does not replace the comparison.</p>':'';
+ return `<p>${presetLabel} · equal weight · hourly · ${usesComponents?'Meme averages each active member’s change in its 1H return versus its own 24H baseline. Newly added warming members have no influence until activation. Values are percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
  ${componentSummary}
  ${covered?`<p class="market-input-quality">${esc(coverageText)} ${Object.entries(coverage.exclusions||{}).map(([reason,count])=>`${esc(exclusionLabel(reason))}: ${esc(count)}`).join(' · ')}</p>`:''}
- ${display.current?fallback?`<p role="status">24H comparison · Meme —. Existing members remain active while their real historical baselines form. The header shows their current 1H contributions divided by all ${size} preset members${fallback.excludedWarming?`; ${fallback.excludedWarming} newly added warming member${fallback.excludedWarming===1?' contributes':'s contribute'} zero`:''}. It switches to the 24H comparison when matching history is available.</p>`:'<p role="status">24H comparison · Meme —. Awaiting a matching reading from the same fixed preset 24 hours earlier. The header shows the available current 1H change and will switch to the comparison automatically.</p>':''}
+ ${memeReady&&!Number.isFinite(display.value)?'<p role="status">24H comparison · Meme —. Recovering matching historical observations. The current 1H average remains separate from the 24H comparison.</p>':''}
  <p>Current 1H: Meme ${pct(memeReady?last.meme:null)} · Alt ${pct(benchmarkCurrent?.altDelta)} · BTC ${pct(benchmarkCurrent?.btcDelta)}</p>
  ${benchmarkComparison?`<p>Alt/BTC comparison: observed ${esc(when(benchmarkCurrent.at))} · baseline ${esc(when(benchmarkComparison.baselineAt))}. Baseline 1H: Alt ${pct(benchmarkBaseline?.altDelta)} · BTC ${pct(benchmarkBaseline?.btcDelta)}. Only matching observations within the 75-minute freshness limit are used.</p>`:''}
- ${usesComponents?'<p>Meme 24H baselines: each exact contract uses its own observation; see member details below.</p>':`<p>Meme 1H reading 24H ago: ${validMeme(baseline)&&baseline.method===last?.method?`${esc(when(baseline.at))} · ${pct(baseline.meme)}`:'Awaiting matching history'}</p>`}<div class="market-chart">${chart(memeComparisons(report?.readings,report?.method,report?.basket),' pp')}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span><span><i class="market-btc-key"></i>BTC · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${inputQualityNote(report)}${report?.error?`<p role="status">${esc(report.error)}</p>`:''}${modeDetails}<details class="market-method"><summary>Basket · ${report?.basket?.length||0} preset members${covered?` · ${coverage.includedTokens} fresh qualified`:''}</summary><p>Meme: the manually managed fixed preset${members?` is ${members}`:' awaits its member list'}. ${size!==null?`Each member carries 1/${size} weight (${(100/size).toFixed(2)}%). ${usesComponents?'The separate current 1H reading':'The reading'} is the arithmetic average of all ${size} one-hour USD price changes`:'The reading is the arithmetic average of every preset member’s one-hour USD price change'}, and is published only when every member has a fresh qualified quote. Missing or invalid observations withhold the complete Meme reading; the remaining members are never reweighted and missing returns are never replaced with zero. The exact selected pool must have existed for at least one hour at the quote's original observation time. Missing pool identity or age, incomplete launch windows, and unverified returns above 10,000% make the quote unavailable, with raw observations retained below. Membership never follows trending rankings; it changes only through Admin. ${usesComponents?'Each exact contract keeps its own actual 24H baseline across basket edits. Existing members continue with their current 1H contributions while real 24H history forms; they do not restart a warmup. The Meme comparison is the sum of its member deltas divided by the total member count. Only a genuinely added contract without a historical baseline copies its first observed return as an initial reference and contributes a neutral 0.00 pp for 24H. A warming addition contributes zero to both the comparison and any current 1H fallback. After its warmup, a missing actual baseline withholds Meme. The copied reference is never represented as a historical price.':'Only identical membership can share a 24H baseline. Only readings from the identical preset are compared; older calculation methods remain in history but are withheld from Meme comparisons.'}</p>
+ ${usesComponents?'<p>Meme 24H baselines: each exact contract uses its own observation; see member details below.</p>':`<p>Meme 1H reading 24H ago: ${validMeme(baseline)&&baseline.method===last?.method?`${esc(when(baseline.at))} · ${pct(baseline.meme)}`:'Awaiting matching history'}</p>`}<div class="market-chart">${chart(memeComparisons(report?.readings,report?.method,report?.basket),' pp')}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span><span><i class="market-btc-key"></i>BTC · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${inputQualityNote(report)}${report?.error?`<p role="status">${esc(report.error)}</p>`:''}${modeDetails}<details class="market-method"><summary>Basket · ${report?.basket?.length||0} preset members${covered?` · ${coverage.includedTokens} fresh qualified`:''}</summary><p>Meme: the manually managed fixed preset${members?` is ${members}`:' awaits its member list'}. ${size!==null?`Each member carries 1/${size} weight (${(100/size).toFixed(2)}%). ${usesComponents?'The separate current 1H reading':'The reading'} is the arithmetic average of all ${size} one-hour USD price changes`:'The reading is the arithmetic average of every preset member’s one-hour USD price change'}, and is published only when every member has a fresh qualified quote. Missing or invalid observations withhold the complete ${usesComponents?'raw 1H average':'Meme reading'}; the remaining quote returns are never reweighted and missing returns are never replaced with zero. The exact selected pool must have existed for at least one hour at the quote's original observation time. Missing pool identity or age, incomplete launch windows, and unverified returns above 10,000% make the quote unavailable, with raw observations retained below. Membership never follows trending rankings; it changes only through Admin. ${usesComponents?'Each exact contract keeps its own actual 24H baseline across basket edits. Existing members retain their actual recorded comparisons across basket edits and do not restart a warmup. The Meme comparison averages the deltas of the contributing members; newly added warming contracts are excluded from its denominator until activation. Only a genuinely added contract without a historical baseline copies its first observed return as an initial reference and contributes a neutral 0.00 pp for 24H. A warming addition has zero comparison weight and cannot dilute the existing members. Current 1H readings remain separate from the 24H comparison. After its warmup, a missing actual baseline withholds Meme. The copied reference is never represented as a historical price.':'Only identical membership can share a 24H baseline. Only readings from the identical preset are compared; older calculation methods remain in history but are withheld from Meme comparisons.'}</p>
  <p>Alt: market-cap-weighted one-hour change of the 25 largest eligible altcoins in CoinLore's top-50 feed, excluding BTC, ETH, stablecoins, and wrapped assets. The Alt group is selected from each fresh feed and can change. Readings are sampled hourly. The chart shows changes in 1H readings versus 24 hours earlier, one point per hour. A historical reading within 10 minutes of the target is required; missing comparisons stay unavailable.</p>
  <p>BTC: Bitcoin's one-hour USD price change from the same CoinLore feed, with no additional data request. Missing BTC changes display as an em dash; older readings are not backfilled.</p>
  <p>Preset selected ${esc(when(report?.rebalancedAt))} · oldest market observation ${esc(when(report?.marketObservedAt))}</p><ol>${(report?.basket||[]).map(t=>`<li><strong>${esc(t.symbol)}</strong> · ${esc(t.chain)} · raw 1H ${pct(t.priceChange1h)} · ${Number.isFinite(memberWeight)?(100*memberWeight).toFixed(2):'—'}% weight · ${t.eligible===true?'Fresh qualified':`Unavailable: ${esc(exclusionLabel(t.exclusionReason))}`} · ${esc(t.priceSource)}<small>${esc(t.address)} · pool ${esc(t.pool||'unknown')} · created ${esc(when(t.poolCreatedAt))}</small>${usesComponents?memberComparisonDetails(comparisonMembers.get(basketId(t)),Boolean(components)):''}</li>`).join('')}</ol></details>`;
@@ -187,8 +200,7 @@ export function mountMarket(market,dialog){
   const state=marketState(delta.report,delta.failed);
   const mode=runner.failed?'—':runnerMode(runner.report);
   market.innerHTML=marketOverview(state,mode);
-  const meme=memeDisplay(state);
-  market.setAttribute('aria-label',`${meme.current?`Meme current 1H ${pct(meme.value,meme.unit)}. Meme 24H comparison unavailable. Alt and BTC changes in 1 hour readings versus 24 hours ago.`:`Change in 1 hour readings versus 24 hours ago. Meme ${pct(state.meme,' pp')}.`} Alt ${pct(state.alt,' pp')}, BTC ${pct(state.btc,' pp')}. ${state.status}. Solana Mode ${formatMode(mode)}. Open details`);
+  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. Meme ${pct(state.meme,' pp')}. Alt ${pct(state.alt,' pp')}, BTC ${pct(state.btc,' pp')}. ${state.status}. Solana Mode ${formatMode(mode)}. Open details`);
   body.innerHTML=marketDetails(delta.report,state,runnerDetails(runner.report,runner.failed));
  }
  async function refresh(url,target,valid){

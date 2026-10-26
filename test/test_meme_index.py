@@ -399,7 +399,11 @@ class IndexTests(unittest.TestCase):
             result=modal_app.collect_meme_index.local()
         self.assertEqual(result['constituents'],11)
         self.assertIs(collector.call_args.args[1].quotes,source.remote)
-        self.assertIs(collector.call_args.args[1].history,gecko.remote)
+        callback=collector.call_args.args[1].history
+        gecko.remote.return_value=dict(status=200,body={})
+        with patch.object(modal_app,'read_gecko_source',gecko):
+            self.assertEqual(callback('/networks/solana/pools/POOL/ohlcv/minute'),dict(status=200,body={}))
+        gecko.remote.assert_called_once_with('/networks/solana/pools/POOL/ohlcv/minute',workload='background')
         ranked.reload.assert_not_called()
         history.reload.assert_called_once()
         history.commit.assert_called_once()
@@ -460,7 +464,7 @@ class IndexTests(unittest.TestCase):
             calls=len(source.calls)
             changed=collect(path,source,NOW+1)
             self.assertEqual(len(source.calls),calls+2)
-            self.assertEqual(changed['readings'][-1]['memeComparison']['method'],'component-1h-vs24h-v2')
+            self.assertEqual(changed['readings'][-1]['memeComparison']['method'],'component-1h-vs24h-v3')
             self.assertIn('componentBaselines',changed)
             collect(path,source,NOW+2)
             self.assertEqual(len(source.calls),calls+2)
@@ -478,7 +482,7 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(list(collector.call_args.args[1].preset), config['members'])
         self.assertEqual(collector.call_args.kwargs['preset'], config['members'])
 
-    def test_original_eleven_keep_current_return_while_actual_history_forms(self):
+    def test_original_eleven_never_replace_comparison_with_current_return(self):
         report = self.sample()
         reading = report['readings'][-1]
         comparison = reading['memeComparison']
@@ -486,10 +490,9 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(comparison['awaitingHistoryMembers'], 11)
         self.assertIsNone(comparison['value'])
         self.assertEqual(reading['meme'], 6)
-        self.assertEqual(reading['memeFallback'], dict(method='incumbent-current-1h-v1', value=6,
-                         memberIds=[row['id'] for row in report['basket']], denominator=11, excludedWarming=0))
+        self.assertNotIn('memeFallback',reading)
 
-    def test_adding_one_member_keeps_eleven_incumbents_and_excludes_new_price_from_fallback(self):
+    def test_adding_one_member_preserves_existing_history_and_only_new_one_warms(self):
         config = default_config()
         addition = dict(network='solana', contract_address='A'*32, symbol='NEW', name='New member')
         changed_config = revise(config, dict(revision=config['revision'], members=[*config['members'], addition]), NOW+1)
@@ -502,19 +505,18 @@ class IndexTests(unittest.TestCase):
             reading = changed['readings'][-1]
             self.assertEqual(reading['memeComparison']['warmingMembers'], 1)
             self.assertEqual(reading['memeComparison']['awaitingHistoryMembers'], 11)
-            self.assertEqual(reading['memeFallback']['value'], 66/12)
-            self.assertEqual(reading['memeFallback']['denominator'], 12)
-            self.assertEqual(reading['memeFallback']['memberIds'], [row['id'] for row in original['basket']])
-            self.assertEqual(reading['memeFallback']['excludedWarming'], 1)
+            self.assertNotIn('memeFallback',reading)
+            self.assertEqual(reading['memeComparison']['denominator'],11)
+            self.assertEqual(reading['memeComparison']['components'][-1]['weight'],0)
             self.assertAlmostEqual(reading['meme'], 166/12)
             source.advance(NOW+HOUR)
             source.pairs[-1]['priceChange']['h1'] = 900
             later = collect(path, source, NOW+HOUR, preset=changed_config['members'], admissions=changed_config['admissions'])
-            self.assertEqual(later['readings'][-1]['memeFallback']['value'], 66/12)
+            self.assertNotIn('memeFallback',later['readings'][-1])
             self.assertAlmostEqual(later['readings'][-1]['meme'], 966/12)
             self.assertEqual(later['readings'][-1]['memeComparison']['components'][-1]['firstAt'], NOW+1)
 
-    def test_new_unavailable_quote_withholds_fallback_without_reweighting(self):
+    def test_new_unavailable_quote_is_pending_without_blocking_incumbent_comparison(self):
         config = default_config()
         addition = dict(network='solana', contract_address='A'*32, symbol='NEW', name='New member')
         added = revise(config, dict(revision=config['revision'], members=[*config['members'], addition]), NOW)
@@ -525,7 +527,7 @@ class IndexTests(unittest.TestCase):
                              preset=added['members'], admissions=added['admissions'])
         reading = report['readings'][-1]
         self.assertIsNone(reading['meme'])
-        self.assertIsNone(reading['memeFallback'])
+        self.assertNotIn('memeFallback',reading)
         self.assertEqual(reading['coverage']['includedTokens'], 11)
         self.assertEqual([row['weight'] for row in report['basket']], [1/12]*12)
 
@@ -545,9 +547,70 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(comparison['matchedMembers'], 11)
         self.assertEqual(comparison['warmingMembers'], 1)
         self.assertEqual(comparison['awaitingHistoryMembers'], 0)
-        self.assertAlmostEqual(comparison['value'], 22/12)
-        self.assertIsNone(report['readings'][-1]['memeFallback'])
+        self.assertAlmostEqual(comparison['value'], 2)
+        self.assertEqual(comparison['denominator'],11)
+        self.assertEqual([row['weight'] for row in comparison['components']], [1/11]*11+[0])
+        self.assertNotIn('memeFallback',report['readings'][-1])
         self.assertEqual(report['readings'][0], old['readings'][0])
+
+    def test_pending_and_missing_warming_quote_do_not_interrupt_eleven_real_comparisons(self):
+        config=default_config()
+        addition=dict(network='solana',contract_address='A'*32,symbol='NEW',name='New')
+        added=revise(config,dict(revision=config['revision'],members=[*config['members'],addition]),NOW)
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'index.json'
+            original=collect(path,FakeSources(now=NOW-24*HOUR),NOW-24*HOUR)
+            source=FakeSources(preset=added['members'])
+            new_pair=source.pairs.pop()
+            for row in source.pairs:
+                row['priceChange']['h1']+=2
+            pending=collect(path,source,NOW,preset=added['members'],admissions=added['admissions'])
+            comparison=pending['readings'][-1]['memeComparison']
+            self.assertIsNone(pending['readings'][-1]['meme'])
+            self.assertEqual(comparison['value'],2)
+            self.assertEqual(comparison['denominator'],11)
+            self.assertEqual(comparison['components'][-1]['status'],'pending')
+            self.assertEqual(comparison['components'][-1]['weight'],0)
+            source.pairs.append(new_pair);source.advance(NOW+60_000)
+            warming=collect(path,source,NOW+60_000,preset=added['members'],admissions=added['admissions'])
+            first_at=warming['basket'][-1]['comparison']['firstAt']
+            # Cross the next collection hour, but keep the original eleven's
+            # actual quote times so their genuine yesterday baselines still match.
+            source.pairs.pop();source.now=NOW+HOUR
+            for row in source.pairs:
+                row['_sourceObservedAt']=NOW+HOUR-60_000
+            # Supply genuine saved observations for that later target as well.
+            old=copy.deepcopy(original['basketHistory'][0])
+            old['at']+=HOUR
+            for row in old['tokens']:
+                row['observedAt']+=HOUR
+            warming['basketHistory'].append(old)
+            path.write_text(json.dumps(warming),encoding='utf-8')
+            missing=collect(path,source,NOW+HOUR,preset=added['members'],admissions=added['admissions'])
+            comparison=missing['readings'][-1]['memeComparison']
+            self.assertEqual(comparison['value'],2)
+            self.assertEqual(comparison['components'][-1]['status'],'warming')
+            self.assertFalse(comparison['components'][-1]['currentEligible'])
+            self.assertEqual(comparison['components'][-1]['firstAt'],first_at)
+            self.assertIsNone(missing['readings'][-1]['meme'])
+
+    def test_deferred_history_retries_same_hour_after_five_minutes(self):
+        base=NOW//HOUR*HOUR+60_000
+        source=FakeSources(now=base)
+        source.history=Mock(return_value=dict(status=503,deferred=True,retryAfter=8))
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'index.json'
+            first=collect(path,source,base)
+            self.assertEqual(source.history.call_count,11)
+            calls=len(source.calls)
+            collect(path,source,base+4*60_000)
+            self.assertEqual(len(source.calls),calls)
+            self.assertEqual(source.history.call_count,11)
+            source.advance(base+5*60_000)
+            retried=collect(path,source,base+5*60_000)
+            self.assertEqual(source.history.call_count,22)
+            self.assertEqual(retried['readings'][0],first['readings'][0])
+            self.assertEqual(len(retried['readings']),2)
 
     def test_v1_false_warmup_is_repaired_same_hour_without_altering_old_reading(self):
         source = FakeSources()
@@ -567,9 +630,9 @@ class IndexTests(unittest.TestCase):
             repaired = collect(path, source, NOW+1)
             reading = repaired['readings'][-1]
             self.assertEqual(repaired['readings'][0], original)
-            self.assertEqual(reading['memeComparison']['method'], 'component-1h-vs24h-v2')
+            self.assertEqual(reading['memeComparison']['method'], 'component-1h-vs24h-v3')
             self.assertEqual(reading['memeComparison']['warmingMembers'], 0)
-            self.assertEqual(reading['memeFallback']['value'], 6)
+            self.assertNotIn('memeFallback',reading)
             self.assertTrue(all(entry['initialReturn'] == 9 for entry in repaired['componentBaselines']['members'].values()))
 
     def test_same_hour_readdition_to_same_roster_rechecks_new_admission(self):
@@ -607,7 +670,7 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(reading['memeComparison']['awaitingHistoryMembers'], 1)
         self.assertEqual(reading['memeComparison']['unavailableMembers'], 1)
         self.assertIsNone(reading['memeComparison']['value'])
-        self.assertIsNone(reading['memeFallback'])
+        self.assertNotIn('memeFallback',reading)
 
     def test_invalid_saved_admissions_do_not_read_sources_or_publish_a_reading(self):
         source = FakeSources()

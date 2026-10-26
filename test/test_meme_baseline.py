@@ -39,7 +39,7 @@ class BaselineTests(unittest.TestCase):
         component=first['components'][0]
         self.assertEqual(first['method'],METHOD)
         self.assertEqual(first['at'],NOW)
-        self.assertEqual(first['value'],0)
+        self.assertIsNone(first['value'])
         self.assertEqual(component['status'],'warming')
         self.assertEqual(component['initialReturn'],8)
         self.assertEqual(component['baselineReturn'],8)
@@ -55,7 +55,7 @@ class BaselineTests(unittest.TestCase):
                                    dict(componentBaselines=ledger),NOW+DAY-1)
         self.assertEqual(later['components'][0]['initialReturn'],8)
         self.assertEqual(later['components'][0]['status'],'warming')
-        self.assertEqual(later['value'],0)
+        self.assertIsNone(later['value'])
 
     def test_at_day_boundary_real_first_sample_becomes_historical_baseline(self):
         first,ledger=compare_components([member(change=8)],{},NOW)
@@ -76,9 +76,10 @@ class BaselineTests(unittest.TestCase):
         report=dict(legacyMethods={'old-roster':history_report(old_a,old_b)})
         added=member('C'*32,change=100)
         result,_=compare_components([a,b,added],report,NOW,prior_ids={a['id'],b['id']})
-        self.assertAlmostEqual(result['value'],(5-3+0)/3)
+        self.assertAlmostEqual(result['value'],(5-3)/2)
         self.assertEqual([row['status'] for row in result['components']],['active','active','warming'])
-        self.assertEqual([row['weight'] for row in result['components']],[1/3]*3)
+        self.assertEqual([row['weight'] for row in result['components']],[.5,.5,0])
+        self.assertEqual(result['denominator'],2)
         removed,_=compare_components([a],report,NOW,prior_ids={a['id'],b['id']})
         self.assertEqual(removed['value'],5)
         self.assertEqual(removed['components'][0]['weight'],1)
@@ -91,7 +92,22 @@ class BaselineTests(unittest.TestCase):
         report=history_report(wrong,stale,future)
         result,_=compare_components([current],report,NOW)
         self.assertEqual(result['components'][0]['status'],'warming')
-        self.assertEqual(result['value'],0)
+        self.assertIsNone(result['value'])
+
+    def test_new_member_joins_equal_weight_only_after_full_day(self):
+        a,b,new=member(change=7),member('B'*32,change=-4),member('C'*32,change=100)
+        report=history_report(member(change=2,now=NOW-DAY),member('B'*32,change=-1,now=NOW-DAY))
+        first,ledger=compare_components([a,b,new],report,NOW,prior_ids={a['id'],b['id']})
+        self.assertEqual(first['value'],1)
+        self.assertEqual(first['denominator'],2)
+        later=[member(change=9,now=NOW+DAY),member('B'*32,change=-2,now=NOW+DAY),
+               member('C'*32,change=104,now=NOW+DAY)]
+        result,_=compare_components(later,dict(componentBaselines=ledger),NOW+DAY)
+        self.assertEqual(result['denominator'],3)
+        self.assertEqual(result['warmingMembers'],0)
+        self.assertEqual(result['matchedMembers'],3)
+        self.assertEqual([row['weight'] for row in result['components']],[1/3]*3)
+        self.assertAlmostEqual(result['value'],8/3)
 
     def test_matured_component_without_matching_actual_history_is_unavailable(self):
         _,ledger=compare_components([member()],{},NOW)
@@ -105,9 +121,10 @@ class BaselineTests(unittest.TestCase):
         missing=member('B'*32,change=None,eligible=False,exclusionReason='missing_return')
         result,ledger=compare_components([member(),missing],{},NOW)
         self.assertIsNone(result['value'])
-        self.assertEqual(result['warmingMembers'],1)
-        self.assertEqual(result['unavailableMembers'],1)
-        self.assertEqual([row['weight'] for row in result['components']],[.5,.5])
+        self.assertEqual(result['warmingMembers'],2)
+        self.assertEqual(result['unavailableMembers'],0)
+        self.assertEqual(result['components'][1]['status'],'pending')
+        self.assertEqual([row['weight'] for row in result['components']],[0,0])
         self.assertNotIn('firstAt',ledger['members'][missing['id']])
 
     def test_recovery_is_one_exact_token_usd_bounded_request_covering_next_day(self):
@@ -123,6 +140,7 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(params['currency'],['usd'])
         self.assertEqual(params['aggregate'],['5'])
         self.assertEqual(params['limit'],['302'])
+        self.assertEqual(params['include_empty_intervals'],['true'])
         self.assertEqual(fetch.call_args.kwargs,dict(workload='background'))
         baseline=result['components'][0]
         self.assertLessEqual(abs(baseline['baselineObservedAt']-(row['observedAt']-DAY)),10*MINUTE)
@@ -151,7 +169,7 @@ class BaselineTests(unittest.TestCase):
         row=member(poolCreatedAt=NOW-2*HOUR)
         result,_=compare_components([row],{},NOW,history=Mock(return_value=candles(row)))
         self.assertEqual(result['components'][0]['status'],'warming')
-        self.assertEqual(result['value'],0)
+        self.assertIsNone(result['value'])
         # Recent windows are real, but cannot stand in for yesterday's return.
         self.assertGreater(len(recover(row,Mock(return_value=candles(row)),NOW)),0)
 
@@ -180,19 +198,41 @@ class BaselineTests(unittest.TestCase):
                 self.assertTrue(fetch.call_args.args[0].startswith('/networks/'+provider+'/'))
                 self.assertEqual(parse_qs(urlsplit(fetch.call_args.args[0]).query)['token'],[row['address']])
 
-    def test_two_recoveries_per_pass_and_never_attempted_members_get_next_turn(self):
-        rows=[member(char*32) for char in 'ABC']
-        fetch=Mock(side_effect=ValueError('deferred'))
-        first,ledger=compare_components(copy.deepcopy(rows),{},NOW,history=fetch)
-        self.assertEqual(fetch.call_count,2)
-        self.assertEqual(first['warmingMembers'],3)
-        self.assertEqual(first['value'],0)
-        later=NOW+HOUR
-        fetch.reset_mock()
-        newer=[member(char*32,now=later) for char in 'ABC']
-        compare_components(newer,dict(componentBaselines=ledger),later,history=fetch)
-        self.assertEqual(fetch.call_count,2)
-        self.assertIn('C'*32,fetch.call_args_list[0].args[0])
+    def test_all_incumbents_get_history_attempt_without_waiting_many_hours(self):
+        rows=[member(char*32) for char in 'ABCDEFGHIJK']
+        admissions={row['id']:dict(kind='existing',addedAt=None) for row in rows}
+        fetch=Mock(side_effect=lambda path,**kwargs:candles(next(row for row in rows if row['pool'] in path)))
+        result,ledger=compare_components(copy.deepcopy(rows),{},NOW,history=fetch,admissions=admissions)
+        self.assertEqual(fetch.call_count,11)
+        self.assertEqual(result['matchedMembers'],11)
+        self.assertEqual(result['warmingMembers'],0)
+        self.assertIsNotNone(result['value'])
+        self.assertEqual(result['denominator'],11)
+        self.assertTrue(all(row['baselineSource']=='gecko-5m-close' for row in result['components']))
+
+    def test_denied_admission_or_provider_cooldown_does_not_lock_member_for_an_hour(self):
+        row=member()
+        for reply in (dict(status=503,deferred=True),dict(status=429,retryAfter=30)):
+            with self.subTest(reply=reply):
+                fetch=Mock(return_value=reply)
+                _,ledger=compare_components([copy.deepcopy(row)],{},NOW,history=fetch)
+                self.assertNotIn('lastAttemptAt',ledger['members'][row['id']])
+                fetch.return_value=candles(row)
+                result,_=compare_components([copy.deepcopy(row)],dict(componentBaselines=ledger),NOW,history=fetch)
+                self.assertEqual(fetch.call_count,2)
+                self.assertEqual(result['matchedMembers'],1)
+
+    def test_old_failed_admission_throttle_is_removed_but_observations_are_retained(self):
+        row=member()
+        _,ledger=compare_components([copy.deepcopy(row)],{},NOW)
+        ledger['version']=2
+        ledger['members'][row['id']]['lastAttemptAt']=NOW
+        fetch=Mock(return_value=candles(row))
+        result,new_ledger=compare_components([copy.deepcopy(row)],dict(componentBaselines=ledger),NOW,history=fetch)
+        self.assertEqual(fetch.call_count,1)
+        self.assertEqual(result['matchedMembers'],1)
+        self.assertEqual(new_ledger['version'],3)
+        self.assertIn(ledger['members'][row['id']]['observations'][0],new_ledger['members'][row['id']]['observations'])
 
     def test_slow_historical_recovery_rechecks_source_freshness_at_completion(self):
         row=member(observedAt=NOW-899_999)
@@ -261,7 +301,7 @@ class BaselineTests(unittest.TestCase):
         missing = member(change=None, now=NOW+HOUR, eligible=False, exclusionReason='missing_return')
         unavailable, ledger = compare_components([missing], dict(componentBaselines=ledger), NOW+HOUR,
                             admissions=admissions, prior_ids={row['id']})
-        self.assertEqual(unavailable['components'][0]['status'], 'unavailable')
+        self.assertEqual(unavailable['components'][0]['status'], 'warming')
         recovered, _ = compare_components([member(change=900, now=NOW+2*HOUR)],
                          dict(componentBaselines=ledger), NOW+2*HOUR,
                          admissions=admissions, prior_ids={row['id']})
@@ -270,7 +310,7 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(component['firstAt'], NOW)
         self.assertEqual(component['warmUntil'], NOW+DAY)
         self.assertEqual(component['initialReturn'], 8)
-        self.assertEqual(recovered['value'], 0)
+        self.assertIsNone(recovered['value'])
 
     def test_invalid_or_future_admission_cannot_silently_neutralize_a_member(self):
         row = member()

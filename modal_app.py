@@ -556,20 +556,28 @@ async def update_meme_preset(payload):
     return {'status': 200, 'body': {**saved, 'refreshRequested': refreshing}}
 
 
-@app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
+# Complete readings remain hourly. Deferred historical admission gets another
+# bounded opportunity without restarting an incumbent's comparison history.
+@app.function(schedule=modal.Cron("*/5 * * * *"), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 def collect_meme_index():
     import sys
+    import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.meme_index import Sources, collect
     from worker.meme_preset import read_config
+    from worker.source_stream import background_gecko_history
     config = read_config(meme_preset_registry.get('active', None))
     history_volume.reload()
+    history_deadline = time.monotonic()+260
+    def history(path, workload='background'):
+        return background_gecko_history(
+            lambda: read_gecko_source.remote(path, workload=workload), history_deadline)
     try:
         report = collect("/history/meme-index.json",
-            Sources(quotes=read_market_source.remote, history=read_gecko_source.remote,
+            Sources(quotes=read_market_source.remote, history=history,
                     preset=config['members']), preset=config['members'], admissions=config['admissions'])
     finally:
         history_volume.commit()

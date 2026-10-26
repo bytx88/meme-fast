@@ -7,8 +7,12 @@ HOUR = 3_600_000
 DAY = 24*HOUR
 MINUTE = 60_000
 MATCH_TOLERANCE = 10*MINUTE
-METHOD = 'component-1h-vs24h-v2'
-MAX_RECOVERIES = 2
+METHOD = 'component-1h-vs24h-v3'
+MAX_RECOVERIES = 30  # The shared source callback bounds admission and total time.
+
+
+class HistoryDeferred(ValueError):
+    """No historical provider observation was obtained; do not throttle for an hour."""
 
 
 def finite(value):
@@ -59,7 +63,7 @@ def _entry(ledger, key):
 
 
 def _load_ledger(report, now):
-    ledger = dict(version=2, members={})
+    ledger = dict(version=3, members={})
     saved = report.get('componentBaselines')
     if isinstance(saved, dict) and isinstance(saved.get('members'), dict):
         for key, original in saved['members'].items():
@@ -72,6 +76,9 @@ def _load_ledger(report, now):
                 if finite(added_at) or (entry['kind'] == 'existing' and added_at is None):
                     entry['addedAt'] = added_at
             for field in ('firstAt', 'firstObservedAt', 'initialReturn', 'lastAttemptAt'):
+                if field == 'lastAttemptAt' and saved.get('version', 0) < 3:
+                    # Earlier collectors counted denied admission as a lookup.
+                    continue
                 value = original.get(field)
                 if finite(value):
                     entry[field] = value
@@ -118,9 +125,12 @@ def recover(row, fetch, now, clock=None):
     network = {'ethereum': 'eth', 'polygon': 'polygon_pos', 'avalanche': 'avax'}.get(row['chain'], row['chain'])
     address = row['address']
     path = f"/networks/{network}/pools/{row['pool']}/ohlcv/minute?" + urlencode(dict(
-        aggregate=5, limit=302, currency='usd', token=address, before_timestamp=end//1000-1))
+        aggregate=5, limit=302, currency='usd', token=address, before_timestamp=end//1000-1,
+        include_empty_intervals='true'))
     reply = fetch(path, workload='background')
     receipt = clock() if clock is not None else now
+    if isinstance(reply, dict) and (reply.get('status') == 429 or reply.get('deferred') or reply.get('retryPending')):
+        raise HistoryDeferred('Historical source capacity unavailable')
     if not isinstance(reply, dict) or reply.get('status') != 200:
         return []
     body = reply.get('body')
@@ -166,7 +176,7 @@ def recover(row, fetch, now, clock=None):
 
 
 def compare_components(basket, report, now, history=None, prior_ids=None, clock=None, admissions=None):
-    """Publish all N equal contributions; warming is explicit, never fake history."""
+    """Keep incumbent comparisons; additions join the equal-weight index when ready."""
     from worker.meme_index import quote_reason
     ledger = _load_ledger(report, now)
     for row in basket:
@@ -201,12 +211,14 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
                     and (not finite(entry.get('lastAttemptAt')) or now-entry['lastAttemptAt'] >= HOUR)):
                 candidates.append((entry.get('lastAttemptAt', -1), identity(row), row, entry))
         for _, _, row, entry in sorted(candidates, key=lambda item: item[:2])[:MAX_RECOVERIES]:
-            entry['lastAttemptAt'] = now
             try:
                 for observation in recover(row, history, now, clock=clock):
                     _put(entry, observation)
+                entry['lastAttemptAt'] = now
+            except HistoryDeferred:
+                pass
             except Exception:
-                pass  # A failed historical lookup creates no market observation.
+                entry['lastAttemptAt'] = now  # Failed reads create no observation.
     now = clock() if clock is not None else now
     components = []
     for row in basket:
@@ -231,7 +243,7 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
             baseline = None
         component = dict(id=key, weight=1/len(basket), status='unavailable', delta=None,
                          kind=entry['kind'], addedAt=entry['addedAt'],
-                         currentReturn=current, currentObservedAt=at, baselineReturn=None,
+                         currentReturn=current, currentObservedAt=at, currentEligible=reason is None, baselineReturn=None,
                          baselineObservedAt=None, baselineSource=None, baselineWindowStartAt=None,
                          baselineWindowEndAt=None, initialReturn=entry.get('initialReturn'),
                          firstAt=first_at, firstObservedAt=entry.get('firstObservedAt'),
@@ -244,22 +256,29 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
                              baselineWindowEndAt=baseline['windowEndAt'], reason=None)
         elif reason is None and entry['kind'] == 'existing':
             component.update(status='awaiting_history', reason='missing_24h_baseline')
-        elif reason is None and finite(warm_until) and now < warm_until:
+        elif finite(warm_until) and now < warm_until:
             component.update(status='warming', delta=0, baselineReturn=entry['initialReturn'],
                              baselineObservedAt=entry['firstObservedAt'], baselineSource='initial-reference',
                              reason='neutral_until_24h')
+        elif entry['kind'] == 'added' and not finite(first_at):
+            component.update(status='pending', delta=0, reason='awaiting_initial_quote')
         components.append(component)
-        row['comparison'] = copy.deepcopy(component)
         if reason is None:
             _put(entry, _observation(row, now))
         entry['observations'].sort(key=lambda value: (value['observedAt'], value['source'], value['pool']))
         entry['observations'] = entry['observations'][-1200:]
     unavailable = sum(row['status'] == 'unavailable' for row in components)
     awaiting = sum(row['status'] == 'awaiting_history' for row in components)
-    value = math.fsum(row['delta'] for row in components)/len(components) if not unavailable and not awaiting else None
+    warming = sum(row['status'] in ('warming', 'pending') for row in components)
+    denominator = len(components)-warming
+    for row, component in zip(basket, components):
+        component['weight'] = 0 if component['status'] in ('warming', 'pending') or not denominator else 1/denominator
+        row['comparison'] = copy.deepcopy(component)
+    value = (math.fsum(row['delta'] for row in components if row['status'] == 'active')/denominator
+             if denominator and not unavailable and not awaiting else None)
     comparison = dict(method=METHOD, at=now, value=value,
                       matchedMembers=sum(row['status'] == 'active' for row in components),
-                      warmingMembers=sum(row['status'] == 'warming' for row in components),
+                      warmingMembers=warming, denominator=denominator,
                       awaitingHistoryMembers=awaiting,
                       unavailableMembers=unavailable, components=components)
     return comparison, ledger

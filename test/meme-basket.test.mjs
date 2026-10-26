@@ -65,12 +65,13 @@ test('warming comparison retains a neutral contribution and initial reference fo
   assert.match(elapsed,/Awaiting the next recorded 24H comparison/);assert.doesNotMatch(elapsed,/data-state="active"/);
 });
 
-test('an existing member with no genuine historical baseline remains active without a warmup countdown',()=>{
+test('an existing member without a historical baseline reports recovery without a warmup countdown',()=>{
  const now=1900000000000;
  const comparison={kind:'existing',status:'awaiting_history',initialReturn:3.25,firstObservedAt:now,warmUntil:null};
  const html=renderComparison(comparison,now);
- assert.match(html,/Current 1H active/);assert.match(html,/24H baseline forming/);
- assert.match(html,/Existing member · continues normally/);
+ assert.match(html,/Recovering 24H history/);
+ assert.match(html,/Existing member · no new-member warmup/);
+ assert.doesNotMatch(html,/data-state="active"|Current 1H active/);
  assert.doesNotMatch(html,/Warming|remaining|Initial 1H reference|Neutral contribution/);
  const legacy=renderComparison({...comparison,status:'warming',warmUntil:now+24*3600000},now);
  assert.match(legacy,/Refreshing comparison status/);
@@ -78,14 +79,14 @@ test('an existing member with no genuine historical baseline remains active with
 });
 
 test('active comparison shows recorded delta and reference without manufacturing missing values',()=>{
-  const html=renderComparison({status:'active',delta:-1.25,baselineReturn:2.5,baselineSource:'recorded_history'});
-  assert.match(html,/Active · -1\.25 pp/);assert.match(html,/24H reference: \+2\.50%/);assert.match(html,/recorded history/);
+  const html=renderComparison({status:'active',delta:-1.25,baselineReturn:2.5,baselineSource:'recorded_history',weight:1/11});
+  assert.match(html,/Active · -1\.25 pp/);assert.match(html,/24H reference: \+2\.50%/);assert.match(html,/recorded history/);assert.match(html,/Comparison weight: 9\.09%/);
   assert.match(renderComparison({status:'unavailable',reason:'missing_quote'}),/Unavailable.*No matching quote/);
   assert.match(renderComparison(null),/Awaiting collection/);
   assert.match(renderComparison(null,Date.now(),false),/Not saved.*Reference begins after Save changes/);
 });
 
-test('warming members retain their equal weight alongside active members',()=>{
+test('warming additions retain their roster weight with zero comparison weight',()=>{
   const draft=new BasketDraft(config()),now=1900000000000;
   const comparisons=new Map([[memberIdentity(solana),{status:'active',delta:1,baselineReturn:2}],[memberIdentity(evm(1)),{kind:'added',status:'warming',initialReturn:4,warmUntil:now+24*3600000}]]);
   const html=renderMembers(draft,new Map(),now,comparisons);
@@ -178,4 +179,13 @@ test('status refresh updates comparison evidence while preserving unsaved member
   assert.equal(mounted.getDraft().members.length,3);assert.equal(mounted.getDraft().dirty,true);
   assert.match(document.element('basket-members').innerHTML,/Warming/);assert.match(document.element('basket-status').textContent,/unsaved draft is preserved/);
   assert.deepEqual(calls.map(call=>call.url),['/api/meme-preset','/api/meme-preset']);
+});
+
+
+test('an addition without its first qualified quote shows pending with no warmup clock',()=>{
+ const html=renderComparison({kind:'added',status:'pending',delta:0,weight:0,initialReturn:null,firstAt:null,warmUntil:null});
+ assert.match(html,/Awaiting initial qualified quote/);
+ assert.match(html,/Comparison weight: 0%/);
+ assert.match(html,/24H warmup starts with the first qualified quote/);
+ assert.doesNotMatch(html,/remaining|Initial 1H reference|Neutral contribution|data-state="warming"/);
 });

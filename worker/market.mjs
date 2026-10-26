@@ -29,12 +29,17 @@ function memeHistoryPath(url,at){
   if(!/^\/networks\/[a-z0-9_-]{1,40}\/pools\/[a-zA-Z0-9]{1,100}\/ohlcv\/minute$/.test(path))return null;
   const params=url.searchParams,keys=[...params.keys()];
   const required=['aggregate','limit','currency','token','before_timestamp'];
-  if(keys.length!==required.length||new Set(keys).size!==required.length||keys.some(key=>!required.includes(key)))return null;
+  const allowed=[...required,'include_empty_intervals'];
+  if(new Set(keys).size!==keys.length||required.some(key=>!params.has(key))||keys.some(key=>!allowed.includes(key)))return null;
   const token=params.get('token'),before=params.get('before_timestamp');
   if(params.get('aggregate')!=='5'||params.get('limit')!=='302'||params.get('currency')!=='usd'||!/^[a-zA-Z0-9]{1,100}$/.test(token)||!/^\d{1,16}$/.test(before))return null;
+  const empty=params.get('include_empty_intervals');
+  if(empty!==null&&!['true','false'].includes(empty))return null;
   const seconds=Number(before);
   if(!Number.isSafeInteger(seconds)||seconds<=0||String(seconds)!==before||seconds>Math.floor(at/1000))return null;
-  return path+'?'+new URLSearchParams({aggregate:'5',limit:'302',currency:'usd',token,before_timestamp:before});
+  const query=new URLSearchParams({aggregate:'5',limit:'302',currency:'usd',token,before_timestamp:before});
+  if(empty!==null)query.set('include_empty_intervals',empty);
+  return path+'?'+query;
 }
 
 export function createMarketProxy({fetcher=fetch,now=Date.now,timeout=12000,allowMemeHistory=false}={}) {

@@ -287,7 +287,16 @@ def collect(path, sources=None, now=None, preset=None, admissions=None):
                       and all(isinstance(row, dict) and admissions.get(row.get('id')) ==
                               dict(kind=row.get('kind'), addedAt=row.get('addedAt'))
                               for row in engine['components']))
-    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified and engine_current:
+    ledger = report.get('componentBaselines') or {}
+    entries = ledger.get('members') or {}
+    retry_history = (getattr(sources, 'history', None) is not None and engine_current
+                     and now-report.get('updatedAt', now) >= 5*60_000
+                     and any((row.get('status') in ('awaiting_history', 'warming')
+                              or row.get('reason') == 'missing_24h_baseline')
+                             and (not finite(entries.get(row['id'], {}).get('lastAttemptAt'))
+                                  or now-entries[row['id']]['lastAttemptAt'] >= HOUR)
+                             for row in engine['components']))
+    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified and not retry_history and engine_current:
         write_json(path.with_suffix('.public.json'),public_report(report))
         return report
     report['attemptedAt'] = now
@@ -334,7 +343,7 @@ def collect(path, sources=None, now=None, preset=None, admissions=None):
     average = math.fsum(changes)/len(preset) if complete else None
     coverage = dict(totalTokens=len(preset),includedTokens=len(changes),
                     excludedTokens=len(preset)-len(changes),exclusions=exclusions)
-    errors = [] if complete else [f'Fixed Meme preset incomplete ({len(changes)}/{len(preset)}); reading withheld']
+    errors = [] if complete else [f'Fixed Meme preset incomplete ({len(changes)}/{len(preset)}); raw current 1H reading withheld']
     try:
         alt = sources.alt(now)
     except Exception:
@@ -346,18 +355,10 @@ def collect(path, sources=None, now=None, preset=None, admissions=None):
     quality = dict(extremeReturnThreshold=EXTREME_RETURN,
                    extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in raw_changes),
                    minimumReturn=min(raw_changes,default=None),maximumReturn=max(raw_changes,default=None))
-    fallback = None
-    if (complete and comparison['value'] is None and comparison['awaitingHistoryMembers'] > 0
-            and comparison['unavailableMembers'] == 0):
-        participating = [row for row in comparison['components'] if row['status'] != 'warming']
-        fallback = dict(method='incumbent-current-1h-v1',
-                        value=math.fsum(row['currentReturn'] for row in participating)/len(preset),
-                        memberIds=[row['id'] for row in participating], denominator=len(preset),
-                        excludedWarming=comparison['warmingMembers'])
     report['readings'].append(dict(at=now,meme=average,
         altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=method,
         constituents=len(preset),marketObservedAt=oldest,inputQuality=quality,coverage=coverage,
-        memeComparison=comparison, memeFallback=fallback))
+        memeComparison=comparison))
     report['readings'] = [row for row in report['readings'] if now-row['at'] <= 30*24*HOUR]
     report['basketHistory'] = [row for row in report.get('basketHistory',[])
                               if 0 <= now-row['at'] <= 30*24*HOUR]

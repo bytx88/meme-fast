@@ -69,14 +69,17 @@ export function renderComparison(comparison,now=Date.now(),saved=true){
   if(!saved)return '<span class="basket-comparison-state" data-state="pending">Not saved</span><small>Reference begins after Save changes</small>';
   if(!comparison)return '<span class="basket-comparison-state" data-state="pending">Awaiting collection</span>';
   if(comparison.status==='awaiting_history'){
-    return '<span class="basket-comparison-state" data-state="active">Current 1H active</span><small>24H baseline forming</small><small>Existing member · continues normally</small>';
+    return '<span class="basket-comparison-state" data-state="pending">Recovering 24H history</span><small>Existing member · no new-member warmup</small>';
+  }
+  if(comparison.status==='pending'){
+    return '<span class="basket-comparison-state" data-state="pending">Awaiting initial qualified quote</span><small>Comparison weight: 0%</small><small>24H warmup starts with the first qualified quote</small>';
   }
   if(comparison.status==='warming'){
     if(comparison.kind!=='added')return '<span class="basket-comparison-state" data-state="pending">Refreshing comparison status</span><small>Existing members do not restart a 24H warmup</small>';
-    return `<span class="basket-comparison-state" data-state="warming">Warming</span><small>Neutral contribution: 0 pp</small><small>Initial 1H reference: ${finite(comparison.initialReturn)?escapeHTML(percent(comparison.initialReturn)):'awaiting quote'}</small><small${finite(comparison.warmUntil)?` title="Until ${escapeHTML(date(comparison.warmUntil))}"`:''}>${escapeHTML(warmRemaining(comparison.warmUntil,now))}</small>`;
+    return `<span class="basket-comparison-state" data-state="warming">Warming</span><small>Neutral contribution: 0 pp · comparison weight: 0%</small><small>Initial 1H reference: ${finite(comparison.initialReturn)?escapeHTML(percent(comparison.initialReturn)):'awaiting quote'}</small><small${finite(comparison.warmUntil)?` title="Until ${escapeHTML(date(comparison.warmUntil))}"`:''}>${escapeHTML(warmRemaining(comparison.warmUntil,now))}</small>`;
   }
   if(comparison.status==='active'){
-    return `<span class="basket-comparison-state" data-state="active">Active · ${escapeHTML(points(comparison.delta))}</span>${finite(comparison.baselineReturn)?`<small>24H reference: ${escapeHTML(percent(comparison.baselineReturn))}</small>`:''}${comparison.baselineSource?`<small>${escapeHTML(String(comparison.baselineSource).replaceAll('_',' '))}</small>`:''}`;
+    return `<span class="basket-comparison-state" data-state="active">Active · ${escapeHTML(points(comparison.delta))}</span>${finite(comparison.weight)?`<small>Comparison weight: ${(comparison.weight*100).toFixed(2)}%</small>`:''}${finite(comparison.baselineReturn)?`<small>24H reference: ${escapeHTML(percent(comparison.baselineReturn))}</small>`:''}${comparison.baselineSource?`<small>${escapeHTML(String(comparison.baselineSource).replaceAll('_',' '))}</small>`:''}`;
   }
   return `<span class="basket-comparison-state" data-state="unavailable">Unavailable</span><small>${escapeHTML(comparison.reason?reasonLabel(comparison.reason):'Awaiting a qualified current quote and reference')}</small>`;
 }

@@ -85,6 +85,22 @@ test('Meme history caches for one hour while preserving the original observation
   const refreshed=await proxy(new Request(historyUrl));assert.equal(refreshed.headers.get('x-data-observed-at'),String(time));assert.equal(calls,2);
 });
 
+test('Meme history forwards the provider empty-interval option and shares reordered requests',async()=>{
+  let calls=0,destination;
+  const proxy=createMarketProxy({allowMemeHistory:true,now:()=>HISTORY_NOW,fetcher:async target=>{calls++;destination=target;return Response.json(historyPayload())}});
+  const filled=historyUrl+'&include_empty_intervals=true';
+  const first=await proxy(new Request(filled));
+  assert.equal(first.status,200);assert.equal(first.headers.get('x-data-observed-at'),String(HISTORY_NOW));
+  assert.equal(new URL(destination).searchParams.get('include_empty_intervals'),'true');
+  const reordered=filled.replace('?aggregate=5&limit=302&currency=usd&token=ExactToken123&before_timestamp=1999999999&include_empty_intervals=true','?include_empty_intervals=true&before_timestamp=1999999999&token=ExactToken123&currency=usd&limit=302&aggregate=5');
+  assert.equal((await proxy(new Request(reordered))).status,200);assert.equal(calls,1);
+  assert.equal((await proxy(new Request(historyUrl+'&include_empty_intervals=false'))).status,200);assert.equal(calls,2);
+  assert.equal(new URL(destination).searchParams.get('include_empty_intervals'),'false');
+  for(const option of ['1','TRUE','','true&include_empty_intervals=true'])assert.equal((await proxy(new Request(historyUrl+'&include_empty_intervals='+option))).status,404);
+  assert.equal(calls,2);
+  assert.equal((await proxy(new Request(filled.replace('/api/meme-history/','/api/market/')))).status,404);
+});
+
 test('Meme history reuses canonical in-flight work and never forwards credentials',async()=>{
   let calls=0,options,destination,release;
   const gate=new Promise(resolve=>{release=resolve});

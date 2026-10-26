@@ -86,6 +86,34 @@ async def background_gecko(fetch, sleep=None):
         await sleep(max(1, reply.get('retryAfter', 8)))
 
 
+def background_gecko_history(fetch, deadline, sleep=time.sleep, clock=time.monotonic, max_attempts=5):
+    """Bound historical admission/cooldown retries outside the shared owner.
+
+    The same deadline is shared by a collector's entire backfill batch. A pending
+    reply is not a completed historical lookup and must remain eligible to retry.
+    """
+    pending = dict(status=503, body={'error': 'Historical source retry is pending'},
+                   deferred=True, retryAfter=1)
+    for attempt in range(max_attempts):
+        if clock() >= deadline:
+            return dict(pending, retryPending=True)
+        reply = fetch()
+        if (not isinstance(reply, dict) or not (reply.get('status') == 429
+                or (reply.get('status') == 503 and reply.get('deferred') is True))):
+            return reply
+        pending = reply
+        if attempt == max_attempts-1:
+            return dict(reply, retryPending=True)
+        delay = reply.get('retryAfter', 8)
+        if type(delay) not in (int, float) or not math_finite(delay):
+            delay = 8
+        delay = max(1, delay)
+        if clock()+delay >= deadline:
+            return dict(reply, retryPending=True)
+        sleep(delay)
+    return dict(pending, retryPending=True)
+
+
 def gecko_path(path):
     from urllib.parse import urlparse, parse_qsl, urlencode
     target = urlparse(path)
@@ -99,7 +127,10 @@ def gecko_path(path):
             or not (target.path == '/search/pools' or re.fullmatch(route, target.path))
             or len({key for key, _ in parameters}) != len(parameters)
             or any(key not in {'query', 'include', 'duration', 'page', 'sort', 'aggregate', 'limit',
-                               'currency', 'token', 'before_timestamp'} for key, _ in parameters)):
+                               'currency', 'token', 'before_timestamp', 'include_empty_intervals'} for key, _ in parameters)
+            or any(key == 'include_empty_intervals' and
+                   (not target.path.endswith('/ohlcv/minute') or value not in ('true', 'false'))
+                   for key, value in parameters)):
         raise ValueError('Unsupported market source path')
     segments = target.path.split('/')
     if len(segments)>2 and segments[1]=='networks' and segments[2]!='solana':

@@ -366,6 +366,16 @@ class SourceStreamTests(unittest.TestCase):
                      '/networks/solana/new_pools?key=secret', '/networks/solana/new_pools?page=1&page=2'):
             with self.assertRaises(ValueError):gecko_path(path)
 
+    def test_empty_interval_option_is_limited_to_ohlcv_and_provider_booleans(self):
+        path='/networks/solana/pools/A/ohlcv/minute'
+        self.assertEqual(gecko_path(path+'?include_empty_intervals=true&aggregate=5'),
+                         path+'?aggregate=5&include_empty_intervals=true')
+        self.assertEqual(gecko_path(path+'?include_empty_intervals=false'),
+                         path+'?include_empty_intervals=false')
+        for invalid in (path+'?include_empty_intervals=1', path+'?include_empty_intervals=TRUE',
+                        '/networks/solana/new_pools?include_empty_intervals=true'):
+            with self.assertRaises(ValueError):gecko_path(invalid)
+
     def test_source_health_reads_only_committed_counters(self):
         with tempfile.TemporaryDirectory() as folder:
             stream = SourceStream(folder+'/solana')
@@ -472,6 +482,45 @@ class GeckoRetryTests(unittest.IsolatedAsyncioTestCase):
         async def limited():return {'status':429,'retryAfter':60}
         self.assertEqual((await background_gecko(limited,sleep))['status'],429)
         self.assertEqual(waits,[8])
+
+
+class GeckoHistoryRetryTests(unittest.TestCase):
+    def test_retries_admission_and_cooldown_without_rewriting_source_time(self):
+        from worker.source_stream import background_gecko_history
+        now,waits=[1000],[]
+        source={'status':200,'body':{'data':[], '_sourceObservedAt':123}}
+        replies=iter([{'status':503,'deferred':True,'retryAfter':3},
+                      {'status':429,'retryAfter':60},source])
+        def sleep(delay):waits.append(delay);now[0]+=delay
+        result=background_gecko_history(lambda:next(replies),1260,sleep,lambda:now[0])
+        self.assertIs(result,source)
+        self.assertEqual(waits,[3,60])
+        self.assertEqual(result['body']['_sourceObservedAt'],123)
+
+    def test_batch_deadline_prevents_sleep_or_dispatch_past_remaining_budget(self):
+        from worker.source_stream import background_gecko_history
+        now,calls=[1000],[]
+        pending={'status':429,'retryAfter':60}
+        def fetch():calls.append(1);return pending
+        result=background_gecko_history(fetch,1020,lambda _:self.fail('cannot outwait batch deadline'),lambda:now[0])
+        self.assertTrue(result['retryPending'])
+        self.assertEqual(calls,[1])
+        now[0]=1020
+        again=background_gecko_history(fetch,1020,lambda _:self.fail('expired'),lambda:now[0])
+        self.assertTrue(again['retryPending'])
+        self.assertEqual(calls,[1])
+        self.assertNotIn('retryPending',pending)
+
+    def test_transient_attempts_are_bounded_and_permanent_errors_do_not_retry(self):
+        from worker.source_stream import background_gecko_history
+        calls,waits=[],[]
+        def fetch():calls.append(1);return {'status':503,'deferred':True,'retryAfter':0}
+        result=background_gecko_history(fetch,100,waits.append,lambda:0)
+        self.assertEqual((len(calls),waits),(5,[1,1,1,1]))
+        self.assertTrue(result['retryPending'])
+        permanent={'status':503,'deferred':False,'retryAfter':30}
+        self.assertIs(background_gecko_history(lambda:permanent,100,
+                      lambda _:self.fail('provider failure is terminal'),lambda:0),permanent)
 
 
 class GeckoPoolReuseTests(unittest.TestCase):

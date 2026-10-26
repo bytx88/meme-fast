@@ -14,15 +14,15 @@
 <body>
 <main class="admin-page meme-basket-page">
   <header class="admin-header">
-    <div><a class="admin-brand" href="./admin.html">MEME FAST / ADMIN</a><h1>Meme index basket</h1><p>Choose the exact tokens used for Meme. Every saved member has an equal weight.</p></div>
+    <div><a class="admin-brand" href="./admin.html">MEME FAST / ADMIN</a><h1>Meme index basket</h1><p>Choose the exact tokens used for Meme. Active members have equal comparison weights.</p></div>
     <nav class="admin-header-actions" aria-label="Admin navigation"><a href="./admin.html">Admin home</a><a href="./radar.html">View Swing ↗</a><button id="basket-refresh" type="button" disabled>Refresh status</button></nav>
   </header>
   <p id="basket-status" class="basket-status" role="status" aria-live="polite">Loading saved basket…</p>
-  <section class="basket-summary" aria-label="Basket summary"><div><span>Members</span><strong id="basket-count">—</strong></div><div><span>Equal weight per member</span><strong id="basket-weight">—</strong></div><div><span>Latest quote coverage</span><strong id="basket-coverage">—</strong></div></section>
+  <section class="basket-summary" aria-label="Basket summary"><div><span>Members</span><strong id="basket-count">—</strong></div><div><span>Equal roster weight</span><strong id="basket-weight">—</strong></div><div><span>Latest quote coverage</span><strong id="basket-coverage">—</strong></div></section>
   <section aria-labelledby="basket-title">
     <div class="section-heading"><div><h2 id="basket-title">Saved basket</h2><p id="basket-version">Loading configuration…</p></div><span id="basket-draft-state" class="basket-draft-state" hidden>Unsaved changes</span></div>
-    <p class="admin-note basket-explanation">Membership changes only when you press Save changes. Existing members keep their comparison. If an addition has no historical 24H baseline, its current 1H value becomes the initial reference. It contributes a neutral 0 pp for 24 hours, then uses real recorded history. Every member keeps its equal weight during warmup.</p>
-    <div class="admin-table-wrap basket-table"><table><thead><tr><th>Token / exact contract</th><th>Chain</th><th>Equal weight</th><th>Latest 1H quote</th><th>24H comparison</th><th><span class="sr-only">Action</span></th></tr></thead><tbody id="basket-members"></tbody></table></div>
+    <p class="admin-note basket-explanation">Membership changes only when you press Save changes. Existing members keep their recorded 24H comparisons. If an addition has no historical 24H baseline, its current 1H value becomes the initial reference. An addition awaiting its first qualified quote has zero comparison weight. Its 24-hour warmup begins with that quote; it then joins the active members using real recorded history. Existing comparison weights stay unchanged while an addition warms. Roster weights apply to the separate raw 1H average.</p>
+    <div class="admin-table-wrap basket-table"><table><thead><tr><th>Token / exact contract</th><th>Chain</th><th>Roster weight</th><th>Latest 1H quote</th><th>24H comparison</th><th><span class="sr-only">Action</span></th></tr></thead><tbody id="basket-members"></tbody></table></div>
     <div class="basket-save-bar"><p id="basket-save-note">The saved basket stays active while you edit.</p><div><button id="basket-reset" type="button" disabled>Reset draft</button><button id="basket-save" class="primary" type="button" disabled>Save changes</button></div></div>
   </section>
   <section class="basket-add-section" aria-labelledby="basket-add-title">
