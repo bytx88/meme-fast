@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Meme basket · Admin · Meme Fast</title>
+  <link rel="icon" href="./brand-mark.svg">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./meme-basket.css">
+  <script type="module" src="./meme-basket.mjs"></script>
+</head>
+<body>
+<main class="admin-page meme-basket-page">
+  <header class="admin-header">
+    <div><a class="admin-brand" href="./admin.html">MEME FAST / ADMIN</a><h1>Meme index basket</h1><p>Choose the exact tokens used for Meme. Every saved member has an equal weight.</p></div>
+    <nav class="admin-header-actions" aria-label="Admin navigation"><a href="./admin.html">Admin home</a><a href="./radar.html">View Swing ↗</a><button id="basket-refresh" type="button" disabled>Refresh status</button></nav>
+  </header>
+  <p id="basket-status" class="basket-status" role="status" aria-live="polite">Loading saved basket…</p>
+  <section class="basket-summary" aria-label="Basket summary"><div><span>Members</span><strong id="basket-count">—</strong></div><div><span>Equal weight per member</span><strong id="basket-weight">—</strong></div><div><span>Latest quote coverage</span><strong id="basket-coverage">—</strong></div></section>
+  <section aria-labelledby="basket-title">
+    <div class="section-heading"><div><h2 id="basket-title">Saved basket</h2><p id="basket-version">Loading configuration…</p></div><span id="basket-draft-state" class="basket-draft-state" hidden>Unsaved changes</span></div>
+    <p class="admin-note basket-explanation">Membership changes only when you press Save changes. Existing members keep their comparison. If an addition has no historical 24H baseline, its current 1H value becomes the initial reference. It contributes a neutral 0 pp for 24 hours, then uses real recorded history. Every member keeps its equal weight during warmup.</p>
+    <div class="admin-table-wrap basket-table"><table><thead><tr><th>Token / exact contract</th><th>Chain</th><th>Equal weight</th><th>Latest 1H quote</th><th>24H comparison</th><th><span class="sr-only">Action</span></th></tr></thead><tbody id="basket-members"></tbody></table></div>
+    <div class="basket-save-bar"><p id="basket-save-note">The saved basket stays active while you edit.</p><div><button id="basket-reset" type="button" disabled>Reset draft</button><button id="basket-save" class="primary" type="button" disabled>Save changes</button></div></div>
+  </section>
+  <section class="basket-add-section" aria-labelledby="basket-add-title">
+    <div class="section-heading"><div><h2 id="basket-add-title">Add a token</h2><p>Use its chain and exact token contract. Symbols alone can identify the wrong token.</p></div></div>
+    <form id="basket-add-form" class="basket-add-form">
+      <label>Chain<select id="basket-network" name="network"><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="ethereum">Ethereum</option><option value="base">Base</option><option value="bsc">BNB Chain</option><option value="arbitrum">Arbitrum</option><option value="polygon">Polygon</option><option value="avalanche">Avalanche</option><option value="optimism">Optimism</option></select></label>
+      <label class="basket-contract-input">Token contract<input id="basket-contract" name="contract_address" required maxlength="64" autocomplete="off" spellcheck="false" placeholder="Paste exact contract address"></label>
+      <label>Symbol<input id="basket-symbol" name="symbol" required maxlength="32" autocomplete="off" placeholder="e.g. BP"></label>
+      <label>Name<input id="basket-name" name="name" required maxlength="100" autocomplete="off" placeholder="Token name"></label>
+      <button id="basket-add" type="submit" disabled>Add to draft</button>
+    </form>
+  </section>
+  <section class="basket-suggestions-section" aria-labelledby="basket-suggestions-title">
+    <div class="section-heading"><div><h2 id="basket-suggestions-title">FOMO most-held suggestions</h2><p>Press Suggest to pull the FOMO top ranking. Candidates stay in the source order.</p></div><button id="basket-suggest" type="button" disabled>Suggest</button></div>
+    <p id="basket-suggestion-status" class="admin-note" role="status" aria-live="polite">FOMO is fetched only when you press Suggest. Review the exact chain and contract, add to your draft, then Save changes.</p>
+    <div id="basket-suggestions" class="basket-suggestions"></div>
+  </section>
+</main>
+</body>
+</html>

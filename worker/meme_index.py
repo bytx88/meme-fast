@@ -1,18 +1,15 @@
 """Hourly readings for a fixed, equally weighted preset of exact contracts."""
-import hashlib
 import json
 import math
 import time
 from pathlib import Path
 
+from worker.meme_preset import default_config, method_for, validate_members
+
 HOUR = 3_600_000
 MAX_QUOTE_AGE = 15*60_000
-PRESET = tuple(json.loads(Path(__file__).with_name('meme-index-preset.json').read_text(encoding='utf-8')))
-_identity = [(member['network'], member['contract_address']) for member in PRESET]
-if len(PRESET) != 11 or len(set(_identity)) != 11:
-    raise ValueError('Meme preset must contain eleven unique exact contracts')
-METHOD = 'fixed-preset-11-1h-v1-' + hashlib.sha256(
-    json.dumps(_identity, separators=(',', ':')).encode()).hexdigest()[:12]
+PRESET = tuple(default_config()['members'])
+METHOD = method_for(PRESET)
 # An unverified extreme withholds the fixed basket; it is never clipped or zeroed.
 EXTREME_RETURN = 10_000
 
@@ -135,17 +132,19 @@ def best_pair(rows):
 
 
 class Sources:
-    def __init__(self, directory=None, quotes=None):
+    def __init__(self, directory=None, quotes=None, preset=None, history=None):
         # The callable is the existing source owner (or the local preview proxy),
         # never an independent provider request or a ranking-derived token list.
         self.quotes = quotes
+        self.history = history
+        self.preset = tuple(validate_members(PRESET if preset is None else preset))
 
     def fixed_quotes(self, now=None):
         # In live collection a provider request can finish after the job starts.
         # Validate against the clock after the reply, keeping source times intact.
         clock = (lambda: int(time.time()*1000)) if now is None else (lambda: now)
         groups = {}
-        for member in PRESET:
+        for member in self.preset:
             groups.setdefault(member['network'], []).append(member['contract_address'])
         batches = {}
         for network, addresses in groups.items():
@@ -156,7 +155,7 @@ class Sources:
             except Exception:
                 batches[network] = None
         observations = []
-        for member in PRESET:
+        for member in self.preset:
             unavailable = batches[member['network']] is None
             try:
                 candidates = exact_pairs(batches[member['network']], member, clock())
@@ -210,30 +209,65 @@ def proxy_quotes(base_url):
     return read_quotes
 
 
-def collect(path, sources=None, now=None):
+def proxy_history(base_url):
+    """Use only the local shared history proxy, preserving its receipt time."""
+    from urllib.parse import urlsplit
+    target = urlsplit(base_url)
+    if target.scheme not in ('http', 'https') or target.hostname not in ('localhost', '127.0.0.1', '::1'):
+        raise ValueError('Use the local shared history proxy URL')
+    def read_history(path, workload='background'):
+        import httpx
+        from worker.source_stream import gecko_path
+        response = httpx.get(base_url.rstrip('/')+gecko_path(path), timeout=35)
+        body = response.json()
+        if isinstance(body, dict) and '_sourceObservedAt' not in body:
+            try:
+                observed_at = float(response.headers.get('x-data-observed-at', ''))
+                if math.isfinite(observed_at):
+                    body = dict(body, _sourceObservedAt=observed_at)
+            except (TypeError, ValueError):
+                pass
+        return dict(status=response.status_code, body=body)
+    return read_history
+
+
+def collect(path, sources=None, now=None, preset=None):
     live = now is None
     now = int(time.time()*1000) if live else now
-    sources = sources or Sources()
+    preset = tuple(validate_members(preset if preset is not None else getattr(sources, 'preset', PRESET)))
+    method = method_for(preset)
+    sources = sources or Sources(preset=preset)
+    if isinstance(sources, Sources):
+        sources.preset = preset
     path = Path(path)
     try:
         report = json.loads(path.read_text(encoding='utf-8'))
     except FileNotFoundError:
         report = {'version':2,'basket':[],'readings':[]}
-    if report.get('method') != METHOD:
+    from worker.meme_baseline import METHOD as COMPONENT_METHOD, compare_components, identity
+    prior_ids = {identity(row) for row in report.get('basket', []) if isinstance(row, dict)}
+    if report.get('method') != method:
         # Retain original inputs and results privately; never splice returns
         # from a different Meme method into this comparison. Alt/BTC remains comparable.
         legacy_method = report.get('method','fomo-most-held-v1')
-        legacy = {key:value for key,value in report.items() if key!='legacyMethods'}
+        ledger = report.get('componentBaselines')
+        legacy = {key:value for key,value in report.items() if key not in ('legacyMethods', 'componentBaselines')}
         archives = dict(report.get('legacyMethods',{}))
         if legacy.get('readings') or legacy.get('basket'):
             archives[legacy_method] = legacy
-        report = {'version':2,'method':METHOD,'basket':[],
+        report = {'version':2,'method':method,'basket':[],
                   'readings':[dict(row,method=row.get('method',legacy_method)) for row in legacy.get('readings',[])],
                   'legacyMethods':archives}
+        if isinstance(ledger, dict):
+            report['componentBaselines'] = ledger
     latest = next((row for row in reversed(report.get('readings',[]))
-                   if row.get('method') == METHOD),None)
+                   if row.get('method') == method),None)
     retry_unqualified = latest is not None and latest.get('meme') is None
-    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified:
+    engine = latest.get('memeComparison') if latest else None
+    engine_current = (isinstance(engine, dict) and engine.get('method') == COMPONENT_METHOD
+                      and engine.get('at') == latest.get('at')
+                      and isinstance(engine.get('components'), list) and len(engine['components']) == len(preset))
+    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified and engine_current:
         write_json(path.with_suffix('.public.json'),public_report(report))
         return report
     report['attemptedAt'] = now
@@ -247,7 +281,7 @@ def collect(path, sources=None, now=None):
         # the start time. Recheck freshness without relabeling cached quotes.
         now = int(time.time()*1000)
     basket, changes, raw_changes, exclusions = [], [], [], {}
-    for member in PRESET:
+    for member in preset:
         row = quotes.get(member_id(member))
         reason = (row.get('exclusionReason') or quote_reason(row, now)) if row is not None else 'source_unavailable'
         row = row or {}
@@ -259,16 +293,28 @@ def collect(path, sources=None, now=None):
         if finite(change):
             raw_changes.append(change)
         basket.append(dict(id=member_id(member),chain=member['network'],address=member['contract_address'],
-            name=member['name'],symbol=member['symbol'],weight=1/len(PRESET),source='fixed-preset-1h',
+            name=member['name'],symbol=member['symbol'],weight=1/len(preset),source='fixed-preset-1h',
             priceSource=row.get('marketSource'),observedAt=at if finite(at) else None,
             priceChange1h=change if finite(change) else None,pool=row.get('pool'),
             poolCreatedAt=created if finite(created) else None,
             eligible=reason is None,exclusionReason=reason))
-    complete = len(changes) == len(PRESET)
-    average = math.fsum(changes)/len(PRESET) if complete else None
-    coverage = dict(totalTokens=len(PRESET),includedTokens=len(changes),
-                    excludedTokens=len(PRESET)-len(changes),exclusions=exclusions)
-    errors = [] if complete else [f'Fixed Meme preset incomplete ({len(changes)}/{len(PRESET)}); reading withheld']
+    comparison, ledger = compare_components(basket, report, now,
+        history=getattr(sources, 'history', None), prior_ids=prior_ids,
+        clock=(lambda: int(time.time()*1000)) if live else None)
+    now = comparison['at']
+    # Historical recovery may take time. Qualify the original market observations
+    # again at completion rather than relabeling their source times.
+    changes = [row['priceChange1h'] for row in basket if row['eligible']]
+    exclusions = {}
+    for row in basket:
+        if not row['eligible']:
+            reason = row['exclusionReason']
+            exclusions[reason] = exclusions.get(reason, 0)+1
+    complete = len(changes) == len(preset)
+    average = math.fsum(changes)/len(preset) if complete else None
+    coverage = dict(totalTokens=len(preset),includedTokens=len(changes),
+                    excludedTokens=len(preset)-len(changes),exclusions=exclusions)
+    errors = [] if complete else [f'Fixed Meme preset incomplete ({len(changes)}/{len(preset)}); reading withheld']
     try:
         alt = sources.alt(now)
     except Exception:
@@ -281,12 +327,14 @@ def collect(path, sources=None, now=None):
                    extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in raw_changes),
                    minimumReturn=min(raw_changes,default=None),maximumReturn=max(raw_changes,default=None))
     report['readings'].append(dict(at=now,meme=average,
-        altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=METHOD,
-        constituents=len(PRESET),marketObservedAt=oldest,inputQuality=quality,coverage=coverage))
+        altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=method,
+        constituents=len(preset),marketObservedAt=oldest,inputQuality=quality,coverage=coverage,
+        memeComparison=comparison))
     report['readings'] = [row for row in report['readings'] if now-row['at'] <= 30*24*HOUR]
     report['basketHistory'] = [row for row in report.get('basketHistory',[])
                               if 0 <= now-row['at'] <= 30*24*HOUR]
     report['basketHistory'].append(dict(at=now,marketAt=oldest,tokens=basket))
+    report['componentBaselines'] = ledger
     report.update(basket=basket,updatedAt=now,readingAt=now,rebalancedAt=report.get('rebalancedAt',now),
         poolUpdatedAt=oldest,marketObservedAt=oldest,altProviderAt=alt['providerAt'],
         altMethod=alt['source'],inputQuality=quality,coverage=coverage,error='; '.join(errors) or None)
@@ -305,7 +353,8 @@ def write_json(path, report):
 def public_report(report):
     return {key:value for key,value in report.items() if key in (
         'version','method','basket','readings','updatedAt','attemptedAt','rebalancedAt',
-        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','coverage','error')}
+        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','coverage','error',
+        'presetRevision','presetUpdatedAt')}
 
 
 if __name__ == '__main__':
@@ -314,6 +363,16 @@ if __name__ == '__main__':
     parser.add_argument('path')
     parser.add_argument('--stream',default='.data',help='Legacy argument; preset membership does not use the ranked stream')
     parser.add_argument('--dex-proxy',help='Local shared market proxy URL, for example http://127.0.0.1:4173/api/dex')
+    parser.add_argument('--preset',help='Saved local preset configuration JSON; uses the seed when the file is absent')
+    parser.add_argument('--history-proxy',help='Local shared historical market proxy URL')
     args=parser.parse_args()
-    report=collect(args.path,Sources(quotes=proxy_quotes(args.dex_proxy) if args.dex_proxy else None))
+    from worker.meme_preset import read_config
+    try:
+        config = read_config(json.loads(Path(args.preset).read_text(encoding='utf-8'))) if args.preset else default_config()
+    except FileNotFoundError:
+        config = default_config()
+    report=collect(args.path,Sources(quotes=proxy_quotes(args.dex_proxy) if args.dex_proxy else None,
+                                    preset=config['members'],
+                                    history=proxy_history(args.history_proxy) if args.history_proxy else None),
+                   preset=config['members'])
     print(json.dumps(public_report(report)))

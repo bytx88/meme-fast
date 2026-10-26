@@ -93,7 +93,13 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
             return ({'status':503,'body':{'error':'deferred'},'deferred':True,'retryAfter':8}
                     if workload=='background' else {'status':200,'body':{'data':[],'_sourceObservedAt':1234}})
         volume=SimpleNamespace(reload=SimpleNamespace(aio=ready))
+        from unittest.mock import AsyncMock
+        from worker.meme_index import METHOD
+        from worker.meme_preset import default_config
+        preset = default_config()
         with patch.object(modal_app,'history_volume',volume), \
+             patch('worker.meme_preset.default_config',return_value=preset), \
+             patch.object(modal_app,'meme_preset_registry',SimpleNamespace(get=SimpleNamespace(aio=AsyncMock(return_value=None)))), \
              patch.object(modal_app,'read_gecko_source',SimpleNamespace(remote=SimpleNamespace(aio=gecko))):
             app=modal_app.web.local()
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
@@ -104,7 +110,7 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(deferred.headers['retry-after'],'8')
                 self.assertEqual((await client.get('/api/market'+path)).status_code,200)
                 self.assertEqual(calls,[(path,'background'),(path,'interactive')])
-                stored={'version':2,'method':'shared-trending-1h-v1','basket':[],'readings':[],
+                stored={'version':2,'method':METHOD,'basket':[],'readings':[],
                         'marketObservedAt':1234,'legacyMethods':{'private':'original'},
                         'basketHistory':[{'private':'retained'}]}
                 def public_only(path,**kwargs):

@@ -41,6 +41,7 @@ app = modal.App(APP_NAME, image=image)
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", create_if_missing=True)
+meme_preset_registry = modal.Dict.from_name("meme-fast-meme-preset", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
 balance_watches = modal.Dict.from_name("meme-fast-balance-watches", create_if_missing=True)
@@ -519,6 +520,42 @@ def collect_jeanphil_monitor():
     print(result.stdout)
 
 
+@app.function(timeout=30, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
+              secrets=[modal.Secret.from_name('meme-fast-fomolist')])
+def pull_meme_suggestions(config):
+    import sys
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.meme_suggestions import Unavailable, fetch_suggestions
+    try:
+        return {'status': 200, 'body': fetch_suggestions(config)}
+    except Unavailable as error:
+        return {'status': 503, 'body': {'detail': str(error)}}
+
+
+@app.function(timeout=60, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS)
+@modal.concurrent(max_inputs=1)
+async def update_meme_preset(payload):
+    import sys
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.meme_preset import Conflict, read_config, revise
+    current = read_config(await meme_preset_registry.get.aio('active', None))
+    try:
+        saved = revise(current, payload)
+    except Conflict as error:
+        return {'status': 409, 'body': {'detail': str(error), 'current': error.current}}
+    except ValueError as error:
+        return {'status': 400, 'body': {'detail': str(error)}}
+    await meme_preset_registry.put.aio('active', saved)
+    refreshing = True
+    try:
+        await collect_meme_index.spawn.aio()
+    except Exception:
+        refreshing = False
+    return {'status': 200, 'body': {**saved, 'refreshRequested': refreshing}}
+
+
 @app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
@@ -527,9 +564,13 @@ def collect_meme_index():
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     from worker.meme_index import Sources, collect
+    from worker.meme_preset import read_config
+    config = read_config(meme_preset_registry.get('active', None))
     history_volume.reload()
     try:
-        report = collect("/history/meme-index.json", Sources(quotes=read_market_source.remote))
+        report = collect("/history/meme-index.json",
+            Sources(quotes=read_market_source.remote, history=read_gecko_source.remote,
+                    preset=config['members']), preset=config['members'])
     finally:
         history_volume.commit()
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}
@@ -956,8 +997,7 @@ def web():
                 saved = None
         return JSONResponse(public_report(saved), headers={'cache-control': 'no-store'})
 
-    @web_app.get("/api/meme-index")
-    async def meme_index():
+    async def saved_meme_report():
         async with history_lock:
             await history_volume.reload.aio()
             from worker.meme_index import public_report
@@ -969,7 +1009,55 @@ def web():
                     break
                 except (OSError, ValueError):
                     continue
-        return JSONResponse(report, headers={"cache-control": "no-store"})
+        return report
+
+    async def active_meme_preset():
+        from worker.meme_preset import read_config
+        try:
+            return read_config(await meme_preset_registry.get.aio('active', None))
+        except Exception:
+            raise HTTPException(status_code=503, detail='Saved Meme basket is unavailable. Retry without changing the basket.')
+
+    @web_app.get('/api/meme-preset')
+    async def get_meme_preset():
+        from worker.meme_preset import admin_report
+        config = await active_meme_preset()
+        return JSONResponse(admin_report(config, await saved_meme_report()), headers={'cache-control': 'no-store'})
+
+    @web_app.put('/api/meme-preset')
+    async def put_meme_preset(request: Request):
+        from worker.meme_preset import admin_report
+        body = await request.body()
+        if len(body) > 20000:
+            raise HTTPException(status_code=400, detail='Basket request too large')
+        try:
+            payload = json.loads(body)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail='Enter a valid basket request')
+        try:
+            result = await update_meme_preset.remote.aio(payload)
+        except Exception:
+            raise HTTPException(status_code=503, detail='Could not save the Meme basket. Reload the saved basket before retrying.')
+        if result['status'] != 200:
+            return JSONResponse(result['body'], status_code=result['status'], headers={'cache-control': 'no-store'})
+        saved = admin_report(result['body'], await saved_meme_report())
+        saved['refreshRequested'] = result['body'].get('refreshRequested', False)
+        return JSONResponse(saved, headers={'cache-control': 'no-store'})
+
+    @web_app.post('/api/meme-preset/suggest')
+    async def suggest_meme_preset():
+        config = await active_meme_preset()
+        try:
+            result = await pull_meme_suggestions.remote.aio(config)
+        except Exception:
+            raise HTTPException(status_code=503, detail='FOMO ranking is unavailable. Your basket is unchanged.')
+        return JSONResponse(result['body'], status_code=result['status'], headers={'cache-control': 'no-store'})
+
+    @web_app.get('/api/meme-index')
+    async def meme_index():
+        from worker.meme_preset import project_report
+        config = await active_meme_preset()
+        return JSONResponse(project_report(await saved_meme_report(), config), headers={'cache-control': 'no-store'})
 
     @web_app.get("/api/jeanphil-monitor")
     async def jeanphil_monitor():

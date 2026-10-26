@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, Mock
 
-from worker.meme_index import HOUR, METHOD, PRESET, Sources, collect, public_report, alt_observation, proxy_quotes
+from worker.meme_index import HOUR, METHOD, PRESET, Sources, collect, public_report, alt_observation, proxy_quotes, proxy_history
+from worker.meme_preset import default_config, method_for
 
 NOW = 2_000_000_000_000
 
@@ -22,10 +23,10 @@ def pair(member, change=1, now=NOW, **updates):
 
 
 class FakeSources(Sources):
-    def __init__(self, now=NOW):
-        super().__init__(quotes=self.fetch)
+    def __init__(self, now=NOW, preset=None):
+        super().__init__(quotes=self.fetch, preset=preset)
         self.now, self.calls, self.alt_calls = now, [], 0
-        self.pairs = [pair(member, index+1, now) for index, member in enumerate(PRESET)]
+        self.pairs = [pair(member, index+1, now) for index, member in enumerate(self.preset)]
         self.pool_pairs = {}
         self.fail_networks = set()
         self.alt_error = False
@@ -387,17 +388,95 @@ class IndexTests(unittest.TestCase):
         import modal_app
         history=Mock()
         source=Mock()
+        gecko=Mock()
         expected=dict(updatedAt=NOW,basket=[{}]*11,error=None)
         with patch.object(modal_app,'history_volume',history), \
              patch.object(modal_app,'stream_volume',Mock()) as ranked, \
+             patch.object(modal_app,'meme_preset_registry',Mock(get=Mock(return_value=None))), \
              patch.object(modal_app,'read_market_source',source), \
+             patch.object(modal_app,'read_gecko_source',gecko), \
              patch('worker.meme_index.collect',return_value=expected) as collector:
             result=modal_app.collect_meme_index.local()
         self.assertEqual(result['constituents'],11)
         self.assertIs(collector.call_args.args[1].quotes,source.remote)
+        self.assertIs(collector.call_args.args[1].history,gecko.remote)
         ranked.reload.assert_not_called()
         history.reload.assert_called_once()
         history.commit.assert_called_once()
+
+    def test_admin_membership_uses_variable_equal_weights_and_exact_network_batches(self):
+        preset = [PRESET[0], PRESET[2], PRESET[-1]]
+        source = FakeSources(preset=preset)
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect(Path(folder)/'index.json', source, NOW, preset=preset)
+        self.assertEqual([row['id'] for row in report['basket']],
+                         [member['network']+':'+member['contract_address'] for member in preset])
+        self.assertEqual([row['weight'] for row in report['basket']], [1/3]*3)
+        self.assertEqual(report['method'], method_for(preset))
+        self.assertEqual(report['readings'][-1]['meme'], 2)
+        self.assertEqual(report['readings'][-1]['constituents'], 3)
+        self.assertEqual(report['coverage']['includedTokens'], 3)
+        self.assertEqual([len(addresses) for _, addresses, _ in source.calls], [2, 1])
+
+    def test_admin_removal_bypasses_hour_guard_and_archives_previous_roster(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            original = collect(path, FakeSources(), NOW)
+            first_reading = copy.deepcopy(original['readings'][-1])
+            preset = [PRESET[0]]
+            source = FakeSources(preset=preset)
+            changed = collect(path, source, NOW+1, preset=preset)
+        self.assertEqual(changed['method'], method_for(preset))
+        self.assertEqual(changed['legacyMethods'][METHOD],
+                         {key: value for key, value in original.items()
+                          if key not in ('legacyMethods', 'componentBaselines')})
+        self.assertEqual(changed['readings'][0], first_reading)
+        self.assertEqual(changed['readings'][-1]['meme'], 1)
+        self.assertEqual(changed['basket'][0]['weight'], 1)
+        self.assertEqual(changed['coverage']['totalTokens'], 1)
+        self.assertEqual(len(source.calls), 1)
+
+    def test_admin_missing_quote_withholds_new_total_without_reweighting(self):
+        preset = list(PRESET[:2])
+        source = FakeSources(preset=preset)
+        source.pairs.pop()
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect(Path(folder)/'index.json', source, NOW, preset=preset)
+        self.assertIsNone(report['readings'][-1]['meme'])
+        self.assertEqual([row['weight'] for row in report['basket']], [.5, .5])
+        self.assertEqual(report['coverage']['includedTokens'], 1)
+        self.assertEqual(report['readings'][-1]['altDelta'], 1)
+
+    def test_existing_fixed_preset_acquires_component_engine_once_in_same_hour(self):
+        source=FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'index.json'
+            previous=collect(path,source,NOW)
+            previous['readings'][-1].pop('memeComparison')
+            previous.pop('componentBaselines')
+            for row in previous['basket']:
+                row.pop('comparison')
+            path.write_text(json.dumps(previous),encoding='utf-8')
+            calls=len(source.calls)
+            changed=collect(path,source,NOW+1)
+            self.assertEqual(len(source.calls),calls+2)
+            self.assertEqual(changed['readings'][-1]['memeComparison']['method'],'component-1h-vs24h-v1')
+            self.assertIn('componentBaselines',changed)
+            collect(path,source,NOW+2)
+            self.assertEqual(len(source.calls),calls+2)
+
+    def test_modal_collector_injects_durable_admin_membership(self):
+        import modal_app
+        config = dict(default_config(), members=list(PRESET[:2]))
+        expected = dict(updatedAt=NOW, basket=[{}]*2, error=None)
+        with patch.object(modal_app,'history_volume',Mock()), \
+             patch.object(modal_app,'meme_preset_registry',Mock(get=Mock(return_value=config))), \
+             patch.object(modal_app,'read_market_source',Mock()), \
+             patch('worker.meme_index.collect',return_value=expected) as collector:
+            result = modal_app.collect_meme_index.local()
+        self.assertEqual(result['constituents'], 2)
+        self.assertEqual(list(collector.call_args.args[1].preset), config['members'])
+        self.assertEqual(collector.call_args.kwargs['preset'], config['members'])
 
     def test_local_proxy_uses_shared_quote_and_pool_routes_and_original_header(self):
         response=Mock(headers={'x-data-observed-at':str(NOW-120_000)})
@@ -423,6 +502,23 @@ class IndexTests(unittest.TestCase):
             self.assertIsNone(reply['observedAt'])
         with self.assertRaises(ValueError):
             proxy_quotes('https://api.dexscreener.com')
+
+    def test_local_history_proxy_preserves_original_receipt_time_and_restricted_route(self):
+        response=Mock(status_code=200,headers={'x-data-observed-at':str(NOW-1000)})
+        response.json.return_value={'data':{'attributes':{'ohlcv_list':[]}}}
+        read=proxy_history('http://127.0.0.1:4173/api/meme-history')
+        target='/networks/solana/pools/exactpool/ohlcv/minute?aggregate=5&limit=302&currency=usd&token=exactcontract&before_timestamp=123'
+        with patch('httpx.get',return_value=response) as fetch:
+            reply=read(target)
+        self.assertEqual(reply['body']['_sourceObservedAt'],NOW-1000)
+        self.assertEqual(reply['status'],200)
+        self.assertIn('/api/meme-history/networks/solana/pools/exactpool/ohlcv/minute?',fetch.call_args.args[0])
+        self.assertNotIn('_sourceObservedAt',response.json.return_value)
+        with self.assertRaises(ValueError):
+            proxy_history('https://api.geckoterminal.com')
+        response.headers={}
+        with patch('httpx.get',return_value=response):
+            self.assertNotIn('_sourceObservedAt',read(target)['body'])
 
     def test_btc_uses_existing_feed_and_keeps_missing_values_unavailable(self):
         rows = [{'id': str(i + 100), 'rank': i + 2, 'symbol': str(i),

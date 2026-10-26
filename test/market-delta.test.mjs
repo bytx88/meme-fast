@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
+import {chart,compareReading,hourlyComparisons,memeComparisons,componentComparison,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
 import {readFile} from 'node:fs/promises';
 import {RUNNER_CONFIG} from '../dist/runner-policy.mjs';
 
@@ -8,6 +8,9 @@ const METHOD='fixed-preset-11-1h-v1-0123456789ab';
 const COMPLETE={totalTokens:11,includedTokens:11,excludedTokens:0,exclusions:{}};
 const SYMBOLS=['BP','STONK','PONS','CATE','SI','ANSEM','ZCAT','PURR','CASHCAT','NEARKAT','RAYCAT'];
 const presetBasket=at=>SYMBOLS.map((symbol,index)=>({symbol,chain:'solana',address:'contract-'+symbol,pool:'pool-'+symbol,poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1/11,rank:index+1,priceSource:'DexScreener'}));
+const methodForSize=size=>`fixed-preset-${size}-1h-v1-0123456789ab`;
+const coverageForSize=size=>({totalTokens:size,includedTokens:size,excludedTokens:0,exclusions:{}});
+const basketForSize=(at,size)=>Array.from({length:size},(_,index)=>({symbol:SYMBOLS[index]||`ADDED${index+1}`,chain:'solana',address:`contract-${index}`,pool:`pool-${index}`,poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1/size,rank:index+1,priceSource:'DexScreener'}));
 
 test('browser safety rules match the authoritative runner policy',async()=>{
  const source=JSON.parse(await readFile(new URL('../worker/runner_policy.json',import.meta.url),'utf8'));
@@ -329,6 +332,7 @@ test('preset coverage and a valid roster hash are required even when a finite Me
   {method:'fixed-preset-11-1h-v1',coverage:COMPLETE},
   {method:'fixed-preset-11-1h-v1-0123456789ag',coverage:COMPLETE},
   {method:'fixed-preset-11-1h-v1-0123456789abcd',coverage:COMPLETE},
+  ...[0,31,'01','1.5'].map(size=>({method:methodForSize(size),coverage:coverageForSize(Number(size))})),
   {method:'shared-trending-mature-1h-v2',coverage:COMPLETE}
  ];
  for(const {method,coverage} of cases){
@@ -343,6 +347,102 @@ test('preset coverage and a valid roster hash are required even when a finite Me
    assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
   });
  }
+});
+
+test('manually edited presets render their actual member count, symbols, and equal weights',async()=>{
+ const at=Date.now(),day=24*3600000;
+ for(const size of [1,10,12,30]){
+  const method=methodForSize(size),coverage=coverageForSize(size),basket=basketForSize(at,size);
+  await withMountedMarket({method,basket,coverage,readings:[
+   {at:at-day,meme:1,altDelta:2,btcDelta:1,method,coverage},
+   {at,meme:4.25,altDelta:1,btcDelta:0,method,coverage}]},async({market,body})=>{
+   const details=marketText(body.innerHTML);
+   assert.match(marketText(market.innerHTML),/Meme\s+\+3\.25 pp/);
+   assert.ok(details.includes(`Fixed ${size}-coin preset · equal weight · hourly`));
+   assert.ok(details.includes(`${size}/${size} fresh qualified; 0 unavailable`));
+   assert.ok(details.includes(`Each member carries 1/${size} weight (${(100/size).toFixed(2)}%)`));
+   assert.ok(details.includes(`the arithmetic average of all ${size} one-hour USD price changes`));
+   assert.ok(details.includes(`the manually managed fixed preset is ${basket.map(row=>row.symbol).join(', ')}`));
+   const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+   assert.deepEqual(members.map(match=>match[1]),basket.map(row=>row.symbol));
+   assert.ok(members.every(match=>match[2].includes(`${(100/size).toFixed(2)}% weight`)));
+   assert.match(details,/changes only through Admin/);
+  });
+ }
+});
+
+test('incomplete edited presets keep every member at 1/N and reject subset or mismatched coverage',async()=>{
+ const at=Date.now(),day=24*3600000;
+ for(const size of [10,12]){
+  const method=methodForSize(size),basket=basketForSize(at,size);
+  Object.assign(basket.at(-1),{priceChange1h:null,eligible:false,exclusionReason:'missing_quote'});
+  const complete=coverageForSize(size);
+  for(const coverage of [
+   {...complete,includedTokens:size-1,excludedTokens:1,exclusions:{missing_quote:1}},
+   coverageForSize(11)
+  ]){
+   await withMountedMarket({method,basket,coverage,readings:[
+    {at:at-day,meme:1,altDelta:2,btcDelta:1,method,coverage:complete},
+    {at,meme:4.25,altDelta:1,btcDelta:0,method,coverage}]},async({market,body})=>{
+    assert.match(marketText(market.innerHTML),/Meme\s+—/);
+    assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
+    assert.match(marketText(body.innerHTML),/Incomplete preset data/);
+    const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+    assert.equal(members.length,size);
+    assert.ok(members.every(match=>match[2].includes(`${(100/size).toFixed(2)}% weight`)));
+    assert.match(members.at(-1)[2],/Unavailable: Quote unavailable/);
+    if(coverage.totalTokens===size)assert.ok(marketText(body.innerHTML).includes(`${size-1}/${size} fresh qualified; 1 unavailable; complete Meme reading withheld`));
+   });
+  }
+ }
+});
+
+test('adding or removing a member starts a new Meme baseline while benchmarks remain comparable',async()=>{
+ const at=Date.now(),day=24*3600000;
+ for(const size of [10,12]){
+  const method=methodForSize(size),coverage=coverageForSize(size);
+  const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method,coverage};
+  const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE};
+  assert.equal(compareReading([prior,current]).meme,null);
+  await withMountedMarket({method,basket:basketForSize(at,size),readings:[prior,current]},async({market,body})=>{
+   assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+4\.25%/);
+   assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
+   assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/i);
+   assert.match(marketText(body.innerHTML),/Awaiting fixed preset 24H baseline/);
+   assert.match(marketText(body.innerHTML),/Only identical membership can share a 24H baseline/);
+  });
+ }
+});
+
+test('a saved preset awaiting its first collection keeps fresh real Alt/BTC comparisons',async()=>{
+ const at=Date.now(),day=24*3600000,method=methodForSize(12);
+ const readings=[
+  {at:at-day,meme:8,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE},
+  {at,meme:4.25,altDelta:1.58,btcDelta:.62,method:METHOD,coverage:COMPLETE}
+ ];
+ const basket=basketForSize(at,12).map(row=>({...row,priceChange1h:null,eligible:false,exclusionReason:'awaiting_collection'}));
+ const report={method,basket,readings,coverage:{totalTokens:12,includedTokens:0,excludedTokens:12,exclusions:{awaiting_collection:12}}};
+ await withMountedMarket(report,async({market,body,refresh})=>{
+  const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+  assert.match(header,/Meme\s+—/);
+  assert.doesNotMatch(header,/\+4\.25%|-3\.75 pp|current 1H/i);
+  assert.match(header,/Alt\s+-0\.42 pp/);
+  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(details,/Fixed 12-coin preset/);
+  assert.match(details,/0\/12 fresh qualified; 12 unavailable; complete Meme reading withheld/);
+  assert.match(details,/Awaiting collection: 12/);
+  assert.match(details,/Unavailable: Awaiting collection/);
+  assert.match(details,/Current 1H: Meme — · Alt \+1\.58% · BTC \+0\.62%/);
+  assert.match(details,/Alt\/BTC comparison: observed .*?baseline/);
+  assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
+  await refresh(report,true);
+  assert.match(marketText(market.innerHTML),/Alt\s+—/);
+  assert.match(marketText(market.innerHTML),/Btc\s+—/i);
+  const stale=readings.map(row=>({...row,at:row.at-76*60000}));
+  await refresh({...report,readings:stale});
+  assert.match(marketText(market.innerHTML),/Alt\s+—/);
+  assert.match(marketText(market.innerHTML),/Btc\s+—/i);
+ });
 });
 
 test('changing the preset hash withholds Meme comparison and preserves the current full-preset reading',async()=>{
@@ -407,4 +507,155 @@ test('off-hour Meme repairs preserve fresh matched benchmarks without extending 
   assert.match(marketText(market.innerHTML),/Alt\s+—/);
   assert.match(marketText(market.innerHTML),/Btc\s+—/);
  });
+});
+
+
+function componentReport(at,size=2,warmingIndices=[]){
+ const method=methodForSize(size),coverage=coverageForSize(size),basket=basketForSize(at,size);
+ const components=basket.map((member,index)=>{
+  const currentObservedAt=at-60000,baselineObservedAt=currentObservedAt-24*3600000;
+  const warming=warmingIndices.includes(index),firstAt=at-3600000,firstObservedAt=firstAt-60000;
+  const comparison={id:`${member.chain}:${member.address}`,weight:1/size,status:warming?'warming':'active',
+   delta:warming?0:3,currentReturn:4,currentObservedAt,baselineReturn:warming?2:1,
+   baselineObservedAt:warming?firstObservedAt:baselineObservedAt,baselineSource:warming?'initial-reference':'saved-h1',
+   baselineWindowStartAt:warming?null:baselineObservedAt-3600000,baselineWindowEndAt:warming?null:baselineObservedAt,
+   initialReturn:2,firstAt,firstObservedAt,warmUntil:firstAt+24*3600000,reason:null};
+  Object.assign(member,{id:comparison.id,priceChange1h:4,observedAt:currentObservedAt,comparison});
+  return comparison;
+ });
+ const memeComparison={method:'component-1h-vs24h-v1',at,value:components.reduce((sum,row)=>sum+row.delta,0)/size,
+  matchedMembers:size-warmingIndices.length,warmingMembers:warmingIndices.length,unavailableMembers:0,components};
+ const current={at,meme:4,altDelta:1,btcDelta:0,method,coverage,memeComparison};
+ return {method,basket,coverage,readings:[current]};
+}
+
+test('component comparisons retain existing contracts across an addition and give a new warming member zero pp',async()=>{
+ const at=Date.now(),day=24*3600000,report=componentReport(at,12,[11]);
+ report.readings.unshift({at:at-day,meme:50,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE});
+ await withMountedMarket(report,async({market,body,attributes})=>{
+  const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+  assert.match(header,/Meme\s+\+2\.75 pp/);
+  assert.doesNotMatch(header,/current 1H/i);
+  assert.match(header,/Alt\s+-1\.00 pp/);
+  assert.match(details,/11\/12 matched historical baselines · 1 warming · 0 unavailable/);
+  assert.match(details,/initial reference copied from their first observed 1H return; neutral until 24H/i);
+  assert.match(details,/Initial reference copied from the first observed 1H return \+2\.00%/);
+  assert.match(details,/this is not a historical baseline/i);
+  assert.match(details,/24H warmup/);
+  assert.match(details,/source: saved 1H observation/);
+  assert.match(details,/Historical 1H window/);
+  assert.doesNotMatch(details,/Only identical membership can share a 24H baseline/);
+  assert.match(attributes.get('aria-label'),/Meme \+2\.75 pp/);
+  const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+  assert.equal(members.length,12);
+  assert.ok(members.every(row=>row[2].includes('8.33% weight')));
+  assert.match(members.at(-1)[2],/warming · neutral \+0\.00 pp/);
+ });
+ const removed=componentReport(at,10);
+ removed.readings.unshift({at:at-day,meme:50,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE});
+ await withMountedMarket(removed,async({market})=>assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/));
+});
+
+test('an actual historical backfill activates immediately and a copied reference activates only after 24H',async()=>{
+ const at=Date.now(),day=24*3600000;
+ const recovered=componentReport(at,1),comparison=recovered.readings[0].memeComparison.components[0];
+ Object.assign(comparison,{baselineSource:'gecko-5m-close',firstAt:at,firstObservedAt:at-60000,warmUntil:at+day});
+ await withMountedMarket(recovered,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  assert.match(marketText(body.innerHTML),/1\/1 matched historical baselines · 0 warming/);
+  assert.match(marketText(body.innerHTML),/source: Gecko 5-minute closes/);
+ });
+ const warming=componentReport(at-3600000,1,[0]);
+ const firstAt=at-day,firstObservedAt=firstAt-60000;
+ Object.assign(warming.readings[0].memeComparison.components[0],{firstAt,firstObservedAt,baselineObservedAt:firstObservedAt,warmUntil:at});
+ await withMountedMarket(warming,async({market,body,refresh})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+0\.00 pp/);
+  assert.match(marketText(body.innerHTML),/1 warming/);
+  const active=componentReport(at,1),item=active.readings[0].memeComparison.components[0];
+  Object.assign(item,{firstAt,firstObservedAt,warmUntil:at,initialReturn:2,currentReturn:5,baselineReturn:2,delta:3});
+  active.readings[0].meme=5;
+  await refresh(active);
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  assert.match(marketText(body.innerHTML),/1\/1 matched historical baselines · 0 warming/);
+  assert.doesNotMatch(marketText(body.innerHTML),/Warming members:/);
+ });
+});
+
+test('malformed component arithmetic, identity, timing or provenance withholds Meme without a raw 1H fallback',async()=>{
+ const at=Date.now(),day=24*3600000;
+ const changes=[
+  engine=>{engine.value=99},engine=>{engine.method='unknown'},engine=>{engine.at--},
+  engine=>{engine.matchedMembers--},engine=>{engine.components.pop()},
+  engine=>{engine.components[0].weight=.25},
+  engine=>{engine.components[0].id=engine.components[1].id},
+  engine=>{engine.components[0].id='solana:unrelated-contract'},
+  engine=>{engine.components[0].baselineSource='initial-reference'},
+  engine=>{engine.components[0].baselineWindowStartAt+=60000},
+  engine=>{engine.components[0].baselineObservedAt-=11*60000;engine.components[0].baselineWindowEndAt-=11*60000;engine.components[0].baselineWindowStartAt-=11*60000},
+  engine=>{engine.components[0].currentObservedAt=at-15*60000},
+  engine=>{engine.components[0].currentReturn=10001},
+  engine=>{engine.components={}},engine=>{engine.value=null}
+ ];
+ for(const change of changes){
+  const report=componentReport(at),row=report.readings[0];change(row.memeComparison);
+  report.readings.unshift({at:at-day,meme:1,altDelta:2,btcDelta:1,method:report.method,coverage:report.coverage});
+  await withMountedMarket(report,async({market,body})=>{
+   const header=marketText(market.innerHTML);
+   assert.match(header,/Meme\s+—/);
+   assert.doesNotMatch(header,/Meme · 1H|\+4\.00%|\+3\.00 pp/);
+   assert.match(header,/Alt\s+-1\.00 pp/);
+   assert.match(marketText(body.innerHTML),/Component comparison unavailable/);
+   assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
+  });
+ }
+ const nullEngine=componentReport(at);nullEngine.readings[0].memeComparison=null;
+ await withMountedMarket(nullEngine,async({market})=>assert.match(marketText(market.innerHTML),/Meme\s+—/));
+});
+
+test('warming proof cannot invent zero from missing quotes or continue past its first collection plus 24H',()=>{
+ const at=Date.now(),report=componentReport(at,1,[0]);
+ assert.ok(componentComparison(report.readings[0],report.basket));
+ for(const edit of [
+  item=>{item.initialReturn=null},item=>{item.delta=1},item=>{item.baselineReturn=7},
+  item=>{item.currentReturn=null},item=>{item.baselineWindowEndAt=item.firstObservedAt},
+  item=>{item.firstAt=at-24*3600000;item.firstObservedAt=item.firstAt-60000;item.baselineObservedAt=item.firstObservedAt;item.warmUntil=at}
+ ]){
+  const invalid=structuredClone(report);edit(invalid.readings[0].memeComparison.components[0]);
+  assert.equal(componentComparison(invalid.readings[0],invalid.basket),null);
+ }
+});
+
+test('a mature baseline gap or current source gap withholds the comparison and never becomes a chart zero',async()=>{
+ const at=Date.now(),day=24*3600000;
+ for(const currentMissing of [false,true]){
+  const report=componentReport(at,1),row=report.readings[0],engine=row.memeComparison,item=engine.components[0];
+  Object.assign(item,{status:'unavailable',delta:null,reason:currentMissing?'source_unavailable':'actual_24h_baseline_unavailable',
+   baselineReturn:null,baselineObservedAt:null,baselineSource:null,baselineWindowStartAt:null,baselineWindowEndAt:null});
+  Object.assign(engine,{value:null,matchedMembers:0,warmingMembers:0,unavailableMembers:1});
+  if(currentMissing){item.currentReturn=null;row.meme=null;row.coverage={totalTokens:1,includedTokens:0,excludedTokens:1,exclusions:{source_unavailable:1}}}
+  report.readings.unshift({at:at-day,meme:1,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE});
+  await withMountedMarket(report,async({market,body})=>{
+   assert.match(marketText(market.innerHTML),/Meme\s+—/);
+   assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
+   assert.match(marketText(body.innerHTML),/24H comparison unavailable:/);
+   assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
+  });
+  assert.deepEqual(memeComparisons([row],report.method,report.basket),[]);
+ }
+});
+
+test('chart uses actual component comparisons without requiring a whole-basket baseline or Alt data',()=>{
+ const at=Date.now(),report=componentReport(at,1,[0]),row=report.readings[0];
+ const points=memeComparisons([row],report.method,report.basket);
+ assert.deepEqual(points,[{at,meme:0,altDelta:null,btcDelta:null}]);
+ const svg=chart(points,' pp');
+ assert.match(svg,/Meme \+0\.00 pp/);
+ assert.match(svg,/Alt —/);
+ assert.doesNotMatch(svg,/NaN|undefined/);
+ const old={at:at-25*3600000,meme:1,altDelta:2,btcDelta:1,method:report.method,coverage:report.coverage};
+ const legacy={at:at-3600000,meme:3,altDelta:3,btcDelta:2,method:report.method,coverage:report.coverage};
+ const mixed=memeComparisons([old,legacy,row],report.method,report.basket);
+ assert.deepEqual(mixed.map(point=>point.meme),[2,0]);
+ assert.deepEqual(mixed.map(point=>point.altDelta),[1,null]);
+ assert.doesNotMatch(chart(mixed,' pp'),/NaN|undefined/);
 });
