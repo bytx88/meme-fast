@@ -2,6 +2,9 @@ import {esc,pct,direction,when} from './market-format.mjs';
 import {runnerMode,runnerDetails,formatMode} from './runner-mode.mjs';
 export {runnerMode,runnerDetails} from './runner-mode.mjs';
 const HOUR=3600000;
+const MEME_METHOD='shared-trending-mature-1h-v2';
+const validMeme=row=>row?.method===MEME_METHOD&&Number.isFinite(row.meme)&&row.meme>=-100&&row.meme<=10000;
+const exclusionLabel=reason=>({missing_pool:'Selected pool unavailable',unknown_pool_age:'Selected pool age unknown',incomplete_1h_window:'Pool has less than one hour of history',unverified_extreme_return:'Unverified 1H return above 10,000%'}[reason]||'Excluded');
 // Match the same observation time yesterday; allow legacy five-minute samples and collector jitter.
 export function compareReading(rows,current=rows?.at(-1)){
  if(!current||!Number.isFinite(current.at))return null;
@@ -32,20 +35,21 @@ export function inputQualityNote(report){
  const quality=last?.inputQuality||report?.inputQuality;
  const count=quality?.extremeReturnCount;
  if(!(Number.isInteger(count)&&count>0)&&!(Number.isFinite(last?.meme)&&Math.abs(last.meme)>10000))return '';
- return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} A few tokens can dominate this equal-weight average. Returns are not capped; check the constituent observations below.</p>`;
+ return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} ${report?.method===MEME_METHOD?'These observations are excluded from the Meme average. Raw returns are retained below; they are not capped or replaced with zero.':'The legacy Meme calculation is withheld because it did not exclude incomplete launch windows or unverified extreme returns.'}</p>`;
 }
 function marketState(report,failed,now=Date.now()){
   const last=report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||!Number.isFinite(last.at)||now<last.at||now-last.at>75*60000;
   const ready=!failed&&!stale&&last;
   const comparison=ready?compareReading(report.readings,last):null;
   const baseline=comparison?report.readings.find(row=>row.at===comparison.baselineAt):null;
-  const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):!comparison?'Awaiting 24H baseline':!Number.isFinite(comparison.meme)?'Awaiting shared-pool 24H baseline':report.error||!Number.isFinite(comparison.btcDelta)?'Partial update':'Live';
-  const meme=comparison?.meme,alt=comparison?.altDelta,btc=comparison?.btcDelta;
-  return {last,ready,comparison,baseline,status,meme,alt,btc};
+  const memeReady=Boolean(ready)&&validMeme(last);
+  const meme=memeReady&&validMeme(baseline)?comparison?.meme:null,alt=comparison?.altDelta,btc=comparison?.btcDelta;
+  const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):report.method!==MEME_METHOD?'Awaiting corrected Meme calculation':!memeReady?'No qualified Meme reading':!Number.isFinite(meme)?'Awaiting mature-pool 24H baseline':report.error||!Number.isFinite(comparison?.btcDelta)?'Partial update':'Live';
+  return {last,ready,memeReady,comparison,baseline,status,meme,alt,btc};
 }
 
 function memeDisplay(state){
- const current=!Number.isFinite(state.meme)&&Boolean(state.ready)&&Number.isFinite(state.last?.meme);
+ const current=!Number.isFinite(state.meme)&&state.memeReady;
  return {current,value:current?state.last.meme:state.meme,unit:current?'%':' pp'};
 }
 
@@ -64,15 +68,19 @@ function marketOverview(state,mode){
 }
 
 function marketDetails(report,state,modeDetails){
- const {last,ready,comparison,baseline,status,alt,btc}=state;
+ const {last,ready,memeReady,comparison,baseline,status,alt,btc}=state;
  const display=memeDisplay(state);
- return `<p>Shared trending pool · hourly update · ${display.current?'Meme shows the current 1H change (%). Alt and BTC show the difference versus their 1H readings 24 hours earlier, in percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme${display.current?' · current 1H':''} <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ const coverage=last?.coverage||report?.coverage;
+ const covered=Number.isInteger(coverage?.includedTokens)&&Number.isInteger(coverage?.totalTokens);
+ const coverageText=covered?`Meme sample: ${coverage.includedTokens}/${coverage.totalTokens} shared pools included; ${coverage.excludedTokens} excluded.`:'';
+ return `<p>Eligible mature pools from the shared trending sample · hourly update · ${display.current?'Meme shows the current 1H change (%). Alt and BTC show the difference versus their 1H readings 24 hours earlier, in percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme${display.current?' · current 1H':''} <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ ${covered?`<p class="market-input-quality">${esc(coverageText)} ${Object.entries(coverage.exclusions||{}).map(([reason,count])=>`${esc(exclusionLabel(reason))}: ${esc(count)}`).join(' · ')}</p>`:''}
  ${display.current?'<p role="status">24H comparison · Meme —. Awaiting a matching reading from the same calculation method 24 hours earlier. The header shows the available current 1H change and will switch to the comparison automatically.</p>':''}
- <p>Current 1H: Meme ${pct(ready?last.meme:null)} · Alt ${pct(ready?last.altDelta:null)} · BTC ${pct(ready?last.btcDelta:null)}</p>
- <p>1H reading 24H ago: ${comparison?esc(when(comparison.baselineAt)):'Awaiting matching history'}</p>${comparison?`<p>Meme ${pct(Number.isFinite(comparison.meme)?baseline?.meme:null)} · Alt ${pct(baseline?.altDelta)} · BTC ${pct(baseline?.btcDelta)}</p>`:''}<div class="market-chart">${chart(hourlyComparisons((report?.readings||[]).filter(row=>row.method===report?.method)),' pp')}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span><span><i class="market-btc-key"></i>BTC · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${inputQualityNote(report)}${report?.error?`<p role="status">${esc(report.error)}</p>`:''}${modeDetails}<details class="market-method"><summary>Basket · ${report?.basket?.length||0} constituents</summary><p>Meme: equal-weight average of the one-hour USD price changes for every token in the shared 1H trending pool. Membership follows the shared ranking each hour, including older tokens with recent activity. Existing market observations are reused; missing or stale changes withhold the reading. The former FOMO method is retained in history but never compared with this method.</p>
+ <p>Current 1H: Meme ${pct(memeReady?last.meme:null)} · Alt ${pct(ready?last.altDelta:null)} · BTC ${pct(ready?last.btcDelta:null)}</p>
+ <p>1H reading 24H ago: ${comparison?esc(when(comparison.baselineAt)):'Awaiting matching history'}</p>${comparison?`<p>Meme ${pct(validMeme(baseline)?baseline.meme:null)} · Alt ${pct(baseline?.altDelta)} · BTC ${pct(baseline?.btcDelta)}</p>`:''}<div class="market-chart">${chart(hourlyComparisons((report?.readings||[]).filter(validMeme)),' pp')}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span><span><i class="market-btc-key"></i>BTC · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${inputQualityNote(report)}${report?.error?`<p role="status">${esc(report.error)}</p>`:''}${modeDetails}<details class="market-method"><summary>Basket · ${report?.basket?.length||0} observed pools${covered?` · ${coverage.includedTokens} included`:''}</summary><p>Meme: equal-weight arithmetic average of qualified one-hour USD price changes in the shared 1H trending sample. The exact selected pool must have existed for at least one hour at the quote's original observation time. Missing pool identity or age, incomplete launch windows, and unverified returns above 10,000% are excluded, with raw observations retained below. Included pools share equal weight; exclusions are never capped or replaced with zero. Membership follows the shared ranking each hour. Existing observations are reused; missing or stale price inputs withhold the reading. Older calculation methods remain in history but are never compared with this method.</p>
  <p>Alt: market-cap-weighted one-hour change of the 25 largest eligible altcoins in CoinLore's top-50 feed, excluding BTC, ETH, stablecoins, and wrapped assets. The group is selected from each fresh feed. Readings are sampled hourly. The chart shows changes in 1H readings versus 24 hours earlier, one point per hour. A historical reading within 10 minutes of the target is required; missing comparisons stay unavailable. Basket membership can change between the two readings.</p>
  <p>BTC: Bitcoin's one-hour USD price change from the same CoinLore feed, with no additional data request. Missing BTC changes display as an em dash; older readings are not backfilled.</p>
- <p>Pool selected ${esc(when(report?.rebalancedAt))} · oldest market observation ${esc(when(report?.marketObservedAt))}</p><ol>${(report?.basket||[]).map(t=>`<li><strong>${esc(t.symbol)}</strong> · ${esc(t.chain)} · 1H ${pct(t.priceChange1h)} · ${Number.isFinite(t.weight)?(100*t.weight).toFixed(2):"—"}% · ${esc(t.priceSource)}<small>${esc(t.address)}</small></li>`).join('')}</ol></details>`;
+ <p>Pool selected ${esc(when(report?.rebalancedAt))} · oldest market observation ${esc(when(report?.marketObservedAt))}</p><ol>${(report?.basket||[]).map(t=>`<li><strong>${esc(t.symbol)}</strong> · ${esc(t.chain)} · raw 1H ${pct(t.priceChange1h)} · ${t.eligible===true?`${Number.isFinite(t.weight)?(100*t.weight).toFixed(2):'—'}% weight`:`Excluded: ${esc(exclusionLabel(t.exclusionReason))}`} · ${esc(t.priceSource)}<small>${esc(t.address)} · pool ${esc(t.pool||'unknown')} · created ${esc(when(t.poolCreatedAt))}</small></li>`).join('')}</ol></details>`;
 }
 
 async function fetchReport(url,valid){

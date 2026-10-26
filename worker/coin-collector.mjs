@@ -30,10 +30,14 @@ export function refreshMarket(coins,pairs,now=Date.now()){
   if(!pair)return coin;
   const observedAt=Math.min(now,amount(pair._sourceObservedAt)??now);
   if(observedAt<(coin.marketUpdatedAt??0))return coin;
+  const pool=typeof pair.pairAddress==='string'?pair.pairAddress.trim()||null:null;
+  const createdAt=typeof pair.pairCreatedAt==='boolean'?null:amount(pair.pairCreatedAt);
+  // Quote maturity belongs to the selected pool, not the token's earliest discovery.
+  const marketPoolCreatedAt=Number.isSafeInteger(createdAt)&&createdAt>0&&createdAt<=observedAt?createdAt:null;
   const marketWindows=Object.fromEntries(['m5','h1','h6','h24'].map(window=>[window,{
    volume:amount(pair.volume?.[window]),buys:amount(pair.txns?.[window]?.buys),sells:amount(pair.txns?.[window]?.sells),buyers:null}]));
   const runnerMarket={at:observedAt,cap:amount(pair.marketCap),liquidity:amount(pair.liquidity?.usd),volume24h:amount(pair.volume?.h24),source:'DexScreener'};
-  return {...coin,runnerMarket,marketSource:'DexScreener',marketSourceURL:safeURL(pair.url),marketWindows,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool:pair.pairAddress||coin.pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?observedAt:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),priceChange1h:amount(pair.priceChange?.h1),marketUpdatedAt:observedAt,fetchedAt:observedAt};
+  return {...coin,runnerMarket,marketSource:'DexScreener',marketSourceURL:safeURL(pair.url),marketWindows,marketPoolCreatedAt,image_url:safeURL(pair.info?.imageUrl)||coin.image_url||null,pool,dex:pair.dexId||coin.dex,liquidity:amount(pair.liquidity?.usd),priceUsd:amount(pair.priceUsd)??coin.priceUsd,priceUpdatedAt:amount(pair.priceUsd)!==null?observedAt:coin.priceUpdatedAt,volume:amount(pair.volume?.h24),volume5m:amount(pair.volume?.m5),buyers:amount(pair.txns?.h24?.buys)??coin.buyers,buys:amount(pair.txns?.h24?.buys)??coin.buys,sells:amount(pair.txns?.h24?.sells)??coin.sells,buys5m:amount(pair.txns?.m5?.buys),sells5m:amount(pair.txns?.m5?.sells),priceChange:amount(pair.priceChange?.h24),priceChange1h:amount(pair.priceChange?.h1),marketUpdatedAt:observedAt,fetchedAt:observedAt};
  });
 }
 export function recordMarketHistory(coins,now=Date.now()){
@@ -170,7 +174,7 @@ export function selectLaunchCandidates(coins,limit=120){
 }
 const MARKET_OBSERVATION_FIELDS=['pool','dex','mc','fdv','liquidity','priceUsd','priceUpdatedAt','volume','volume5m',
  'buyers','buys','sells','buys5m','sells5m','priceChange','priceChange1h','marketUpdatedAt','fetchedAt',
- 'marketWindows','marketSource','marketSourceURL'];
+ 'marketWindows','marketSource','marketSourceURL','marketPoolCreatedAt'];
 function mergeMarketObservation(previous,incoming){
  const merged={...previous,...incoming};
  if(!previous)return merged;

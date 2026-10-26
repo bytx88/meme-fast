@@ -5,8 +5,9 @@ import time
 from pathlib import Path
 
 HOUR = 3_600_000
-METHOD = 'shared-trending-1h-v1'
-EXTREME_RETURN = 10_000  # Diagnostic only; reported returns are never clipped.
+METHOD = 'shared-trending-mature-1h-v2'
+# Unverified extremes are excluded, never clipped or replaced with zero.
+EXTREME_RETURN = 10_000
 
 ALT_EXCLUDE = {'BTC', 'ETH', 'USDT', 'USDC', 'DAI', 'USDE', 'PYUSD', 'FDUSD', 'TUSD',
                'USDD', 'FRAX', 'USDS', 'USD1', 'RLUSD', 'WBTC', 'WETH', 'STETH',
@@ -78,16 +79,20 @@ def collect(path, sources=None, now=None):
     except FileNotFoundError:
         report = {'version':2,'basket':[],'readings':[]}
     if report.get('method') != METHOD:
-        # Retain the original report privately; never splice FOMO returns into
-        # the new meme comparison. Alt/BTC history remains comparable.
+        # Retain original inputs and results privately; never splice returns
+        # from a different Meme method into this comparison. Alt/BTC remains comparable.
+        legacy_method = report.get('method','fomo-most-held-v1')
         legacy = {key:value for key,value in report.items() if key!='legacyMethods'}
         archives = dict(report.get('legacyMethods',{}))
         if legacy.get('readings') or legacy.get('basket'):
-            archives[report.get('method','fomo-most-held-v1')] = legacy
+            archives[legacy_method] = legacy
         report = {'version':2,'method':METHOD,'basket':[],
-                  'readings':[dict(row,method=row.get('method','fomo-most-held-v1')) for row in legacy.get('readings',[])],
+                  'readings':[dict(row,method=row.get('method',legacy_method)) for row in legacy.get('readings',[])],
                   'legacyMethods':archives}
-    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR:
+    latest = next((row for row in reversed(report.get('readings',[]))
+                   if row.get('method') == METHOD),None)
+    retry_unqualified = latest is not None and latest.get('meme') is None
+    if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified:
         write_json(path.with_suffix('.public.json'),public_report(report))
         return report
     report['attemptedAt'] = now
@@ -99,7 +104,7 @@ def collect(path, sources=None, now=None):
         rows = stream.get('windows',{}).get('1h',{}).get('tokens',[])
         if not rows:
             raise ValueError('Shared 1H trending pool is empty')
-        seen,basket,changes = set(),[],[]
+        seen,basket,changes,raw_changes,exclusions = set(),[],[],[],{}
         for row in rows:
             key,at,change = row.get('id'),row.get('observedAt'),row.get('priceChange1h')
             if not key or key in seen:
@@ -108,31 +113,50 @@ def collect(path, sources=None, now=None):
             if (type(at) not in (int,float) or not 0 <= now-at < 15*60000
                     or type(change) not in (int,float) or not math.isfinite(change) or change < -100):
                 raise ValueError('Shared 1H price changes are incomplete; reading withheld')
-            changes.append(change)
+            pool,created = row.get('pool'),row.get('poolCreatedAt')
+            reason = None
+            if not isinstance(pool,str) or not pool.strip():
+                reason = 'missing_pool'
+            elif (type(created) not in (int,float) or not math.isfinite(created)
+                    or not 0 < created <= at):
+                reason = 'unknown_pool_age'
+            elif at-created < HOUR:
+                reason = 'incomplete_1h_window'
+            elif change > EXTREME_RETURN:
+                reason = 'unverified_extreme_return'
+            if reason:
+                exclusions[reason] = exclusions.get(reason,0)+1
+            else:
+                changes.append(change)
+            raw_changes.append(change)
+            recorded_created = created if type(created) not in (int,float) or math.isfinite(created) else None
             basket.append(dict(id=key,chain=row['network'],address=row['contract_address'],
                 name=row.get('name'),symbol=row.get('symbol'),rank=row.get('rank'),
-                weight=1/len(rows),source='shared-trending-1h',priceSource=row.get('marketSource'),
-                observedAt=at,priceChange1h=change))
-        try:
-            average = math.fsum(change/len(changes) for change in changes)
-        except OverflowError:
-            scale = max(abs(change) for change in changes)
-            average = scale*(math.fsum(change/scale for change in changes)/len(changes))
+                weight=None,source='shared-trending-1h',priceSource=row.get('marketSource'),
+                observedAt=at,priceChange1h=change,pool=pool,poolCreatedAt=recorded_created,
+                eligible=reason is None,exclusionReason=reason))
+        for token in basket:
+            if token['eligible']:
+                token['weight'] = 1/len(changes)
+        average = math.fsum(changes)/len(changes) if changes else None
+        coverage = dict(totalTokens=len(basket),includedTokens=len(changes),
+                        excludedTokens=len(basket)-len(changes),exclusions=exclusions)
         alt = sources.alt(now)
         oldest = min(row['observedAt'] for row in basket)
         quality = dict(extremeReturnThreshold=EXTREME_RETURN,
-                       extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in changes),
-                       minimumReturn=min(changes),maximumReturn=max(changes))
+                       extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in raw_changes),
+                       minimumReturn=min(raw_changes),maximumReturn=max(raw_changes))
         report['readings'].append(dict(at=now,meme=average,
             altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=METHOD,
-            constituents=len(basket),marketObservedAt=oldest,inputQuality=quality))
+            constituents=len(changes),marketObservedAt=oldest,inputQuality=quality,coverage=coverage))
         report['readings'] = [row for row in report['readings'] if now-row['at'] <= 30*24*HOUR]
         report['basketHistory'] = [row for row in report.get('basketHistory',[])
                                   if 0 <= now-row['at'] <= 30*24*HOUR]
         report['basketHistory'].append(dict(at=now,marketAt=stamp,tokens=basket))
         report.update(basket=basket,updatedAt=now,readingAt=now,rebalancedAt=now,
             poolUpdatedAt=stamp,marketObservedAt=oldest,altProviderAt=alt['providerAt'],
-            altMethod=alt['source'],inputQuality=quality,error=None)
+            altMethod=alt['source'],inputQuality=quality,coverage=coverage,
+            error=None if changes else 'No qualified full-hour Meme observations; Alt/BTC updated independently')
     except Exception as exc:
         report['error'] = str(exc)[:120] if isinstance(exc,ValueError) else 'Market provider unavailable'
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -150,7 +174,7 @@ def write_json(path, report):
 def public_report(report):
     return {key:value for key,value in report.items() if key in (
         'version','method','basket','readings','updatedAt','attemptedAt','rebalancedAt',
-        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','error')}
+        'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','coverage','error')}
 
 
 if __name__ == '__main__':

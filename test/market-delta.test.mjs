@@ -24,7 +24,8 @@ test('independent report failures recover on visible refresh and pause while hid
   for(const failedEndpoint of ['/api/meme-index','/api/runner-mode']){
    let failing=true;
    const now=Date.now(),day=24*3600000;
-   const delta={basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3},{at:now,meme:4,altDelta:6,btcDelta:8}]};
+   const method='shared-trending-mature-1h-v2';
+   const delta={method,basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3,method},{at:now,meme:4,altDelta:6,btcDelta:8,method}]};
    const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:7},counts24h:{},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
    globalThis.fetch=async url=>{calls++;if(failing&&url===failedEndpoint)throw Error('test outage');
@@ -180,7 +181,7 @@ async function withMountedMarket(initialReport,check){
 }
 
 test('fresh Meme observations remain visible with a current 1H label while a comparable baseline is unavailable',async()=>{
- const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
+ const at=Date.now(),day=24*3600000,method='shared-trending-mature-1h-v2';
  const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
  const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method};
  for(const baseline of [null,{...prior,method:'fomo-most-held-v1'},{...prior,meme:null}]){
@@ -209,7 +210,7 @@ test('fresh Meme observations remain visible with a current 1H label while a com
 });
 
 test('Meme automatically resumes its comparable pp reading and never falls back to stale or failed observations',async()=>{
- const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
+ const at=Date.now(),day=24*3600000,method='shared-trending-mature-1h-v2';
  const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
  const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fomo-most-held-v1'};
  const report={method,basket:[],readings:[prior,current]};
@@ -237,26 +238,58 @@ test('Meme automatically resumes its comparable pp reading and never falls back 
  }
 });
 
-test('extreme current Meme returns fit the header while the dialog and aria retain the full value',async()=>{
- const at=Date.now(),method='shared-trending-1h-v1',meme=413378817666.74445;
- const report={method,basket:[],readings:[{at,meme,altDelta:1,btcDelta:0,method,
-  inputQuality:{extremeReturnCount:3}}]};
+test('legacy contaminated Meme is withheld while Alt and BTC remain available',async()=>{
+ const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
+ const report={method,basket:[],readings:[
+  {at:at-day,meme:10,altDelta:2,btcDelta:1,method},
+  {at,meme:413378817666.74445,altDelta:1.58,btcDelta:.62,method,inputQuality:{extremeReturnCount:3}}]};
  await withMountedMarket(report,async({market,body,attributes})=>{
-  assert.match(marketText(market.innerHTML),/current 1H/i);
-  assert.match(marketText(market.innerHTML),/\+413\.38B%/);
-  assert.doesNotMatch(marketText(market.innerHTML),/413378817666/);
-  assert.match(marketText(body.innerHTML),/Current 1H:.*?Meme\s+\+413378817666\.74%/i);
-  assert.match(attributes.get('aria-label'),/\+413378817666\.74%/);
-  assert.match(body.innerHTML,/Returns are not capped/);
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
+  assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/i);
+  assert.doesNotMatch(market.innerHTML,/413\.38B|413378817666/);
+  assert.doesNotMatch(attributes.get('aria-label'),/413378817666/);
+  assert.match(marketText(body.innerHTML),/legacy Meme calculation is withheld/i);
+  assert.match(marketText(body.innerHTML),/Current 1H: Meme —/);
  });
 });
 
+test('mature sample coverage and excluded raw inputs are disclosed without entering the value',async()=>{
+ const at=Date.now(),method='shared-trending-mature-1h-v2';
+ const coverage={totalTokens:3,includedTokens:1,excludedTokens:2,exclusions:{incomplete_1h_window:1,unverified_extreme_return:1}};
+ const report={method,coverage,basket:[
+  {symbol:'SAFE',chain:'solana',address:'safe',pool:'pool-safe',poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1,priceSource:'DexScreener'},
+  {symbol:'AGT',chain:'bsc',address:'agt',pool:'pool-agt',poolCreatedAt:at-2400000,priceChange1h:17361910275994,eligible:false,weight:null,exclusionReason:'incomplete_1h_window',priceSource:'DexScreener'},
+  {symbol:'SPIKE',chain:'bsc',address:'spike',pool:'pool-spike',poolCreatedAt:at-7200000,priceChange1h:13770788521195,eligible:false,weight:null,exclusionReason:'unverified_extreme_return',priceSource:'DexScreener'}],
+  readings:[{at,meme:2,altDelta:1,btcDelta:0,method,coverage,inputQuality:{extremeReturnCount:2}}]};
+ await withMountedMarket(report,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+2\.00%/);
+  assert.match(marketText(body.innerHTML),/1\/3 shared pools included; 2 excluded/);
+  assert.match(marketText(body.innerHTML),/Pool has less than one hour of history/);
+  assert.match(marketText(body.innerHTML),/Unverified 1H return above 10,000%/);
+  assert.match(body.innerHTML,/17361910275994/);
+  assert.match(body.innerHTML,/13770788521195/);
+  assert.match(body.innerHTML,/not capped or replaced with zero/);
+ });
+});
 
-test('extreme shared input returns are disclosed without clipping or changing the method',()=>{
- const method='shared-trending-1h-v1';
+test('browser refuses invalid mature-method averages and preserves independent benchmarks',async()=>{
+ const at=Date.now(),method='shared-trending-mature-1h-v2';
+ for(const meme of [null,-101,10001,413378817666.74445]){
+  const report={method,basket:[],readings:[{at:at-24*3600000,meme:0,altDelta:2,btcDelta:1,method},{at,meme,altDelta:1,btcDelta:0,method}]};
+  await withMountedMarket(report,async({market,body})=>{
+   assert.match(marketText(market.innerHTML),/Meme\s+—/);
+   assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
+   assert.doesNotMatch(marketText(body.innerHTML),/Current 1H: Meme [+-]/);
+  });
+ }
+});
+
+test('extreme input disclosure explains exclusion and retains raw provenance',()=>{
+ const method='shared-trending-mature-1h-v2';
  assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/2 provider-reported 1H returns/);
- assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/Returns are not capped/);
- assert.match(inputQualityNote({method,readings:[{method,meme:1e12}]}),/saved reading contains extreme/);
+ assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/excluded from the Meme average/);
+ assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/not capped or replaced with zero/);
  assert.equal(inputQualityNote({method,readings:[{method,meme:2,inputQuality:{extremeReturnCount:0}}]}),'');
  assert.equal(inputQualityNote({method,readings:[{method:'old',meme:1e12}]}),'');
 });

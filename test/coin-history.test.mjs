@@ -77,7 +77,7 @@ test('Radar accepts older trending pools without changing Coin intake and retain
 
 test('discovery merges preserve the newest coherent market observation for Coin and Radar',()=>{
  const now=1800000000000;
- const market={pool:'fresh-pool',dex:'fresh-dex',marketUpdatedAt:now-1000,fetchedAt:now-1000,
+ const market={pool:'fresh-pool',dex:'fresh-dex',marketUpdatedAt:now-1000,fetchedAt:now-1000,marketPoolCreatedAt:now-60000,
   priceUsd:2,priceUpdatedAt:now-1000,liquidity:9000,mc:100000,volume:90000,volume5m:900,
   buys:90,sells:30,buys5m:9,sells5m:3,buyers:null,priceChange:8,priceChange1h:-2,
   marketSource:'DexScreener',marketSourceURL:'https://dexscreener.com/solana/fresh-pool',
@@ -85,7 +85,7 @@ test('discovery merges preserve the newest coherent market observation for Coin 
  const previous={id:'solana:one',network:'solana',contract_address:'one',firstSeen:now-600000,
   lastSeenRadarAt:now-600000,poolCreated:now-3600000,...market};
  const older={id:previous.id,network:'solana',contract_address:'one',name:'Updated metadata',
-  pool:'old-pool',dex:'old-dex',poolCreated:previous.poolCreated,liquidity:4000,
+  pool:'old-pool',dex:'old-dex',poolCreated:previous.poolCreated,marketPoolCreatedAt:now-3600000,liquidity:4000,
   marketUpdatedAt:now-300000,fetchedAt:now-300000,priceUpdatedAt:now-300000,
   priceUsd:1,volume:40000,volume5m:400,buys:40,sells:20,buys5m:4,sells5m:2,
   priceChange:1,priceChange1h:1,fdv:999999,marketSource:'GeckoTerminal',
@@ -97,12 +97,16 @@ test('discovery merges preserve the newest coherent market observation for Coin 
   assert.equal(preserved.name,'Updated metadata');
   const newer=merge(previous,{...older,marketUpdatedAt:now,fetchedAt:now,priceUpdatedAt:now});
   assert.equal(newer.pool,'old-pool');
+  assert.equal(newer.marketPoolCreatedAt,older.marketPoolCreatedAt);
   assert.equal(newer.marketUpdatedAt,now);
   assert.equal(newer.priceUsd,1);
   assert.deepEqual(newer.runnerMarket,market.runnerMarket,'independently observed Mode quotes survive a newer pool observation');
   const quoted=merge(previous,{...older,runnerMarket:{at:now,cap:120000}});
   assert.deepEqual(quoted.runnerMarket,{at:now,cap:120000});
   assert.equal(quoted.pool,market.pool);
+  const withoutAge={...older,marketUpdatedAt:now,fetchedAt:now};
+  delete withoutAge.marketPoolCreatedAt;
+  assert.equal('marketPoolCreatedAt' in merge(previous,withoutAge),false,'unknown selected-pool age must not inherit previous pool maturity');
  }
 });
 test('tracked CASHED remains in a full Radar universe',()=>{

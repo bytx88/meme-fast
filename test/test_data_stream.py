@@ -1,6 +1,7 @@
 import copy
 import unittest
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 from worker import data_stream as stream
 from worker.smart_wallets import group
@@ -189,8 +190,42 @@ class DataStreamTests(unittest.TestCase):
 
 
     def test_ranked_pool_carries_signed_hour_change_and_original_provenance(self):
-        report=stream.project({'coins':[token(priceChange1h=-2.5,marketSource='DexScreener')]},{},{},{},NOW)
+        created_at, observed_at = NOW-10*60000, NOW-60000
+        coin=token(priceChange1h=-2.5,marketSource='DexScreener',pool='selected-pool',marketPoolCreatedAt=created_at)
+        coin['marketUpdatedAt']=observed_at
+        report=stream.project({'coins':[coin]},{},{},{},NOW)
         row=report['windows']['1h']['tokens'][0]
         self.assertEqual(row['priceChange1h'],-2.5)
         self.assertEqual(row['marketSource'],'DexScreener')
-        self.assertEqual(row['observedAt'],NOW)
+        self.assertEqual(row['pool'],'selected-pool')
+        self.assertEqual(row['poolCreatedAt'],created_at)
+        self.assertEqual(row['observedAt'],observed_at)
+        self.assertNotEqual(row['poolCreatedAt'],coin['poolCreated'])
+
+    def test_unknown_quote_pool_age_never_falls_back_to_the_original_launch(self):
+        for quote_age in ({},{'marketPoolCreatedAt':None}):
+            coin=token(priceChange1h=17361910275994,pool='selected-pool',**quote_age)
+            report=stream.project({'coins':[coin]},{},{},{},NOW)
+            for window in stream.WINDOWS:
+                row=report['windows'][window]['tokens'][0]
+                self.assertIsNone(row['poolCreatedAt'])
+                self.assertEqual(row['pool'],'selected-pool')
+                self.assertEqual(row['priceChange1h'],17361910275994)
+
+    def test_mature_anonymous_quote_is_preserved_then_excluded_from_meme(self):
+        from worker.meme_index import collect as collect_meme
+        coin=token(priceChange1h=5,pool=None,marketPoolCreatedAt=NOW-2*3600000)
+        report=stream.project({'lastRun':NOW,'coins':[coin]},{},{},{},NOW)
+        row=report['windows']['1h']['tokens'][0]
+        self.assertIsNone(row['pool'])
+        self.assertEqual(row['poolCreatedAt'],NOW-2*3600000)
+        class Sources:
+            def trending(self):
+                return report
+            def alt(self, now):
+                return dict(hourChange=1,btcDelta=0,providerAt=now,source='fixture')
+        with tempfile.TemporaryDirectory() as folder:
+            result=collect_meme(Path(folder)/'meme.json',Sources(),NOW)
+        self.assertIsNone(result['readings'][-1]['meme'])
+        self.assertEqual(result['basket'][0]['exclusionReason'],'missing_pool')
+        self.assertEqual(result['coverage']['includedTokens'],0)

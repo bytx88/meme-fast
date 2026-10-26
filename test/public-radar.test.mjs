@@ -9,6 +9,23 @@ const post=(id,publisher,time,title='Prediction market expands settlement option
 test('Public pool normalization preserves unknown cap and avoids double-counting buyers',()=>{
  const coins=parsePools({data:[pool('one',100,3),pool('two',200,5)],included:[token]},NETWORKS[0],now);
  assert.equal(coins.length,1);assert.equal(coins[0].buyers,5);assert.equal(coins[0].mc,null);assert.equal(coins[0].fdv,123);assert.equal(coins[0].contract_address,ca);assert.equal(coins[0].poolCreated,now-86400000);
+ assert.equal(coins[0].marketPoolCreatedAt,now-86400000);
+});
+
+test('Gecko quote maturity belongs to its selected pool and preserves cached observation time',()=>{
+ const observedAt=now-120000,createdAt=now-10*60000;
+ const quoted=pool('new-pool',200,5);
+ quoted.attributes.pool_created_at=new Date(createdAt).toISOString();
+ quoted.attributes.transactions.m5={buys:8,sells:4};
+ quoted.attributes.volume_usd.m5='5000';
+ const [coin]=parsePools({data:[pool('old-pool',100,3),quoted],included:[token],_sourceObservedAt:observedAt},NETWORKS[0],now);
+ assert.equal(coin.marketPoolCreatedAt,createdAt);
+ assert.equal(coin.marketUpdatedAt,observedAt);
+ for(const pool_created_at of [undefined,null,'invalid',new Date(observedAt+1).toISOString()]){
+  const invalid={...quoted,attributes:{...quoted.attributes,pool_created_at}};
+  const [unknown]=parsePools({data:[invalid],included:[token],_sourceObservedAt:observedAt},NETWORKS[0],now);
+  assert.equal(unknown.marketPoolCreatedAt,null);
+ }
 });
 test('News dates are parsed as UTC and evidence URLs stay on the source publisher',()=>{
  const data={status:'ok',items:[{title:'An &amp; update',link:'https://decrypt.co/news/one?utm_source=rss',pubDate:'2026-09-22 10:00:00',description:'<b>hello</b>'},{title:'bad',link:'javascript:alert(1)',pubDate:'2026-09-22 10:00:00'},{title:'offsite',link:'https://example.com',pubDate:'2026-09-22 10:00:00'}]};

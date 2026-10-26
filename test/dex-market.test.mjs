@@ -32,6 +32,49 @@ test('A shared cached quote cannot overwrite a newer observation and keeps its o
  assert.deepEqual(recordMarketHistory([saved],now+1000)[0].marketHistory,saved.marketHistory);
 });
 
+test('selected-pool changes replace quote maturity without borrowing the original launch age',()=>{
+ const now=1800000000000,observedAt=now-60000;
+ const coin={network:'solana',contract_address:address,pool:'original-pool',poolCreated:now-100*86400000,
+  marketPoolCreatedAt:now-2*3600000,marketUpdatedAt:now-120000};
+ const pair={chainId:'solana',baseToken:{address},pairAddress:'new-pool',pairCreatedAt:now-10*60000,
+  liquidity:{usd:12000},priceChange:{h1:17361910275994},_sourceObservedAt:observedAt};
+ const older={...pair,pairAddress:'original-pool',pairCreatedAt:coin.marketPoolCreatedAt,liquidity:{usd:4000}};
+ const updated=refreshMarket([coin],[older,pair],now)[0];
+ assert.equal(updated.pool,'new-pool');
+ assert.equal(updated.marketPoolCreatedAt,pair.pairCreatedAt);
+ assert.equal(updated.poolCreated,coin.poolCreated);
+ assert.equal(updated.marketUpdatedAt,observedAt);
+ assert.equal(updated.priceChange1h,pair.priceChange.h1,'raw provider returns remain available for validation');
+});
+
+test('a selected quote with unknown or invalid pool creation time cannot inherit a previous age',()=>{
+ const now=1800000000000,observedAt=now-60000;
+ const coin={network:'solana',contract_address:address,pool:'original-pool',poolCreated:now-100*86400000,
+  marketPoolCreatedAt:now-2*3600000,marketUpdatedAt:now-120000};
+ for(const pairCreatedAt of [undefined,null,0,-1,true,NaN,Infinity,'invalid',observedAt+1,observedAt-.5]){
+  const pair={chainId:'solana',baseToken:{address},pairAddress:'new-pool',pairCreatedAt,_sourceObservedAt:observedAt};
+  const updated=refreshMarket([coin],[pair],now)[0];
+  assert.equal(updated.pool,'new-pool');
+  assert.equal(updated.marketPoolCreatedAt,null,`invalid source timestamp ${pairCreatedAt}`);
+  assert.equal(updated.marketUpdatedAt,observedAt);
+ }
+});
+
+test('a mature anonymous quote cannot inherit the previous selected pool identity',()=>{
+ const now=1800000000000,observedAt=now-60000;
+ const coin={network:'solana',contract_address:address,pool:'previous-pool',poolCreated:now-100*86400000,
+  marketPoolCreatedAt:now-5*60000,marketUpdatedAt:now-120000};
+ for(const pairAddress of [undefined,null,'','   ',123]){
+  const pair={chainId:'solana',baseToken:{address},pairAddress,pairCreatedAt:now-2*3600000,
+   liquidity:{usd:10000},volume:{h1:30000},txns:{h1:{buys:100,sells:50}},priceChange:{h1:5},_sourceObservedAt:observedAt};
+  const updated=refreshMarket([coin],[pair],now)[0];
+  assert.equal(updated.pool,null);
+  assert.equal(updated.marketPoolCreatedAt,pair.pairCreatedAt);
+  assert.equal(updated.poolCreated,coin.poolCreated);
+  assert.equal(updated.priceChange1h,5);
+ }
+});
+
 test('new shared observations advance history once without admitting stale or out-of-order quotes',()=>{
  const now=1800000000000,at=now-60000;
  const coin={network:'solana',contract_address:address,marketUpdatedAt:now-300000,

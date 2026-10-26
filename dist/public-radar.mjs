@@ -26,6 +26,7 @@ export function parsePools(data,network,now=Date.now()) {
  for(const pool of data.data){
   const a=pool.attributes,t= tokens.get(pool.relationships?.base_token?.data?.id);if(!a||!t)continue;
   const c={id:`${network.id}:${t.address}`,name:String(t.name||t.symbol||'Unknown token'),symbol:String(t.symbol||'?'),image_url:safeURL(t.image_url),network:network.id,chain:network.name,contract_address:t.address,contract_verified:true,pool:a.address,dex:pool.relationships?.dex?.data?.id??null,poolCreated:Date.parse(a.pool_created_at),mc:numeric(a.market_cap_usd),fdv:numeric(a.fdv_usd),volume:numeric(a.volume_usd?.h24),volume5m:numeric(a.volume_usd?.m5),liquidity:numeric(a.reserve_in_usd),buyers:numeric(a.transactions?.h24?.buyers),buys:numeric(a.transactions?.h24?.buys),sells:numeric(a.transactions?.h24?.sells),buys5m:numeric(a.transactions?.m5?.buys),sells5m:numeric(a.transactions?.m5?.sells),priceUsd:numeric(a.base_token_price_usd),priceChange:numeric(a.price_change_percentage?.h24),priceChange1h:numeric(a.price_change_percentage?.h1),fetchedAt:now};
+  c.marketPoolCreatedAt=Number.isSafeInteger(c.poolCreated)&&c.poolCreated>0&&c.poolCreated<=now?c.poolCreated:null;
   c.marketWindows=Object.fromEntries(['m5','h1','h6','h24'].map(window=>[window,{
    volume:numeric(a.volume_usd?.[window]),buys:numeric(a.transactions?.[window]?.buys),
    sells:numeric(a.transactions?.[window]?.sells),buyers:numeric(a.transactions?.[window]?.buyers)}]));
