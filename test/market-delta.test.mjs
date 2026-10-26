@@ -158,6 +158,99 @@ test('shared-pool meme history never compares across methodologies; benchmarks r
  assert.equal(compareReading([{...old,method:current.method},current]).meme,-6);
 });
 
+const marketText=html=>html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+async function withMountedMarket(initialReport,check){
+ const saved={fetch:globalThis.fetch,document:globalThis.document,setInterval:globalThis.setInterval};
+ try{
+  let report=initialReport,failed=false,timer;
+  globalThis.document={hidden:false,addEventListener(){}};
+  globalThis.setInterval=callback=>{timer=callback;return 0};
+  globalThis.fetch=async url=>{
+   if(url==='/api/meme-index'&&failed)throw Error('test outage');
+   return {ok:true,json:async()=>url==='/api/meme-index'?report:{version:1,counts24h:{}}};
+  };
+  const attributes=new Map(),market={innerHTML:'',setAttribute:(name,value)=>attributes.set(name,value)},body={innerHTML:''};
+  mountMarket(market,{querySelector:()=>body});
+  await new Promise(resolve=>setImmediate(resolve));
+  await check({market,body,attributes,refresh:async(nextReport,nextFailed=false)=>{
+   report=nextReport;failed=nextFailed;timer();
+   await new Promise(resolve=>setImmediate(resolve));
+  }});
+ }finally{Object.assign(globalThis,saved)}
+}
+
+test('fresh Meme observations remain visible with a current 1H label while a comparable baseline is unavailable',async()=>{
+ const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
+ const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method};
+ for(const baseline of [null,{...prior,method:'fomo-most-held-v1'},{...prior,meme:null}]){
+  const report={method,basket:[],readings:[...(baseline?[baseline]:[]),current]};
+  await withMountedMarket(report,async({market,body,attributes})=>{
+   const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+   const title=marketText(market.innerHTML.match(/class="market-overview-title"[^>]*>([\s\S]*?)<\/span>/)[1]);
+   assert.match(header,/Meme/);
+   assert.match(header,/current 1H/i);
+   assert.match(header,/\+4\.25%(?! pp)/);
+   assert.match(title,/current 1H/i);
+   assert.match(title,/24H/i);
+   assert.match(details,/Current 1H:.*?Meme\s+\+4\.25%/i);
+   assert.match(details,/(?:Meme\s+24H comparison|24H comparison.*?Meme).*?—/i);
+   assert.match(attributes.get('aria-label'),/current 1H/i);
+   assert.match(attributes.get('aria-label'),/\+4\.25%/);
+   if(baseline){
+    assert.match(header,/Alt\s+-0\.42 pp/);
+    assert.match(header,/Btc\s+-0\.38 pp/i);
+   }else{
+    assert.match(header,/Alt\s+—/);
+    assert.match(header,/Btc\s+—/i);
+   }
+  });
+ }
+});
+
+test('Meme automatically resumes its comparable pp reading and never falls back to stale or failed observations',async()=>{
+ const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
+ const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fomo-most-held-v1'};
+ const report={method,basket:[],readings:[prior,current]};
+ await withMountedMarket(report,async({market,body,refresh})=>{
+  assert.match(marketText(market.innerHTML),/current 1H/i);
+  const comparable={...report,readings:[{...prior,method},current]};
+  await refresh(comparable);
+  const header=marketText(market.innerHTML);
+  assert.match(header,/Meme\s+-3\.75 pp/);
+  assert.doesNotMatch(header,/current 1H/i);
+  assert.match(header,/Alt\s+-0\.42 pp/);
+  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(marketText(body.innerHTML),/Current 1H:.*?Meme\s+\+4\.25%/i);
+  await refresh(report);
+  assert.match(marketText(market.innerHTML),/current 1H/i);
+  await refresh(report,true);
+  assert.doesNotMatch(marketText(market.innerHTML),/\+4\.25%|current 1H/i);
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+ });
+ for(const invalid of [{...current,at:at-76*60000},{...current,at:at+60000},{...current,meme:null}]){
+  await withMountedMarket({...report,readings:[invalid]},async({market})=>{
+   assert.match(marketText(market.innerHTML),/Meme\s+—/);
+   assert.doesNotMatch(marketText(market.innerHTML),/\+4\.25%/);
+  });
+ }
+});
+
+test('extreme current Meme returns fit the header while the dialog and aria retain the full value',async()=>{
+ const at=Date.now(),method='shared-trending-1h-v1',meme=413378817666.74445;
+ const report={method,basket:[],readings:[{at,meme,altDelta:1,btcDelta:0,method,
+  inputQuality:{extremeReturnCount:3}}]};
+ await withMountedMarket(report,async({market,body,attributes})=>{
+  assert.match(marketText(market.innerHTML),/current 1H/i);
+  assert.match(marketText(market.innerHTML),/\+413\.38B%/);
+  assert.doesNotMatch(marketText(market.innerHTML),/413378817666/);
+  assert.match(marketText(body.innerHTML),/Current 1H:.*?Meme\s+\+413378817666\.74%/i);
+  assert.match(attributes.get('aria-label'),/\+413378817666\.74%/);
+  assert.match(body.innerHTML,/Returns are not capped/);
+ });
+});
+
 
 test('extreme shared input returns are disclosed without clipping or changing the method',()=>{
  const method='shared-trending-1h-v1';

@@ -25,7 +25,7 @@
 .masthead .market-overview{flex:1;min-width:290px;max-width:360px;min-height:42px;padding:5px 12px;text-align:left;background:#172635;border:1px solid #91b8ca38;border-radius:9px}
 .masthead .market-overview:hover{border-color:#91b8ca70;background:#1b2d3e}
 .market-overview-title{display:flex;justify-content:space-between;gap:12px;color:#b2c4d5;font-size:10px;letter-spacing:.1em;line-height:1.5}
-.market-overview-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(78px,1fr);gap:8px;font-size:11px;line-height:1.6;color:#b2c4d5;white-space:nowrap}
+.market-overview-values{display:grid;grid-template-columns:minmax(64px,1fr) repeat(2,minmax(0,1fr)) minmax(78px,1fr);gap:4px;font-size:11px;line-height:1.6;color:#b2c4d5;white-space:nowrap}
 .market-overview-values>span+span{padding-left:8px;border-left:1px solid #91b8ca30}
 .market-overview-values b{display:block;color:#edf3fa;margin-left:0;font-variant-numeric:tabular-nums}
 .market-overview-values b.up{color:#74e1c1}

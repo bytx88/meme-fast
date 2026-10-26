@@ -35,7 +35,7 @@ export function inputQualityNote(report){
  return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} A few tokens can dominate this equal-weight average. Returns are not capped; check the constituent observations below.</p>`;
 }
 function marketState(report,failed,now=Date.now()){
-  const last=report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||now-last.at>75*60000;
+  const last=report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||!Number.isFinite(last.at)||now<last.at||now-last.at>75*60000;
   const ready=!failed&&!stale&&last;
   const comparison=ready?compareReading(report.readings,last):null;
   const baseline=comparison?report.readings.find(row=>row.at===comparison.baselineAt):null;
@@ -44,14 +44,30 @@ function marketState(report,failed,now=Date.now()){
   return {last,ready,comparison,baseline,status,meme,alt,btc};
 }
 
+function memeDisplay(state){
+ const current=!Number.isFinite(state.meme)&&Boolean(state.ready)&&Number.isFinite(state.last?.meme);
+ return {current,value:current?state.last.meme:state.meme,unit:current?'%':' pp'};
+}
+
+// Keep extreme provider returns readable in the header; details retain the full value.
+function headerPercent(value,unit){
+ if(!Number.isFinite(value)||Math.abs(value)<10000)return pct(value,unit);
+ const magnitude=Math.abs(value),suffixes=[[1e12,'T'],[1e9,'B'],[1e6,'M'],[1e3,'K']];
+ if(magnitude>=1e15)return `${value>=0?'+':''}${value.toExponential(1).replace('e+','e')}${unit}`;
+ const [scale,suffix]=suffixes.find(([scale])=>magnitude>=scale);
+ return `${value>=0?'+':''}${(value/scale).toFixed(2)}${suffix}${unit}`;
+}
+
 function marketOverview(state,mode){
- const {meme,alt,btc}=state;
- return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b class="${direction(meme)}">${pct(meme,' pp')}</b></span><span>Alt <b class="${direction(alt)}">${pct(alt,' pp')}</b></span><span>Btc <b class="${direction(btc)}">${pct(btc,' pp')}</b></span><span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span></span>`;
+ const {alt,btc}=state,meme=memeDisplay(state);
+ return `<span class="market-overview-title">${meme.current?'MEME CURRENT 1H · ALT/BTC VS 24H AGO':'1H DELTA · VS 24H AGO'} <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme${meme.current?' · 1H':''} <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Btc <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span></span>`;
 }
 
 function marketDetails(report,state,modeDetails){
- const {last,ready,comparison,baseline,status,meme,alt,btc}=state;
- return `<p>Shared trending pool · hourly update · difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).</p><p class="market-reading">Meme <strong>${pct(meme,' pp')}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ const {last,ready,comparison,baseline,status,alt,btc}=state;
+ const display=memeDisplay(state);
+ return `<p>Shared trending pool · hourly update · ${display.current?'Meme shows the current 1H change (%). Alt and BTC show the difference versus their 1H readings 24 hours earlier, in percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme${display.current?' · current 1H':''} <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ ${display.current?'<p role="status">24H comparison · Meme —. Awaiting a matching reading from the same calculation method 24 hours earlier. The header shows the available current 1H change and will switch to the comparison automatically.</p>':''}
  <p>Current 1H: Meme ${pct(ready?last.meme:null)} · Alt ${pct(ready?last.altDelta:null)} · BTC ${pct(ready?last.btcDelta:null)}</p>
  <p>1H reading 24H ago: ${comparison?esc(when(comparison.baselineAt)):'Awaiting matching history'}</p>${comparison?`<p>Meme ${pct(Number.isFinite(comparison.meme)?baseline?.meme:null)} · Alt ${pct(baseline?.altDelta)} · BTC ${pct(baseline?.btcDelta)}</p>`:''}<div class="market-chart">${chart(hourlyComparisons((report?.readings||[]).filter(row=>row.method===report?.method)),' pp')}</div><div class="market-overview-legend"><span><i class="market-histogram-key"></i>Meme · histogram</span><span><i class="market-alt-key"></i>Alt · line</span><span><i class="market-btc-key"></i>BTC · line</span></div><p class="market-timestamp">Updated ${esc(when(last?.at))}</p>${inputQualityNote(report)}${report?.error?`<p role="status">${esc(report.error)}</p>`:''}${modeDetails}<details class="market-method"><summary>Basket · ${report?.basket?.length||0} constituents</summary><p>Meme: equal-weight average of the one-hour USD price changes for every token in the shared 1H trending pool. Membership follows the shared ranking each hour, including older tokens with recent activity. Existing market observations are reused; missing or stale changes withhold the reading. The former FOMO method is retained in history but never compared with this method.</p>
  <p>Alt: market-cap-weighted one-hour change of the 25 largest eligible altcoins in CoinLore's top-50 feed, excluding BTC, ETH, stablecoins, and wrapped assets. The group is selected from each fresh feed. Readings are sampled hourly. The chart shows changes in 1H readings versus 24 hours earlier, one point per hour. A historical reading within 10 minutes of the target is required; missing comparisons stay unavailable. Basket membership can change between the two readings.</p>
@@ -74,7 +90,8 @@ export function mountMarket(market,dialog){
   const state=marketState(delta.report,delta.failed);
   const mode=runner.failed?'—':runnerMode(runner.report);
   market.innerHTML=marketOverview(state,mode);
-  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. Meme ${pct(state.meme,' pp')}, Alt ${pct(state.alt,' pp')}, BTC ${pct(state.btc,' pp')}. ${state.status}. Solana Mode ${formatMode(mode)}. Open details`);
+  const meme=memeDisplay(state);
+  market.setAttribute('aria-label',`${meme.current?`Meme current 1H ${pct(meme.value,meme.unit)}. Meme 24H comparison unavailable. Alt and BTC changes in 1 hour readings versus 24 hours ago.`:`Change in 1 hour readings versus 24 hours ago. Meme ${pct(state.meme,' pp')}.`} Alt ${pct(state.alt,' pp')}, BTC ${pct(state.btc,' pp')}. ${state.status}. Solana Mode ${formatMode(mode)}. Open details`);
   body.innerHTML=marketDetails(delta.report,state,runnerDetails(runner.report,runner.failed));
  }
  async function refresh(url,target,valid){
