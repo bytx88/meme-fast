@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import json
+import math
 import os
 import signal
 import sys
@@ -99,6 +100,41 @@ def write_report(path, report):
     os.replace(temporary, path)
 
 
+def projected_checkpoint(output, snapshot_path, started_at):
+    """Reuse the projection child's validated read of this exact snapshot file.
+
+    The controller calls this only after every writer has stopped. A missing,
+    truncated or incompatible summary falls back to reading the main snapshot.
+    """
+    try:
+        summary = json.loads(output)
+        if not isinstance(summary, dict) or type(summary.get('version')) is not int or summary['version'] != 1:
+            return None
+        if any(type(summary.get(key)) is not int or summary[key] < 0
+               for key in ('snapshotSize', 'snapshotMtimeNs', 'snapshotDev', 'snapshotIno')):
+            return None
+        checkpoint = summary.get('checkpoint')
+        if not isinstance(checkpoint, dict) or set(checkpoint) != {'lastRun', 'revision', 'coins', 'providerErrors'}:
+            return None
+        at = checkpoint['lastRun']
+        if type(at) not in (int, float) or not math.isfinite(at) or at < started_at:
+            return None
+        if type(checkpoint['coins']) is not int or checkpoint['coins'] < 0:
+            return None
+        if checkpoint['revision'] is not None and not isinstance(checkpoint['revision'], str):
+            return None
+        errors = checkpoint['providerErrors']
+        if not isinstance(errors, dict) or any(not isinstance(value, str) for value in errors.values()):
+            return None
+        current = snapshot_path.stat()
+        if (summary['snapshotSize'], summary['snapshotMtimeNs'], summary['snapshotDev'], summary['snapshotIno']) != (
+                current.st_size, current.st_mtime_ns, current.st_dev, current.st_ino):
+            return None
+        return checkpoint
+    except (OSError, ValueError, TypeError, OverflowError):
+        return None
+
+
 def public_job_health(report, now_ms=None):
     now_ms = int(time.time()*1000) if now_ms is None else now_ms
     completed = report.get('completedAt')
@@ -125,7 +161,9 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
     children = []
     failure = None
     checkpoint = None
+    checkpoint_source = None
     previous_health = {}
+    projection_output = None
 
     def note(message):
         log(f'collect_coins +{time.monotonic()-started:.1f}s {message}', flush=True)
@@ -225,13 +263,23 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
             child = await launch(commands['projections'])
             return await child.finish(limits['projections'], 'projections')
         try:
-            await stage('projections', projections())
+            projection_output = await stage('projections', projections())
         except Exception as error:
             warnings.append(f'Projection unavailable; API uses main snapshot: {error}')
         # Stop projections before validating and committing their input snapshot.
         await bounded(asyncio.gather(*(child.close(limits['cleanup']) for child in children)),
                       limits['cleanup'], 'all writers shutdown')
-        checkpoint = await bounded(read_checkpoint(), limits['report'], 'checkpoint validation')
+        checkpoint = None
+        if projection_output is not None:
+            checkpoint = await bounded(asyncio.to_thread(projected_checkpoint, projection_output,
+                                                         snapshot_path, started_at),
+                                       limits['report'], 'projection checkpoint validation')
+            if checkpoint is not None:
+                checkpoint_source = 'projection'
+        if checkpoint is None:
+            checkpoint = await bounded(read_checkpoint(), limits['report'], 'checkpoint validation')
+            if checkpoint is not None:
+                checkpoint_source = 'snapshot'
         if checkpoint is None:
             raise RuntimeError('Collector did not publish a fresh valid snapshot')
     except Exception as error:
@@ -251,6 +299,7 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
               'completedAt': int(time.time()*1000),
               'status': 'failed' if failure else 'degraded' if warnings or checkpoint['providerErrors'] else 'ok',
               'stages': stages, 'warnings': warnings, 'snapshot': checkpoint,
+              'checkpointSource': checkpoint_source,
               'error': str(failure) if failure else None,
               'consecutiveFailures': previous_health.get('consecutiveFailures', 0)+1 if failure else 0,
               'lastSuccessAt': previous_health.get('lastSuccessAt') if failure else int(time.time()*1000),

@@ -98,6 +98,60 @@ def _is_final_stretch(coin):
         return False
 
 
+def coin_projection_views(snapshot, now_ms=None):
+    """Yield the five saved Snipe views, reusing read-only batch derivations.
+
+    The caller serializes each view before advancing. Independent API requests
+    continue to use snapshot_view, with their own current time and objects.
+    """
+    if now_ms is None:
+        import time
+        now_ms = time.time() * 1000
+    cutoff = now_ms - RETENTION_MS
+    retained = [coin for coin in snapshot.get('coins', []) if (coin.get('firstSeen') or 0) > cutoff]
+    candidates = [*retained, *(coin for coin in snapshot.get('radarCoins', [])
+                              if (coin.get('lastSeenRadarAt') or 0) > cutoff)]
+    normalized = {id(coin): (_name_key(coin.get('name')), _ticker_key(coin.get('symbol')))
+                  for coin in candidates}
+    stretch = {id(coin): _is_final_stretch(coin) for coin in retained}
+    linked = sum(context.get('kind') == 'verified' or context.get('kind') == 'web'
+                 and bool((context.get('web') or {}).get('exact'))
+                 for coin in retained if isinstance(context := coin.get('savedContext'), dict))
+    public, competition = {}, {}
+    for hours in (1, 6, 12, 36, 120):
+        window_cutoff = now_ms - hours * 3600000
+        visible = [coin for coin in retained if (coin.get('firstSeen') or 0) >= window_cutoff
+                   or (coin.get('graduationObservedAt') or 0) >= window_cutoff or stretch[id(coin)]]
+        visible_ids = {coin['id'] for coin in visible}
+        result = {field: snapshot[field] for field in ('version', 'revision', 'lastRun', 'coverage', 'feeds')
+                  if field in snapshot}
+        result['retainedTotal'] = len(retained)
+        result['retainedAddressLinked'] = linked
+        rows = []
+        for coin in visible:
+            identity = id(coin)
+            if identity not in public:
+                public[identity] = {**{key: value for key, value in coin.items()
+                                      if key not in ('marketHistory', 'marketHistoryHourly', 'priceHistory5m')},
+                                    'flowSamples': _compact_flow(coin.get('marketHistory') or []),
+                                    'earlyRampWarning': _early_ramp_warning(coin, now_ms)}
+            rows.append(public[identity])
+        result['coins'] = rows
+        names = {normalized[id(coin)][0] for coin in visible} - {''}
+        tickers = {normalized[id(coin)][1] for coin in visible} - {''}
+        rows = []
+        for coin in candidates:
+            identity = id(coin)
+            name, ticker = normalized[identity]
+            if coin.get('id') in visible_ids or not (name in names or ticker in tickers):
+                continue
+            if identity not in competition:
+                competition[identity] = {key: coin[key] for key in COMPETITION_FIELDS if key in coin}
+            rows.append(competition[identity])
+        result['competitionCoins'] = rows
+        yield hours, result
+
+
 def snapshot_view(snapshot, view="", ids=(), now_ms=None, name="", hours=120):
     if now_ms is None:
         import time

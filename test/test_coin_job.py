@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from worker.coin_job import run_coin_job, bounded, StageTimeout, public_job_health, Child
 from worker.coin_projections import project
 from worker.coin_job import DEFAULT_BUDGETS
+from worker import coin_job
 from unittest.mock import patch
 
 
@@ -96,6 +97,89 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
     def checkpoint_command(self, folder):
         return f'import json,time;from pathlib import Path;Path({str(Path(folder)/"coins.json")!r}).write_text(json.dumps({{"coins":[],"lastRun":int(time.time()*1000),"revision":"test:1","feeds":{{}}}}));'
 
+    def projection_summary_command(self, folder, change='', after=''):
+        return (f'import json;from pathlib import Path;p=Path({str(Path(folder)/"coins.json")!r});'
+                'value=json.loads(p.read_text());stat=p.stat();'
+                'summary={"version":1,"snapshotSize":stat.st_size,"snapshotMtimeNs":stat.st_mtime_ns,'
+                '"snapshotDev":stat.st_dev,"snapshotIno":stat.st_ino,'
+                '"checkpoint":{"lastRun":value["lastRun"],"revision":value.get("revision"),'
+                '"coins":len(value["coins"]),"providerErrors":{}}};'
+                + (change + ';' if change else '') + 'print(json.dumps(summary),flush=True);' + after)
+
+    async def test_successful_projection_reuses_checkpoint_after_all_writers_stop(self):
+        with tempfile.TemporaryDirectory() as folder:
+            real_read, real_start = coin_job.read_json, Child.start
+            children = []
+            async def start(child, *args, **kwargs):
+                children.append(child)
+                return await real_start(child, *args, **kwargs)
+            def read(path, default):
+                self.assertNotEqual(path.name, 'coins.json', 'The projection already validated this snapshot')
+                return real_read(path, default)
+            real_projected = coin_job.projected_checkpoint
+            def projected(*args):
+                self.assertTrue(all(child.closed and child.process.returncode is not None for child in children))
+                return real_projected(*args)
+            with patch.object(Child, 'start', start), patch.object(coin_job, 'read_json', side_effect=read), \
+                 patch.object(coin_job, 'projected_checkpoint', side_effect=projected):
+                report = await self.exercise(folder, self.checkpoint_command(folder),
+                    projections=f'import json;from worker.coin_projections import project;print(json.dumps(project({str(Path(folder)/"coins.json")!r})))')
+            self.assertEqual(report['status'], 'ok')
+            self.assertEqual(report['checkpointSource'], 'projection')
+            self.assertEqual(report['snapshot'], {'lastRun': report['snapshot']['lastRun'], 'revision': 'test:1',
+                                                 'coins': 0, 'providerErrors': {}})
+
+    async def test_missing_invalid_stale_and_mismatched_projection_summaries_fall_back(self):
+        cases = {
+            'missing': 'pass',
+            'malformed': 'print("not JSON")',
+            'stale': 'summary["checkpoint"]["lastRun"]=1',
+            'wrong-file': 'summary["snapshotSize"]+=1',
+            'invalid-checkpoint': 'summary["checkpoint"]["coins"]="unknown"',
+        }
+        for name, change in cases.items():
+            with self.subTest(summary=name), tempfile.TemporaryDirectory() as folder:
+                reads, real_read = [], coin_job.read_json
+                def read(path, default):
+                    if path.name == 'coins.json':
+                        reads.append(path)
+                    return real_read(path, default)
+                projections = change if name in ('missing', 'malformed') else self.projection_summary_command(folder, change)
+                with patch.object(coin_job, 'read_json', side_effect=read):
+                    report = await self.exercise(folder, self.checkpoint_command(folder), projections=projections)
+                self.assertEqual(report['status'], 'ok')
+                self.assertEqual(report['checkpointSource'], 'snapshot')
+                self.assertEqual(report['snapshot']['revision'], 'test:1')
+                self.assertEqual(len(reads), 1)
+
+    async def test_snapshot_changed_after_summary_is_validated_from_main_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            change = 'value.update(coins=[{}],revision="changed");p.write_text(json.dumps(value))'
+            report = await self.exercise(folder, self.checkpoint_command(folder),
+                projections=self.projection_summary_command(folder, after=change))
+            self.assertEqual(report['snapshot']['revision'], 'changed')
+            self.assertEqual(report['checkpointSource'], 'snapshot')
+            self.assertEqual(report['snapshot']['coins'], 1)
+
+    async def test_atomic_replacement_with_same_size_and_mtime_requires_full_validation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            reads, real_read = [], coin_job.read_json
+            def read(path, default):
+                if path.name == 'coins.json':
+                    reads.append(path)
+                return real_read(path, default)
+            replacement = ('import os;replacement=p.with_suffix(".replacement");replacement.write_bytes(p.read_bytes());'
+                           'os.utime(replacement,ns=(stat.st_atime_ns,stat.st_mtime_ns));os.replace(replacement,p);'
+                           'assert p.stat().st_size==stat.st_size and p.stat().st_mtime_ns==stat.st_mtime_ns;'
+                           'assert p.stat().st_ino!=stat.st_ino')
+            with patch.object(coin_job, 'read_json', side_effect=read):
+                report = await self.exercise(folder, self.checkpoint_command(folder),
+                    projections=self.projection_summary_command(folder, after=replacement))
+            self.assertEqual(report['status'], 'ok')
+            self.assertEqual(report['snapshot']['revision'], 'test:1')
+            self.assertEqual(len(reads), 1, 'A replaced inode must not reuse the old projection summary')
+            self.assertEqual(report['checkpointSource'], 'snapshot')
+
     async def test_timeout_with_fresh_checkpoint_is_degraded_and_committed(self):
         with tempfile.TemporaryDirectory() as folder:
             commits=[]
@@ -115,16 +199,24 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
                      f'Path({str(ready)!r}).write_text("ready");time.sleep(10)')
             # Trigger the timeout only after the real child publishes its file;
             # run_coin_job still performs real process shutdown and recovery.
-            with patch.object(Child, 'finish', timeout_after_checkpoint):
-                report=await self.exercise(folder,command,budgets={'collect':20},commit=commit)
+            reads, real_read = [], coin_job.read_json
+            def read(path, default):
+                if path.name == 'coins.json':
+                    reads.append(path)
+                return real_read(path, default)
+            with patch.object(Child, 'finish', timeout_after_checkpoint), patch.object(coin_job, 'read_json', side_effect=read):
+                report=await self.exercise(folder,command,budgets={'collect':20},commit=commit,
+                                          projections=self.projection_summary_command(folder))
             self.assertEqual(report['status'],'degraded')
             self.assertEqual(report['snapshot']['revision'],'test:1')
+            self.assertEqual(report['checkpointSource'], 'projection')
             self.assertEqual(report['consecutiveFailures'],0)
             self.assertEqual(len(commits),1)
             self.assertIn('Fresh checkpoint',report['warnings'][0])
             self.assertEqual(len(timed_out),1)
             self.assertTrue(timed_out[0].closed)
             self.assertIsNotNone(timed_out[0].process.returncode)
+            self.assertEqual(len(reads), 1, 'Timeout recovery must still validate the collector checkpoint once')
 
     async def test_projection_failure_uses_fresh_main_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -132,6 +224,47 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(report['status'],'degraded')
             self.assertEqual(report['stages']['projections']['status'],'failed')
             self.assertIsNotNone(report['snapshot'])
+
+    async def test_projection_timeout_discards_its_printed_summary_and_uses_main_snapshot(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker, timed_out = Path(folder)/'projection.ready', []
+            real_finish = Child.finish
+            async def timeout_after_summary(child, seconds, name):
+                if name != 'projections':
+                    return await real_finish(child, seconds, name)
+                await self.wait_for_fixture_ready(marker)
+                self.assertIsNone(child.process.returncode)
+                timed_out.append(child)
+                raise StageTimeout('projections exceeded controlled fixture deadline')
+            after = f'Path({str(marker)!r}).write_text("ready");import time;time.sleep(10)'
+            with patch.object(Child, 'finish', timeout_after_summary):
+                report = await self.exercise(folder, self.checkpoint_command(folder),
+                    projections=self.projection_summary_command(folder, after=after))
+            self.assertEqual(report['status'], 'degraded')
+            self.assertEqual(report['snapshot']['revision'], 'test:1')
+            self.assertEqual(report['stages']['projections']['status'], 'failed')
+            self.assertTrue(timed_out[0].closed)
+            self.assertIsNotNone(timed_out[0].process.returncode)
+
+    async def test_collect_timeout_checkpoint_is_revalidated_when_projection_fails(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder)/'checkpoint.ready'
+            real_finish = Child.finish
+            async def timeout_after_checkpoint(child, seconds, name):
+                if name != 'collect':
+                    return await real_finish(child, seconds, name)
+                await self.wait_for_fixture_ready(marker)
+                raise StageTimeout('collect exceeded controlled fixture deadline')
+            collect = self.checkpoint_command(folder) + f'Path({str(marker)!r}).write_text("ready");time.sleep(10)'
+            projections = (f'import json;from pathlib import Path;Path({str(Path(folder)/"coins.json")!r})'
+                           '.write_text(json.dumps({"coins":[],"lastRun":1}));raise ValueError("bad projection")')
+            with patch.object(Child, 'finish', timeout_after_checkpoint):
+                with self.assertRaisesRegex(RuntimeError, 'did not publish a fresh valid snapshot'):
+                    await self.exercise(folder, collect, projections=projections)
+            health = json.loads((Path(folder)/'coin-job-health.json').read_text())
+            self.assertEqual(health['status'], 'failed')
+            self.assertIsNone(health['snapshot'])
+            self.assertIsNone(health['checkpointSource'])
 
     async def test_crash_and_stale_snapshot_are_real_failures(self):
         with tempfile.TemporaryDirectory() as folder:

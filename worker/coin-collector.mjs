@@ -338,6 +338,24 @@ export function contextArticleIndex(articles){
  };
 }
 
+export function contextProfileIndex(profiles){
+ const networks=new Map();
+ for(const profile of profiles){
+  let addresses=networks.get(profile.chainId);
+  if(!addresses)networks.set(profile.chainId,addresses=new Map());
+  const address=profile.chainId==='solana'?profile.tokenAddress:String(profile.tokenAddress).toLowerCase();
+  // Keep find()'s first matching profile, including its original source object.
+  if(!addresses.has(address))addresses.set(address,{profile,icon:profile.icon?safeURL(profile.icon):null});
+ }
+ return {
+  get(coin){
+   const addresses=networks.get(coin.network);
+   if(!addresses)return undefined;
+   return addresses.get(coin.network==='solana'?coin.contract_address:coin.contract_address.toLowerCase());
+  },
+ };
+}
+
 async function enrichContext(snapshot,fetcher,now){
  const {coins,radarCoins,feeds}=snapshot;
  const news=await Promise.allSettled([...FEEDS.map(feed=>fetchPublicSource(feed,fetcher)),(async()=>{
@@ -354,9 +372,10 @@ async function enrichContext(snapshot,fetcher,now){
  const coinIds=new Set(coins.map(c=>c.id));
  const contextTargets=[...coins,...radarCoins.filter(c=>!coinIds.has(c.id))];
  const articleIndex=contextArticleIndex(articles);
+ const profileIndex=contextProfileIndex(profiles);
  for(const coin of contextTargets){
-  const exactProfile=profiles.find(p=>p.chainId===coin.network&&(coin.network==='solana'?p.tokenAddress===coin.contract_address:String(p.tokenAddress).toLowerCase()===coin.contract_address.toLowerCase()));
-  coin.image_url=safeURL(exactProfile?.icon)||coin.image_url||null;
+  const matchedProfile=profileIndex.get(coin),exactProfile=matchedProfile?.profile;
+  coin.image_url=matchedProfile?.icon||coin.image_url||null;
   const matches=articleIndex.exact(coin);
   if(matches.length)coin.savedContext={kind:'verified',articles:matches.slice(0,2)};
   if(!coin.savedContext){
