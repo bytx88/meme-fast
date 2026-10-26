@@ -1,0 +1,13 @@
+[
+  {"symbol":"BP","name":"BP","network":"solana","contract_address":"BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"},
+  {"symbol":"STONK","name":"Stonk","network":"solana","contract_address":"6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx"},
+  {"symbol":"PONS","name":"Pons","network":"robinhood","contract_address":"0x39dbed3a2bd333467115de45665cc57f813c4571"},
+  {"symbol":"CATE","name":"Cate","network":"solana","contract_address":"Ai66LHZG9MCzg1WKdawwqduVAXpNDUuV8M3uyq5ppump"},
+  {"symbol":"SI","name":"Super Inu","network":"solana","contract_address":"DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP"},
+  {"symbol":"ANSEM","name":"Ansem","network":"solana","contract_address":"9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump"},
+  {"symbol":"ZCAT","name":"zcat","network":"solana","contract_address":"HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR"},
+  {"symbol":"PURR","name":"Hypurr","network":"solana","contract_address":"8RNUw4N655VSrZKuhGdywhbSMDTrheguFPfxbpE2NZHQ"},
+  {"symbol":"CASHCAT","name":"cashcat","network":"robinhood","contract_address":"0x020bfc650a365f8bb26819deaabf3e21291018b4"},
+  {"symbol":"NEARKAT","name":"nearkat","network":"solana","contract_address":"6UtY9iTZMQQ5QZVrbzFnNaJntV7oySm9k97mvwnuZcxr"},
+  {"symbol":"RAYCAT","name":"raycat","network":"solana","contract_address":"CFNRDaxFcvRwRSNnA5cHrCCr6AHhk9dNkHWpRUjNupFL"}
+]

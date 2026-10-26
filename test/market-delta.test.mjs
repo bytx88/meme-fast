@@ -4,6 +4,11 @@ import {chart,compareReading,hourlyComparisons,runnerMode,runnerDetails,mountMar
 import {readFile} from 'node:fs/promises';
 import {RUNNER_CONFIG} from '../dist/runner-policy.mjs';
 
+const METHOD='fixed-preset-11-1h-v1-0123456789ab';
+const COMPLETE={totalTokens:11,includedTokens:11,excludedTokens:0,exclusions:{}};
+const SYMBOLS=['BP','STONK','PONS','CATE','SI','ANSEM','ZCAT','PURR','CASHCAT','NEARKAT','RAYCAT'];
+const presetBasket=at=>SYMBOLS.map((symbol,index)=>({symbol,chain:'solana',address:'contract-'+symbol,pool:'pool-'+symbol,poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1/11,rank:index+1,priceSource:'DexScreener'}));
+
 test('browser safety rules match the authoritative runner policy',async()=>{
  const source=JSON.parse(await readFile(new URL('../worker/runner_policy.json',import.meta.url),'utf8'));
  assert.deepEqual(RUNNER_CONFIG,source);
@@ -24,8 +29,8 @@ test('independent report failures recover on visible refresh and pause while hid
   for(const failedEndpoint of ['/api/meme-index','/api/runner-mode']){
    let failing=true;
    const now=Date.now(),day=24*3600000;
-   const method='shared-trending-mature-1h-v2';
-   const delta={method,basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3,method},{at:now,meme:4,altDelta:6,btcDelta:8,method}]};
+   const method=METHOD;
+   const delta={method,basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3,method,coverage:COMPLETE},{at:now,meme:4,altDelta:6,btcDelta:8,method,coverage:COMPLETE}]};
    const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:7},counts24h:{},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
    globalThis.fetch=async url=>{calls++;if(failing&&url===failedEndpoint)throw Error('test outage');
@@ -181,9 +186,9 @@ async function withMountedMarket(initialReport,check){
 }
 
 test('fresh Meme observations remain visible with a current 1H label while a comparable baseline is unavailable',async()=>{
- const at=Date.now(),day=24*3600000,method='shared-trending-mature-1h-v2';
- const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
- const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method};
+ const at=Date.now(),day=24*3600000,method=METHOD;
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method,coverage:COMPLETE};
+ const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method,coverage:COMPLETE};
  for(const baseline of [null,{...prior,method:'fomo-most-held-v1'},{...prior,meme:null}]){
   const report={method,basket:[],readings:[...(baseline?[baseline]:[]),current]};
   await withMountedMarket(report,async({market,body,attributes})=>{
@@ -210,13 +215,13 @@ test('fresh Meme observations remain visible with a current 1H label while a com
 });
 
 test('Meme automatically resumes its comparable pp reading and never falls back to stale or failed observations',async()=>{
- const at=Date.now(),day=24*3600000,method='shared-trending-mature-1h-v2';
- const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method};
+ const at=Date.now(),day=24*3600000,method=METHOD;
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method,coverage:COMPLETE};
  const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fomo-most-held-v1'};
  const report={method,basket:[],readings:[prior,current]};
  await withMountedMarket(report,async({market,body,refresh})=>{
   assert.match(marketText(market.innerHTML),/current 1H/i);
-  const comparable={...report,readings:[{...prior,method},current]};
+  const comparable={...report,readings:[{...prior,method,coverage:COMPLETE},current]};
   await refresh(comparable);
   const header=marketText(market.innerHTML);
   assert.match(header,/Meme\s+-3\.75 pp/);
@@ -241,7 +246,7 @@ test('Meme automatically resumes its comparable pp reading and never falls back 
 test('legacy contaminated Meme is withheld while Alt and BTC remain available',async()=>{
  const at=Date.now(),day=24*3600000,method='shared-trending-1h-v1';
  const report={method,basket:[],readings:[
-  {at:at-day,meme:10,altDelta:2,btcDelta:1,method},
+  {at:at-day,meme:10,altDelta:2,btcDelta:1,method,coverage:COMPLETE},
   {at,meme:413378817666.74445,altDelta:1.58,btcDelta:.62,method,inputQuality:{extremeReturnCount:3}}]};
  await withMountedMarket(report,async({market,body,attributes})=>{
   assert.match(marketText(market.innerHTML),/Meme\s+—/);
@@ -254,17 +259,26 @@ test('legacy contaminated Meme is withheld while Alt and BTC remain available',a
  });
 });
 
-test('mature sample coverage and excluded raw inputs are disclosed without entering the value',async()=>{
- const at=Date.now(),method='shared-trending-mature-1h-v2';
- const coverage={totalTokens:3,includedTokens:1,excludedTokens:2,exclusions:{incomplete_1h_window:1,unverified_extreme_return:1}};
- const report={method,coverage,basket:[
-  {symbol:'SAFE',chain:'solana',address:'safe',pool:'pool-safe',poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1,priceSource:'DexScreener'},
-  {symbol:'AGT',chain:'bsc',address:'agt',pool:'pool-agt',poolCreatedAt:at-2400000,priceChange1h:17361910275994,eligible:false,weight:null,exclusionReason:'incomplete_1h_window',priceSource:'DexScreener'},
-  {symbol:'SPIKE',chain:'bsc',address:'spike',pool:'pool-spike',poolCreatedAt:at-7200000,priceChange1h:13770788521195,eligible:false,weight:null,exclusionReason:'unverified_extreme_return',priceSource:'DexScreener'}],
+test('incomplete preset keeps all 11 members and fixed weights while withholding a finite subset average',async()=>{
+ const at=Date.now(),method=METHOD;
+ const coverage={totalTokens:11,includedTokens:8,excludedTokens:3,exclusions:{missing_quote:1,incomplete_1h_window:1,unverified_extreme_return:1}};
+ const basket=presetBasket(at);
+ Object.assign(basket[8],{priceChange1h:null,eligible:false,exclusionReason:'missing_quote',pool:null,poolCreatedAt:null});
+ Object.assign(basket[9],{priceChange1h:17361910275994,poolCreatedAt:at-2400000,eligible:false,exclusionReason:'incomplete_1h_window'});
+ Object.assign(basket[10],{priceChange1h:13770788521195,eligible:false,exclusionReason:'unverified_extreme_return'});
+ const report={method,coverage,basket,
   readings:[{at,meme:2,altDelta:1,btcDelta:0,method,coverage,inputQuality:{extremeReturnCount:2}}]};
  await withMountedMarket(report,async({market,body})=>{
-  assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+2\.00%/);
-  assert.match(marketText(body.innerHTML),/1\/3 shared pools included; 2 excluded/);
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.doesNotMatch(marketText(market.innerHTML),/\+2\.00%/);
+  assert.match(marketText(body.innerHTML),/8\/11 fresh qualified; 3 unavailable; complete Meme reading withheld/);
+  assert.match(marketText(body.innerHTML),/Incomplete preset data/);
+  assert.match(marketText(body.innerHTML),/Fixed 11-coin preset · equal weight · hourly/);
+  const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+  assert.deepEqual(members.map(match=>match[1]),SYMBOLS);
+  assert.ok(members.every(match=>match[2].includes('9.09% weight')));
+  assert.match(members[8][2],/Unavailable: Quote unavailable/);
+  assert.match(members[8][2],/contract-CASHCAT/);
   assert.match(marketText(body.innerHTML),/Pool has less than one hour of history/);
   assert.match(marketText(body.innerHTML),/Unverified 1H return above 10,000%/);
   assert.match(body.innerHTML,/17361910275994/);
@@ -273,10 +287,10 @@ test('mature sample coverage and excluded raw inputs are disclosed without enter
  });
 });
 
-test('browser refuses invalid mature-method averages and preserves independent benchmarks',async()=>{
- const at=Date.now(),method='shared-trending-mature-1h-v2';
+test('browser refuses invalid fixed-preset averages and preserves independent benchmarks',async()=>{
+ const at=Date.now(),method=METHOD;
  for(const meme of [null,-101,10001,413378817666.74445]){
-  const report={method,basket:[],readings:[{at:at-24*3600000,meme:0,altDelta:2,btcDelta:1,method},{at,meme,altDelta:1,btcDelta:0,method}]};
+  const report={method,basket:[],readings:[{at:at-24*3600000,meme:0,altDelta:2,btcDelta:1,method,coverage:COMPLETE},{at,meme,altDelta:1,btcDelta:0,method,coverage:COMPLETE}]};
   await withMountedMarket(report,async({market,body})=>{
    assert.match(marketText(market.innerHTML),/Meme\s+—/);
    assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
@@ -285,20 +299,105 @@ test('browser refuses invalid mature-method averages and preserves independent b
  }
 });
 
+test('unavailable preset quotes explain source, observation time, missing return, and invalid return separately',async()=>{
+ const at=Date.now(),method=METHOD;
+ const reasons=[['source_unavailable','Market source unavailable'],
+  ['missing_observation','Quote observation time unavailable'],
+  ['missing_return','1H return unavailable'],['invalid_return','Invalid 1H return']];
+ const coverage={totalTokens:11,includedTokens:7,excludedTokens:4,
+  exclusions:Object.fromEntries(reasons.map(([reason])=>[reason,1]))};
+ const basket=presetBasket(at);
+ reasons.forEach(([exclusionReason],index)=>Object.assign(basket[index],{eligible:false,exclusionReason,priceChange1h:null}));
+ await withMountedMarket({method,basket,coverage,readings:[{at,meme:null,altDelta:1,btcDelta:0,method,coverage}]},async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+  reasons.forEach(([,label],index)=>{
+   assert.ok(members[index][2].includes(`Unavailable: ${label}`));
+   assert.ok(members[index][2].includes('9.09% weight'));
+  });
+  assert.match(marketText(body.innerHTML),/7\/11 fresh qualified; 4 unavailable; complete Meme reading withheld/);
+ });
+});
+
+test('preset coverage and a valid roster hash are required even when a finite Meme value is saved',async()=>{
+ const at=Date.now(),day=24*3600000;
+ const cases=[
+  {method:METHOD,coverage:undefined},
+  {method:METHOD,coverage:{...COMPLETE,includedTokens:10,excludedTokens:1}},
+  {method:METHOD,coverage:{...COMPLETE,totalTokens:10}},
+  {method:METHOD,coverage:{...COMPLETE,excludedTokens:1}},
+  {method:'fixed-preset-11-1h-v1',coverage:COMPLETE},
+  {method:'fixed-preset-11-1h-v1-0123456789ag',coverage:COMPLETE},
+  {method:'fixed-preset-11-1h-v1-0123456789abcd',coverage:COMPLETE},
+  {method:'shared-trending-mature-1h-v2',coverage:COMPLETE}
+ ];
+ for(const {method,coverage} of cases){
+  const report={method,basket:presetBasket(at),readings:[
+   {at:at-day,meme:1,altDelta:2,btcDelta:1,method,coverage},
+   {at,meme:4.25,altDelta:1,btcDelta:0,method,coverage}]};
+  await withMountedMarket(report,async({market,body})=>{
+   assert.match(marketText(market.innerHTML),/Meme\s+—/);
+   assert.doesNotMatch(marketText(market.innerHTML),/\+4\.25%|\+3\.25 pp/);
+   assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
+   assert.match(marketText(market.innerHTML),/Btc\s+-1\.00 pp/i);
+   assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
+  });
+ }
+});
+
+test('changing the preset hash withholds Meme comparison and preserves the current full-preset reading',async()=>{
+ const at=Date.now(),day=24*3600000,method=METHOD;
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method,coverage:COMPLETE};
+ const prior={at:at-day,meme:8,altDelta:2,btcDelta:1,method:'fixed-preset-11-1h-v1-abcdef012345',coverage:COMPLETE};
+ assert.equal(compareReading([prior,current]).meme,null);
+ await withMountedMarket({method,basket:presetBasket(at),readings:[prior,current]},async({market,body})=>{
+  const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+  assert.match(header,/Meme · 1H\s+\+4\.25%/);
+  assert.doesNotMatch(header,/-3\.75 pp/);
+  assert.match(header,/Alt\s+-0\.42 pp/);
+  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(details,/Awaiting fixed preset 24H baseline/);
+  assert.match(details,/Meme 1H reading 24H ago: Awaiting matching history/);
+  assert.match(details,/11\/11 fresh qualified; 0 unavailable/);
+ });
+});
+
+test('Meme selects the nearest complete same-preset baseline while benchmarks keep their own matching observations',async()=>{
+ const at=Date.now(),day=24*3600000,method=METHOD;
+ const current={at,meme:4.25,altDelta:1.58,btcDelta:.62,method,coverage:COMPLETE};
+ const complete={at:at-day+60000,meme:2,altDelta:9,btcDelta:9,method,coverage:COMPLETE};
+ const nearest={at:at-day,meme:100,altDelta:2,btcDelta:1,method,coverage:COMPLETE};
+ for(const rejected of [
+  {...nearest,meme:null,coverage:{...COMPLETE,includedTokens:10,excludedTokens:1}},
+  {...nearest,method:'fixed-preset-11-1h-v1-abcdef012345'},
+  {...nearest,method:'shared-trending-mature-1h-v2'}
+ ]){
+  await withMountedMarket({method,basket:presetBasket(at),readings:[rejected,complete,current]},async({market,body})=>{
+   const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+   assert.match(header,/Meme\s+\+2\.25 pp/);
+   assert.doesNotMatch(header,/current 1H/i);
+   assert.match(header,/Alt\s+-0\.42 pp/);
+   assert.match(header,/Btc\s+-0\.38 pp/i);
+   assert.match(details,/Meme 1H reading 24H ago:.*?\+2\.00%/);
+   assert.match(body.innerHTML,/Meme \+2\.25 pp/);
+  });
+ }
+});
+
 test('extreme input disclosure explains exclusion and retains raw provenance',()=>{
- const method='shared-trending-mature-1h-v2';
+ const method=METHOD;
  assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/2 provider-reported 1H returns/);
- assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/excluded from the Meme average/);
+ assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/complete reading is withheld until all 11 preset members/);
  assert.match(inputQualityNote({method,readings:[{method,meme:20,inputQuality:{extremeReturnCount:2}}]}),/not capped or replaced with zero/);
  assert.equal(inputQualityNote({method,readings:[{method,meme:2,inputQuality:{extremeReturnCount:0}}]}),'');
  assert.equal(inputQualityNote({method,readings:[{method:'old',meme:1e12}]}),'');
 });
 
 test('off-hour Meme repairs preserve fresh matched benchmarks without extending freshness',async()=>{
- const at=Date.now(),hour=3600000,day=24*hour,method='shared-trending-mature-1h-v2';
+ const at=Date.now(),hour=3600000,day=24*hour,method=METHOD;
  const rows=[{at:at-day-24*60000,meme:1,altDelta:2,btcDelta:1,method:'shared-trending-1h-v1'},
   {at:at-24*60000,meme:413378817666,altDelta:1.58,btcDelta:.62,method:'shared-trending-1h-v1'},
-  {at,meme:91.02,altDelta:1,btcDelta:0,method}];
+  {at,meme:91.02,altDelta:1,btcDelta:0,method,coverage:COMPLETE}];
  await withMountedMarket({method,basket:[],readings:rows},async({market,body,refresh})=>{
   assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+91\.02%/);
   assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);

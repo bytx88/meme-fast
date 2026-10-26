@@ -520,17 +520,16 @@ def collect_jeanphil_monitor():
 
 
 @app.function(schedule=modal.Cron("0 * * * *"), timeout=480, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
-              volumes={"/history": history_volume, "/stream": stream_volume})
+              volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 def collect_meme_index():
     import sys
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
-    from worker.meme_index import collect
-    stream_volume.reload()
+    from worker.meme_index import Sources, collect
     history_volume.reload()
     try:
-        report = collect("/history/meme-index.json")
+        report = collect("/history/meme-index.json", Sources(quotes=read_market_source.remote))
     finally:
         history_volume.commit()
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}

@@ -212,20 +212,10 @@ class DataStreamTests(unittest.TestCase):
                 self.assertEqual(row['pool'],'selected-pool')
                 self.assertEqual(row['priceChange1h'],17361910275994)
 
-    def test_mature_anonymous_quote_is_preserved_then_excluded_from_meme(self):
-        from worker.meme_index import collect as collect_meme
+    def test_mature_anonymous_quote_remains_unidentified_in_stream(self):
         coin=token(priceChange1h=5,pool=None,marketPoolCreatedAt=NOW-2*3600000)
         report=stream.project({'lastRun':NOW,'coins':[coin]},{},{},{},NOW)
         row=report['windows']['1h']['tokens'][0]
         self.assertIsNone(row['pool'])
         self.assertEqual(row['poolCreatedAt'],NOW-2*3600000)
-        class Sources:
-            def trending(self):
-                return report
-            def alt(self, now):
-                return dict(hourChange=1,btcDelta=0,providerAt=now,source='fixture')
-        with tempfile.TemporaryDirectory() as folder:
-            result=collect_meme(Path(folder)/'meme.json',Sources(),NOW)
-        self.assertIsNone(result['readings'][-1]['meme'])
-        self.assertEqual(result['basket'][0]['exclusionReason'],'missing_pool')
-        self.assertEqual(result['coverage']['includedTokens'],0)
+        self.assertEqual(row['priceChange1h'],5)
