@@ -115,6 +115,59 @@ class PresetApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.puts, [])
         self.assertEqual(self.refreshes, [])
 
+    async def test_save_and_get_keep_retained_comparisons_before_collection_finishes(self):
+        from worker.meme_baseline import DAY, compare_components
+        seed=default_config()
+        basket=[]
+        for index,member in enumerate(seed['members']):
+            basket.append(dict(id=member['network']+':'+member['contract_address'],
+                chain=member['network'],address=member['contract_address'],symbol=member['symbol'],name=member['name'],
+                priceChange1h=index+4,observedAt=self.now-60_000,pool='pool-'+str(index),poolCreatedAt=self.now-10*DAY,
+                priceSource='DexScreener',eligible=True,exclusionReason=None,weight=1/11))
+        old=copy.deepcopy(basket)
+        for row in old:
+            row.update(observedAt=row['observedAt']-DAY,priceChange1h=3)
+        comparison,_=compare_components(basket,dict(basketHistory=[dict(at=self.now-DAY,tokens=old)]),
+                                        self.now,admissions=seed['admissions'])
+        coverage=dict(totalTokens=11,includedTokens=11,excludedTokens=0,exclusions={})
+        reading=dict(at=self.now,method=seed['method'],meme=9,coverage=coverage,
+                     constituents=11,memeComparison=comparison,altDelta=2,btcDelta=3)
+        self.report=dict(version=2,method=seed['method'],basket=basket,readings=[reading],
+                         updatedAt=self.now,readingAt=self.now,coverage=coverage,marketObservedAt=self.now-60_000)
+        before=copy.deepcopy(self.report)
+        original={row['id']:copy.deepcopy(row) for row in comparison['components']}
+        addition=dict(network='base',contract_address='0x'+'ab'*20,symbol='NEW',name='New')
+        saved=(await self.client.put('/api/meme-preset',json=dict(revision=seed['revision'],members=[*seed['members'],addition]))).json()
+        self.assertEqual([row['comparison']['status'] for row in saved['members']],['active']*11+['pending'])
+        self.assertEqual(saved['latestReadingAt'],self.now)
+        public=(await self.client.get('/api/meme-index')).json()
+        projected=public['membershipReading']
+        self.assertEqual(projected['at'],self.now)
+        self.assertEqual(projected['memeComparison']['value'],6)
+        self.assertEqual(projected['memeComparison']['denominator'],11)
+        self.assertEqual(public['readings'],before['readings'])
+        new=projected['memeComparison']['components'][-1]
+        self.assertEqual(new['weight'],0)
+        for field in ('firstAt','firstObservedAt','initialReturn','warmUntil','baselineReturn','baselineObservedAt'):
+            self.assertIsNone(new[field])
+        # The original collector still has not completed. Remove one old member
+        # and then the pending addition; retained baselines survive both saves.
+        for members,expected_count in ((saved['members'][1:],11),(saved['members'][1:-1],10)):
+            saved=(await self.client.put('/api/meme-preset',json=dict(revision=saved['revision'],members=members))).json()
+            public=(await self.client.get('/api/meme-index')).json()
+            current=public['membershipReading']['memeComparison']
+            self.assertEqual(len(current['components']),expected_count)
+            self.assertEqual(current['value'],6.5)
+            self.assertEqual(current['denominator'],10)
+            self.assertEqual(public['readings'],before['readings'])
+            self.assertNotIn(basket[0]['id'],[row['id'] for row in public['basket']])
+            for component in current['components']:
+                if component['status']=='pending':continue
+                for field in ('delta','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt','kind','addedAt'):
+                    self.assertEqual(component[field],original[component['id']][field])
+        self.assertEqual(self.report,before)
+        self.assertEqual(len(self.refreshes),3)
+
     async def test_only_actual_added_contract_gets_server_owned_admission(self):
         loaded = (await self.client.get('/api/meme-preset')).json()
         self.assertTrue(all(row == {'kind': 'existing', 'addedAt': None} for row in loaded['admissions'].values()))

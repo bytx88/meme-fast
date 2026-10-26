@@ -20,6 +20,30 @@ def stream(*rows):
     return dict(updatedAt=NOW-30_000, windows={'1h': {'tokens': list(rows)}})
 
 
+def incumbent_report(config=None):
+    from worker.meme_baseline import DAY, compare_components
+    config = config or default_config()
+    basket, yesterday = [], []
+    for index, member in enumerate(config['members']):
+        row = dict(id=member_identity(member), chain=member['network'], address=member['contract_address'],
+                   name=member['name'], symbol=member['symbol'], weight=1/len(config['members']),
+                   source='fixed-preset-1h', priceSource='dexscreener', priceChange1h=index+1,
+                   observedAt=NOW-60_000, pool='pool-'+str(index), poolCreatedAt=NOW-10*DAY,
+                   eligible=True, exclusionReason=None)
+        basket.append(row)
+        yesterday.append(dict(row, observedAt=row['observedAt']-DAY, priceChange1h=index-2))
+    history = dict(basketHistory=[dict(at=NOW-DAY, tokens=yesterday)])
+    comparison, ledger = compare_components(basket, history, NOW, admissions=config['admissions'])
+    coverage = dict(totalTokens=len(basket), includedTokens=len(basket), excludedTokens=0, exclusions={})
+    reading = dict(at=NOW, method=config['method'], meme=sum(row['priceChange1h'] for row in basket)/len(basket),
+                   coverage=coverage, memeComparison=comparison, altDelta=1, btcDelta=2,
+                   constituents=len(basket), marketObservedAt=NOW-60_000)
+    return dict(version=2, method=config['method'], basket=basket, readings=[reading],
+                updatedAt=NOW, readingAt=NOW, attemptedAt=NOW-500,
+                marketObservedAt=NOW-60_000, poolUpdatedAt=NOW-60_000,
+                coverage=coverage, componentBaselines=ledger, **history)
+
+
 class PresetTests(unittest.TestCase):
     def test_default_is_original_eleven_and_independent_per_call(self):
         config = default_config()
@@ -135,6 +159,160 @@ class PresetTests(unittest.TestCase):
         self.assertFalse(actual['members'][0]['quote']['eligible'])
         self.assertIsNone(actual['members'][0]['quote']['pool'])
         self.assertIsNone(actual['members'][0]['quote']['priceChange1h'])
+
+    def test_addition_immediately_keeps_eleven_actual_comparisons_and_original_history(self):
+        config, report = default_config(), incumbent_report()
+        original = copy.deepcopy(report)
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW+1000)
+        projected = project_report(report, added)
+        reading = projected['membershipReading']
+        comparison = reading['memeComparison']
+        self.assertEqual(comparison['value'], 3)
+        self.assertEqual((comparison['matchedMembers'], comparison['warmingMembers'], comparison['denominator']), (11, 1, 11))
+        self.assertEqual(projected['readings'], report['readings'])
+        self.assertEqual(report, original)
+        self.assertNotIn('componentBaselines', projected)
+        self.assertNotIn('basketHistory', projected)
+        self.assertIsNone(reading['meme'])
+        self.assertEqual(reading['coverage']['includedTokens'], 11)
+        self.assertEqual(reading['coverage']['excludedTokens'], 1)
+        self.assertEqual(projected['presetAdmissions'], added['admissions'])
+        for previous, retained in zip(report['basket'], projected['basket']):
+            self.assertEqual({key: value for key, value in retained.items() if key != 'weight'},
+                             {key: value for key, value in previous.items() if key != 'weight'})
+        addition = projected['basket'][-1]
+        self.assertFalse(addition['eligible'])
+        self.assertIsNone(addition['observedAt'])
+        self.assertIsNone(addition['pool'])
+        self.assertEqual(addition['comparison']['status'], 'pending')
+        self.assertEqual(addition['comparison']['weight'], 0)
+        self.assertEqual(addition['comparison']['addedAt'], NOW+1000)
+        for field in ('initialReturn', 'firstAt', 'firstObservedAt', 'warmUntil', 'baselineReturn', 'baselineObservedAt'):
+            self.assertIsNone(addition['comparison'][field])
+        self.assertEqual(admin_report(added, report)['latestReadingAt'], NOW)
+
+    def test_removal_reweights_retained_actual_deltas_without_resetting_baselines(self):
+        config, report = default_config(), incumbent_report()
+        # Make removing the first member visibly change the correct aggregate.
+        report['basket'][0]['priceChange1h'] += 11
+        first = report['basket'][0]['comparison']
+        first['currentReturn'] += 11
+        first['delta'] += 11
+        report['readings'][0]['memeComparison']['components'][0] = copy.deepcopy(first)
+        report['readings'][0]['memeComparison']['value'] += 1
+        report['readings'][0]['meme'] += 1
+        removed = revise(config, dict(revision=config['revision'], members=config['members'][1:]), NOW+1000)
+        projected = project_report(report, removed)
+        reading = projected['membershipReading']
+        self.assertEqual(reading['memeComparison']['value'], 3)
+        self.assertEqual(reading['memeComparison']['denominator'], 10)
+        self.assertEqual(reading['memeComparison']['warmingMembers'], 0)
+        self.assertEqual([row['id'] for row in projected['basket']], [row['id'] for row in report['basket'][1:]])
+        for old, actual in zip(report['basket'][1:], projected['basket']):
+            self.assertEqual({key: value for key, value in old['comparison'].items() if key != 'weight'},
+                             {key: value for key, value in actual['comparison'].items() if key != 'weight'})
+            self.assertEqual(actual['comparison']['weight'], .1)
+        self.assertEqual(projected['readings'], report['readings'])
+
+    def test_reorder_only_preserves_each_contract_comparison(self):
+        config, report = default_config(), incumbent_report()
+        reordered = revise(config, dict(revision=config['revision'], members=list(reversed(config['members']))), NOW+1000)
+        projected = project_report(report, reordered)
+        self.assertEqual(projected['membershipReading']['memeComparison']['value'], 3)
+        self.assertEqual(projected['basket'], list(reversed(report['basket'])))
+        self.assertEqual(projected['readings'], report['readings'])
+
+    def test_same_roster_readdition_projects_only_new_generation_as_pending(self):
+        config, report = default_config(), incumbent_report()
+        removed = revise(config, dict(revision=config['revision'], members=config['members'][1:]), NOW+1000)
+        readded = revise(removed, dict(revision=removed['revision'], members=config['members']), NOW+2000)
+        self.assertEqual(readded['method'], config['method'])
+        projected = project_report(report, readded)
+        self.assertEqual(projected['basket'][0]['comparison']['status'], 'pending')
+        self.assertIsNone(projected['basket'][0]['priceChange1h'])
+        self.assertEqual(projected['basket'][0]['comparison']['addedAt'], NOW+2000)
+        self.assertEqual(projected['membershipReading']['memeComparison']['matchedMembers'], 10)
+        self.assertEqual(projected['membershipReading']['memeComparison']['warmingMembers'], 1)
+        for prior, actual in zip(report['basket'][1:], projected['basket'][1:]):
+            self.assertEqual({key: value for key, value in prior['comparison'].items() if key != 'weight'},
+                             {key: value for key, value in actual['comparison'].items() if key != 'weight'})
+
+    def test_projection_keeps_old_source_time_and_does_not_freshen_on_save(self):
+        config, report = default_config(), incumbent_report()
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW+2*HOUR)
+        projected = project_report(report, added)
+        reading = projected['membershipReading']
+        self.assertEqual((projected['updatedAt'], projected['readingAt'], reading['at'], reading['memeComparison']['at']), (NOW,)*4)
+        self.assertEqual(projected['attemptedAt'], report['attemptedAt'])
+        self.assertEqual(projected['marketObservedAt'], NOW-60_000)
+        marker = dict(sourceMethod=config['method'], sourceAt=NOW, configuredAt=NOW+2*HOUR, revision=added['revision'])
+        self.assertEqual(projected['membershipProjection'], marker)
+        self.assertEqual(reading['membershipProjection'], marker)
+        self.assertEqual(projected['readings'][0]['at'], NOW)
+
+    def test_another_addition_does_not_restart_an_existing_addition_warmup(self):
+        from worker.meme_baseline import compare_components
+        config, report = default_config(), incumbent_report()
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW-HOUR)
+        basket = incumbent_report(added)['basket']
+        comparison, ledger = compare_components(basket, report, NOW, admissions=added['admissions'])
+        # This real saved reading includes one addition whose clock already runs.
+        reading = dict(report['readings'][0], method=added['method'], constituents=12,
+                       meme=sum(row['priceChange1h'] for row in basket)/12,
+                       coverage=dict(totalTokens=12, includedTokens=12, excludedTokens=0, exclusions={}),
+                       memeComparison=comparison)
+        report.update(method=added['method'], basket=basket, readings=[reading], componentBaselines=ledger)
+        later = revise(added, dict(revision=added['revision'], members=[*added['members'], candidate('B'*32)]), NOW+1000)
+        projected = project_report(report, later)
+        previous = report['basket'][-1]['comparison']
+        retained = projected['basket'][-2]['comparison']
+        self.assertEqual(previous['status'], 'warming')
+        self.assertEqual(retained, previous)
+        self.assertEqual(retained['firstAt'], NOW)
+        self.assertEqual(projected['membershipReading']['memeComparison']['warmingMembers'], 2)
+        self.assertEqual(projected['membershipReading']['memeComparison']['denominator'], 11)
+
+    def test_add_then_remove_before_collection_restores_original_comparison_without_projection(self):
+        config, report = default_config(), incumbent_report()
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW+1000)
+        removed = revise(added, dict(revision=added['revision'], members=config['members']), NOW+2000)
+        projected = project_report(report, removed)
+        self.assertNotIn('membershipReading', projected)
+        self.assertEqual(projected['basket'], report['basket'])
+        self.assertEqual(projected['readings'], report['readings'])
+
+    def test_malformed_or_legacy_comparison_cannot_be_projected_as_current_evidence(self):
+        config = default_config()
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW+1000)
+        for field, value in (('method', 'component-1h-vs24h-v2'), ('value', 123), ('matchedMembers', 10), ('at', NOW+1)):
+            report = incumbent_report()
+            report['readings'][0]['memeComparison'][field] = value
+            with self.subTest(field=field):
+                projected = project_report(report, added)
+                self.assertNotIn('membershipReading', projected)
+                self.assertIsNone(projected['updatedAt'])
+                self.assertTrue(all(row['comparison'] is None for row in admin_report(added, report)['members']))
+
+    def test_malformed_same_roster_proof_cannot_restore_a_readded_generation(self):
+        config, report = default_config(), incumbent_report()
+        removed = revise(config, dict(revision=config['revision'], members=config['members'][1:]), NOW+1000)
+        readded = revise(removed, dict(revision=removed['revision'], members=config['members']), NOW+2000)
+        report['readings'][0]['memeComparison']['value'] = 123
+        projected = project_report(report, readded)
+        self.assertNotIn('membershipReading', projected)
+        self.assertIsNone(projected['updatedAt'])
+        self.assertIsNone(projected['basket'][0]['priceChange1h'])
+
+    def test_source_basket_must_belong_to_its_actual_reading_timestamp(self):
+        config = default_config()
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], candidate()]), NOW+1000)
+        for field in ('updatedAt', 'readingAt'):
+            report = incumbent_report()
+            report[field] += 1
+            with self.subTest(field=field):
+                projected = project_report(report, added)
+                self.assertNotIn('membershipReading', projected)
+                self.assertIsNone(projected['updatedAt'])
 
     def test_only_genuine_additions_receive_server_owned_admission_clocks(self):
         original = default_config()

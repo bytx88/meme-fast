@@ -10,9 +10,14 @@ const hasComponentComparison=row=>Boolean(row&&Object.hasOwn(row,'memeComparison
 const validReturn=value=>Number.isFinite(value)&&value>=-100&&value<=10000;
 const close=(left,right)=>Number.isFinite(left)&&Number.isFinite(right)&&Math.abs(left-right)<=1e-8*Math.max(1,Math.abs(left),Math.abs(right));
 const basketId=row=>row?.id||`${row?.chain}:${row?.address}`;
-function componentEvidence(row,basket,allowLegacy=false){
+const hasMembershipProjection=report=>Boolean(report&&(Object.hasOwn(report,'membershipReading')||Object.hasOwn(report,'membershipProjection')));
+const matchingAdmissions=(components,admissions)=>Boolean(Array.isArray(components)&&admissions&&typeof admissions==='object'&&!Array.isArray(admissions)&&Object.keys(admissions).length===components.length&&components.every(component=>{
+ const admission=admissions[component?.id];return admission&&admission.kind===component.kind&&admission.addedAt===component.addedAt;
+}));
+function componentEvidence(row,basket,allowLegacy=false,projectedPending,admissions,allowUnavailable=false){
  const size=fixedPresetSize(row?.method),engine=row?.memeComparison,coverage=row?.coverage;
  const legacy=allowLegacy&&engine?.method==='component-1h-vs24h-v2';
+ if(row&&Object.hasOwn(row,'membershipProjection')&&!projectedPending)return null;
  if(size===null||!Number.isFinite(row.at)||(!legacy&&engine?.method!=='component-1h-vs24h-v3')||engine.at!==row.at||!Array.isArray(engine.components)||engine.components.length!==size)return null;
  if(coverage?.totalTokens!==size||!Number.isInteger(coverage.includedTokens)||coverage.includedTokens<0||coverage.includedTokens>size||coverage.excludedTokens!==size-coverage.includedTokens)return null;
  // Earlier complete active comparisons have the same denominator. Warming v2
@@ -20,21 +25,22 @@ function componentEvidence(row,basket,allowLegacy=false){
  if(legacy&&(!validMeme(row)||engine.components.some(component=>component?.status!=='active')))return null;
  const ids=engine.components.map(component=>component?.id);
  if(ids.some(id=>typeof id!=='string'||!id)||new Set(ids).size!==size)return null;
+ if(admissions!==undefined&&!matchingAdmissions(engine.components,admissions))return null;
  if(basket!==undefined&&(!Array.isArray(basket)||basket.length!==size||new Set(basket.map(basketId)).size!==size||basket.some((member,index)=>ids[index]!==basketId(member))))return null;
  const excluded=component=>['warming','pending'].includes(component?.status);
  const denominator=engine.components.filter(component=>!excluded(component)).length;
  if(!legacy&&engine.denominator!==denominator)return null;
- let active=0,warming=0,awaiting=0,delta=0,current=0,qualified=0;
+ let active=0,warming=0,awaiting=0,unavailable=0,delta=0,current=0,qualified=0;
  for(const component of engine.components){
   if(!close(component.weight,excluded(component)||!denominator?0:1/denominator))return null;
-  if(!['existing','added'].includes(component.kind)||component.kind==='existing'&&component.addedAt!==null||component.kind==='added'&&(!Number.isFinite(component.addedAt)||component.addedAt<=0||component.addedAt>row.at))return null;
+  if(!['existing','added'].includes(component.kind)||component.kind==='existing'&&component.addedAt!==null||component.kind==='added'&&(!Number.isFinite(component.addedAt)||component.addedAt<=0||component.addedAt>row.at&&!projectedPending?.has(component.id)))return null;
   const currentEligible=legacy||component.currentEligible;
   if(!legacy&&typeof currentEligible!=='boolean')return null;
   if(currentEligible){
    if(!validReturn(component.currentReturn)||!Number.isFinite(component.currentObservedAt)||component.currentObservedAt<=0||row.at<component.currentObservedAt||row.at-component.currentObservedAt>=15*60000)return null;
    qualified++;current+=component.currentReturn;
   }else{
-   if(!excluded(component)||component.currentReturn!==null&&!Number.isFinite(component.currentReturn)||component.currentObservedAt!==null&&!Number.isFinite(component.currentObservedAt))return null;
+   if(!excluded(component)&&!(allowUnavailable&&component.status==='unavailable')||component.currentReturn!==null&&!Number.isFinite(component.currentReturn)||component.currentObservedAt!==null&&!Number.isFinite(component.currentObservedAt))return null;
   }
   if(component.status==='active'){
    active++;
@@ -48,15 +54,47 @@ function componentEvidence(row,basket,allowLegacy=false){
   }else if(component.status==='awaiting_history'){
    awaiting++;
    if(!currentEligible||component.kind!=='existing'||component.reason!=='missing_24h_baseline'||component.warmUntil!==null||['delta','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt'].some(key=>component[key]!==null))return null;
+  }else if(allowUnavailable&&component.status==='unavailable'){
+   unavailable++;
+   if(['delta','baselineReturn','baselineObservedAt','baselineSource','baselineWindowStartAt','baselineWindowEndAt'].some(key=>component[key]!==null))return null;
   }else return null;
-  if(component.status!=='awaiting_history')delta+=component.delta;
+  if(!['awaiting_history','unavailable'].includes(component.status))delta+=component.delta;
  }
  if(qualified!==coverage.includedTokens||(qualified===size?(!validMeme(row)||!close(current/size,row.meme)):row.meme!==null))return null;
- if(engine.matchedMembers!==active||engine.warmingMembers!==warming||engine.awaitingHistoryMembers!==awaiting||engine.unavailableMembers!==0||active+warming+awaiting!==size||(awaiting||!denominator?engine.value!==null:!close(delta/denominator,engine.value)))return null;
+ if(engine.matchedMembers!==active||engine.warmingMembers!==warming||engine.awaitingHistoryMembers!==awaiting||engine.unavailableMembers!==unavailable||active+warming+awaiting+unavailable!==size||(awaiting||unavailable||!denominator?engine.value!==null:!close(delta/denominator,engine.value)))return null;
  return engine;
 }
-export function componentComparison(row,basket,allowLegacy=false){
- const engine=componentEvidence(row,basket,allowLegacy);
+function membershipEvidence(report){
+ const row=report?.membershipReading,marker=row?.membershipProjection,reportMarker=report?.membershipProjection;
+ const markerKeys=['sourceMethod','sourceAt','configuredAt','revision'];
+ if(!row||!marker||!reportMarker||markerKeys.some(key=>!Object.hasOwn(marker,key)||!Object.hasOwn(reportMarker,key)||marker[key]!==reportMarker[key]))return null;
+ if(row.method!==report.method||!isFixedMethod(marker.sourceMethod)||marker.sourceAt!==row.at||!Number.isFinite(marker.configuredAt)||marker.configuredAt<0||marker.configuredAt!==report.presetUpdatedAt||typeof marker.revision!=='string'||!marker.revision||marker.revision!==report.presetRevision)return null;
+ const sources=(Array.isArray(report.readings)?report.readings:[]).filter(source=>source?.at===marker.sourceAt&&source.method===marker.sourceMethod);
+ if(sources.length!==1||sources[0].memeComparison?.method!=='component-1h-vs24h-v3')return null;
+ const sourceEngine=componentEvidence(sources[0],undefined,false,undefined,undefined,true);
+ if(!sourceEngine)return null;
+ const components=row.memeComparison?.components,admissions=report.presetAdmissions;
+ if(!Array.isArray(components)||!matchingAdmissions(components,admissions))return null;
+ const original=new Map(sourceEngine.components.map(component=>[component.id,component])),pending=new Set();
+ for(const component of components){
+  const admission=admissions[component?.id],previous=original.get(component?.id);
+  if(!admission||admission.kind!==component.kind||admission.addedAt!==component.addedAt)return null;
+  if(previous&&previous.kind===component.kind&&previous.addedAt===component.addedAt){
+   // A membership edit may change effective weights, never observed evidence or
+   // the admission clock belonging to an unchanged exact contract.
+   const fields=new Set([...Object.keys(previous),...Object.keys(component)]);
+   if([...fields].some(key=>key!=='weight'&&(!Object.hasOwn(previous,key)||!Object.hasOwn(component,key)||!Object.is(previous[key],component[key]))))return null;
+  }else{
+   if(component.kind!=='added'||component.status!=='pending'||!Number.isFinite(component.addedAt)||component.addedAt<=0||component.addedAt>marker.configuredAt||component.currentReturn!==null||component.currentObservedAt!==null)return null;
+   pending.add(component.id);
+  }
+ }
+ const engine=componentEvidence(row,report.basket,false,pending);
+ return engine?{row,engine}:null;
+}
+export function componentComparison(row,basket,allowLegacy=false,reportContext){
+ const engine=row&&Object.hasOwn(row,'membershipProjection')?
+  reportContext?.membershipReading===row?membershipEvidence(reportContext)?.engine:null:componentEvidence(row,basket,allowLegacy,undefined,reportContext?.presetAdmissions);
  return Number.isFinite(engine?.value)?engine:null;
 }
 // Match the same observation time yesterday; allow legacy five-minute samples and collector jitter.
@@ -104,7 +142,7 @@ export function chart(rows,unit='%'){
  return `<svg viewBox="0 0 510 205" role="img" aria-label="${unit===' pp'?'Change in one-hour readings versus 24 hours ago, in percentage points':'One-hour changes'}: Meme histogram, Alt and BTC lines centered on zero"><text x="3" y="25">+${scale.toFixed(2)}${unit}</text><text x="22" y="104">0</text><text x="3" y="180">-${scale.toFixed(2)}${unit}</text><line x1="45" x2="490" y1="100" y2="100" stroke="#73849a"/>${points.map(r=>`<rect tabindex="0" role="img" aria-label="${esc(when(r.at))}: Meme ${pct(r.meme,unit)}, Alt ${pct(r.altDelta,unit)}, BTC ${pct(r.btcDelta,unit)}" x="${x(r.at)-width/2}" y="${Math.min(100,y(r.meme))}" width="${width}" height="${Math.max(1,Math.abs(y(r.meme)-100))}" fill="${r.meme>=0?'#2bdfaa':'#fb7185'}"><title>${esc(when(r.at))} · Meme ${pct(r.meme,unit)} · Alt ${pct(r.altDelta,unit)}, BTC ${pct(r.btcDelta,unit)}</title></rect>`).join('')}<path d="${line}" fill="none" stroke="#81baff" stroke-width="2"/><path d="${btcLine}" fill="none" stroke="#f6b85a" stroke-width="2"/>${Number.isFinite(points.at(-1).btcDelta)?`<circle cx="${x(end)}" cy="${y(points.at(-1).btcDelta)}" r="3" fill="#f6b85a"/>`:''}${Number.isFinite(points.at(-1).altDelta)?`<circle cx="${x(end)}" cy="${y(points.at(-1).altDelta)}" r="3" fill="#81baff"/>`:''}<text x="48" y="197">${esc(new Date(start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</text><text x="473" y="197" text-anchor="end">${esc(new Date(end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</text></svg>`;
 }
 export function inputQualityNote(report){
- const last=(report?.readings||[]).filter(row=>row.method===report?.method).at(-1);
+ const last=hasMembershipProjection(report)?membershipEvidence(report)?.row:(report?.readings||[]).filter(row=>row.method===report?.method).at(-1);
  const quality=last?.inputQuality||report?.inputQuality;
  const count=quality?.extremeReturnCount;
  if(!(Number.isInteger(count)&&count>0)&&!(Number.isFinite(last?.meme)&&Math.abs(last.meme)>10000))return '';
@@ -112,11 +150,12 @@ export function inputQualityNote(report){
  return `<p role="status" class="market-input-quality">${Number.isInteger(count)&&count>0?`${count} provider-reported 1H return${count===1?' is':'s are'} above 10,000% in magnitude.`:'The saved reading contains extreme provider-reported returns.'} ${size!==null?`These observations are unavailable for the Meme calculation. ${hasComponentComparison(last)?'The complete raw 1H average':'The complete reading'} is withheld until all ${size} preset members have fresh qualified quotes. Raw returns are retained below; they are not capped or replaced with zero.`:'The legacy Meme calculation is withheld. Only the manually managed fixed preset is used for new Meme readings.'}</p>`;
 }
 function marketState(report,failed,now=Date.now()){
-  const last=report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||!Number.isFinite(last.at)||now<last.at||now-last.at>75*60000;
+  const projected=hasMembershipProjection(report),last=projected?report?.membershipReading:report?.readings?.filter(row=>row.method===report?.method)?.at(-1),stale=!last||!Number.isFinite(last.at)||now<last.at||now-last.at>75*60000;
   const ready=!failed&&!stale&&last;
-  const memeReady=Boolean(ready)&&validMeme(last);
-  const usesComponents=hasComponentComparison(last);
-  const components=ready&&usesComponents?componentEvidence(last,report?.basket):null;
+  const usesComponents=projected||hasComponentComparison(last);
+  const components=ready&&usesComponents?projected?membershipEvidence(report)?.engine:componentEvidence(last,report?.basket,false,undefined,report?.presetAdmissions):null;
+  const admissionSafe=projected?Boolean(components):report?.presetAdmissions===undefined||matchingAdmissions(usesComponents?last?.memeComparison?.components||[]:(report?.basket||[]).map(member=>({id:basketId(member),kind:'existing',addedAt:null})),report.presetAdmissions);
+  const memeReady=Boolean(ready)&&validMeme(last)&&admissionSafe;
   const memeHistory=(report?.readings||[]).filter(row=>validMeme(row)&&row.method===last?.method);
   const comparison=memeReady&&!usesComponents?compareReading(memeHistory,last):null;
   const baseline=comparison?memeHistory.find(row=>row.at===comparison.baselineAt):null;

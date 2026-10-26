@@ -890,3 +890,233 @@ test('component quote qualification and raw coverage remain independently truthf
   assert.equal(componentComparison(row,report.basket),null);
  }
 });
+
+function projectedMembership(sourceReport,selection,{configuredAt=sourceReport.readings.at(-1).at+1000,sameMethod=false}={}){
+ const report=structuredClone(sourceReport),source=report.readings.at(-1),size=selection.length;
+ const components=[],basket=[];
+ for(const selected of selection){
+  const index=typeof selected==='number'?selected:selected.index;
+  const original=Number.isInteger(index)?report.basket[index]:null;
+  const added=typeof selected==='object';
+  const member=original?structuredClone(original):basketForSize(source.at,1)[0];
+  if(!original)Object.assign(member,{id:'solana:contract-new',symbol:'NEW',address:'contract-new',pool:null,poolCreatedAt:null});
+  const component=added?{
+   id:basketIdForTest(member),weight:0,status:'pending',delta:0,kind:'added',addedAt:selected.addedAt??configuredAt,
+   currentReturn:null,currentObservedAt:null,currentEligible:false,baselineReturn:null,baselineObservedAt:null,
+   baselineSource:null,baselineWindowStartAt:null,baselineWindowEndAt:null,initialReturn:null,firstAt:null,
+   firstObservedAt:null,warmUntil:null,reason:'awaiting_initial_quote'
+  }:structuredClone(source.memeComparison.components[index]);
+  if(added)Object.assign(member,{priceChange1h:null,observedAt:null,priceSource:null,pool:null,poolCreatedAt:null,eligible:false,exclusionReason:'awaiting_collection'});
+  components.push(component);basket.push(member);
+ }
+ const denominator=components.filter(component=>!['pending','warming'].includes(component.status)).length;
+ for(const [index,component] of components.entries()){
+  component.weight=['pending','warming'].includes(component.status)||!denominator?0:1/denominator;
+  Object.assign(basket[index],{rank:index+1,weight:1/size,comparison:structuredClone(component)});
+ }
+ const included=components.filter(component=>component.currentEligible).length;
+ const coverage={totalTokens:size,includedTokens:included,excludedTokens:size-included,exclusions:included===size?{}:{awaiting_collection:size-included}};
+ const engine={...structuredClone(source.memeComparison),components,denominator,
+  matchedMembers:components.filter(component=>component.status==='active').length,
+  warmingMembers:components.filter(component=>['warming','pending'].includes(component.status)).length,
+  awaitingHistoryMembers:components.filter(component=>component.status==='awaiting_history').length,unavailableMembers:0};
+ engine.value=engine.awaitingHistoryMembers||!denominator?null:components.reduce((sum,component)=>sum+(component.delta||0),0)/denominator;
+ report.method=sameMethod?source.method:`fixed-preset-${size}-1h-v1-fedcba987654`;
+ report.basket=basket;report.coverage=coverage;
+ report.presetRevision='membership-revision-after-save';report.presetUpdatedAt=configuredAt;
+ report.presetAdmissions=Object.fromEntries(components.map(component=>[component.id,{kind:component.kind,addedAt:component.addedAt}]));
+ report.membershipProjection={sourceMethod:source.method,sourceAt:source.at,configuredAt,revision:report.presetRevision};
+ report.membershipReading={...structuredClone(source),method:report.method,constituents:size,coverage,memeComparison:engine,
+  meme:included===size?components.reduce((sum,component)=>sum+component.currentReturn,0)/size:null,
+  membershipProjection:structuredClone(report.membershipProjection)};
+ return report;
+}
+const basketIdForTest=member=>member.id||`${member.chain}:${member.address}`;
+const projectedProof=report=>componentComparison(report.membershipReading,report.basket,false,report);
+
+test('saving additions immediately preserves incumbent comparisons before the next collector finishes',async()=>{
+ const at=Date.now()-60000,source=componentReport(at,11),before=structuredClone(source.readings);
+ const report=projectedMembership(source,[...Array.from({length:11},(_,index)=>index),{}]);
+ const proof=projectedProof(report);
+ assert.equal(proof?.value,3);
+ assert.equal(proof.denominator,11);
+ assert.equal(proof.warmingMembers,1);
+ assert.deepEqual(proof.components.slice(0,11),source.readings[0].memeComparison.components);
+ assert.deepEqual(report.readings,before);
+ assert.equal(componentComparison(report.membershipReading,report.basket),null,'a derived row requires its report proof');
+ assert.deepEqual(memeComparisons(report.readings,report.method,report.basket),[{at,meme:3,altDelta:null,btcDelta:null}]);
+ await withMountedMarket(report,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  assert.match(marketText(body.innerHTML),/11\/12 matched historical baselines · 0 warming · 1 awaiting initial quote/);
+  assert.match(marketText(body.innerHTML),/Awaiting initial qualified quote · zero comparison weight/);
+  assert.doesNotMatch(marketText(body.innerHTML),/Initial reference copied|Neutral until/);
+ });
+});
+
+test('removal and reordering retain each contract baseline and only recompute contributing weights',async()=>{
+ const at=Date.now()-60000,source=componentReport(at,3),engine=source.readings[0].memeComparison;
+ for(const [index,component] of engine.components.entries()){
+  component.baselineReturn=index;component.delta=4-index;
+ }
+ engine.value=3;
+ const original=structuredClone(source.readings);
+ for(const selection of [[0,2],[2,0,1]]){
+  const report=projectedMembership(source,selection),proof=projectedProof(report);
+  assert.ok(proof);
+  assert.equal(proof.warmingMembers,0);
+  assert.deepEqual(report.readings,original);
+  for(const [index,sourceIndex] of selection.entries()){
+   const {weight,...actual}=proof.components[index],{weight:oldWeight,...expected}=engine.components[sourceIndex];
+   assert.deepEqual(actual,expected);
+   assert.equal(weight,1/selection.length);
+  }
+  await withMountedMarket(report,async({market,body})=>{
+   assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+   assert.doesNotMatch(marketText(body.innerHTML),/new member.*?warming|Neutral until|Initial reference copied/);
+  });
+ }
+ const different=projectedMembership(source,[0]);
+ assert.equal(projectedProof(different)?.value,4);
+ assert.deepEqual(memeComparisons(different.readings,different.method,different.basket),[{at,meme:3,altDelta:null,btcDelta:null}], 'the saved chart keeps its genuine original calculation');
+});
+
+test('a removed and re-added contract starts a new pending generation even when the roster method returns to the same hash',async()=>{
+ const at=Date.now()-60000,source=componentReport(at,2),report=projectedMembership(source,[0,{index:1}],{sameMethod:true});
+ assert.equal(report.method,source.method);
+ assert.equal(report.membershipReading.at,at);
+ const proof=projectedProof(report);
+ assert.equal(proof?.value,3);
+ assert.equal(proof.denominator,1);
+ assert.equal(proof.components[0].baselineObservedAt,source.readings[0].memeComparison.components[0].baselineObservedAt);
+ assert.equal(proof.components[1].status,'pending');
+ assert.equal(proof.components[1].addedAt,report.presetUpdatedAt);
+ assert.equal(proof.components[1].firstAt,null);
+ assert.equal(proof.components[1].warmUntil,null);
+ await withMountedMarket(report,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  const members=[...body.innerHTML.matchAll(/<li><strong>([^<]+)<\/strong>(.*?)<\/li>/g)];
+  assert.match(members[0][2],/source: saved 1H observation/);
+  assert.match(members[1][2],/Awaiting initial qualified quote/);
+  assert.doesNotMatch(members[1][2],/source: saved 1H observation/);
+ });
+});
+
+test('membership projection preserves an existing addition warmup clock and its recorded reference',()=>{
+ const at=Date.now()-60000,source=componentReport(at,3,[2]);
+ const report=projectedMembership(source,[2,0,{}]),proof=projectedProof(report);
+ assert.ok(proof);
+ const original=source.readings[0].memeComparison.components[2],retained=proof.components[0];
+ assert.equal(retained.firstAt,original.firstAt);
+ assert.equal(retained.firstObservedAt,original.firstObservedAt);
+ assert.equal(retained.initialReturn,original.initialReturn);
+ assert.equal(retained.warmUntil,original.warmUntil);
+ assert.equal(proof.components[2].firstAt,null);
+ assert.equal(proof.components[2].initialReturn,null);
+ assert.equal(proof.components[2].warmUntil,null);
+});
+
+test('membership save time never refreshes an old comparison or adds a fabricated historical chart point',async()=>{
+ const at=Date.now()-76*60000,source=componentReport(at,2),report=projectedMembership(source,[0,{}],{configuredAt:Date.now()-1000});
+ assert.equal(projectedProof(report)?.value,3,'source proof remains valid at its actual observation time');
+ assert.equal(report.membershipReading.at,at);
+ assert.equal(report.membershipReading.memeComparison.at,at);
+ assert.equal(report.readings.length,1);
+ await withMountedMarket(report,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.match(marketText(body.innerHTML),/Stale data/);
+ });
+});
+
+test('invalid membership projection metadata, admission generations or altered evidence fail closed',async()=>{
+ const at=Date.now()-60000,edits=[
+  report=>{delete report.membershipProjection},
+  report=>{delete report.membershipReading.membershipProjection},
+  report=>{report.membershipProjection.revision='different'},
+  report=>{report.presetRevision='different'},
+  report=>{report.presetUpdatedAt++},
+  report=>{report.membershipProjection.sourceAt++;report.membershipReading.membershipProjection.sourceAt++},
+  report=>{report.membershipProjection.sourceMethod='fomo-most-held-v1';report.membershipReading.membershipProjection.sourceMethod='fomo-most-held-v1'},
+  report=>{report.readings=[]},
+  report=>{report.readings.push(structuredClone(report.readings[0]))},
+  report=>{report.readings[0].memeComparison.method='component-1h-vs24h-v2'},
+  report=>{report.readings[0].memeComparison.value=999},
+  report=>{report.membershipReading.at++},
+  report=>{report.membershipReading.memeComparison.at++},
+  report=>{delete report.presetAdmissions},
+  report=>{report.presetAdmissions[report.basket[0].id].kind='added'},
+  report=>{report.membershipReading.memeComparison.components[0].baselineReturn=0;report.membershipReading.memeComparison.components[0].delta=4;report.membershipReading.memeComparison.value=4},
+  report=>{report.membershipReading.memeComparison.components[0].currentObservedAt--},
+  report=>{report.membershipReading.memeComparison.components[0].firstAt++},
+  report=>{report.membershipReading.memeComparison.components[1].addedAt++;report.presetAdmissions[report.basket[1].id].addedAt++},
+  report=>{report.membershipReading.memeComparison.components[1].currentReturn=4},
+  report=>{report.membershipReading.memeComparison.components[1].initialReturn=4},
+  report=>{report.membershipReading.memeComparison.components[1].firstAt=at},
+  report=>{report.membershipReading.memeComparison.components[1].warmUntil=at+24*3600000},
+  report=>{report.membershipReading.memeComparison.components[0].weight=.5},
+  report=>{report.basket.reverse()},
+  report=>{delete report.membershipReading.memeComparison}
+ ];
+ for(const edit of edits){
+  const report=projectedMembership(componentReport(at,2),[0,{}]);edit(report);
+  assert.equal(projectedProof(report),null);
+  await withMountedMarket(report,async({market})=>assert.match(marketText(market.innerHTML),/Meme\s+—/));
+ }
+ const source=componentReport(at,2),report=projectedMembership(source,[0,{index:1}],{sameMethod:true});
+ const pending=report.membershipReading.memeComparison.components[1],old=source.readings[0].memeComparison.components[1];
+ Object.assign(pending,old,{weight:1/2});
+ report.membershipReading.memeComparison.components[0].weight=1/2;
+ report.membershipReading.memeComparison.matchedMembers=2;report.membershipReading.memeComparison.warmingMembers=0;
+ report.membershipReading.memeComparison.denominator=2;report.membershipReading.meme=4;
+ report.membershipReading.coverage=coverageForSize(2);
+ assert.equal(projectedProof(report),null,'an old generation cannot reactivate after same-method remove and re-add');
+});
+
+test('a same-method masked report cannot reuse an old generation when source projection evidence is unavailable',async()=>{
+ const at=Date.now()-60000,report=componentReport(at,2),row=report.readings[0];
+ report.presetAdmissions=Object.fromEntries(row.memeComparison.components.map(component=>[component.id,{kind:component.kind,addedAt:component.addedAt}]));
+ assert.equal(componentComparison(row,report.basket,false,report)?.value,3);
+ await withMountedMarket(report,async({market,body,refresh})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  const masked=structuredClone(report),readded=masked.basket[1];
+  masked.presetAdmissions[readded.id]={kind:'added',addedAt:at+1000};
+  Object.assign(readded,{eligible:false,priceChange1h:null,observedAt:null,comparison:null,exclusionReason:'awaiting_collection'});
+  assert.equal(componentComparison(masked.readings[0],masked.basket,false,masked),null);
+  await refresh(masked);
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.match(marketText(body.innerHTML),/Current 1H: Meme —/);
+  assert.deepEqual(memeComparisons(masked.readings,masked.method,masked.basket),[{at,meme:3,altDelta:null,btcDelta:null}], 'genuine historical readings remain chartable');
+  const legacy=structuredClone(masked);
+  delete legacy.readings[0].memeComparison;
+  legacy.readings.unshift({...legacy.readings[0],at:at-24*3600000,meme:1});
+  await refresh(legacy);
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.match(marketText(body.innerHTML),/Current 1H: Meme —/);
+ });
+});
+
+test('removing an unavailable member restores surviving comparisons using genuine saved evidence',async()=>{
+ const at=Date.now()-60000,source=componentReport(at,2),row=source.readings[0],unavailable=row.memeComparison.components[1];
+ Object.assign(unavailable,{status:'unavailable',delta:null,currentEligible:false,currentReturn:null,currentObservedAt:null,
+  baselineReturn:null,baselineObservedAt:null,baselineSource:null,baselineWindowStartAt:null,baselineWindowEndAt:null,
+  reason:'source_unavailable'});
+ Object.assign(source.basket[1],{eligible:false,priceChange1h:null,observedAt:null,comparison:structuredClone(unavailable),exclusionReason:'source_unavailable'});
+ Object.assign(row.memeComparison,{value:null,matchedMembers:1,unavailableMembers:1});
+ row.meme=null;row.coverage=source.coverage={totalTokens:2,includedTokens:1,excludedTokens:1,exclusions:{source_unavailable:1}};
+ const report=projectedMembership(source,[0]);
+ assert.equal(componentComparison(row,source.basket),null,'the incomplete original comparison remains unavailable');
+ assert.equal(projectedProof(report)?.value,3);
+ assert.equal(projectedProof(report).matchedMembers,1);
+ await withMountedMarket(report,async({market,body})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  assert.match(marketText(body.innerHTML),/1\/1 matched historical baselines · 0 warming · 0 unavailable/);
+  assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/, 'an unavailable original reading does not become a fabricated historical chart point');
+ });
+ for(const edit of [
+  invalid=>{invalid.readings[0].memeComparison.components[1].delta=0},
+  invalid=>{invalid.readings[0].memeComparison.components[1].baselineReturn=1},
+  invalid=>{invalid.readings[0].memeComparison.value=3},
+  invalid=>{invalid.readings[0].memeComparison.unavailableMembers=0}
+ ]){
+  const invalid=structuredClone(report);edit(invalid);assert.equal(projectedProof(invalid),null);
+ }
+});
