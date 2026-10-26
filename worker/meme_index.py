@@ -4,7 +4,7 @@ import math
 import time
 from pathlib import Path
 
-from worker.meme_preset import default_config, method_for, validate_members
+from worker.meme_preset import default_config, method_for, validate_members, validate_admissions
 
 HOUR = 3_600_000
 MAX_QUOTE_AGE = 15*60_000
@@ -231,9 +231,10 @@ def proxy_history(base_url):
     return read_history
 
 
-def collect(path, sources=None, now=None, preset=None):
+def collect(path, sources=None, now=None, preset=None, admissions=None):
     live = now is None
     now = int(time.time()*1000) if live else now
+    using_default = preset is None
     preset = tuple(validate_members(preset if preset is not None else getattr(sources, 'preset', PRESET)))
     method = method_for(preset)
     sources = sources or Sources(preset=preset)
@@ -246,6 +247,20 @@ def collect(path, sources=None, now=None, preset=None):
         report = {'version':2,'basket':[],'readings':[]}
     from worker.meme_baseline import METHOD as COMPONENT_METHOD, compare_components, identity
     prior_ids = {identity(row) for row in report.get('basket', []) if isinstance(row, dict)}
+    if admissions is None:
+        if using_default or not report.get('basket'):
+            admissions = validate_admissions(preset)
+        else:
+            saved_members = (report.get('componentBaselines') or {}).get('members', {})
+            admissions = {}
+            for member in preset:
+                key = member_id(member)
+                saved = saved_members.get(key, {})
+                if saved.get('kind') == 'added' and finite(saved.get('addedAt')):
+                    admissions[key] = dict(kind='added', addedAt=saved['addedAt'])
+                else:
+                    admissions[key] = dict(kind='existing', addedAt=None) if key in prior_ids else dict(kind='added', addedAt=now)
+    admissions = validate_admissions(preset, admissions)
     if report.get('method') != method:
         # Retain original inputs and results privately; never splice returns
         # from a different Meme method into this comparison. Alt/BTC remains comparable.
@@ -266,7 +281,12 @@ def collect(path, sources=None, now=None, preset=None):
     engine = latest.get('memeComparison') if latest else None
     engine_current = (isinstance(engine, dict) and engine.get('method') == COMPONENT_METHOD
                       and engine.get('at') == latest.get('at')
-                      and isinstance(engine.get('components'), list) and len(engine['components']) == len(preset))
+                      and isinstance(engine.get('components'), list) and len(engine['components']) == len(preset)
+                      and [row.get('id') if isinstance(row, dict) else None for row in engine['components']] ==
+                          [member_id(member) for member in preset]
+                      and all(isinstance(row, dict) and admissions.get(row.get('id')) ==
+                              dict(kind=row.get('kind'), addedAt=row.get('addedAt'))
+                              for row in engine['components']))
     if report.get('updatedAt') and now//HOUR == report['updatedAt']//HOUR and not retry_unqualified and engine_current:
         write_json(path.with_suffix('.public.json'),public_report(report))
         return report
@@ -300,7 +320,7 @@ def collect(path, sources=None, now=None, preset=None):
             eligible=reason is None,exclusionReason=reason))
     comparison, ledger = compare_components(basket, report, now,
         history=getattr(sources, 'history', None), prior_ids=prior_ids,
-        clock=(lambda: int(time.time()*1000)) if live else None)
+        clock=(lambda: int(time.time()*1000)) if live else None, admissions=admissions)
     now = comparison['at']
     # Historical recovery may take time. Qualify the original market observations
     # again at completion rather than relabeling their source times.
@@ -326,10 +346,18 @@ def collect(path, sources=None, now=None, preset=None):
     quality = dict(extremeReturnThreshold=EXTREME_RETURN,
                    extremeReturnCount=sum(abs(change)>EXTREME_RETURN for change in raw_changes),
                    minimumReturn=min(raw_changes,default=None),maximumReturn=max(raw_changes,default=None))
+    fallback = None
+    if (complete and comparison['value'] is None and comparison['awaitingHistoryMembers'] > 0
+            and comparison['unavailableMembers'] == 0):
+        participating = [row for row in comparison['components'] if row['status'] != 'warming']
+        fallback = dict(method='incumbent-current-1h-v1',
+                        value=math.fsum(row['currentReturn'] for row in participating)/len(preset),
+                        memberIds=[row['id'] for row in participating], denominator=len(preset),
+                        excludedWarming=comparison['warmingMembers'])
     report['readings'].append(dict(at=now,meme=average,
         altDelta=alt['hourChange'],btcDelta=alt.get('btcDelta'),method=method,
         constituents=len(preset),marketObservedAt=oldest,inputQuality=quality,coverage=coverage,
-        memeComparison=comparison))
+        memeComparison=comparison, memeFallback=fallback))
     report['readings'] = [row for row in report['readings'] if now-row['at'] <= 30*24*HOUR]
     report['basketHistory'] = [row for row in report.get('basketHistory',[])
                               if 0 <= now-row['at'] <= 30*24*HOUR]
@@ -374,5 +402,5 @@ if __name__ == '__main__':
     report=collect(args.path,Sources(quotes=proxy_quotes(args.dex_proxy) if args.dex_proxy else None,
                                     preset=config['members'],
                                     history=proxy_history(args.history_proxy) if args.history_proxy else None),
-                   preset=config['members'])
+                   preset=config['members'], admissions=config['admissions'])
     print(json.dumps(public_report(report)))

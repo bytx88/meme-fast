@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chart,compareReading,hourlyComparisons,memeComparisons,componentComparison,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
+import {chart,compareReading,hourlyComparisons,memeComparisons,componentComparison,incumbentCurrentReading,runnerMode,runnerDetails,mountMarket,inputQualityNote} from '../dist/market-delta.mjs';
 import {readFile} from 'node:fs/promises';
 import {RUNNER_CONFIG} from '../dist/runner-policy.mjs';
 
@@ -515,19 +515,131 @@ function componentReport(at,size=2,warmingIndices=[]){
  const components=basket.map((member,index)=>{
   const currentObservedAt=at-60000,baselineObservedAt=currentObservedAt-24*3600000;
   const warming=warmingIndices.includes(index),firstAt=at-3600000,firstObservedAt=firstAt-60000;
-  const comparison={id:`${member.chain}:${member.address}`,weight:1/size,status:warming?'warming':'active',
+  const comparison={id:`${member.chain}:${member.address}`,weight:1/size,status:warming?'warming':'active',kind:warming?'added':'existing',addedAt:warming?firstAt:null,
    delta:warming?0:3,currentReturn:4,currentObservedAt,baselineReturn:warming?2:1,
    baselineObservedAt:warming?firstObservedAt:baselineObservedAt,baselineSource:warming?'initial-reference':'saved-h1',
    baselineWindowStartAt:warming?null:baselineObservedAt-3600000,baselineWindowEndAt:warming?null:baselineObservedAt,
-   initialReturn:2,firstAt,firstObservedAt,warmUntil:firstAt+24*3600000,reason:null};
+   initialReturn:2,firstAt,firstObservedAt,warmUntil:warming?firstAt+24*3600000:null,reason:null};
   Object.assign(member,{id:comparison.id,priceChange1h:4,observedAt:currentObservedAt,comparison});
   return comparison;
  });
- const memeComparison={method:'component-1h-vs24h-v1',at,value:components.reduce((sum,row)=>sum+row.delta,0)/size,
-  matchedMembers:size-warmingIndices.length,warmingMembers:warmingIndices.length,unavailableMembers:0,components};
+ const memeComparison={method:'component-1h-vs24h-v2',at,value:components.reduce((sum,row)=>sum+row.delta,0)/size,
+  matchedMembers:size-warmingIndices.length,warmingMembers:warmingIndices.length,awaitingHistoryMembers:0,unavailableMembers:0,components};
  const current={at,meme:4,altDelta:1,btcDelta:0,method,coverage,memeComparison};
  return {method,basket,coverage,readings:[current]};
 }
+
+function incumbentReport(at,size=11,warmingIndices=[],awaitingIndices){
+ const report=componentReport(at,size,warmingIndices),row=report.readings[0],engine=row.memeComparison;
+ const awaiting=new Set(awaitingIndices??engine.components.flatMap((component,index)=>component.status==='warming'?[]:[index]));
+ for(const [index,component] of engine.components.entries())if(awaiting.has(index))Object.assign(component,{
+  status:'awaiting_history',kind:'existing',addedAt:null,reason:'missing_24h_baseline',delta:null,
+  baselineReturn:null,baselineObservedAt:null,baselineSource:null,baselineWindowStartAt:null,baselineWindowEndAt:null,warmUntil:null
+ });
+ Object.assign(engine,{value:null,matchedMembers:size-warmingIndices.length-awaiting.size,awaitingHistoryMembers:awaiting.size});
+ const members=engine.components.filter(component=>component.status!=='warming');
+ row.memeFallback={method:'incumbent-current-1h-v1',value:members.reduce((sum,component)=>sum+component.currentReturn,0)/size,
+  memberIds:members.map(component=>component.id),denominator:size,excludedWarming:warmingIndices.length};
+ return report;
+}
+
+test('all eleven incumbent members retain their nonzero current 1H reading while genuine history forms',async()=>{
+ const at=Date.now(),report=incumbentReport(at),row=report.readings[0];
+ report.readings.unshift({at:at-24*3600000,meme:50,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE});
+ assert.equal(componentComparison(row,report.basket),null);
+ assert.equal(incumbentCurrentReading(row,report.basket)?.value,4);
+ await withMountedMarket(report,async({market,body,attributes})=>{
+  const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+  assert.match(header,/Meme · 1H\s+\+4\.00%/);
+  assert.doesNotMatch(header,/\+0\.00 pp/);
+  assert.match(header,/Alt\s+-1\.00 pp/);
+  assert.match(header,/Btc\s+-1\.00 pp/i);
+  assert.match(details,/0\/11 matched historical baselines · 0 warming · 11 existing awaiting history/);
+  assert.match(details,/Current 1H active · 24H baseline forming/);
+  assert.match(details,/Existing members remain active while their real historical baselines form/);
+  assert.doesNotMatch(details,/initial reference copied|Neutral until|Warming members:/i);
+  assert.match(attributes.get('aria-label'),/Meme current 1H \+4\.00%/);
+  assert.deepEqual(memeComparisons([row],report.method,report.basket),[]);
+ });
+});
+
+test('a genuinely added warming member has no influence on the incumbent current 1H fallback',async()=>{
+ const at=Date.now(),report=incumbentReport(at,12,[11]),row=report.readings[0],engine=row.memeComparison;
+ const expected=11*4/12;
+ for(const change of [-99,9000]){
+  engine.components[11].currentReturn=change;
+  row.meme=(11*4+change)/12;
+  report.basket[11].priceChange1h=change;
+  assert.equal(incumbentCurrentReading(row,report.basket)?.value,expected);
+  await withMountedMarket(report,async({market,body})=>{
+   const header=marketText(market.innerHTML),details=marketText(body.innerHTML);
+   assert.match(header,/Meme · 1H\s+\+3\.67%/);
+   assert.match(details,/11 existing awaiting history/);
+   assert.match(details,/1 newly added warming member contributes zero/);
+   assert.match(details,/only newly added contracts copy their first observed 1H return/i);
+  });
+ }
+ const mixed=incumbentReport(at,3,[2],[0]);
+ assert.equal(incumbentCurrentReading(mixed.readings[0],mixed.basket)?.value,8/3);
+ assert.equal(mixed.readings[0].memeComparison.matchedMembers,1);
+});
+
+test('incumbent fallback requires exact identities, full quote evidence, counters and arithmetic',async()=>{
+ const at=Date.now(),changes=[
+  row=>{delete row.memeFallback},row=>{row.memeFallback=null},
+  row=>{row.memeFallback.method='unknown'},row=>{row.memeFallback.value=0},
+  row=>{row.memeFallback.denominator=10},row=>{row.memeFallback.excludedWarming=1},
+  row=>{row.memeFallback.memberIds.pop()},row=>{row.memeFallback.memberIds.reverse()},
+  row=>{row.memeFallback.memberIds[0]=row.memeFallback.memberIds[1]},
+  row=>{row.memeComparison.awaitingHistoryMembers--},
+  row=>{row.memeComparison.components[0].delta=0},
+  row=>{row.memeComparison.components[0].baselineReturn=4},
+  row=>{row.memeComparison.components[0].warmUntil=at+24*3600000},
+  row=>{row.memeComparison.components[0].kind='added';row.memeComparison.components[0].addedAt=at},
+  row=>{row.memeComparison.components[0].currentObservedAt=at-15*60000},
+  row=>{row.memeComparison.components[0].currentReturn=null},
+  row=>{row.coverage={...row.coverage,includedTokens:10,excludedTokens:1}},
+  row=>{row.memeComparison.value=0},
+  row=>{row.memeComparison.method='component-1h-vs24h-v1'}
+ ];
+ for(const change of changes){
+  const report=incumbentReport(at),row=report.readings[0];change(row);
+  assert.equal(incumbentCurrentReading(row,report.basket),null);
+  report.readings.unshift({at:at-24*3600000,meme:1,altDelta:2,btcDelta:1,method:METHOD,coverage:COMPLETE});
+  await withMountedMarket(report,async({market,body})=>{
+   const header=marketText(market.innerHTML);
+   assert.match(header,/Meme\s+—/);
+   assert.doesNotMatch(header,/Meme · 1H|\+4\.00%|\+0\.00 pp/);
+   assert.match(header,/Alt\s+-1\.00 pp/);
+   assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
+  });
+ }
+ const report=incumbentReport(at,12,[11]),row=report.readings[0];
+ row.memeFallback.memberIds.push(row.memeComparison.components[11].id);
+ assert.equal(incumbentCurrentReading(row,report.basket),null);
+});
+
+test('the former engine cannot neutralize the existing basket during rollout',async()=>{
+ const at=Date.now(),report=componentReport(at,11,Array.from({length:11},(_,index)=>index));
+ report.readings[0].memeComparison.method='component-1h-vs24h-v1';
+ await withMountedMarket(report,async({market})=>{
+  assert.match(marketText(market.innerHTML),/Meme\s+—/);
+  assert.doesNotMatch(marketText(market.innerHTML),/\+0\.00 pp/);
+ });
+ const spoofed=componentReport(at,1,[0]);
+ Object.assign(spoofed.readings[0].memeComparison.components[0],{kind:'existing',addedAt:null});
+ assert.equal(componentComparison(spoofed.readings[0],spoofed.basket),null);
+});
+
+test('incumbents automatically return to percentage-point comparisons when actual baselines exist',async()=>{
+ const at=Date.now(),report=incumbentReport(at,11);
+ await withMountedMarket(report,async({market,refresh})=>{
+  assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+4\.00%/);
+  await refresh(componentReport(at,11));
+  assert.match(marketText(market.innerHTML),/Meme\s+\+3\.00 pp/);
+  assert.doesNotMatch(marketText(market.innerHTML),/current 1H/i);
+ });
+});
 
 test('component comparisons retain existing contracts across an addition and give a new warming member zero pp',async()=>{
  const at=Date.now(),day=24*3600000,report=componentReport(at,12,[11]);
@@ -538,7 +650,7 @@ test('component comparisons retain existing contracts across an addition and giv
   assert.doesNotMatch(header,/current 1H/i);
   assert.match(header,/Alt\s+-1\.00 pp/);
   assert.match(details,/11\/12 matched historical baselines · 1 warming · 0 unavailable/);
-  assert.match(details,/initial reference copied from their first observed 1H return; neutral until 24H/i);
+  assert.match(details,/only newly added contracts copy their first observed 1H return and stay neutral until 24H/i);
   assert.match(details,/Initial reference copied from the first observed 1H return \+2\.00%/);
   assert.match(details,/this is not a historical baseline/i);
   assert.match(details,/24H warmup/);
@@ -567,7 +679,7 @@ test('an actual historical backfill activates immediately and a copied reference
  });
  const warming=componentReport(at-3600000,1,[0]);
  const firstAt=at-day,firstObservedAt=firstAt-60000;
- Object.assign(warming.readings[0].memeComparison.components[0],{firstAt,firstObservedAt,baselineObservedAt:firstObservedAt,warmUntil:at});
+ Object.assign(warming.readings[0].memeComparison.components[0],{firstAt,firstObservedAt,addedAt:firstAt,baselineObservedAt:firstObservedAt,warmUntil:at});
  await withMountedMarket(warming,async({market,body,refresh})=>{
   assert.match(marketText(market.innerHTML),/Meme\s+\+0\.00 pp/);
   assert.match(marketText(body.innerHTML),/1 warming/);

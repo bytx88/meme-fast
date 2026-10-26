@@ -7,7 +7,7 @@ HOUR = 3_600_000
 DAY = 24*HOUR
 MINUTE = 60_000
 MATCH_TOLERANCE = 10*MINUTE
-METHOD = 'component-1h-vs24h-v1'
+METHOD = 'component-1h-vs24h-v2'
 MAX_RECOVERIES = 2
 
 
@@ -59,13 +59,18 @@ def _entry(ledger, key):
 
 
 def _load_ledger(report, now):
-    ledger = dict(version=1, members={})
+    ledger = dict(version=2, members={})
     saved = report.get('componentBaselines')
     if isinstance(saved, dict) and isinstance(saved.get('members'), dict):
         for key, original in saved['members'].items():
             if not isinstance(key, str) or not isinstance(original, dict):
                 continue
             entry = _entry(ledger, key)
+            if original.get('kind') in ('existing', 'added'):
+                entry['kind'] = original['kind']
+                added_at = original.get('addedAt')
+                if finite(added_at) or (entry['kind'] == 'existing' and added_at is None):
+                    entry['addedAt'] = added_at
             for field in ('firstAt', 'firstObservedAt', 'initialReturn', 'lastAttemptAt'):
                 value = original.get(field)
                 if finite(value):
@@ -160,16 +165,34 @@ def recover(row, fetch, now, clock=None):
     return observations
 
 
-def compare_components(basket, report, now, history=None, prior_ids=None, clock=None):
+def compare_components(basket, report, now, history=None, prior_ids=None, clock=None, admissions=None):
     """Publish all N equal contributions; warming is explicit, never fake history."""
     from worker.meme_index import quote_reason
     ledger = _load_ledger(report, now)
     for row in basket:
         key = identity(row)
         entry = _entry(ledger, key)
-        if prior_ids is not None and key not in prior_ids:
+        if admissions is not None:
+            admission = admissions.get(key) if isinstance(admissions, dict) else None
+            if (not isinstance(admission, dict) or admission.get('kind') not in ('existing', 'added')
+                    or (admission['kind'] == 'existing' and admission.get('addedAt') is not None)
+                    or (admission['kind'] == 'added' and (not finite(admission.get('addedAt'))
+                        or admission['addedAt'] < 0 or admission['addedAt'] > now))):
+                raise ValueError('Invalid server-owned Meme member admission')
+            kind, added_at = admission['kind'], admission.get('addedAt')
+            readded = kind == 'added' and (entry.get('kind') != 'added' or entry.get('addedAt') != added_at)
+        else:
+            # Standalone callers can supply the previous roster. Production uses
+            # persisted admissions so an upgrade or a missing quote is no event.
+            readded = prior_ids is not None and key not in prior_ids
+            kind = 'added' if readded else entry.get('kind')
+            if kind not in ('existing', 'added'):
+                kind = 'existing' if prior_ids is not None and key in prior_ids else 'added'
+            added_at = now if readded or (kind == 'added' and not finite(entry.get('addedAt'))) else entry.get('addedAt')
+        if readded:
             for field in ('firstAt', 'firstObservedAt', 'initialReturn'):
                 entry.pop(field, None)
+        entry.update(kind=kind, addedAt=added_at if kind == 'added' else None)
     if history is not None:
         candidates = []
         for row in basket:
@@ -195,11 +218,11 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
         row.update(eligible=reason is None, exclusionReason=reason)
         current = row.get('priceChange1h') if finite(row.get('priceChange1h')) else None
         at = row.get('observedAt') if finite(row.get('observedAt')) else None
-        if reason is None and (not finite(entry.get('firstAt')) or not finite(entry.get('initialReturn'))
+        if entry['kind'] == 'added' and reason is None and (not finite(entry.get('firstAt')) or not finite(entry.get('initialReturn'))
                                or not finite(entry.get('firstObservedAt'))):
             entry.update(firstAt=now, firstObservedAt=at, initialReturn=current)
         first_at = entry.get('firstAt')
-        warm_until = first_at+DAY if finite(first_at) else None
+        warm_until = first_at+DAY if entry['kind'] == 'added' and finite(first_at) else None
         baseline = _match(entry, at-DAY) if reason is None else None
         if (baseline is not None and finite(warm_until) and now < warm_until
                 and baseline['observedAt'] >= entry['firstObservedAt']):
@@ -207,6 +230,7 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
             # use a few minutes before its full 24H enrollment has elapsed.
             baseline = None
         component = dict(id=key, weight=1/len(basket), status='unavailable', delta=None,
+                         kind=entry['kind'], addedAt=entry['addedAt'],
                          currentReturn=current, currentObservedAt=at, baselineReturn=None,
                          baselineObservedAt=None, baselineSource=None, baselineWindowStartAt=None,
                          baselineWindowEndAt=None, initialReturn=entry.get('initialReturn'),
@@ -218,7 +242,9 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
                              baselineObservedAt=baseline['observedAt'], baselineSource=baseline['source'],
                              baselineWindowStartAt=baseline['windowStartAt'],
                              baselineWindowEndAt=baseline['windowEndAt'], reason=None)
-        elif reason is None and now < warm_until:
+        elif reason is None and entry['kind'] == 'existing':
+            component.update(status='awaiting_history', reason='missing_24h_baseline')
+        elif reason is None and finite(warm_until) and now < warm_until:
             component.update(status='warming', delta=0, baselineReturn=entry['initialReturn'],
                              baselineObservedAt=entry['firstObservedAt'], baselineSource='initial-reference',
                              reason='neutral_until_24h')
@@ -229,9 +255,11 @@ def compare_components(basket, report, now, history=None, prior_ids=None, clock=
         entry['observations'].sort(key=lambda value: (value['observedAt'], value['source'], value['pool']))
         entry['observations'] = entry['observations'][-1200:]
     unavailable = sum(row['status'] == 'unavailable' for row in components)
-    value = math.fsum(row['delta'] for row in components)/len(components) if not unavailable else None
+    awaiting = sum(row['status'] == 'awaiting_history' for row in components)
+    value = math.fsum(row['delta'] for row in components)/len(components) if not unavailable and not awaiting else None
     comparison = dict(method=METHOD, at=now, value=value,
                       matchedMembers=sum(row['status'] == 'active' for row in components),
                       warmingMembers=sum(row['status'] == 'warming' for row in components),
+                      awaitingHistoryMembers=awaiting,
                       unavailableMembers=unavailable, components=components)
     return comparison, ledger

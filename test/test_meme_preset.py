@@ -2,7 +2,7 @@ import copy
 import unittest
 
 from worker.meme_preset import (Conflict, admin_report, default_config, method_for,
-                               project_report, read_config, revise, validate_members)
+                               project_report, read_config, revise, validate_members, member_identity)
 
 NOW = 2_000_000_000_000
 HOUR = 3_600_000
@@ -135,6 +135,52 @@ class PresetTests(unittest.TestCase):
         self.assertFalse(actual['members'][0]['quote']['eligible'])
         self.assertIsNone(actual['members'][0]['quote']['pool'])
         self.assertIsNone(actual['members'][0]['quote']['priceChange1h'])
+
+    def test_only_genuine_additions_receive_server_owned_admission_clocks(self):
+        original = default_config()
+        self.assertTrue(all(value == dict(kind='existing', addedAt=None)
+                            for value in original['admissions'].values()))
+        addition = candidate()
+        added = revise(original, dict(revision=original['revision'],
+                       members=[*original['members'], addition],
+                       admissions={member_identity(addition): dict(kind='existing', addedAt=None)}), NOW)
+        key = member_identity(addition)
+        self.assertEqual(added['admissions'][key], dict(kind='added', addedAt=NOW))
+        self.assertEqual({key: added['admissions'][key] for key in original['admissions']},
+                         original['admissions'])
+        members = copy.deepcopy(added['members'])
+        members[-1]['name'] = 'Renamed'
+        renamed = revise(added, dict(revision=added['revision'], members=members), NOW+1)
+        self.assertEqual(renamed['admissions'], added['admissions'])
+        self.assertEqual(read_config(renamed)['admissions'], renamed['admissions'])
+
+    def test_removed_then_readded_contract_gets_new_admission_only_for_itself(self):
+        original = default_config()
+        removed = revise(original, dict(revision=original['revision'], members=original['members'][1:]), NOW)
+        first_key = member_identity(original['members'][0])
+        self.assertNotIn(first_key, removed['admissions'])
+        restored = revise(removed, dict(revision=removed['revision'], members=original['members']), NOW+10)
+        self.assertEqual(restored['admissions'][first_key], dict(kind='added', addedAt=NOW+10))
+        self.assertTrue(all(restored['admissions'][key] == value for key, value in removed['admissions'].items()))
+
+    def test_legacy_configuration_upgrade_is_not_a_new_membership_event(self):
+        config = default_config()
+        config.pop('admissions')
+        self.assertEqual(read_config(config)['admissions'], default_config()['admissions'])
+        config['members'] = [candidate()]
+        config['updatedAt'] = NOW-HOUR
+        self.assertEqual(read_config(config)['admissions'],
+                         {member_identity(candidate()): dict(kind='existing', addedAt=None)})
+
+    def test_corrupt_saved_admissions_fail_closed(self):
+        config = default_config()
+        key = member_identity(config['members'][0])
+        for invalid in (None, [], {}, {key: {'kind':'other'}},
+                        dict(config['admissions'], **{key: dict(kind='added', addedAt=True)}),
+                        dict(config['admissions'], **{key: dict(kind='added', addedAt=float('nan'))}),
+                        dict(config['admissions'], **{key: dict(kind='existing', addedAt=NOW)})):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                read_config(dict(config, admissions=invalid))
 
 if __name__ == '__main__':
     unittest.main()

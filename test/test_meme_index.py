@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 
 from worker.meme_index import HOUR, METHOD, PRESET, Sources, collect, public_report, alt_observation, proxy_quotes, proxy_history
-from worker.meme_preset import default_config, method_for
+from worker.meme_preset import default_config, method_for, revise, member_identity
 
 NOW = 2_000_000_000_000
 
@@ -460,7 +460,7 @@ class IndexTests(unittest.TestCase):
             calls=len(source.calls)
             changed=collect(path,source,NOW+1)
             self.assertEqual(len(source.calls),calls+2)
-            self.assertEqual(changed['readings'][-1]['memeComparison']['method'],'component-1h-vs24h-v1')
+            self.assertEqual(changed['readings'][-1]['memeComparison']['method'],'component-1h-vs24h-v2')
             self.assertIn('componentBaselines',changed)
             collect(path,source,NOW+2)
             self.assertEqual(len(source.calls),calls+2)
@@ -477,6 +477,146 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(result['constituents'], 2)
         self.assertEqual(list(collector.call_args.args[1].preset), config['members'])
         self.assertEqual(collector.call_args.kwargs['preset'], config['members'])
+
+    def test_original_eleven_keep_current_return_while_actual_history_forms(self):
+        report = self.sample()
+        reading = report['readings'][-1]
+        comparison = reading['memeComparison']
+        self.assertEqual(comparison['warmingMembers'], 0)
+        self.assertEqual(comparison['awaitingHistoryMembers'], 11)
+        self.assertIsNone(comparison['value'])
+        self.assertEqual(reading['meme'], 6)
+        self.assertEqual(reading['memeFallback'], dict(method='incumbent-current-1h-v1', value=6,
+                         memberIds=[row['id'] for row in report['basket']], denominator=11, excludedWarming=0))
+
+    def test_adding_one_member_keeps_eleven_incumbents_and_excludes_new_price_from_fallback(self):
+        config = default_config()
+        addition = dict(network='solana', contract_address='A'*32, symbol='NEW', name='New member')
+        changed_config = revise(config, dict(revision=config['revision'], members=[*config['members'], addition]), NOW+1)
+        source = FakeSources(now=NOW+1, preset=changed_config['members'])
+        source.pairs[-1]['priceChange']['h1'] = 100
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            original = collect(path, FakeSources(), NOW)
+            changed = collect(path, source, NOW+1, preset=changed_config['members'], admissions=changed_config['admissions'])
+            reading = changed['readings'][-1]
+            self.assertEqual(reading['memeComparison']['warmingMembers'], 1)
+            self.assertEqual(reading['memeComparison']['awaitingHistoryMembers'], 11)
+            self.assertEqual(reading['memeFallback']['value'], 66/12)
+            self.assertEqual(reading['memeFallback']['denominator'], 12)
+            self.assertEqual(reading['memeFallback']['memberIds'], [row['id'] for row in original['basket']])
+            self.assertEqual(reading['memeFallback']['excludedWarming'], 1)
+            self.assertAlmostEqual(reading['meme'], 166/12)
+            source.advance(NOW+HOUR)
+            source.pairs[-1]['priceChange']['h1'] = 900
+            later = collect(path, source, NOW+HOUR, preset=changed_config['members'], admissions=changed_config['admissions'])
+            self.assertEqual(later['readings'][-1]['memeFallback']['value'], 66/12)
+            self.assertAlmostEqual(later['readings'][-1]['meme'], 966/12)
+            self.assertEqual(later['readings'][-1]['memeComparison']['components'][-1]['firstAt'], NOW+1)
+
+    def test_new_unavailable_quote_withholds_fallback_without_reweighting(self):
+        config = default_config()
+        addition = dict(network='solana', contract_address='A'*32, symbol='NEW', name='New member')
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], addition]), NOW)
+        source = FakeSources(preset=added['members'])
+        source.pairs.pop()
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect(Path(folder)/'index.json', source, NOW,
+                             preset=added['members'], admissions=added['admissions'])
+        reading = report['readings'][-1]
+        self.assertIsNone(reading['meme'])
+        self.assertIsNone(reading['memeFallback'])
+        self.assertEqual(reading['coverage']['includedTokens'], 11)
+        self.assertEqual([row['weight'] for row in report['basket']], [1/12]*12)
+
+    def test_existing_actual_comparison_continues_when_a_new_member_is_warming(self):
+        source = FakeSources(now=NOW-24*HOUR)
+        config = default_config()
+        addition = dict(network='solana', contract_address='A'*32, symbol='NEW', name='New member')
+        added = revise(config, dict(revision=config['revision'], members=[*config['members'], addition]), NOW)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            old = collect(path, source, NOW-24*HOUR)
+            source = FakeSources(preset=added['members'])
+            for index, row in enumerate(source.pairs):
+                row['priceChange']['h1'] = index+3
+            report = collect(path, source, NOW, preset=added['members'], admissions=added['admissions'])
+        comparison = report['readings'][-1]['memeComparison']
+        self.assertEqual(comparison['matchedMembers'], 11)
+        self.assertEqual(comparison['warmingMembers'], 1)
+        self.assertEqual(comparison['awaitingHistoryMembers'], 0)
+        self.assertAlmostEqual(comparison['value'], 22/12)
+        self.assertIsNone(report['readings'][-1]['memeFallback'])
+        self.assertEqual(report['readings'][0], old['readings'][0])
+
+    def test_v1_false_warmup_is_repaired_same_hour_without_altering_old_reading(self):
+        source = FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            previous = collect(path, source, NOW)
+            engine = previous['readings'][-1]['memeComparison']
+            engine.update(method='component-1h-vs24h-v1', value=0, warmingMembers=11, awaitingHistoryMembers=0)
+            for component in engine['components']:
+                component.update(status='warming', delta=0)
+            for entry in previous['componentBaselines']['members'].values():
+                entry.update(firstAt=NOW, firstObservedAt=NOW-60_000, initialReturn=9)
+                entry.pop('kind'); entry.pop('addedAt')
+            previous['componentBaselines']['version'] = 1
+            original = copy.deepcopy(previous['readings'][-1])
+            path.write_text(json.dumps(previous), encoding='utf-8')
+            repaired = collect(path, source, NOW+1)
+            reading = repaired['readings'][-1]
+            self.assertEqual(repaired['readings'][0], original)
+            self.assertEqual(reading['memeComparison']['method'], 'component-1h-vs24h-v2')
+            self.assertEqual(reading['memeComparison']['warmingMembers'], 0)
+            self.assertEqual(reading['memeFallback']['value'], 6)
+            self.assertTrue(all(entry['initialReturn'] == 9 for entry in repaired['componentBaselines']['members'].values()))
+
+    def test_same_hour_readdition_to_same_roster_rechecks_new_admission(self):
+        config = default_config()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            source = FakeSources()
+            collect(path, source, NOW, admissions=config['admissions'])
+            removed = revise(config, dict(revision=config['revision'], members=config['members'][1:]), NOW+1)
+            restored = revise(removed, dict(revision=removed['revision'], members=config['members']), NOW+2)
+            self.assertEqual(restored['method'], config['method'])
+            report = collect(path, source, NOW+2, admissions=restored['admissions'])
+        self.assertEqual(len(report['readings']), 2)
+        components = report['readings'][-1]['memeComparison']['components']
+        self.assertEqual(components[0]['status'], 'warming')
+        self.assertEqual(components[0]['addedAt'], NOW+2)
+        self.assertEqual(components[0]['firstAt'], NOW+2)
+        self.assertTrue(all(row['status'] == 'awaiting_history' for row in components[1:]))
+
+    def test_fallback_does_not_mask_a_mature_added_member_without_actual_baseline(self):
+        preset = list(PRESET[:2])
+        admissions = {member_identity(preset[0]): dict(kind='existing', addedAt=None),
+                      member_identity(preset[1]): dict(kind='added', addedAt=NOW-48*HOUR)}
+        source = FakeSources(preset=preset)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            first = collect(path, source, NOW, preset=preset, admissions=admissions)
+            entry = first['componentBaselines']['members'][member_identity(preset[1])]
+            entry.update(firstAt=NOW-48*HOUR, firstObservedAt=NOW-48*HOUR-60_000, initialReturn=2)
+            path.write_text(json.dumps(first), encoding='utf-8')
+            source.advance(NOW+HOUR)
+            report = collect(path, source, NOW+HOUR, preset=preset, admissions=admissions)
+        reading = report['readings'][-1]
+        self.assertEqual(reading['coverage']['includedTokens'], 2)
+        self.assertEqual(reading['memeComparison']['awaitingHistoryMembers'], 1)
+        self.assertEqual(reading['memeComparison']['unavailableMembers'], 1)
+        self.assertIsNone(reading['memeComparison']['value'])
+        self.assertIsNone(reading['memeFallback'])
+
+    def test_invalid_saved_admissions_do_not_read_sources_or_publish_a_reading(self):
+        source = FakeSources()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            with self.assertRaises(ValueError):
+                collect(path, source, NOW, admissions={})
+            self.assertFalse(path.exists())
+        self.assertEqual(source.calls, [])
 
     def test_local_proxy_uses_shared_quote_and_pool_routes_and_original_header(self):
         response=Mock(headers={'x-data-observed-at':str(NOW-120_000)})

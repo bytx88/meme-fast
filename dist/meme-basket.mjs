@@ -68,7 +68,11 @@ export function quoteState(row,now=Date.now()){
 export function renderComparison(comparison,now=Date.now(),saved=true){
   if(!saved)return '<span class="basket-comparison-state" data-state="pending">Not saved</span><small>Reference begins after Save changes</small>';
   if(!comparison)return '<span class="basket-comparison-state" data-state="pending">Awaiting collection</span>';
+  if(comparison.status==='awaiting_history'){
+    return '<span class="basket-comparison-state" data-state="active">Current 1H active</span><small>24H baseline forming</small><small>Existing member · continues normally</small>';
+  }
   if(comparison.status==='warming'){
+    if(comparison.kind!=='added')return '<span class="basket-comparison-state" data-state="pending">Refreshing comparison status</span><small>Existing members do not restart a 24H warmup</small>';
     return `<span class="basket-comparison-state" data-state="warming">Warming</span><small>Neutral contribution: 0 pp</small><small>Initial 1H reference: ${finite(comparison.initialReturn)?escapeHTML(percent(comparison.initialReturn)):'awaiting quote'}</small><small${finite(comparison.warmUntil)?` title="Until ${escapeHTML(date(comparison.warmUntil))}"`:''}>${escapeHTML(warmRemaining(comparison.warmUntil,now))}</small>`;
   }
   if(comparison.status==='active'){

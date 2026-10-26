@@ -570,7 +570,7 @@ def collect_meme_index():
     try:
         report = collect("/history/meme-index.json",
             Sources(quotes=read_market_source.remote, history=read_gecko_source.remote,
-                    preset=config['members']), preset=config['members'])
+                    preset=config['members']), preset=config['members'], admissions=config['admissions'])
     finally:
         history_volume.commit()
     return {"updatedAt": report.get("updatedAt"), "constituents": len(report["basket"]), "error": report.get("error")}

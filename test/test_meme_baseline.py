@@ -212,6 +212,73 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(component['firstAt'],later)
         self.assertEqual(component['initialReturn'],20)
 
+    def test_incumbent_without_yesterday_history_never_gets_neutral_warmup(self):
+        row = member(change=8)
+        admissions = {row['id']: dict(kind='existing', addedAt=None)}
+        comparison, ledger = compare_components([row], {}, NOW, admissions=admissions)
+        component = comparison['components'][0]
+        self.assertEqual(component['status'], 'awaiting_history')
+        self.assertEqual(component['kind'], 'existing')
+        self.assertEqual(comparison['warmingMembers'], 0)
+        self.assertEqual(comparison['awaitingHistoryMembers'], 1)
+        self.assertEqual(comparison['unavailableMembers'], 0)
+        for field in ('delta', 'baselineReturn', 'baselineObservedAt', 'baselineSource', 'warmUntil'):
+            self.assertIsNone(component[field])
+        self.assertIsNone(comparison['value'])
+        self.assertNotIn('firstAt', ledger['members'][row['id']])
+        self.assertEqual(len(ledger['members'][row['id']]['observations']), 1)
+
+    def test_incumbent_real_baseline_works_without_any_enrollment_reference(self):
+        row, old = member(change=8), member(change=2, now=NOW-DAY)
+        comparison, _ = compare_components([row], history_report(old), NOW,
+                    admissions={row['id']: dict(kind='existing', addedAt=None)})
+        self.assertEqual(comparison['value'], 6)
+        self.assertEqual(comparison['components'][0]['status'], 'active')
+        self.assertIsNone(comparison['components'][0]['firstAt'])
+        self.assertIsNone(comparison['components'][0]['warmUntil'])
+
+    def test_upgrade_repairs_false_incumbent_warmup_without_rewriting_evidence(self):
+        row = member(change=8)
+        _, old_ledger = compare_components([copy.deepcopy(row)], {}, NOW)
+        old_ledger['version'] = 1
+        for entry in old_ledger['members'].values():
+            entry.pop('kind'); entry.pop('addedAt')
+        report = dict(componentBaselines=copy.deepcopy(old_ledger), readings=[dict(at=NOW, meme=8)])
+        original = copy.deepcopy(report)
+        comparison, ledger = compare_components([member(change=10, now=NOW+HOUR)], report, NOW+HOUR,
+                        admissions={row['id']: dict(kind='existing', addedAt=None)})
+        self.assertEqual(comparison['components'][0]['status'], 'awaiting_history')
+        self.assertEqual(comparison['warmingMembers'], 0)
+        self.assertIsNone(comparison['value'])
+        self.assertEqual(ledger['members'][row['id']]['initialReturn'], 8)
+        self.assertEqual(ledger['members'][row['id']]['firstAt'], NOW)
+        self.assertEqual(report, original)
+
+    def test_new_member_clock_survives_restarts_missing_quote_and_recovery(self):
+        row = member(change=8)
+        admissions = {row['id']: dict(kind='added', addedAt=NOW-1000)}
+        _, ledger = compare_components([copy.deepcopy(row)], {}, NOW, admissions=admissions)
+        missing = member(change=None, now=NOW+HOUR, eligible=False, exclusionReason='missing_return')
+        unavailable, ledger = compare_components([missing], dict(componentBaselines=ledger), NOW+HOUR,
+                            admissions=admissions, prior_ids={row['id']})
+        self.assertEqual(unavailable['components'][0]['status'], 'unavailable')
+        recovered, _ = compare_components([member(change=900, now=NOW+2*HOUR)],
+                         dict(componentBaselines=ledger), NOW+2*HOUR,
+                         admissions=admissions, prior_ids={row['id']})
+        component = recovered['components'][0]
+        self.assertEqual(component['status'], 'warming')
+        self.assertEqual(component['firstAt'], NOW)
+        self.assertEqual(component['warmUntil'], NOW+DAY)
+        self.assertEqual(component['initialReturn'], 8)
+        self.assertEqual(recovered['value'], 0)
+
+    def test_invalid_or_future_admission_cannot_silently_neutralize_a_member(self):
+        row = member()
+        for entry in (dict(kind='existing', addedAt=NOW), dict(kind='added', addedAt=NOW+1),
+                      dict(kind='added', addedAt=True), dict(kind='added', addedAt=None), dict(kind='bogus')):
+            with self.subTest(entry=entry), self.assertRaises(ValueError):
+                compare_components([copy.deepcopy(row)], {}, NOW, admissions={row['id']:entry})
+
 
 if __name__ == '__main__':
     unittest.main()

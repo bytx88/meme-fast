@@ -62,10 +62,40 @@ def method_for(members):
     return f'fixed-preset-{len(members)}-1h-v1-{digest}'
 
 
+def member_identity(member):
+    return member['network']+':'+member['contract_address']
+
+
+def validate_admissions(members, admissions=None):
+    """Only server state decides which members were genuinely added.
+
+    Configurations saved before admissions were introduced are incumbents. An
+    application upgrade is never a membership addition or a new warmup clock.
+    """
+    if admissions is None:
+        return {member_identity(row): dict(kind='existing', addedAt=None) for row in members}
+    if not isinstance(admissions, dict):
+        raise ValueError('Saved Meme member admissions are invalid')
+    output = {}
+    for member in members:
+        key = member_identity(member)
+        entry = admissions.get(key)
+        if not isinstance(entry, dict) or entry.get('kind') not in ('existing', 'added'):
+            raise ValueError('Saved Meme member admission is invalid')
+        added = entry.get('addedAt')
+        if ((entry['kind'] == 'existing' and added is not None)
+                or (entry['kind'] == 'added' and (type(added) not in (int, float)
+                    or not math.isfinite(added) or added < 0))):
+            raise ValueError('Saved Meme member admission time is invalid')
+        output[key] = dict(kind=entry['kind'], addedAt=added)
+    return output
+
+
 def default_config():
     members = validate_members(json.loads(Path(__file__).with_name('meme-index-preset.json').read_text(encoding='utf-8')))
     revision = hashlib.sha256(json.dumps(members, sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:20]
-    return dict(version=1, revision='seed-'+revision, members=members, updatedAt=None, method=method_for(members))
+    return dict(version=1, revision='seed-'+revision, members=members, updatedAt=None,
+                method=method_for(members), admissions=validate_admissions(members))
 
 
 def read_config(value):
@@ -81,7 +111,10 @@ def read_config(value):
         raise ValueError('Saved Meme preset revision is invalid')
     if stamp is not None and (type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0):
         raise ValueError('Saved Meme preset time is invalid')
-    return dict(version=1, revision=revision, members=members, updatedAt=stamp, method=method_for(members))
+    if 'admissions' in value and value['admissions'] is None:
+        raise ValueError('Saved Meme member admissions are invalid')
+    return dict(version=1, revision=revision, members=members, updatedAt=stamp,
+                method=method_for(members), admissions=validate_admissions(members, value.get('admissions')))
 
 
 def revise(current, payload, now=None):
@@ -98,7 +131,10 @@ def revise(current, payload, now=None):
         raise ValueError('Invalid preset save time')
     revision = hashlib.sha256(json.dumps([current['revision'], now, members],
                                          sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:24]
-    return dict(version=1, revision=revision, members=members, updatedAt=now, method=method_for(members))
+    admissions = {member_identity(row): copy.deepcopy(current['admissions'].get(member_identity(row),
+                    dict(kind='added', addedAt=now))) for row in members}
+    return dict(version=1, revision=revision, members=members, updatedAt=now,
+                method=method_for(members), admissions=admissions)
 
 
 def project_report(report, config):

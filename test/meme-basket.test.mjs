@@ -58,11 +58,23 @@ test('FOMO candidates retain source order, source ranks and holder counts withou
 });
 
 test('warming comparison retains a neutral contribution and initial reference for 24 hours',()=>{
-  const now=1900000000000,comparison={status:'warming',delta:0,initialReturn:3.25,firstObservedAt:now,warmUntil:now+24*3600000};
+  const now=1900000000000,comparison={kind:'added',status:'warming',delta:0,initialReturn:3.25,firstObservedAt:now,warmUntil:now+24*3600000};
   const html=renderComparison(comparison,now);
   assert.match(html,/Warming/);assert.match(html,/Neutral contribution: 0 pp/);assert.match(html,/Initial 1H reference: \+3\.25%/);assert.match(html,/24h remaining/);
   const elapsed=renderComparison(comparison,now+24*3600000);
   assert.match(elapsed,/Awaiting the next recorded 24H comparison/);assert.doesNotMatch(elapsed,/data-state="active"/);
+});
+
+test('an existing member with no genuine historical baseline remains active without a warmup countdown',()=>{
+ const now=1900000000000;
+ const comparison={kind:'existing',status:'awaiting_history',initialReturn:3.25,firstObservedAt:now,warmUntil:null};
+ const html=renderComparison(comparison,now);
+ assert.match(html,/Current 1H active/);assert.match(html,/24H baseline forming/);
+ assert.match(html,/Existing member · continues normally/);
+ assert.doesNotMatch(html,/Warming|remaining|Initial 1H reference|Neutral contribution/);
+ const legacy=renderComparison({...comparison,status:'warming',warmUntil:now+24*3600000},now);
+ assert.match(legacy,/Refreshing comparison status/);
+ assert.doesNotMatch(legacy,/Warming|remaining|Neutral contribution/);
 });
 
 test('active comparison shows recorded delta and reference without manufacturing missing values',()=>{
@@ -75,7 +87,7 @@ test('active comparison shows recorded delta and reference without manufacturing
 
 test('warming members retain their equal weight alongside active members',()=>{
   const draft=new BasketDraft(config()),now=1900000000000;
-  const comparisons=new Map([[memberIdentity(solana),{status:'active',delta:1,baselineReturn:2}],[memberIdentity(evm(1)),{status:'warming',initialReturn:4,warmUntil:now+24*3600000}]]);
+  const comparisons=new Map([[memberIdentity(solana),{status:'active',delta:1,baselineReturn:2}],[memberIdentity(evm(1)),{kind:'added',status:'warming',initialReturn:4,warmUntil:now+24*3600000}]]);
   const html=renderMembers(draft,new Map(),now,comparisons);
   assert.equal((html.match(/50\.00%/g)||[]).length,2);assert.match(html,/Active · \+1\.00 pp/);assert.match(html,/Warming/);assert.match(html,/Neutral contribution: 0 pp/);
   assert.equal(draft.payload().members[1].comparison,undefined);
@@ -158,7 +170,7 @@ test('status refresh updates comparison evidence while preserving unsaved member
   const fetcher=async(url,options)=>{
     calls.push({url,options});
     const body=config();
-    if(calls.length>1)body.members[1]={...body.members[1],comparison:{status:'warming',initialReturn:2,warmUntil:Date.now()+24*3600000}};
+    if(calls.length>1)body.members[1]={...body.members[1],comparison:{kind:'added',status:'warming',initialReturn:2,warmUntil:Date.now()+24*3600000}};
     return response(body);
   };
   const mounted=mountBasket(document,fetcher);await mounted.ready;

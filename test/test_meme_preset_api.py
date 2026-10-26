@@ -115,6 +115,29 @@ class PresetApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.puts, [])
         self.assertEqual(self.refreshes, [])
 
+    async def test_only_actual_added_contract_gets_server_owned_admission(self):
+        loaded = (await self.client.get('/api/meme-preset')).json()
+        self.assertTrue(all(row == {'kind': 'existing', 'addedAt': None} for row in loaded['admissions'].values()))
+        added = dict(network='base', contract_address='0x'+'ab'*20, symbol='NEW', name='New member')
+        key = 'base:'+added['contract_address']
+        response = await self.client.put('/api/meme-preset', json={
+            'revision': loaded['revision'], 'members': loaded['members']+[added],
+            'admissions': {key: {'kind': 'existing', 'addedAt': None}}})
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()
+        self.assertEqual(saved['admissions'][key]['kind'], 'added')
+        self.assertIsInstance(saved['admissions'][key]['addedAt'], int)
+        for member_key, admission in loaded['admissions'].items():
+            self.assertEqual(saved['admissions'][member_key], admission)
+        changed = copy.deepcopy(saved['members'])
+        changed[0]['symbol'] = 'BP renamed'
+        renamed = await self.client.put('/api/meme-preset', json={
+            'revision': saved['revision'], 'members': changed,
+            'admissions': {member_key: {'kind': 'added', 'addedAt': 0} for member_key in saved['admissions']}})
+        self.assertEqual(renamed.status_code, 200, renamed.text)
+        self.assertEqual(renamed.json()['admissions'], saved['admissions'])
+        self.assertEqual(self.stored['admissions'], saved['admissions'])
+
     async def test_suggest_pulls_fomo_only_on_explicit_request_without_changing_members(self):
         row = dict(network='solana', contract_address='A'*32, symbol='NEW', name='Candidate',
                    observedAt=self.now-1000, rank=1, holders=None)
