@@ -293,3 +293,19 @@ test('extreme input disclosure explains exclusion and retains raw provenance',()
  assert.equal(inputQualityNote({method,readings:[{method,meme:2,inputQuality:{extremeReturnCount:0}}]}),'');
  assert.equal(inputQualityNote({method,readings:[{method:'old',meme:1e12}]}),'');
 });
+
+test('off-hour Meme repairs preserve fresh matched benchmarks without extending freshness',async()=>{
+ const at=Date.now(),hour=3600000,day=24*hour,method='shared-trending-mature-1h-v2';
+ const rows=[{at:at-day-24*60000,meme:1,altDelta:2,btcDelta:1,method:'shared-trending-1h-v1'},
+  {at:at-24*60000,meme:413378817666,altDelta:1.58,btcDelta:.62,method:'shared-trending-1h-v1'},
+  {at,meme:91.02,altDelta:1,btcDelta:0,method}];
+ await withMountedMarket({method,basket:[],readings:rows},async({market,body,refresh})=>{
+  assert.match(marketText(market.innerHTML),/Meme · 1H\s+\+91\.02%/);
+  assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
+  assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/);
+  assert.match(marketText(body.innerHTML),/Alt\/BTC comparison: observed .*?baseline/);
+  await refresh({method,basket:[],readings:[{...rows[0],at:at-day-76*60000},{...rows[1],at:at-76*60000},rows[2]]});
+  assert.match(marketText(market.innerHTML),/Alt\s+—/);
+  assert.match(marketText(market.innerHTML),/Btc\s+—/);
+ });
+});
