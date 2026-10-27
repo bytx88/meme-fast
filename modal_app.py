@@ -386,7 +386,7 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     return result or dict(ranking=len(plan['ranking']), monitored=len(plan['tokens']), error=plan.get('error'))
 
 
-@app.function(schedule=modal.Period(hours=24), timeout=180, max_containers=1)
+@app.function(timeout=180, max_containers=1)
 async def retain_wallet_registry():
     """Renew individual entries; listing a Dict is not an individual key read."""
     import asyncio
@@ -401,6 +401,8 @@ async def retain_wallet_registry():
         keys = [key async for key in registry.keys.aio()]
         await asyncio.gather(*(touch(registry, key) for key in keys))
         counts[name] = len(keys)
+    import time
+    await refresh_priorities.put.aio('wallet-registry-retained-at', int(time.time() * 1000))
     return counts
 
 
@@ -611,6 +613,13 @@ def collect_followed_wallets():
     def note(stage):
         print(f'collect_followed_wallets +{time.monotonic()-started:.1f}s {stage}', flush=True)
     note('dispatch started')
+    # Reuse this schedule slot; renew at most daily, after successful key reads.
+    try:
+        retained_at = refresh_priorities.get('wallet-registry-retained-at', 0)
+        if time.time() * 1000 - retained_at >= 86400000:
+            retain_wallet_registry.spawn()
+    except Exception as exc:
+        print('Wallet retention dispatch failed: ' + type(exc).__name__, flush=True)
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
     # Share the existing five-minute dispatch slot; keep balance-history writes
