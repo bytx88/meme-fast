@@ -94,7 +94,7 @@ def merge_import(current, incoming):
     return validate_entry(result)
 
 
-def universe(legacy, overrides=()):
+def universe(legacy, overrides=(), seeds=None):
     rows = {}
     for row in legacy:
         rows[row['address']] = dict(row, interested=True, source='Manual', label='Interested Party', discoveryToken='', notes='', addedAt=None)
@@ -102,7 +102,11 @@ def universe(legacy, overrides=()):
     for row in cohort['wallets']:
         if row['address'] not in rows:
             rows[row['address']] = dict(row, network='solana', code='', smartMoney=True, interested=False, source='Nansen', label='User-supplied Smart Money list', discoveryToken=cohort['token'], notes='', addedAt=None)
-    for value in overrides:
+    # The approved research list must survive expiration of Modal Dict entries.
+    # Live overrides remain authoritative, including explicit False/None flags.
+    if seeds is None:
+        seeds = json.loads(Path(__file__).with_name('wallet-universe-seed.json').read_text(encoding='utf-8'))
+    for value in [*seeds, *overrides]:
         row = validate_entry(value)
         rows[row['address']] = dict(row, addedAt=value.get('addedAt'), updatedAt=value.get('updatedAt'))
     return [dict(row, sources=row.get('sources', [row['source']]), aliases=row.get('aliases', []), smartMoney=row.get('smartMoney'), smartStatus=smart_status(row)) for row in rows.values()]

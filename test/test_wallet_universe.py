@@ -60,19 +60,33 @@ class UniverseTests(unittest.TestCase):
 
     def test_seeds_and_interest_are_independent(self):
         rows=universe(registry_wallets())
-        self.assertEqual(len(rows),22)
+        self.assertEqual(len(rows),1051)
         self.assertEqual(sum(row['interested'] for row in rows),13)
-        self.assertEqual(sum(row['source']=='Nansen' for row in rows),9)
+        self.assertEqual(sum(row['source']=='Nansen' for row in rows),134)
         existing=rows[0]
         edited=dict(existing,interested=False)
         merged=universe(registry_wallets(),[edited])
-        self.assertEqual(len(merged),22)
+        self.assertEqual(len(merged),1051)
         self.assertFalse(merged[0]['interested'])
         self.assertEqual(merged[0]['code'],existing['code'])
         nansen=next(row for row in rows if row['source']=='Nansen')
         merged=universe(registry_wallets(),[dict(nansen,interested=True)])
         self.assertTrue(next(row for row in merged if row['address']==nansen['address'])['interested'])
         self.assertEqual(nansen['code'],'')
+
+    def test_recovered_baseline_survives_empty_registry_and_live_edits_win(self):
+        rows = universe(registry_wallets(), [])
+        self.assertEqual(len({row['address'] for row in rows}), 1051)
+        for row in rows:
+            validate_entry(row)
+        restored = next(row for row in rows if row['source'] == 'Track V2')
+        edited = dict(restored, name='Updated research name', interested=True, smartMoney=False)
+        merged = {row['address']: row for row in universe(registry_wallets(), [edited])}
+        self.assertEqual(len(merged), 1051)
+        self.assertEqual(merged[restored['address']]['name'], edited['name'])
+        self.assertTrue(merged[restored['address']]['interested'])
+        self.assertFalse(merged[restored['address']]['smartMoney'])
+        self.assertEqual(merged[restored['address']]['smartStatus'], 'non-smart')
 
     def test_validation_and_report_keeps_identity_metadata(self):
         wallet=dict(name='Test',address=registry_wallets()[0]['address'],code='',source='Fomo',interested=True)

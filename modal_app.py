@@ -386,6 +386,24 @@ def _collect_smart_wallets(backfill=None, token=None, cohort_scope="universe"):
     return result or dict(ranking=len(plan['ranking']), monitored=len(plan['tokens']), error=plan.get('error'))
 
 
+@app.function(schedule=modal.Period(hours=24), timeout=180, max_containers=1)
+async def retain_wallet_registry():
+    """Renew individual entries; listing a Dict is not an individual key read."""
+    import asyncio
+    gate = asyncio.Semaphore(16)
+
+    async def touch(registry, key):
+        async with gate:
+            await registry.get.aio(key, None)
+
+    counts = {}
+    for name, registry in [('universe', wallet_universe_registry), ('tracked', tracked_wallet_registry)]:
+        keys = [key async for key in registry.keys.aio()]
+        await asyncio.gather(*(touch(registry, key) for key in keys))
+        counts[name] = len(keys)
+    return counts
+
+
 @app.function(timeout=240, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS, volumes={'/smartness': smartness_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smartness(evidence=None):
