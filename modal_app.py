@@ -715,6 +715,17 @@ def web():
         reply = await read_gecko_source.remote.aio(target.removeprefix('https://api.geckoterminal.com/api/v2'))
         return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
     market_cache = MarketProxy(fetch_market, broker=True)
+    @web_app.get("/api/btc-liquidation-heatmap")
+    def btc_liquidation_heatmap(days: int = 30):
+        from worker.liquidation_heatmap import load, RANGES
+        if days not in RANGES:
+            raise HTTPException(status_code=400, detail="Unsupported heatmap range")
+        try:
+            return JSONResponse(load(days), headers={"cache-control": "public, max-age=120"})
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="BTC heatmap provider unavailable; retry shortly",
+                                headers={"Retry-After": "120"}) from exc
+
     @web_app.get("/api/macro-review")
     async def macro_review():
         return JSONResponse(await collect_macro_review.remote.aio(), headers={"cache-control": "no-store"})
