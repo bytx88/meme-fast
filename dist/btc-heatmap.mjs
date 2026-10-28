@@ -10,11 +10,11 @@ export function heatColor(value,max){
 }
 export function peak(values){let index=0;for(let i=1;i<values.length;i++)if(values[i]>values[index])index=i;return {index,value:values[index]};}
 if(root){
- const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),status=root.querySelector('.heat-status'),tooltip=root.querySelector('.heat-tooltip');
- let data=null,days=30,symbol='BTCUSDT',scale=1,centerT=.5,centerP=.5,sequence=0,geometry=null,lastFetch=0,controller;
+ const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),status=root.querySelector('.heat-status'),tooltip=root.querySelector('.heat-tooltip'),priceAxis=root.querySelector('.heat-price-axis');
+ let data=null,days=30,symbol='BTCUSDT',scale=1,priceScale=1,centerT=.5,centerP=.5,sequence=0,geometry=null,lastFetch=0,controller,priceDrag=null;
  const snapshots=new Map(),nextChecks=new Map();
  const labels=[root.querySelector('.heat-band-short'),root.querySelector('.heat-band-long')];
- function clear(message){data=null;geometry=null;tooltip.hidden=true;labels.forEach(label=>{label.hidden=true;label.replaceChildren();});ctx.clearRect(0,0,canvas.width,canvas.height);status.textContent=message;}
+ function clear(message){stopPriceDrag();data=null;geometry=null;tooltip.hidden=true;labels.forEach(label=>{label.hidden=true;label.replaceChildren();});ctx.clearRect(0,0,canvas.width,canvas.height);status.textContent=message;}
  function draw(){
   if(!data)return;
   const w=canvas.clientWidth,h=canvas.clientHeight,dpr=window.devicePixelRatio||1;
@@ -23,9 +23,10 @@ if(root){
   const current=data.current_price??data.ohlc.at(-1)[3],binSize=(data.price_hi-data.price_lo)/data.nbins;
   const edges=data.price_edges||Array.from({length:data.nbins+1},(_,i)=>data.price_lo+i*binSize);
   const start=Math.max(0,Math.floor(data.times.length*(centerT-.5/scale))),end=Math.min(data.times.length,Math.ceil(data.times.length*(centerT+.5/scale)));
-  const span=data.price_hi-data.price_lo,low=data.price_lo+span*(centerP-.5/scale),high=data.price_lo+span*(centerP+.5/scale);
+  const span=data.price_hi-data.price_lo,low=Math.max(0,data.price_lo+span*(centerP-.5/priceScale)),high=data.price_lo+span*(centerP+.5/priceScale);
   const y=p=>bottom-(p-low)/(high-low)*(bottom-top),dx=(right-left)/(end-start);
   geometry={left,right,top,bottom,axis,y,low,high,dx,edges,start,end};
+  priceAxis.style.top=top+'px';priceAxis.style.height=(bottom-top)+'px';
   ctx.fillStyle='#1a0b34';ctx.fillRect(left,top,right-left,bottom-top);
   let max=0;for(const row of data.matrix)for(const v of row)max=Math.max(max,v);
   ctx.save();ctx.beginPath();ctx.rect(left,top,right-left,bottom-top);ctx.clip();
@@ -132,15 +133,32 @@ if(root){
  }
  root.querySelector('.heat-symbol').addEventListener('change',marketChanged);
  root.querySelectorAll('[data-days]').forEach(button=>button.addEventListener('click',()=>{days=Number(button.dataset.days);++sequence;controller?.abort();clear(`Loading ${symbol} liquidation estimates…`);resetZoom();root.querySelectorAll('[data-days]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));load();}));
- function syncZoom(){const button=root.querySelector('.heat-zoom');button.textContent=scale>1?'Reset zoom':'Zoom in';button.setAttribute('aria-pressed',String(scale>1));root.querySelector('.heat-zoom-readout').textContent=scale.toFixed(1)+'×';}
- function resetZoom(){scale=1;centerT=centerP=.5;syncZoom();draw();}
+ function syncZoom(){const changed=scale!==1||priceScale!==1,button=root.querySelector('.heat-zoom');button.textContent=changed?'Reset zoom':'Zoom in';button.setAttribute('aria-pressed',String(changed));root.querySelector('.heat-zoom-readout').textContent=`Time ${scale.toFixed(1)}× · Price ${priceScale.toFixed(1)}×`;priceAxis.setAttribute('aria-valuenow',String(Math.round(priceScale*100)));priceAxis.setAttribute('aria-valuetext',`Price scale ${priceScale.toFixed(2)} times`);}
+ function resetZoom(){stopPriceDrag();scale=priceScale=1;centerT=centerP=.5;syncZoom();draw();}
  function changeZoom(factor,rx=.75,ry=.5){
-  if(!data)return;rx=Math.max(0,Math.min(1,rx));ry=Math.max(0,Math.min(1,ry));const old=scale,next=Math.max(1,Math.min(12,scale*factor));
+  if(!data)return;rx=Math.max(0,Math.min(1,rx));ry=Math.max(0,Math.min(1,ry));const old=scale,next=Math.max(1,Math.min(12,scale*factor)),oldPrice=priceScale,nextPrice=Math.max(.25,Math.min(12,priceScale*factor));
   centerT=Math.max(.5/next,Math.min(1-.5/next,centerT+(rx-.5)/old-(rx-.5)/next));
-  centerP=Math.max(.5/next,Math.min(1-.5/next,centerP+(.5-ry)/old-(.5-ry)/next));
-  scale=next;tooltip.hidden=true;syncZoom();draw();
+  centerP+= (.5-ry)/oldPrice-(.5-ry)/nextPrice;
+  if(nextPrice>=1)centerP=Math.max(.5/nextPrice,Math.min(1-.5/nextPrice,centerP));
+  scale=next;priceScale=nextPrice;tooltip.hidden=true;syncZoom();draw();
  }
- root.querySelector('.heat-zoom').addEventListener('click',()=>scale>1?resetZoom():changeZoom(2));
+ function stopPriceDrag(){if(!priceDrag)return;const id=priceDrag.id;priceDrag=null;priceAxis.classList.remove('is-dragging');if(priceAxis.hasPointerCapture(id))priceAxis.releasePointerCapture(id);}
+ function resetPriceScale(){stopPriceDrag();priceScale=1;centerP=.5;syncZoom();draw();}
+ priceAxis.addEventListener('pointerdown',event=>{
+  if(!data||!geometry||event.button!==0||priceDrag)return;
+  event.preventDefault();tooltip.hidden=true;priceAxis.focus({preventScroll:true});
+  priceDrag={id:event.pointerId,y:event.clientY,scale:priceScale,center:centerP};
+  priceAxis.setPointerCapture(event.pointerId);priceAxis.classList.add('is-dragging');
+ });
+ priceAxis.addEventListener('pointermove',event=>{
+  if(!priceDrag||event.pointerId!==priceDrag.id)return;
+  event.preventDefault();priceScale=Math.max(.25,Math.min(12,priceDrag.scale*Math.exp((priceDrag.y-event.clientY)*.008)));centerP=priceDrag.center;
+  syncZoom();draw();
+ });
+ for(const name of ['pointerup','pointercancel','lostpointercapture'])priceAxis.addEventListener(name,event=>{if(priceDrag&&event.pointerId===priceDrag.id)stopPriceDrag();});
+ priceAxis.addEventListener('dblclick',resetPriceScale);
+ priceAxis.addEventListener('keydown',event=>{if(!data||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;event.preventDefault();if(event.key==='Home')resetPriceScale();else{priceScale=Math.max(.25,Math.min(12,priceScale*(event.key==='ArrowUp'?1.2:1/1.2)));tooltip.hidden=true;syncZoom();draw();}});
+ root.querySelector('.heat-zoom').addEventListener('click',()=>scale!==1||priceScale!==1?resetZoom():changeZoom(2));
  canvas.addEventListener('wheel',event=>{if(!data||!geometry)return;const r=canvas.getBoundingClientRect(),g=geometry,x=event.clientX-r.left,y=event.clientY-r.top;if(x<g.left||x>g.axis||y<g.top||y>g.bottom)return;event.preventDefault();changeZoom(Math.exp(-Math.max(-160,Math.min(160,event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?400:1)))*.002),(x-g.left)/(g.right-g.left),(y-g.top)/(g.bottom-g.top));},{passive:false});
  canvas.addEventListener('keydown',event=>{if(['+','=','-','0'].includes(event.key)){event.preventDefault();if(event.key==='0')resetZoom();else changeZoom(event.key==='-'?1/1.3:1.3);}});
  root.querySelector('.heat-refresh').addEventListener('click',load);
