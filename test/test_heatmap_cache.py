@@ -1,5 +1,7 @@
 import copy
 import tempfile
+import json
+import sqlite3
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
@@ -49,7 +51,8 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(other['retryAfter'], 890)
         self.assertEqual(failure.call_count, 1)
         gold = Mock(return_value={**self.body, 'symbol':'XAUUSDT'})
-        self.assertEqual(self.read(self.now+10, gold, symbol='XAUUSDT')['status'], 200)
+        self.assertEqual(self.read(self.now+10, gold, symbol='XAUUSDT')['status'], 503)
+        gold.assert_not_called()
 
     def test_fallback_expires_after_24_hours(self):
         self.read(self.now, Mock(return_value=self.body))
@@ -76,6 +79,41 @@ class CacheTests(unittest.TestCase):
         second = self.read(self.now, Mock(return_value={**self.body, 'marker':'7d'}), days=7)
         self.assertEqual(first['body']['marker'],'30d')
         self.assertEqual(second['body']['marker'],'7d')
+
+    def test_delayed_range_does_not_cool_down_healthy_ranges(self):
+        self.read(self.now, Mock(side_effect=ValueError('Stale 30d snapshot')))
+        healthy = Mock(return_value=self.body)
+        self.assertEqual(self.read(self.now+1, healthy, days=7)['status'], 200)
+        healthy.assert_called_once()
+
+    def test_old_provider_block_does_not_block_replacement(self):
+        self.read(self.now, Mock(return_value=self.body))
+        with sqlite3.connect(self.path) as db:
+            db.execute('DELETE FROM snapshots')
+            db.execute('INSERT OR REPLACE INTO cooldowns VALUES (?, ?, ?, ?)', ('BTCUSDT', self.now+3600, 4, 'Provider HTTP 403'))
+            db.execute('INSERT INTO snapshots VALUES (?, ?, ?, ?)', ('BTCUSDT:30',self.now,self.now+300,json.dumps({**self.body,'source':'Edge or Not'})))
+        db.close()
+        replacement = Mock(return_value={**self.body,'source':'Swolecharts'})
+        reply = self.read(self.now+1,replacement)
+        self.assertEqual(reply['body']['source'],'Swolecharts')
+        replacement.assert_called_once()
+
+    def test_preserves_existing_gold_snapshot_without_provider_call(self):
+        self.read(self.now, Mock(return_value=self.body))
+        gold = {**self.body,'source':'Swolecharts','symbol':'XAUUSDT'}
+        with sqlite3.connect(self.path) as db:
+            db.execute('INSERT INTO snapshots VALUES (?, ?, ?, ?)', ('XAUUSDT:1',self.now,self.now+300,json.dumps(gold)))
+        db.close()
+        fetch=Mock(side_effect=AssertionError('Must reuse saved gold data'))
+        reply=self.read(self.now+1,fetch,symbol='XAUUSDT',days=1)
+        self.assertEqual(reply['body']['updated'],gold['updated'])
+        fetch.assert_not_called()
+
+    def test_initial_dated_snapshot_is_explicitly_stale(self):
+        reply=self.read(self.now,Mock(return_value={**self.body,'updated':(self.now-3600)*1000}))
+        self.assertEqual(reply['status'],200)
+        self.assertEqual(reply['body']['cache']['state'],'stale')
+        self.assertEqual(reply['body']['cache']['reason'],'Provider snapshot delayed')
 
 
 if __name__ == '__main__':

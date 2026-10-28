@@ -13,11 +13,12 @@ from email.utils import parsedate_to_datetime
 
 RANGES = (1, 3, 7, 30)
 SYMBOLS = ('BTCUSDT', 'XAUUSDT')
+PROVIDER = 'swolecharts-model-v1'
 _cache = {}
 _lock = threading.Lock()
 
 
-def validate(data, days, now=None):
+def validate(data, days, now=None, max_age_ms=900000):
     now = time.time() * 1000 if now is None else now
     def number(value):
         return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
@@ -31,7 +32,7 @@ def validate(data, days, now=None):
     # Bucket labels can round forward to the next interval boundary. Freshness
     # is anchored to the provider's capture time, not that rounded label.
     bucket_ms = min(10800000, max(900000, times[-1] - times[-2]))
-    if not number(updated) or not -60000 <= now - updated <= 900000 or not -bucket_ms <= now - times[-1] <= max(3600000, bucket_ms * 1.5):
+    if not number(updated) or not -60000 <= now - updated <= max_age_ms or not -bucket_ms <= now - times[-1] <= max(3600000, max_age_ms, bucket_ms * 1.5):
         raise ValueError('Heatmap observations are stale')
     low, high = data.get('price_lo'), data.get('price_hi')
     if not number(low) or not number(high) or not 0 < low < high:
@@ -71,9 +72,9 @@ def validate(data, days, now=None):
             'source': 'Edge or Not', 'sourceUrl': 'https://edgeornot.com/api', 'estimated': True}
 
 
-def normalize_gold(data, days):
-    if data.get('coin') != 'XAU' or data.get('error') or data.get('price_stale'):
-        raise ValueError('Gold model is unavailable')
+def normalize_swole(data, days, coin='XAU', max_age_ms=900000):
+    if coin not in ('BTC', 'XAU') or data.get('coin') != coin or data.get('error') or data.get('price_stale'):
+        raise ValueError('Requested model is unavailable')
     cols, rows = data.get('cols'), data.get('rows')
     if not isinstance(cols, int) or not isinstance(rows, int) or not 2 <= cols <= 3000 or not 2 <= rows <= 500:
         raise ValueError('Invalid gold dimensions')
@@ -94,17 +95,23 @@ def normalize_gold(data, days):
     current = data['price']
     if not isinstance(current, (int, float)) or not math.isfinite(current) or current <= 0:
         raise ValueError('Latest gold price missing')
-    if not -60000 <= time.time() * 1000 - data['price_as_of'] <= 3600000:
+    if not -60000 <= time.time() * 1000 - data['price_as_of'] <= max(3600000, max_age_ms):
         raise ValueError('Gold price is stale')
     # The source clears crossed model cells; classify its latest cells by price.
     longs = [v if math.sqrt(edges[r] * edges[r+1]) < current else 0 for r, v in enumerate(matrix[-1])]
     shorts = [v if math.sqrt(edges[r] * edges[r+1]) >= current else 0 for r, v in enumerate(matrix[-1])]
     report = validate(dict(times=[data['t0'] + c * data['dt'] for c in range(cols)], nbins=rows,
                            matrix=matrix, ohlc=ohlc, price_lo=edges[0], price_hi=edges[-1], price_edges=edges,
-                           profile_long=longs, profile_short=shorts, updated=data['as_of'], current_price=current), days)
-    return {**report, 'source': 'Swolecharts', 'sourceUrl': 'https://swolecharts.com/liquidation-heatmap/XAU',
-            'modelVersion': data.get('version'), 'scope': 'Aggregated XAU gold perpetual model in USD; not a single exchange XAUUSDT pair. Side bars use latest model cells split above/below price. Values are quantized estimates.',
+                           profile_long=longs, profile_short=shorts, updated=data['as_of'], current_price=current), days, max_age_ms=max_age_ms)
+    scope = ('Aggregated XAU gold perpetual model in USD; not a single exchange XAUUSDT pair.' if coin == 'XAU' else
+             'Aggregated BTC perpetual model in USD; not a single exchange BTCUSDT pair.')
+    return {**report, 'source': 'Swolecharts', 'sourceUrl': f'https://swolecharts.com/liquidation-heatmap/{coin}',
+            'modelVersion': data.get('version'), 'scope': scope + ' Side bars use latest model cells split above/below price. Values are quantized estimates.',
             'licenseLabel': 'Provider terms', 'licenseUrl': 'https://swolecharts.com/developers#terms'}
+
+
+def normalize_gold(data, days):
+    return normalize_swole(data, days, 'XAU')
 
 
 def load(days=30, symbol='BTCUSDT'):
@@ -117,9 +124,9 @@ def load(days=30, symbol='BTCUSDT'):
         cached = _cache.get(key)
         if cached and time.monotonic() - cached[0] < 120:
             return cached[1]
-        gold_range = '24h' if days == 1 else f'{days}d'
-        url = (f'https://swolecharts.com/api/liquidation-heatmap/xau?range={gold_range}' if symbol == 'XAUUSDT' else
-               f'https://edgeornot.com/api/liqmap/btc?days={days}&ex=all')
+        source_range = '24h' if days == 1 else f'{days}d'
+        coin = 'XAU' if symbol == 'XAUUSDT' else 'BTC'
+        url = f'https://swolecharts.com/api/liquidation-heatmap/{coin.lower()}?range={source_range}&view=all'
         request = urllib.request.Request(url,
             headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
         with urllib.request.urlopen(request, timeout=20) as response:
@@ -128,9 +135,9 @@ def load(days=30, symbol='BTCUSDT'):
         if len(raw) > 12000000:
             raise ValueError('Heatmap response exceeds limit')
         payload = json.loads(raw)
-        result = normalize_gold(payload, days) if symbol == 'XAUUSDT' else {
-            **validate(payload, days), 'scope': 'Aggregated BTC perpetual model; venue coverage shown above.',
-            'licenseLabel': 'CC BY 4.0', 'licenseUrl': 'https://creativecommons.org/licenses/by/4.0/'}
+        # A structurally valid dated snapshot can initialize the outage cache.
+        # cached_load and the browser explicitly mark captures older than 15m.
+        result = normalize_swole(payload, days, coin, max_age_ms=86400000)
         result['symbol'] = symbol
         age = re.search(r'\bmax-age=(\d+)', cache_control)
         result['providerCacheSeconds'] = int(age[1]) if age else 120
@@ -163,10 +170,17 @@ def cached_load(db_path, days=30, symbol='BTCUSDT', fetch=None, now=None):
         db.execute('CREATE TABLE IF NOT EXISTS cooldowns (provider TEXT PRIMARY KEY, until REAL, failures INTEGER, reason TEXT)')
         db.commit()
         db.execute('BEGIN IMMEDIATE')
-        key = f'{symbol}:{days}'
+        key = f'{PROVIDER}:{symbol}:{days}'
         row = db.execute('SELECT saved, expires, body FROM snapshots WHERE key=?', (key,)).fetchone()
+        if row is None:
+            legacy = db.execute('SELECT saved, expires, body FROM snapshots WHERE key=?', (f'{symbol}:{days}',)).fetchone()
+            if legacy:
+                old = json.loads(legacy[2])
+                if old.get('source') == 'Swolecharts' and old.get('symbol') == symbol:
+                    row = legacy
+                    db.execute('INSERT OR IGNORE INTO snapshots VALUES (?, ?, ?, ?)', (key, *legacy))
         saved, expires, report = (row[0], row[1], json.loads(row[2])) if row else (0, 0, None)
-        cooldown = db.execute('SELECT until, failures, reason FROM cooldowns WHERE provider=?', (symbol,)).fetchone()
+        cooldown = db.execute('SELECT until, failures, reason FROM cooldowns WHERE provider IN (?, ?) ORDER BY until DESC LIMIT 1', (PROVIDER, key)).fetchone()
         until, failures, reason = cooldown if cooldown else (0, 0, '')
         state = 'fresh'
         if now >= expires and now >= until:
@@ -179,7 +193,7 @@ def cached_load(db_path, days=30, symbol='BTCUSDT', fetch=None, now=None):
                 if not fresh.get('providerNoStore'):
                     db.execute('INSERT OR REPLACE INTO snapshots VALUES (?, ?, ?, ?)',
                                (key, saved, expires, json.dumps(fresh)))
-                db.execute('DELETE FROM cooldowns WHERE provider=?', (symbol,))
+                db.execute('DELETE FROM cooldowns WHERE provider IN (?, ?)', (PROVIDER, key))
                 until, failures, reason = 0, 0, ''
             except Exception as exc:
                 if real_clock:
@@ -191,13 +205,15 @@ def cached_load(db_path, days=30, symbol='BTCUSDT', fetch=None, now=None):
                     reason = 'Provider rate limited' if exc.code == 429 else f'Provider HTTP {exc.code}'
                     delay = max(delay, retry_seconds(exc.headers.get('Retry-After'), now, delay))
                 until = now + delay
-                db.execute('INSERT OR REPLACE INTO cooldowns VALUES (?, ?, ?, ?)', (symbol, until, failures, reason))
+                # A malformed/delayed range must not suppress healthy ranges.
+                cooldown_key = key if isinstance(exc, (ValueError, KeyError, TypeError)) else PROVIDER
+                db.execute('INSERT OR REPLACE INTO cooldowns VALUES (?, ?, ?, ?)', (cooldown_key, until, failures, reason))
         stale = now >= expires or bool(report and now * 1000 - report['updated'] > 900000)
         retry_at = max(expires, until)
         # A bounded historical snapshot may remain useful, but never call it live.
         usable = report is not None and 0 <= now * 1000 - report['updated'] <= 86400000
         cache = dict(state='stale' if stale else 'fresh', savedAt=int(saved*1000),
-                     retryAt=int(retry_at*1000), reason=reason if until > now else '')
+                     retryAt=int(retry_at*1000), reason=reason if until > now else ('Provider snapshot delayed' if stale and usable else ''))
         db.commit()
         if usable:
             return dict(status=200, body={**report, 'cache': cache}, retryAfter=max(1, math.ceil(retry_at-now)))

@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 import json
 import base64
 import worker.liquidation_heatmap as feed
-from worker.liquidation_heatmap import validate, load, normalize_gold
+from worker.liquidation_heatmap import validate, load, normalize_gold, normalize_swole
 
 
 class HeatmapTests(unittest.TestCase):
@@ -47,11 +47,14 @@ class HeatmapTests(unittest.TestCase):
     def test_repeated_reads_reuse_cached_observation(self):
         response = MagicMock()
         response.__enter__.return_value.headers.get.return_value = ''
-        response.__enter__.return_value.read.return_value = json.dumps(self.data).encode()
+        payload = {**self.gold_payload(), 'coin': 'BTC'}
+        response.__enter__.return_value.read.return_value = json.dumps(payload).encode()
         with patch.dict(feed._cache, clear=True), patch('time.time', return_value=self.now/1000), patch('urllib.request.urlopen', return_value=response) as fetch:
             first = load(30)
             second = load(30)
             self.assertIs(first, second)
+            self.assertEqual(first['source'], 'Swolecharts')
+            self.assertIn('/liquidation-heatmap/btc?', fetch.call_args.args[0].full_url)
             fetch.assert_called_once()
 
     def gold_payload(self):
@@ -90,6 +93,28 @@ class HeatmapTests(unittest.TestCase):
             self.assertIn('range=24h', fetch.call_args.args[0].full_url)
             with self.assertRaises(ValueError):
                 load(1, 'UNSUPPORTED')
+
+    def test_btc_never_uses_gold_payload_or_attribution(self):
+        with patch('time.time', return_value=self.now/1000):
+            with self.assertRaises(ValueError):
+                normalize_swole(self.gold_payload(), 30, 'BTC')
+            report = normalize_swole({**self.gold_payload(), 'coin':'BTC'}, 30, 'BTC')
+        self.assertTrue(report['sourceUrl'].endswith('/BTC'))
+        self.assertIn('BTC perpetual', report['scope'])
+
+    def test_dated_snapshot_can_initialize_cache_with_original_timestamp(self):
+        old = self.gold_payload()
+        old['coin'] = 'BTC'
+        for key in ('as_of', 'price_as_of', 't0'):
+            old[key] -= 3600000
+        with patch('time.time', return_value=self.now/1000):
+            with self.assertRaises(ValueError):
+                normalize_swole(old, 30, 'BTC')
+            result = normalize_swole(old, 30, 'BTC', max_age_ms=86400000)
+            self.assertEqual(result['updated'], self.now-3600000)
+            old['as_of'] = self.now-86400001
+            with self.assertRaises(ValueError):
+                normalize_swole(old, 30, 'BTC', max_age_ms=86400000)
 
 
 if __name__ == '__main__':

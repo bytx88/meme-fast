@@ -60,6 +60,9 @@ if(root){
  }
  function display(report,key){
   data=report;
+  root.querySelector('.heat-source').textContent=data.source;root.querySelector('.heat-source').href=data.sourceUrl;
+  root.querySelector('.heat-license').textContent=data.licenseLabel;root.querySelector('.heat-license').href=data.licenseUrl;
+  root.querySelector('.heat-scope').textContent=data.scope;
   status.dataset.error='false';
   const stale=data.cache?.state==='stale'||Date.now()-data.updated>900000;
    status.textContent=`${stale?'CACHED / DELAYED · ':''}${symbol} ${price(data.current_price??data.ohlc.at(-1)[3])} · Updated ${date(data.updated)} · ${data.coverageDays} days returned${data.exchanges.length?' · '+data.exchanges.join(' / '):''} · Next check ${date(nextChecks.get(key))} · Local time`;
@@ -76,28 +79,29 @@ if(root){
   }
   nextChecks.set(key,Date.now()+300000);
   const id=++sequence;controller?.abort();controller=new AbortController();if(!known)clear(`Loading ${symbol} liquidation estimates…`);status.dataset.error='false';
-  const requested=days;
+  const requested=days;let failureReason='Provider refresh unavailable';
   try{
    const response=await fetch(`/api/btc-liquidation-heatmap?days=${requested}&symbol=${symbol}`,{signal:controller.signal,cache:'no-store'});
    const retryHeader=response.headers.get('Retry-After');let wait=Number(retryHeader)*1000;if(!Number.isFinite(wait))wait=Date.parse(retryHeader)-Date.now();
    if(id!==sequence)return;nextChecks.set(key,Date.now()+Math.max(300000,wait||0));
    const next=await response.json();if(id!==sequence)return;
    if(next.cache?.retryAt)nextChecks.set(key,Math.max(Date.now()+300000,next.cache.retryAt));
+   if(next.cache?.reason)failureReason=next.cache.reason;
    if(!response.ok)throw new Error('unavailable');
    if(next.symbol!==symbol||!next.times?.length||!next.matrix?.length)throw new Error('empty');data=next;snapshots.set(key,next);lastFetch=Date.now();
    display(data,key);
   }catch(error){if(id!==sequence||error.name==='AbortError')return;
    const old=snapshots.get(key);if(old&&Date.now()-old.updated<=86400000){data={...old,cache:{...old.cache,state:'stale',reason:'Refresh unavailable'}};snapshots.set(key,data);draw();status.textContent=`CACHED / DELAYED · ${symbol} snapshot ${date(old.updated)} · Refresh unavailable · Next check ${date(nextChecks.get(key))}`;status.dataset.stale='true';}
-   else{clear(`Heatmap unavailable; no usable cached snapshot. Next check ${date(nextChecks.get(key))}.`);status.dataset.error='true';}
+   else{clear(`Heatmap unavailable: ${failureReason}; no usable cached snapshot. Next check ${date(nextChecks.get(key))}.`);status.dataset.error='true';}
   }
  }
  function marketChanged(){
   symbol=root.querySelector('.heat-symbol').value;
   ++sequence;controller?.abort();clear(`Loading ${symbol} liquidation estimates…`);resetZoom();
   const gold=symbol==='XAUUSDT',source=root.querySelector('.heat-source'),license=root.querySelector('.heat-license');
-  source.textContent=gold?'Swolecharts':'Edge or Not';source.href=gold?'https://swolecharts.com/liquidation-heatmap/XAU':'https://edgeornot.com/api';
-  license.textContent=gold?'Provider terms':'CC BY 4.0';license.href=gold?'https://swolecharts.com/developers#terms':'https://creativecommons.org/licenses/by/4.0/';
-  root.querySelector('.heat-scope').textContent=gold?'Aggregated XAU gold perpetual model in USD; not a single exchange XAUUSDT pair. Side bars split latest model cells above/below price. Values are quantized estimates.':'Aggregated BTC perpetual model; venue coverage shown above.';
+  source.textContent='Swolecharts';source.href=gold?'https://swolecharts.com/liquidation-heatmap/XAU':'https://swolecharts.com/liquidation-heatmap/BTC';
+  license.textContent='Provider terms';license.href='https://swolecharts.com/developers#terms';
+  root.querySelector('.heat-scope').textContent=gold?'Aggregated XAU gold perpetual model in USD; not a single exchange XAUUSDT pair. Side bars split latest model cells above/below price. Values are quantized estimates.':'Aggregated BTC perpetual model in USD; not a single exchange BTCUSDT pair. Side bars split latest model cells above/below price. Values are quantized estimates.';
   canvas.setAttribute('aria-label',`${symbol} estimated liquidation heatmap with price candles and latest long and short exposure profiles. Largest bands are listed below.`);
   load();
  }
