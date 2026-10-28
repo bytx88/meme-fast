@@ -35,11 +35,11 @@ if(root){
    const a=y(edges[j+1]),b=y(edges[j]);
    if(b<top||a>bottom)return;ctx.fillStyle=heatColor(v,max);ctx.fillRect(left+(i-start)*dx,a,dx+.5,b-a+.5);
   }));ctx.globalAlpha=1;
-  // Draw subtle level guides beneath the candles, so price stays legible.
-  for(const [values,color] of [[data.profile_short,'#7ec8ab66'],[data.profile_long,'#db939066']]){
+  // A dark outline keeps the level guides visible on bright heatmap bands.
+  for(const [values,color] of [[data.profile_short,'#43edb0'],[data.profile_long,'#ff7788']]){
    const p=peak(values),level=(edges[p.index]+edges[p.index+1])/2;
    if(p.value<=0||level<low||level>high)continue;
-   ctx.strokeStyle=color;ctx.lineWidth=1;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(left,y(level));ctx.lineTo(right,y(level));ctx.stroke();
+   ctx.save();ctx.setLineDash([8,4]);ctx.beginPath();ctx.moveTo(left,y(level));ctx.lineTo(right,y(level));ctx.strokeStyle='#08131dcc';ctx.lineWidth=4;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=1.75;ctx.stroke();ctx.restore();
   }ctx.setLineDash([]);
   data.ohlc.forEach((row,i)=>{if(!row||i<start||i>=end)return;const [o,h,l,c]=row,x=left+(i-start+.5)*dx;ctx.strokeStyle=ctx.fillStyle=c>=o?'#35c99b':'#f16a77';ctx.lineWidth=Math.max(.7,Math.min(1.3,dx*.4));ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillRect(x-Math.max(1,dx*.55)/2,Math.min(y(o),y(c)),Math.max(1,dx*.55),Math.max(1,Math.abs(y(o)-y(c))));});
   ctx.strokeStyle='#ffffffa0';ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(left,y(current));ctx.lineTo(right,y(current));ctx.stroke();ctx.setLineDash([]);ctx.restore();
