@@ -10,7 +10,7 @@ export function heatColor(value,max){
 export function peak(values){let index=0;for(let i=1;i<values.length;i++)if(values[i]>values[index])index=i;return {index,value:values[index]};}
 if(root){
  const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),status=root.querySelector('.heat-status'),tooltip=root.querySelector('.heat-tooltip'),priceAxis=root.querySelector('.heat-price-axis');
- let data=null,days=30,symbol='BTCUSDT',scale=1,priceScale=1,centerT=.5,centerP=.5,sequence=0,geometry=null,controller,priceDrag=null,panDrag=null,hover=null,intensity=.8;
+ let data=null,days=30,symbol='BTCUSDT',scale=1,priceScale=1/.7,centerT=.5,centerP=.5,sequence=0,geometry=null,controller,priceDrag=null,panDrag=null,hover=null,intensity=.8;
  const marker=document.createElement('div');marker.className='heat-current-price';marker.hidden=true;root.querySelector('.heat-chart').append(marker);
  const snapshots=new Map(),nextChecks=new Map();
  const labels=[root.querySelector('.heat-band-short'),root.querySelector('.heat-band-long')];
@@ -149,8 +149,9 @@ if(root){
  }
  root.querySelectorAll('[data-symbol]').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.symbol!==symbol)marketChanged(button.dataset.symbol);}));
  root.querySelectorAll('[data-days]').forEach(button=>button.addEventListener('click',()=>{days=Number(button.dataset.days);++sequence;controller?.abort();clear(`Loading ${symbol} liquidation estimates…`);resetZoom();root.querySelectorAll('[data-days]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));load();}));
- function syncZoom(){const changed=scale!==1||priceScale!==1||centerT!==.5||centerP!==.5,button=root.querySelector('.heat-zoom');button.textContent='Reset view';button.setAttribute('aria-pressed',String(changed));root.querySelector('.heat-zoom-readout').textContent=`Time ${scale.toFixed(1)}× · Price ${priceScale.toFixed(1)}×`;priceAxis.setAttribute('aria-valuenow',String(Math.round(priceScale*100)));priceAxis.setAttribute('aria-valuetext',`Price scale ${priceScale.toFixed(2)} times`);}
- function resetZoom(){stopPriceDrag();stopPan();hover=null;tooltip.hidden=true;scale=priceScale=1;centerT=centerP=.5;syncZoom();draw();}
+ function defaultPriceScale(){return 1/.7;}
+ function syncZoom(){const changed=scale!==1||priceScale!==defaultPriceScale()||centerT!==.5||centerP!==.5,button=root.querySelector('.heat-zoom'),readout=root.querySelector('.heat-zoom-readout');button.textContent='Reset view';button.setAttribute('aria-pressed',String(changed));button.title='Reset to all dates and the middle 70% of the price range';readout.textContent=`Time ${scale.toFixed(1)}× · Price ${priceScale.toFixed(1)}×`;readout.title=`Showing ${(100/priceScale).toFixed(0)}% of the full price range · Starts at the middle 70%; zoom out to reveal the extremes`;priceAxis.setAttribute('aria-valuenow',String(Math.round(priceScale*100)));priceAxis.setAttribute('aria-valuetext',`Price scale ${priceScale.toFixed(2)} times`);}
+ function resetZoom(){stopPriceDrag();stopPan();hover=null;tooltip.hidden=true;scale=1;priceScale=defaultPriceScale();centerT=centerP=.5;syncZoom();draw();}
  function changeZoom(factor,rx=.75,ry=.5){
   if(!data)return;rx=Math.max(0,Math.min(1,rx));ry=Math.max(0,Math.min(1,ry));const old=scale,next=Math.max(1,Math.min(12,scale*factor)),oldPrice=priceScale,nextPrice=Math.max(.25,Math.min(12,priceScale*factor));
   centerT=Math.max(.5/next,Math.min(1-.5/next,centerT+(rx-.5)/old-(rx-.5)/next));
@@ -159,7 +160,7 @@ if(root){
   scale=next;priceScale=nextPrice;hover=null;tooltip.hidden=true;syncZoom();draw();
  }
  function stopPriceDrag(){if(!priceDrag)return;const id=priceDrag.id;priceDrag=null;priceAxis.classList.remove('is-dragging');if(priceAxis.hasPointerCapture(id))priceAxis.releasePointerCapture(id);}
- function resetPriceScale(){stopPriceDrag();priceScale=1;centerP=.5;syncZoom();draw();}
+ function resetPriceScale(){stopPriceDrag();priceScale=defaultPriceScale();centerP=.5;syncZoom();draw();}
  priceAxis.addEventListener('pointerdown',event=>{
   if(!data||!geometry||event.button!==0||priceDrag)return;
   event.preventDefault();tooltip.hidden=true;priceAxis.focus({preventScroll:true});
