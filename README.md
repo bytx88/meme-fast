@@ -307,7 +307,7 @@ Macro includes an estimated BTC heatmap, OHLC candles and the latest long/short 
 
 The heatmap is the first Macro section beneath the page heading. Its market selector offers BTCUSDT (Edge or Not aggregate) and XAUUSDT (Swolecharts aggregated XAU gold perpetual model in USD, not a single exchange pair). The latter decodes the provider's column-major, square-root quantized cells, retains log-spaced price edges and missing candle gaps, and splits latest model cells above/below price for side bars. The display identifies each provider and its terms. Cache keys include both symbol and range; switching markets cancels obsolete requests and clears the previous chart.
 
-The heatmap matches Macro's dark panel/theme colors. Persistent labels mark the largest nonzero long and short profile buckets with their full price ranges and estimated USD exposure, with leader lines to the profile. The same ranges appear in the text summary. Zoom retains the global peak and labels it above/below view when outside the visible price bounds. Labels move apart when close and clear immediately on market/range changes or failed loads.
+The heatmap matches Macro's dark panel/theme colors. A dedicated strip below the plot shows the largest nonzero long and short profile buckets, with full price ranges and estimated USD exposure. These cards remain outside the canvas, keeping candles, heatmap and profile bars unobstructed. Zoom retains the global peak and labels it above/below view when outside the visible price bounds. Cards stack on narrow screens and clear when no usable data is available.
 
 ### Heatmap cache, limits and navigation
 
