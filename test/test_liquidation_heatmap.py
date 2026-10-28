@@ -2,8 +2,9 @@ import copy
 import unittest
 from unittest.mock import patch, MagicMock
 import json
+import base64
 import worker.liquidation_heatmap as feed
-from worker.liquidation_heatmap import validate, load
+from worker.liquidation_heatmap import validate, load, normalize_gold
 
 
 class HeatmapTests(unittest.TestCase):
@@ -51,6 +52,42 @@ class HeatmapTests(unittest.TestCase):
             second = load(30)
             self.assertIs(first, second)
             fetch.assert_called_once()
+
+    def gold_payload(self):
+        return dict(coin='XAU', cols=2, rows=3, y0=100, ratio=1.01, cap=25500,
+                    cells=base64.b64encode(bytes([0, 127, 255, 255, 127, 0])).decode(),
+                    candles=dict(o=[101, None], h=[102, None], l=[100, None], c=[101.5, None]),
+                    price=101.5, price_as_of=self.now, t0=self.now-60000, dt=60000, as_of=self.now)
+
+    def test_gold_preserves_quantization_log_bins_and_missing_candles(self):
+        with patch('time.time', return_value=self.now/1000):
+            report = normalize_gold(self.gold_payload(), 1)
+        self.assertEqual(report['matrix'][0][2], 25500)
+        self.assertAlmostEqual(report['matrix'][1][1], 25500 * (127/255)**2)
+        self.assertEqual(report['profile_long'][0], 25500)
+        self.assertEqual(report['profile_short'][0], 0)
+        self.assertEqual(report['ohlc'][-1], None)
+        self.assertEqual(report['current_price'], 101.5)
+        self.assertAlmostEqual(report['price_edges'][2], 102.01)
+        self.assertEqual(report['source'], 'Swolecharts')
+
+    def test_gold_rejects_wrong_asset_stale_price_and_truncated_cells(self):
+        for key, value in [('coin', 'BTC'), ('price_stale', True), ('cells', 'AAAA'),
+                           ('price_as_of', self.now-3600001)]:
+            data = self.gold_payload()
+            data[key] = value
+            with self.subTest(key=key), patch('time.time', return_value=self.now/1000), self.assertRaises(ValueError):
+                normalize_gold(data, 1)
+
+    def test_market_cache_does_not_return_btc_for_gold(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(self.gold_payload()).encode()
+        with patch.dict(feed._cache, {('BTCUSDT', 1): (float('inf'), {'symbol': 'BTCUSDT'})}, clear=True), patch('time.time', return_value=self.now/1000), patch('urllib.request.urlopen', return_value=response) as fetch:
+            report = load(1, 'XAUUSDT')
+            self.assertEqual(report['symbol'], 'XAUUSDT')
+            self.assertIn('range=24h', fetch.call_args.args[0].full_url)
+            with self.assertRaises(ValueError):
+                load(1, 'UNSUPPORTED')
 
 
 if __name__ == '__main__':

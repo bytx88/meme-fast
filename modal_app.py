@@ -716,14 +716,14 @@ def web():
         return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
     market_cache = MarketProxy(fetch_market, broker=True)
     @web_app.get("/api/btc-liquidation-heatmap")
-    def btc_liquidation_heatmap(days: int = 30):
-        from worker.liquidation_heatmap import load, RANGES
-        if days not in RANGES:
-            raise HTTPException(status_code=400, detail="Unsupported heatmap range")
+    def btc_liquidation_heatmap(days: int = 30, symbol: str = 'BTCUSDT'):
+        from worker.liquidation_heatmap import load, RANGES, SYMBOLS
+        if days not in RANGES or symbol not in SYMBOLS:
+            raise HTTPException(status_code=400, detail="Unsupported heatmap range or symbol")
         try:
-            return JSONResponse(load(days), headers={"cache-control": "public, max-age=120"})
+            return JSONResponse(load(days, symbol), headers={"cache-control": "public, max-age=120"})
         except Exception as exc:
-            raise HTTPException(status_code=503, detail="BTC heatmap provider unavailable; retry shortly",
+            raise HTTPException(status_code=503, detail="Heatmap provider unavailable; retry shortly",
                                 headers={"Retry-After": "120"}) from exc
 
     @web_app.get("/api/macro-review")
