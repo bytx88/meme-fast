@@ -45,14 +45,14 @@ if(root){
   ctx.fillStyle='#439b71';ctx.beginPath();ctx.arc(right,y(current),3,0,Math.PI*2);ctx.fill();
  }
  async function load(){
-  const id=++sequence;controller?.abort();controller=new AbortController();clear('Loading BTC liquidation estimatesâ€¦');status.dataset.error='false';
+  const id=++sequence;controller?.abort();controller=new AbortController();clear('Loading BTC liquidation estimates…');status.dataset.error='false';
   const requested=days;
   try{
    const response=await fetch(`/api/btc-liquidation-heatmap?days=${requested}`,{signal:controller.signal});if(!response.ok)throw new Error('unavailable');const next=await response.json();if(id!==sequence)return;
    if(!next.times?.length||!next.matrix?.length)throw new Error('empty');data=next;lastFetch=Date.now();
    const long=peak(data.profile_long),short=peak(data.profile_short),size=(data.price_hi-data.price_lo)/data.nbins;
-   summary.replaceChildren();for(const [name,p] of [['Largest short band',short],['Largest long band',long]]){const item=document.createElement('span');item.textContent=p.value>0?`${name}: ${price(data.price_lo+(p.index+.5)*size)} Â· ${usd(p.value)} estimated`:`${name}: none reported`;summary.append(item);}
-   status.textContent=`BTC ${price(data.ohlc.at(-1)[3])} Â· Updated ${date(data.updated)} Â· ${data.coverageDays} days returned Â· ${data.exchanges.join(' / ')} Â· Local time`;
+   summary.replaceChildren();for(const [name,p] of [['Largest short band',short],['Largest long band',long]]){const item=document.createElement('span');item.textContent=p.value>0?`${name}: ${price(data.price_lo+(p.index+.5)*size)} · ${usd(p.value)} estimated`:`${name}: none reported`;summary.append(item);}
+   status.textContent=`BTC ${price(data.ohlc.at(-1)[3])} · Updated ${date(data.updated)} · ${data.coverageDays} days returned · ${data.exchanges.join(' / ')} · Local time`;
    draw();
   }catch(error){if(id!==sequence||error.name==='AbortError')return;clear('Heatmap unavailable. The free provider may be delayed or rate limited. Use Refresh to retry.');status.dataset.error='true';}
  }
@@ -63,7 +63,7 @@ if(root){
   if(!data||!geometry)return;const r=canvas.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top,g=geometry;
   if(x<g.left||x>g.axis||y<g.top||y>g.bottom){tooltip.hidden=true;return;}
   const p=g.low+(g.bottom-y)/(g.bottom-g.top)*(g.high-g.low),j=Math.max(0,Math.min(data.nbins-1,Math.floor((p-data.price_lo)/g.binSize))),i=Math.max(0,Math.min(data.times.length-1,Math.floor((x-g.left)/g.dx)));
-  tooltip.textContent=x>g.right?`${price(data.price_lo+j*g.binSize)}â€“${price(data.price_lo+(j+1)*g.binSize)}\nShorts: ${usd(data.profile_short[j])}\nLongs: ${usd(data.profile_long[j])}\nLatest estimated exposure`:`${date(data.times[i])}\n${price(data.price_lo+j*g.binSize)}â€“${price(data.price_lo+(j+1)*g.binSize)}\nEstimated exposure: ${usd(data.matrix[i][j])}`;
+  tooltip.textContent=x>g.right?`${price(data.price_lo+j*g.binSize)}–${price(data.price_lo+(j+1)*g.binSize)}\nShorts: ${usd(data.profile_short[j])}\nLongs: ${usd(data.profile_long[j])}\nLatest estimated exposure`:`${date(data.times[i])}\n${price(data.price_lo+j*g.binSize)}–${price(data.price_lo+(j+1)*g.binSize)}\nEstimated exposure: ${usd(data.matrix[i][j])}`;
   tooltip.hidden=false;tooltip.style.left=Math.max(0,Math.min(x+12,r.width-245))+'px';tooltip.style.top=Math.max(0,y-95)+'px';
  });
  canvas.addEventListener('pointerleave',()=>tooltip.hidden=true);new ResizeObserver(draw).observe(canvas.parentElement);
