@@ -34,6 +34,12 @@ if(root){
    const a=y(edges[j+1]),b=y(edges[j]);
    if(b<top||a>bottom)return;ctx.fillStyle=heatColor(v,max);ctx.fillRect(left+(i-start)*dx,a,dx+.5,b-a+.5);
   }));
+  // Draw subtle level guides beneath the candles, so price stays legible.
+  for(const [values,color] of [[data.profile_short,'#7ec8ab66'],[data.profile_long,'#db939066']]){
+   const p=peak(values),level=(edges[p.index]+edges[p.index+1])/2;
+   if(p.value<=0||level<low||level>high)continue;
+   ctx.strokeStyle=color;ctx.lineWidth=1;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(left,y(level));ctx.lineTo(right,y(level));ctx.stroke();
+  }ctx.setLineDash([]);
   data.ohlc.forEach((row,i)=>{if(!row||i<start||i>=end)return;const [o,h,l,c]=row,x=left+(i-start+.5)*dx;ctx.strokeStyle=ctx.fillStyle=c>=o?'#35c99b':'#f16a77';ctx.lineWidth=Math.max(.7,Math.min(1.3,dx*.4));ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillRect(x-Math.max(1,dx*.55)/2,Math.min(y(o),y(c)),Math.max(1,dx*.55),Math.max(1,Math.abs(y(o)-y(c))));});
   ctx.strokeStyle='#ffffffa0';ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(left,y(current));ctx.lineTo(right,y(current));ctx.stroke();ctx.setLineDash([]);ctx.restore();
   const profileMax=Math.max(...data.profile_long,...data.profile_short,1);
@@ -49,6 +55,7 @@ if(root){
   ctx.textAlign='center';const ticks=w<600?3:5;for(let i=0;i<ticks;i++){const n=start+Math.round((end-start-1)*i/(ticks-1)),x=left+(n-start+.5)*dx;ctx.fillText(new Date(data.times[n]).toLocaleString(undefined,{month:'short',day:'numeric',...(days/scale<=3?{hour:'2-digit'}:{})}),Math.max(40,Math.min(right-40,x)),h-10);}
   ctx.fillStyle='#439b71';ctx.beginPath();ctx.arc(right,y(current),3,0,Math.PI*2);ctx.fill();
   const bands=[['Top shorts',peak(data.profile_short)],['Top longs',peak(data.profile_long)]];
+  const placements=[];let below=w<640;
   bands.forEach(([name,p],i)=>{
    const label=labels[i];label.hidden=p.value<=0;if(label.hidden)return;
    const mid=(edges[p.index]+edges[p.index+1])/2,rawY=y(mid),out=rawY<top?'Above view':rawY>bottom?'Below view':'';
@@ -56,7 +63,25 @@ if(root){
    title.textContent=`${name} ≈ ${usd(p.value)}`;range.textContent=`${rangePrice(edges[p.index])}–${rangePrice(edges[p.index+1])}${out?' · '+out:''}`;
    label.replaceChildren(title,range);
    label.setAttribute('aria-label',`${name}: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
+   const labelWidth=Math.min(180,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
+   label.style.width=labelWidth+'px';label.style.left=labelX+'px';
+   const labelHeight=label.offsetHeight||48;
+   let labelY=i===0?rawY-labelHeight-8:rawY+8;
+   let candleTop=bottom,candleBottom=top,hasCandles=false;
+   data.ohlc.forEach((row,n)=>{
+    const x=left+(n-start+.5)*dx;
+    if(!row||n<start||n>=end||x<labelX-4||x>labelX+labelWidth+4)return;
+    hasCandles=true;candleTop=Math.min(candleTop,y(row[1]));candleBottom=Math.max(candleBottom,y(row[2]));
+   });
+   if(hasCandles&&labelY<candleBottom+6&&labelY+labelHeight>candleTop-6){
+    labelY=i===0?Math.min(labelY,candleTop-labelHeight-8):Math.max(labelY,candleBottom+8);
+   }
+   labelY=Math.max(top+4,Math.min(bottom-labelHeight-4,labelY));
+   if(out||(hasCandles&&labelY<candleBottom+6&&labelY+labelHeight>candleTop-6))below=true;
+   label.style.top=labelY+'px';placements.push({top:labelY,bottom:labelY+labelHeight});
   });
+  if(placements.length===2&&Math.max(placements[0].top,placements[1].top)<Math.min(placements[0].bottom,placements[1].bottom)+6)below=true;
+  root.classList.toggle('heat-labels-below',below);
  }
  function display(report,key){
   data=report;
