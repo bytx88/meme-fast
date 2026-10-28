@@ -76,7 +76,7 @@ if(root){
    const distance=document.createElement('small'),pct=(mid/current-1)*100;distance.textContent=`${Math.abs(pct).toFixed(1)}% ${pct>=0?'above':'below'} price${out?' · '+out:''}`;
    label.replaceChildren(title,range,distance);
    label.setAttribute('aria-label',`${name}: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
-   const labelWidth=Math.min(220,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
+   const labelWidth=Math.min(160,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
    label.style.width=labelWidth+'px';label.style.left=labelX+'px';
    const labelHeight=label.offsetHeight||48;
    let labelY=i===0?rawY-labelHeight-8:rawY+8;
