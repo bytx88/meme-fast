@@ -1,6 +1,7 @@
 const root=document.querySelector('#btc-liquidation-heatmap');
 const usd=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(v);
 const price=v=>'$'+Math.round(v).toLocaleString('en-US');
+const rangePrice=v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:v<10000?2:0});
 const date=t=>new Date(t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 const palette=[[26,11,52],[67,30,102],[54,86,139],[40,139,145],[60,188,115],[177,220,53],[255,230,53]];
 export function heatColor(value,max){
@@ -12,7 +13,8 @@ if(root){
  const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),status=root.querySelector('.heat-status'),tooltip=root.querySelector('.heat-tooltip');
  let data=null,days=30,symbol='BTCUSDT',zoom=false,sequence=0,geometry=null,lastFetch=0,controller;
  const summary=root.querySelector('.heat-summary');
- function clear(message){data=null;geometry=null;tooltip.hidden=true;summary.textContent='';ctx.clearRect(0,0,canvas.width,canvas.height);status.textContent=message;}
+ const labels=[root.querySelector('.heat-band-short'),root.querySelector('.heat-band-long')];
+ function clear(message){data=null;geometry=null;tooltip.hidden=true;labels.forEach(label=>{label.hidden=true;label.replaceChildren();});summary.textContent='';ctx.clearRect(0,0,canvas.width,canvas.height);status.textContent=message;}
  function draw(){
   if(!data)return;
   const w=canvas.clientWidth,h=canvas.clientHeight,dpr=window.devicePixelRatio||1;
@@ -40,10 +42,26 @@ if(root){
    const values=mid>=current?[[data.profile_long[j],'#d65a55'],[data.profile_short[j],'#439b71']]:[[data.profile_short[j],'#439b71'],[data.profile_long[j],'#d65a55']];
    values.forEach(([v,color],i)=>{ctx.fillStyle=color;const both=values[0][0]>0&&values[1][0]>0;ctx.fillRect(right+5,a+(both?i*(b-a)/2:0),v/profileMax*(profile-2),Math.max(.5,(b-a)/(both?2:1)-.6));});
   }ctx.restore();
-  ctx.font='11px system-ui';ctx.fillStyle='#657b7b';ctx.textAlign='left';
+  ctx.font='11px system-ui';ctx.fillStyle=getComputedStyle(root).getPropertyValue('--muted').trim()||'#8e9eae';ctx.textAlign='left';
   for(let i=0;i<=6;i++){const p=low+(high-low)*i/6;ctx.fillText(Math.round(p).toLocaleString('en-US'),axis+3,y(p)+4);}
   ctx.textAlign='center';const ticks=w<600?3:5;for(let i=0;i<ticks;i++){const n=Math.round((data.times.length-1)*i/(ticks-1)),x=left+(n+.5)*dx;ctx.fillText(new Date(data.times[n]).toLocaleString(undefined,{month:'short',day:'numeric',...(days<=3?{hour:'2-digit'}:{})}),Math.max(40,Math.min(right-40,x)),h-10);}
   ctx.fillStyle='#439b71';ctx.beginPath();ctx.arc(right,y(current),3,0,Math.PI*2);ctx.fill();
+  const bands=[['Top shorts',peak(data.profile_short)],['Top longs',peak(data.profile_long)]];
+  const positions=bands.map(([name,p],i)=>{
+   const label=labels[i];label.hidden=p.value<=0;if(label.hidden)return null;
+   const mid=(edges[p.index]+edges[p.index+1])/2,rawY=y(mid),out=rawY<top?'Above view':rawY>bottom?'Below view':'';
+   const title=document.createElement('strong'),range=document.createElement('span');
+   title.textContent=`${name} ≈ ${usd(p.value)}`;range.textContent=`${rangePrice(edges[p.index])}–${rangePrice(edges[p.index+1])}${out?' · '+out:''}`;
+   label.replaceChildren(title,range);label.style.width=Math.min(230,right-left-12)+'px';
+   label.style.left=Math.max(left+6,right-Math.min(230,right-left-12)-10)+'px';
+   label.setAttribute('aria-label',`${name}: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
+   return {label,rawY,position:Math.max(top+2,Math.min(bottom-54,rawY-58)),color:i===0?'#7ec8ab':'#db9390'};
+  }).filter(Boolean).sort((a,b)=>a.position-b.position);
+  if(positions.length===2&&positions[1].position-positions[0].position<58){positions[1].position=Math.min(bottom-54,positions[0].position+58);positions[0].position=Math.min(positions[0].position,positions[1].position-58);}
+  positions.forEach(({label,position,rawY,color})=>{
+   label.style.top=position+'px';const anchorY=Math.max(top,Math.min(bottom,rawY)),labelX=parseFloat(label.style.left)+parseFloat(label.style.width);
+   ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(labelX,position+25);ctx.lineTo(right+3,anchorY);ctx.lineTo(right+10,anchorY);ctx.stroke();
+  });
  }
  async function load(){
   const id=++sequence;controller?.abort();controller=new AbortController();clear(`Loading ${symbol} liquidation estimates…`);status.dataset.error='false';
@@ -52,7 +70,7 @@ if(root){
    const response=await fetch(`/api/btc-liquidation-heatmap?days=${requested}&symbol=${symbol}`,{signal:controller.signal});if(!response.ok)throw new Error('unavailable');const next=await response.json();if(id!==sequence)return;
    if(next.symbol!==symbol||!next.times?.length||!next.matrix?.length)throw new Error('empty');data=next;lastFetch=Date.now();
    const long=peak(data.profile_long),short=peak(data.profile_short),size=(data.price_hi-data.price_lo)/data.nbins;
-   summary.replaceChildren();for(const [name,p] of [['Largest short band',short],['Largest long band',long]]){const item=document.createElement('span'),mid=data.price_edges?(data.price_edges[p.index]+data.price_edges[p.index+1])/2:data.price_lo+(p.index+.5)*size;item.textContent=p.value>0?`${name}: ${price(mid)} · ${usd(p.value)} estimated`:`${name}: none reported`;summary.append(item);}
+   summary.replaceChildren();for(const [name,p] of [['Largest short band',short],['Largest long band',long]]){const item=document.createElement('span'),lo=data.price_edges?data.price_edges[p.index]:data.price_lo+p.index*size,hi=data.price_edges?data.price_edges[p.index+1]:lo+size;item.textContent=p.value>0?`${name}: ${rangePrice(lo)}–${rangePrice(hi)} · ${usd(p.value)} estimated`:`${name}: none reported`;summary.append(item);}
    status.textContent=`${symbol} ${price(data.current_price??data.ohlc.at(-1)[3])} · Updated ${date(data.updated)} · ${data.coverageDays} days returned${data.exchanges.length?' · '+data.exchanges.join(' / '):''} · Local time`;
    draw();
   }catch(error){if(id!==sequence||error.name==='AbortError')return;clear('Heatmap unavailable. The free provider may be delayed or rate limited. Use Refresh to retry.');status.dataset.error='true';}
