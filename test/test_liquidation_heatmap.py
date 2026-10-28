@@ -46,6 +46,7 @@ class HeatmapTests(unittest.TestCase):
 
     def test_repeated_reads_reuse_cached_observation(self):
         response = MagicMock()
+        response.__enter__.return_value.headers.get.return_value = ''
         response.__enter__.return_value.read.return_value = json.dumps(self.data).encode()
         with patch.dict(feed._cache, clear=True), patch('time.time', return_value=self.now/1000), patch('urllib.request.urlopen', return_value=response) as fetch:
             first = load(30)
@@ -81,6 +82,7 @@ class HeatmapTests(unittest.TestCase):
 
     def test_market_cache_does_not_return_btc_for_gold(self):
         response = MagicMock()
+        response.__enter__.return_value.headers.get.return_value = ''
         response.__enter__.return_value.read.return_value = json.dumps(self.gold_payload()).encode()
         with patch.dict(feed._cache, {('BTCUSDT', 1): (float('inf'), {'symbol': 'BTCUSDT'})}, clear=True), patch('time.time', return_value=self.now/1000), patch('urllib.request.urlopen', return_value=response) as fetch:
             report = load(1, 'XAUUSDT')

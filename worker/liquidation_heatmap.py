@@ -5,6 +5,11 @@ import math
 import threading
 import time
 import urllib.request
+import urllib.error
+import re
+import sqlite3
+from pathlib import Path
+from email.utils import parsedate_to_datetime
 
 RANGES = (1, 3, 7, 30)
 SYMBOLS = ('BTCUSDT', 'XAUUSDT')
@@ -119,6 +124,7 @@ def load(days=30, symbol='BTCUSDT'):
             headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
         with urllib.request.urlopen(request, timeout=20) as response:
             raw = response.read(12000001)
+            cache_control = response.headers.get('Cache-Control', '')
         if len(raw) > 12000000:
             raise ValueError('Heatmap response exceeds limit')
         payload = json.loads(raw)
@@ -126,8 +132,79 @@ def load(days=30, symbol='BTCUSDT'):
             **validate(payload, days), 'scope': 'Aggregated BTC perpetual model; venue coverage shown above.',
             'licenseLabel': 'CC BY 4.0', 'licenseUrl': 'https://creativecommons.org/licenses/by/4.0/'}
         result['symbol'] = symbol
+        age = re.search(r'\bmax-age=(\d+)', cache_control)
+        result['providerCacheSeconds'] = int(age[1]) if age else 120
+        result['providerNoStore'] = 'no-store' in cache_control.lower()
         _cache[key] = (time.monotonic(), result)
         return result
+
+
+def retry_seconds(value, now, default=300):
+    try:
+        return max(1, math.ceil(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        try:
+            return max(1, math.ceil(parsedate_to_datetime(value).timestamp() - now))
+        except (TypeError, ValueError, OverflowError):
+            return default
+
+
+def cached_load(db_path, days=30, symbol='BTCUSDT', fetch=None, now=None):
+    """One transaction serializes refreshes and persists provider-wide cooldowns."""
+    if days not in RANGES or symbol not in SYMBOLS:
+        raise ValueError('Unsupported heatmap selection')
+    real_clock = now is None
+    now = time.time() if real_clock else now
+    fetch = load if fetch is None else fetch
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(str(db_path), timeout=45)
+    try:
+        db.execute('CREATE TABLE IF NOT EXISTS snapshots (key TEXT PRIMARY KEY, saved REAL, expires REAL, body TEXT)')
+        db.execute('CREATE TABLE IF NOT EXISTS cooldowns (provider TEXT PRIMARY KEY, until REAL, failures INTEGER, reason TEXT)')
+        db.commit()
+        db.execute('BEGIN IMMEDIATE')
+        key = f'{symbol}:{days}'
+        row = db.execute('SELECT saved, expires, body FROM snapshots WHERE key=?', (key,)).fetchone()
+        saved, expires, report = (row[0], row[1], json.loads(row[2])) if row else (0, 0, None)
+        cooldown = db.execute('SELECT until, failures, reason FROM cooldowns WHERE provider=?', (symbol,)).fetchone()
+        until, failures, reason = cooldown if cooldown else (0, 0, '')
+        state = 'fresh'
+        if now >= expires and now >= until:
+            try:
+                fresh = fetch(days, symbol)
+                if real_clock:
+                    now = time.time()
+                ttl = max(300, fresh.get('providerCacheSeconds', 120))
+                saved, expires, report = now, now + ttl, fresh
+                if not fresh.get('providerNoStore'):
+                    db.execute('INSERT OR REPLACE INTO snapshots VALUES (?, ?, ?, ?)',
+                               (key, saved, expires, json.dumps(fresh)))
+                db.execute('DELETE FROM cooldowns WHERE provider=?', (symbol,))
+                until, failures, reason = 0, 0, ''
+            except Exception as exc:
+                if real_clock:
+                    now = time.time()
+                failures += 1
+                delay = min(3600, 300 * 2 ** min(failures-1, 4))
+                reason = 'Provider unavailable or stale'
+                if isinstance(exc, urllib.error.HTTPError):
+                    reason = 'Provider rate limited' if exc.code == 429 else f'Provider HTTP {exc.code}'
+                    delay = max(delay, retry_seconds(exc.headers.get('Retry-After'), now, delay))
+                until = now + delay
+                db.execute('INSERT OR REPLACE INTO cooldowns VALUES (?, ?, ?, ?)', (symbol, until, failures, reason))
+        stale = now >= expires or bool(report and now * 1000 - report['updated'] > 900000)
+        retry_at = max(expires, until)
+        # A bounded historical snapshot may remain useful, but never call it live.
+        usable = report is not None and 0 <= now * 1000 - report['updated'] <= 86400000
+        cache = dict(state='stale' if stale else 'fresh', savedAt=int(saved*1000),
+                     retryAt=int(retry_at*1000), reason=reason if until > now else '')
+        db.commit()
+        if usable:
+            return dict(status=200, body={**report, 'cache': cache}, retryAfter=max(1, math.ceil(retry_at-now)))
+        return dict(status=503, body=dict(detail='No usable cached heatmap; provider refresh pending', cache=cache),
+                    retryAfter=max(1, math.ceil(retry_at-now)))
+    finally:
+        db.close()
 
 
 if __name__ == '__main__':
@@ -135,4 +212,5 @@ if __name__ == '__main__':
     if sys.platform == 'win32':
         import truststore
         truststore.inject_into_ssl()
-    print(json.dumps(load(int(sys.argv[1]) if len(sys.argv) > 1 else 30, sys.argv[2] if len(sys.argv) > 2 else 'BTCUSDT')))
+    print(json.dumps(cached_load('.data/heatmap-cache.sqlite', int(sys.argv[1]) if len(sys.argv) > 1 else 30,
+                                 sys.argv[2] if len(sys.argv) > 2 else 'BTCUSDT')))

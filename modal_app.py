@@ -44,6 +44,7 @@ wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", cre
 meme_preset_registry = modal.Dict.from_name("meme-fast-meme-preset", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
+heatmap_volume = modal.Volume.from_name("meme-fast-heatmap-cache", create_if_missing=True)
 balance_watches = modal.Dict.from_name("meme-fast-balance-watches", create_if_missing=True)
 smart_volume = modal.Volume.from_name("meme-fast-smart-wallet-history", create_if_missing=True)
 balance_requests = modal.Dict.from_name("meme-fast-balance-requests", create_if_missing=True)
@@ -689,6 +690,19 @@ def collect_coin_evidence(token_id):
     return json.loads(result.stdout)
 
 
+@app.function(timeout=90, max_containers=1, scaledown_window=2, volumes={'/heatmap': heatmap_volume})
+@modal.concurrent(max_inputs=1)
+def read_heatmap(days=30, symbol='BTCUSDT'):
+    import sys
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.liquidation_heatmap import cached_load
+    heatmap_volume.reload()
+    result = cached_load('/heatmap/cache.sqlite', days, symbol)
+    heatmap_volume.commit()
+    return result
+
+
 @app.function(min_containers=0, max_containers=2, scaledown_window=30, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
 @modal.concurrent(max_inputs=16, target_inputs=8)
 @modal.asgi_app()
@@ -716,15 +730,13 @@ def web():
         return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
     market_cache = MarketProxy(fetch_market, broker=True)
     @web_app.get("/api/btc-liquidation-heatmap")
-    def btc_liquidation_heatmap(days: int = 30, symbol: str = 'BTCUSDT'):
-        from worker.liquidation_heatmap import load, RANGES, SYMBOLS
+    async def btc_liquidation_heatmap(days: int = 30, symbol: str = 'BTCUSDT'):
+        from worker.liquidation_heatmap import RANGES, SYMBOLS
         if days not in RANGES or symbol not in SYMBOLS:
             raise HTTPException(status_code=400, detail="Unsupported heatmap range or symbol")
-        try:
-            return JSONResponse(load(days, symbol), headers={"cache-control": "public, max-age=120"})
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail="Heatmap provider unavailable; retry shortly",
-                                headers={"Retry-After": "120"}) from exc
+        reply = await read_heatmap.remote.aio(days, symbol)
+        return JSONResponse(reply['body'], status_code=reply['status'], headers={
+            'cache-control': 'no-store', 'Retry-After': str(reply['retryAfter'])})
 
     @web_app.get("/api/macro-review")
     async def macro_review():
