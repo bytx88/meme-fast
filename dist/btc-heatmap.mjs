@@ -69,12 +69,14 @@ if(root){
   bands.forEach(([name,p],i)=>{
    const label=labels[i];label.hidden=p.value<=0;if(label.hidden)return;
    const mid=(edges[p.index]+edges[p.index+1])/2,rawY=y(mid),out=rawY<top?'Above view':rawY>bottom?'Below view':'';
-   const title=document.createElement('strong'),range=document.createElement('span');
-   title.textContent=`${name} ≈ ${usd(p.value)}`;range.textContent=`${rangePrice(edges[p.index])}–${rangePrice(edges[p.index+1])}`;
+   const title=document.createElement('strong'),range=document.createElement('div');range.className='heat-band-prices';
+   title.textContent=`${name} (≈ ${usd(p.value)})`;
+   const lower=document.createElement('span'),upper=document.createElement('span');
+   lower.textContent=rangePrice(edges[p.index]);upper.textContent=rangePrice(edges[p.index+1]);lower.title='Lower price';upper.title='Upper price';range.append(lower,upper);
    const distance=document.createElement('small'),pct=(mid/current-1)*100;distance.textContent=`${Math.abs(pct).toFixed(1)}% ${pct>=0?'above':'below'} price${out?' · '+out:''}`;
    label.replaceChildren(title,range,distance);
    label.setAttribute('aria-label',`${name}: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
-   const labelWidth=Math.min(180,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
+   const labelWidth=Math.min(220,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
    label.style.width=labelWidth+'px';label.style.left=labelX+'px';
    const labelHeight=label.offsetHeight||48;
    let labelY=i===0?rawY-labelHeight-8:rawY+8;
