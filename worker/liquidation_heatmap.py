@@ -21,7 +21,10 @@ def validate(data, days, now=None):
     if not all(number(t) for t in times) or any(a >= b for a, b in zip(times, times[1:])):
         raise ValueError('Invalid heatmap timeline')
     updated = data.get('updated')
-    if not number(updated) or not -60000 <= now - updated <= 900000 or not -60000 <= now - times[-1] <= 3600000:
+    # Bucket labels can round forward to the next interval boundary. Freshness
+    # is anchored to the provider's capture time, not that rounded label.
+    bucket_ms = min(10800000, max(900000, times[-1] - times[-2]))
+    if not number(updated) or not -60000 <= now - updated <= 900000 or not -bucket_ms <= now - times[-1] <= max(3600000, bucket_ms * 1.5):
         raise ValueError('Heatmap observations are stale')
     low, high = data.get('price_lo'), data.get('price_hi')
     if not number(low) or not number(high) or not 0 < low < high:

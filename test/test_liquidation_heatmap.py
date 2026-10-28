@@ -26,12 +26,16 @@ class HeatmapTests(unittest.TestCase):
         for field, value in [('times', [self.now, self.now]), ('matrix', [[0, 1]]),
                              ('profile_long', [float('nan'), 0]), ('price_hi', 60000),
                              ('ohlc', [[80000, 79000, 81000, 80500]]*2),
-                             ('updated', self.now-900001), ('times', [self.now-7200000, self.now-3600001])]:
+                             ('updated', self.now-900001), ('times', [self.now-10800000, self.now-7200000])]:
             with self.subTest(field=field, value=value):
                 broken = copy.deepcopy(self.data)
                 broken[field] = value
                 with self.assertRaises(ValueError):
                     validate(broken, 30, self.now)
+
+    def test_accepts_fresh_capture_with_forward_rounded_bucket(self):
+        self.data['times'] = [self.now-600000, self.now+300000]
+        self.assertEqual(validate(self.data, 1, self.now)['updated'], self.now)
 
     def test_unsupported_ranges_never_fetch(self):
         with patch('urllib.request.urlopen') as fetch:
