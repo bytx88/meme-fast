@@ -102,7 +102,7 @@ def normalize_swole(data, days, coin='XAU', max_age_ms=900000):
     shorts = [v if math.sqrt(edges[r] * edges[r+1]) >= current else 0 for r, v in enumerate(matrix[-1])]
     report = validate(dict(times=[data['t0'] + c * data['dt'] for c in range(cols)], nbins=rows,
                            matrix=matrix, ohlc=ohlc, price_lo=edges[0], price_hi=edges[-1], price_edges=edges,
-                           profile_long=longs, profile_short=shorts, updated=data['as_of'], current_price=current), days, max_age_ms=max_age_ms)
+                           profile_long=longs, profile_short=shorts, updated=min(data['as_of'], data['price_as_of']), current_price=current), days, max_age_ms=max_age_ms)
     scope = ('Aggregated XAU gold perpetual model in USD; not a single exchange XAUUSDT pair.' if coin == 'XAU' else
              'Aggregated BTC perpetual model in USD; not a single exchange BTCUSDT pair.')
     return {**report, 'source': 'Swolecharts', 'sourceUrl': f'https://swolecharts.com/liquidation-heatmap/{coin}',

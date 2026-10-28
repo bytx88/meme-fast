@@ -116,6 +116,15 @@ class HeatmapTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 normalize_swole(old, 30, 'BTC', max_age_ms=86400000)
 
+    def test_recent_model_capture_does_not_hide_an_old_price_timestamp(self):
+        payload = self.gold_payload()
+        payload['price_as_of'] = self.now-1800000
+        with patch('time.time', return_value=self.now/1000):
+            with self.assertRaises(ValueError):
+                normalize_gold(payload, 30)
+            report = normalize_swole(payload, 30, 'XAU', max_age_ms=86400000)
+        self.assertEqual(report['updated'], payload['price_as_of'])
+
 
 if __name__ == '__main__':
     unittest.main()
