@@ -26,6 +26,33 @@ def event(identity, quote='SOL', amount='1', stamp=NOW, side='buy'):
 
 
 class DataStreamTests(unittest.TestCase):
+    def test_multiple_mints_keep_separate_flows_and_exact_window_anchors(self):
+        other = group()['wallets'][1]['address']
+        other_key = 'solana:' + other
+        coin = dict(token(), id=other_key, contract_address=other)
+        points = [dict(at=NOW-duration, balances={MINT:dict(raw='10',decimals=0),
+                   other:dict(raw='20',decimals=0)})
+                  for _, duration, _, _ in reversed(list(stream.WINDOWS.values()))]
+        points.append(dict(at=NOW, balances={MINT:dict(raw='30',decimals=0),
+                      other:dict(raw='50',decimals=0)}))
+        previous = dict(history={OWNER:points})
+        holdings = dict(wallets=[dict(address=OWNER)])
+        events = [event('buy', stamp=NOW-300000),
+                  dict(event('other', stamp=NOW-300001), mint=other, quantity='7'),
+                  event('sell', stamp=NOW-300000, side='sell')]
+        report = stream.project({'coins':[token(),coin]}, holdings,
+                                {'events':events+[events[0]]}, previous, NOW)
+        for window, (_, duration, _, _) in stream.WINDOWS.items():
+            first = report['windows'][window]['accumulators'][KEY][0]
+            second = report['windows'][window]['accumulators'][other_key][0]
+            self.assertEqual((first['buys'],first['sells'],first['netTokenQuantity']), (1,1,'0'))
+            self.assertEqual(first['holdingChangeRaw'],'20')
+            self.assertEqual(second['holdingChangeRaw'],'30')
+            self.assertEqual(first['baselineAt'],NOW-duration)
+            self.assertEqual(second['baselineAt'],NOW-duration)
+            self.assertEqual(second['buys'],0 if window=='5m' else 1)
+            self.assertEqual(second['netTokenQuantity'],'0' if window=='5m' else '7')
+
     def test_one_discovery_turn_prevents_expansion_starvation_without_draining_the_hot_queue(self):
         rows=[dict(address='hot',collectionPriority=0),dict(address='a',_streamDiscovered=True,lastRelevantAt=1),
               dict(address='b',_streamDiscovered=True,lastRelevantAt=2)]

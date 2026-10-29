@@ -53,11 +53,12 @@ source_volume = modal.Volume.from_name("meme-fast-source-stream", create_if_miss
 stream_volume = modal.Volume.from_name("meme-fast-data-stream", create_if_missing=True)
 
 # Collectors publish before returning, so idle workers need no warm tail.
-# Source owners keep Modal's default idle window to preserve their batched caches.
+# Source owners retain the existing 30-second batched checkpoint policy.
 COLLECTOR_IDLE_SECONDS = 2
+SOURCE_IDLE_SECONDS = 35
 
 
-@app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
+@app.function(timeout=90, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
 def read_gecko_source(path, workload='interactive'):
     import sys
@@ -94,7 +95,7 @@ def read_gecko_source(path, workload='interactive'):
         session.finish()
 
 
-@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@app.function(timeout=60, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
 def read_social_source(url):
     import sys
@@ -128,7 +129,7 @@ def read_social_source(url):
         session.finish()
 
 
-@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@app.function(timeout=60, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
 def read_context_source(url):
     import sys
@@ -148,7 +149,7 @@ def read_context_source(url):
         session.finish()
 
 
-@app.function(timeout=60, max_containers=1, volumes={'/sources': source_volume})
+@app.function(timeout=60, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
 def read_market_source(network, addresses, scope='quotes'):
     import sys
@@ -237,7 +238,7 @@ def collect_data_stream():
     return dict(updatedAt=report['updatedAt'], tokens=len(report['tokens']), wallets=len(report['wallets']))
 
 
-@app.function(timeout=90, max_containers=1, volumes={'/sources': source_volume})
+@app.function(timeout=90, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
 @modal.concurrent(max_inputs=1)
 def read_source(provider, method, params):
     """One paced, cached provider owner for all wallet consumers."""
@@ -703,7 +704,7 @@ def read_heatmap(days=30, symbol='BTCUSDT'):
     return result
 
 
-@app.function(min_containers=0, max_containers=2, scaledown_window=30, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
+@app.function(min_containers=0, max_containers=2, scaledown_window=10, timeout=150, volumes={"/history": history_volume, "/macro": macro_volume, "/smartness": smartness_volume, "/smart": smart_volume, '/stream': stream_volume, '/sources': source_volume})
 @modal.concurrent(max_inputs=16, target_inputs=8)
 @modal.asgi_app()
 def web():

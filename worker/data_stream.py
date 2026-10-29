@@ -179,6 +179,9 @@ def project(snapshot, holdings, ledger, previous, now):
                                    for value in windows.values() if index < len(value['tokens'])))[:TOKEN_LIMIT]
     active = {key.split(':', 1)[1] for key in active_ids if key.startswith('solana:')}
     events = list(recent_events(ledger, now))
+    events_by_mint = {}
+    for event in events:
+        events_by_mint.setdefault(event['mint'], []).append(event)
     for value in windows.values():
         value['tokens'] = [row for row in value['tokens'] if row['id'] in active_ids]
     holder_reports = {mint: report for mint, report in previous.get('holderReports', {}).items()
@@ -215,6 +218,13 @@ def project(snapshot, holdings, ledger, previous, now):
     for owner,points in history.items():
         if owner not in current_points or current_points[owner]['at'] < points[-1]['at']:
             current_points[owner] = points[-1]
+    # Window anchors depend on wallet and time, never on the token being ranked.
+    # Resolve them once instead of rescanning up to 300 points for every mint.
+    anchors = {window: {owner: (
+        next((p for p in reversed(points) if now-duration-60000 <= p['at'] <= now-duration), None),
+        points[-1] if points and 0 <= now-points[-1]['at'] < 10*60000 else None,
+    ) for owner, points in history.items()} for window, (_, duration, _, _) in WINDOWS.items()}
+    ranked_ids = {window: {row['id'] for row in value['tokens']} for window, value in windows.items()}
     for key in active_ids:
         if not key.startswith('solana:'):
             continue
@@ -243,7 +253,7 @@ def project(snapshot, holdings, ledger, previous, now):
                                           observedAt=point['at'], coverage='complete-wallet-scan')
         largest = sorted(candidates.values(), key=lambda row: (-int(row['balanceRaw']), row['address']))[:100]
         for window, (_, duration, _, _) in WINDOWS.items():
-            if key not in {row['id'] for row in windows[window]['tokens']}:
+            if key not in ranked_ids[window]:
                 continue
             windows[window]['holders'][key] = largest
             windows[window]['holderCoverage'][key] = dict(status='sampled' if observed_times else 'unavailable',
@@ -251,8 +261,8 @@ def project(snapshot, holdings, ledger, previous, now):
                 if 0 <= now - report_at < 15 * 60000 else None,
                 lastObservedAt=max(observed_times, default=None), exhaustive=False)
             flows = {}
-            for event in events:
-                if event['mint'] != mint or event['time'] < now - duration:
+            for event in events_by_mint.get(mint, ()):
+                if event['time'] < now - duration:
                     continue
                 row = flows.setdefault(event['address'], dict(address=event['address'], buys=0, sells=0,
                                                              netByQuote={}, netTokenQuantity=Decimal(0), lastActivityAt=0))
@@ -265,9 +275,7 @@ def project(snapshot, holdings, ledger, previous, now):
             for owner in set(flows) | set(history):
                 row = flows.get(owner, dict(address=owner, buys=0, sells=0, netByQuote={},
                                              netTokenQuantity=Decimal(0), lastActivityAt=0))
-                points = history.get(row['address'], [])
-                baseline = next((p for p in reversed(points) if now - duration - 60000 <= p['at'] <= now - duration), None)
-                current = points[-1] if points and 0 <= now - points[-1]['at'] < 10 * 60000 else None
+                baseline, current = anchors[window].get(row['address'], (None, None))
                 before = point_balance(baseline,mint,coverage_sets) if baseline else None
                 after = point_balance(current,mint,coverage_sets) if current else None
                 delta = str(int(after['raw']) - int(before['raw'])) if before and after else None

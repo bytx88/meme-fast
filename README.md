@@ -122,7 +122,9 @@ The Modal app is named `meme-fast`; its `web` function serves the frontend and t
 
 ### Container costs
 
-Collectors scale down after two idle seconds once their writes are committed. Shared source owners retain Modal's default idle window so the existing 30-second cache checkpoints and provider pacing remain unchanged. The web function handles up to 16 concurrent inputs per container, targets eight, scales to at most two containers, and shuts down after 30 idle seconds. Collection schedules and single-writer limits are unchanged.
+Collectors scale down after two idle seconds once their writes are committed. Shared source owners shut down after 35 idle seconds, retaining the existing 30-second cache checkpoint policy and provider pacing. The web function handles up to 16 concurrent inputs per container, targets eight, scales to at most two containers, and shuts down after ten idle seconds. Collection schedules and single-writer limits are unchanged.
+
+The data-stream collector indexes validated trade events by mint and resolves wallet-history anchors once per time window per run, avoiding repeated full-ledger and history scans for each ranked token. Event order, deduplication, window boundaries, known-zero versus missing balances, and original observation timestamps are preserved. Actual savings depend on workload and must be assessed from subsequent Modal usage.
 
 Mode and data-stream workers request the standard 128 MiB of memory instead of 1,024/512 MiB. These are reservations, not hard limits; Modal still bills higher actual usage. The Robinhood catalog adds an ordered refresh index on its next scan to select the same 60 due pools without sorting the full catalog. Existing pool records and cursors are retained. Assess savings from subsequent Modal usage, since cumulative cycle totals include earlier deployments.
 
