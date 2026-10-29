@@ -11,7 +11,7 @@ export function heatColor(value,max){
 export function peak(values){let index=0;for(let i=1;i<values.length;i++)if(values[i]>values[index])index=i;return {index,value:values[index]};}
 if(root){
  const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),status=root.querySelector('.heat-status'),tooltip=root.querySelector('.heat-tooltip'),priceAxis=root.querySelector('.heat-price-axis');
- let data=null,days=30,symbol='BTCUSDT',scale=1,priceScale=1,centerT=.5,centerP=.5,sequence=0,geometry=null,controller,pendingKey=null,needsFit=true,priceDrag=null,panDrag=null,hover=null,intensity=.8;
+ let data=null,days=30,symbol='BTCUSDT',scale=1,priceScale=1,centerT=.5,centerP=.5,sequence=0,geometry=null,controller,pendingKey=null,needsFit=true,priceDrag=null,panDrag=null,hover=null,intensity=.6,showLevels=true;
  const marker=document.createElement('div');marker.className='heat-current-price';marker.hidden=true;root.querySelector('.heat-chart').append(marker);
  const overlay=document.createElement('canvas'),cross=overlay.getContext('2d');overlay.className='heat-crosshair';overlay.setAttribute('aria-hidden','true');root.querySelector('.heat-chart').append(overlay);
  const snapshots=new Map(),nextChecks=new Map();
@@ -39,12 +39,21 @@ if(root){
    if(b<top||a>bottom)return;ctx.fillStyle=heatColor(v,max);ctx.fillRect(left+(i-start)*dx,a,dx+.5,b-a+.5);
   }));ctx.globalAlpha=1;
   // A dark outline keeps the level guides visible on bright heatmap bands.
-  for(const [values,color] of [[data.profile_short,'#43edb0'],[data.profile_long,'#ff7788']]){
+  for(const [values,color] of (showLevels?[[data.profile_short,'#43edb0'],[data.profile_long,'#ff7788']]:[])){
    const p=peak(values),level=(edges[p.index]+edges[p.index+1])/2;
    if(p.value<=0||level<low||level>high)continue;
    ctx.save();ctx.setLineDash([8,4]);ctx.beginPath();ctx.moveTo(left,y(level));ctx.lineTo(right,y(level));ctx.strokeStyle='#08131dcc';ctx.lineWidth=4;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=1.75;ctx.stroke();ctx.restore();
   }ctx.setLineDash([]);
-  data.ohlc.forEach((row,i)=>{if(!row||i<start||i>=end)return;const [o,h,l,c]=row,x=left+(i-start+.5)*dx;ctx.strokeStyle=ctx.fillStyle=c>=o?'#35c99b':'#f16a77';ctx.lineWidth=Math.max(.7,Math.min(1.3,dx*.4));ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillRect(x-Math.max(1,dx*.55)/2,Math.min(y(o),y(c)),Math.max(1,dx*.55),Math.max(1,Math.abs(y(o)-y(c))));});
+  data.ohlc.forEach((row,i)=>{
+   if(!row||i<start||i>=end)return;
+   const [o,h,l,c]=row,x=left+(i-start+.5)*dx,color=c>=o?'#35c99b':'#f16a77';
+   const bodyX=x-Math.max(1,dx*.55)/2,bodyY=Math.min(y(o),y(c)),bodyWidth=Math.max(1,dx*.55),bodyHeight=Math.max(1,Math.abs(y(o)-y(c)));
+   ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));
+   ctx.strokeStyle='#08131d';ctx.lineWidth=3;ctx.stroke();
+   ctx.strokeStyle=color;ctx.lineWidth=1.2;ctx.stroke();
+   ctx.strokeStyle='#08131d';ctx.lineWidth=2;ctx.strokeRect(bodyX,bodyY,bodyWidth,bodyHeight);
+   ctx.fillStyle=color;ctx.fillRect(bodyX,bodyY,bodyWidth,bodyHeight);
+  });
   ctx.strokeStyle='#ffffffa0';ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(left,y(current));ctx.lineTo(right,y(current));ctx.stroke();ctx.setLineDash([]);ctx.restore();
   const profileMax=Math.max(...data.profile_long,...data.profile_short,1);
   ctx.save();ctx.beginPath();ctx.rect(right+4,top,profile+4,bottom-top);ctx.clip();
@@ -57,20 +66,20 @@ if(root){
   ctx.font='11px system-ui';ctx.fillStyle=getComputedStyle(root).getPropertyValue('--muted').trim()||'#8e9eae';ctx.textAlign='left';
   for(let i=0;i<=6;i++){const p=low+(high-low)*i/6;ctx.fillText(Math.round(p).toLocaleString('en-US'),axis+3,y(p)+4);}
   ctx.textAlign='center';const ticks=w<600?3:5;for(let i=0;i<ticks;i++){const n=start+Math.round((end-start-1)*i/(ticks-1)),x=left+(n-start+.5)*dx;ctx.fillText(new Date(data.times[n]).toLocaleString(undefined,{month:'short',day:'numeric',...(days/scale<=3?{hour:'2-digit'}:{})}),Math.max(40,Math.min(right-40,x)),h-10);}
-  marker.hidden=y(current)<top||y(current)>bottom||Boolean(hover&&Math.abs(y(current)-hover.y)<24);marker.textContent=rangePrice(current);marker.style.top=(y(current)-12)+'px';marker.title=`Latest model price ${rangePrice(current)} · ${date(data.updated)}`;
+  marker.hidden=y(current)<top||y(current)>bottom||Boolean(hover&&Math.abs(y(current)-hover.y)<24);marker.textContent='Snapshot\n'+rangePrice(current);marker.style.top=(y(current)-19)+'px';marker.title=`Latest model price ${rangePrice(current)} · ${date(data.updated)}`;
   if(!marker.hidden){ctx.fillStyle='#439b71';ctx.beginPath();ctx.arc(right,y(current),3,0,Math.PI*2);ctx.fill();}
-  const bands=[['Top shorts',peak(data.profile_short)],['Top longs',peak(data.profile_long)]];
+  const bands=[['Short liquidations',peak(data.profile_short)],['Long liquidations',peak(data.profile_long)]];
   const placements=[];let below=w<640;
   bands.forEach(([name,p],i)=>{
-   const label=labels[i];label.hidden=p.value<=0;if(label.hidden)return;
+   const label=labels[i];label.hidden=!showLevels||p.value<=0;if(label.hidden)return;
    const mid=(edges[p.index]+edges[p.index+1])/2,rawY=y(mid),out=rawY<top?'Above view':rawY>bottom?'Below view':'';
    const title=document.createElement('strong'),range=document.createElement('div');range.className='heat-band-prices';
    title.textContent=`${name} (≈ ${usd(p.value)})`;
    const lower=document.createElement('span'),upper=document.createElement('span');
    lower.textContent=rangePrice(edges[p.index]);upper.textContent=rangePrice(edges[p.index+1]);lower.title='Lower price';upper.title='Upper price';range.append(lower,upper);
    const distance=document.createElement('small'),pct=(mid/current-1)*100;distance.textContent=`${Math.abs(pct).toFixed(1)}% ${pct>=0?'above':'below'} price${out?' · '+out:''}`;
-   label.replaceChildren(title,range,distance);
-   label.setAttribute('aria-label',`${name}: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
+   label.replaceChildren(title,range,distance);label.title='Largest estimated '+(i===0?'short':'long')+' liquidation band in the latest snapshot';
+   label.setAttribute('aria-label',`Largest estimated ${name.toLowerCase()} band: ${rangePrice(edges[p.index])} to ${rangePrice(edges[p.index+1])}, ${usd(p.value)} estimated exposure${out?', '+out.toLowerCase():''}`);
    const labelWidth=Math.min(160,right-left-16),labelX=left+Math.max(8,(right-left)*.68-labelWidth);
    label.style.width=labelWidth+'px';label.style.left=labelX+'px';
    const labelHeight=label.offsetHeight||48;
@@ -107,7 +116,7 @@ if(root){
  function refreshStatus(){
   if(!data)return;const key=symbol+':'+days,stale=data.cache?.state==='stale'||Date.now()-data.updated>900000;
   const minutes=Math.max(0,Math.floor((Date.now()-data.updated)/60000));
-  status.textContent=`${stale?'Cached / delayed · ':''}${symbol} ${rangePrice(data.current_price??data.ohlc.at(-1)[3])} · Updated ${minutes<1?'just now':minutes+' min ago'} · ${data.coverageDays} ${data.coverageDays===1?'day':'days'}`;
+  status.textContent=`${stale?'Cached / delayed · ':''}${symbol} snapshot ${rangePrice(data.current_price??data.ohlc.at(-1)[3])} · Updated ${minutes<1?'just now':minutes+' min ago'} · ${data.coverageDays} ${data.coverageDays===1?'day':'days'}`;
   status.title=`Source snapshot ${date(data.updated)} · Next check ${date(nextChecks.get(key))} · Local time${data.cache?.reason?' · '+data.cache.reason:''}${data.exchanges.length?' · '+data.exchanges.join(' / '):''}`;
   status.dataset.stale=String(stale);
  }
@@ -203,6 +212,8 @@ if(root){
   panDrag={id:event.pointerId,x:event.clientX,y:event.clientY,t:centerT,p:centerP,width:g.right-g.left,height:g.bottom-g.top};canvas.setPointerCapture(event.pointerId);canvas.classList.add('is-panning');draw();
  });
  for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,event=>{if(panDrag&&event.pointerId===panDrag.id)stopPan();});
+ const levelsButton=root.querySelector('.heat-levels');
+ levelsButton.addEventListener('click',()=>{showLevels=!showLevels;levelsButton.textContent=showLevels?'Hide levels':'Show levels';levelsButton.setAttribute('aria-pressed',String(showLevels));root.classList.toggle('heat-levels-hidden',!showLevels);draw();});
  root.querySelector('.heat-intensity').addEventListener('input',event=>{intensity=Number(event.target.value)/100;draw();});
  const fullButton=root.querySelector('.heat-fullscreen');
  function syncFullscreen(){const active=document.fullscreenElement===root;root.classList.toggle('heat-expanded',active);fullButton.textContent=active?'Exit full screen':'Full screen';fullButton.setAttribute('aria-pressed',String(active));draw();}

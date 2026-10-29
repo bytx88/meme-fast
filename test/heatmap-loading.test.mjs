@@ -66,3 +66,19 @@ test('hover only paints the crosshair layer and exposes its price badge near cur
  assert.ok(overlay.paints>0);assert.equal(marker.hidden,true);
  canvas.emit('pointerleave');assert.equal(marker.hidden,false);
 });
+
+test('levels toggle hides both guides and cards and survives a market change without extra fetches',async()=>{
+ const h=harness();h.reply(0);await flush();
+ const button=h.root.querySelector('.heat-levels'),canvas=h.root.querySelector('canvas');
+ const cards=['.heat-band-short','.heat-band-long'].map(selector=>h.root.querySelector(selector));
+ let guides=0;canvas.context.setLineDash=values=>{if(values[0]===8)guides++;};
+ button.emit('click');
+ assert.equal(button.textContent,'Show levels');assert.equal(button.getAttribute('aria-pressed'),'false');
+ assert.ok(cards.every(card=>card.hidden));assert.equal(guides,0);assert.equal(h.requests.length,1);
+ h.symbols[1].emit('click');h.reply(1,'XAUUSDT');await flush();
+ assert.ok(cards.every(card=>card.hidden));assert.equal(guides,0);
+ button.emit('click');
+ assert.equal(button.textContent,'Hide levels');assert.equal(button.getAttribute('aria-pressed'),'true');
+ assert.ok(cards.every(card=>!card.hidden));assert.equal(guides,2);assert.equal(h.requests.length,2);
+ assert.match(h.root.querySelector('.heat-chart').children[0].textContent,/Snapshot/);
+});
