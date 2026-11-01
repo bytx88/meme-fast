@@ -83,7 +83,7 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(report['status'],'failed')
             self.assertEqual(report['consecutiveFailures'],1)
 
-    async def exercise(self, folder, collect, *, projections='pass', budgets=None, commit=None):
+    async def exercise(self, folder, collect, *, projections='pass', budgets=None, commit=None, **options):
         async def noop(): pass
         async def items():
             if False: yield None
@@ -92,7 +92,20 @@ class CoinJobTests(unittest.IsolatedAsyncioTestCase):
         commands={key:[sys.executable,'-c',code] for key,code in
                   {'index':'pass','collect':collect,'projections':projections}.items()}
         return await run_coin_job(volume,priorities,root=folder,commands=commands,
-                                  budgets=budgets,log=lambda *args,**kwargs:None)
+                                  budgets=budgets,log=lambda *args,**kwargs:None,**options)
+
+    async def test_disabled_robinhood_skips_indexer_and_forwards_flags_to_node(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code = self.checkpoint_command(folder) + 'import os;assert os.environ["MEME_ROBINHOOD_ENABLED"]=="0";assert os.environ["MEME_CONTEXT_ENABLED"]=="0"'
+            starts, real_start = [], Child.start
+            async def start(child, command, env=None):
+                starts.append(command)
+                return await real_start(child, command, env)
+            with patch.object(Child, 'start', start):
+                report = await self.exercise(folder, code, robinhood_enabled=False, context_enabled=False)
+            self.assertEqual(len(starts),2,'only collector and projections, no indexer')
+            self.assertEqual(report['collectionControls'],dict(robinhood=False,context=False))
+            self.assertEqual(report['status'],'ok')
 
     def checkpoint_command(self, folder):
         return f'import json,time;from pathlib import Path;Path({str(Path(folder)/"coins.json")!r}).write_text(json.dumps({{"coins":[],"lastRun":int(time.time()*1000),"revision":"test:1","feeds":{{}}}}));'

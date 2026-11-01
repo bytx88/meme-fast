@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from worker.collection_controls import enabled, mode_report, read_controls, update_control
+from worker.collection_controls import enabled, mode_report, read_controls, update_control, DEFAULTS
 
 
 class Store(dict):
@@ -18,6 +18,11 @@ class CollectionControlsTests(unittest.TestCase):
         store = Store()
         self.assertFalse(enabled(store, 'wallets'))
         self.assertFalse(enabled(store, 'mode'))
+        for feature in ('robinhood','context','x_rss'):
+            self.assertTrue(enabled(store, feature))
+            update_control(store, {'feature':feature,'enabled':False})
+            self.assertFalse(enabled(store, feature))
+        store.clear()
         for value in (None, {}, {'feature':'web','enabled':False}, {'feature':'mode','enabled':'true'},
                       {'feature':'mode','enabled':1}, {'feature':'mode','enabled':True,'extra':1}):
             with self.assertRaises(ValueError):
@@ -68,7 +73,7 @@ class CollectionControlsApiTests(unittest.IsolatedAsyncioTestCase):
         response = await client.get('/api/collection-controls')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers['cache-control'], 'no-store')
-        self.assertTrue(all(not row['enabled'] for row in response.json()['features'].values()))
+        self.assertEqual({k:v['enabled'] for k,v in response.json()['features'].items()}, DEFAULTS)
         for feature in ('mode', 'wallets'):
             response = await client.patch('/api/collection-controls', json={'feature':feature,'enabled':True})
             self.assertEqual(response.status_code, 200)
@@ -155,3 +160,25 @@ class CollectionControlsApiTests(unittest.IsolatedAsyncioTestCase):
         with patch('worker.runner_sampling.run_job', run):
             self.assertEqual(await self.module.collect_runner_mode.local(), {'sampled':True})
             run.assert_awaited_once()
+
+    async def test_x_rss_pause_preserves_macro_refresh_and_skips_sources_and_volume(self):
+        self.store['x_rss'] = {'enabled':False}
+        with patch.object(self.module, 'collect_macro_review') as macro, \
+             patch.object(self.module, 'history_volume') as history, \
+             patch('subprocess.run') as run:
+            self.assertEqual(self.module.collect_x_factor.local()['status'], 'paused')
+            macro.spawn.assert_called_once()
+            history.reload.assert_not_called()
+            run.assert_not_called()
+
+    async def test_coin_dispatch_forwards_the_two_new_collector_switches(self):
+        self.store.update(robinhood={'enabled':False},context={'enabled':False})
+        source_context = MagicMock()
+        source_context.__aenter__ = AsyncMock(return_value='loopback')
+        source_context.__aexit__ = AsyncMock(return_value=False)
+        run = AsyncMock(return_value={})
+        with patch('worker.collector_sources.CollectorSources', return_value=source_context), \
+             patch('worker.coin_job.run_coin_job', run):
+            await self.module.collect_coins.local()
+            self.assertFalse(run.call_args.kwargs['robinhood_enabled'])
+            self.assertFalse(run.call_args.kwargs['context_enabled'])

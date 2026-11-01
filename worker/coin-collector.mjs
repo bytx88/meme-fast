@@ -108,8 +108,8 @@ export function selectPriceBackfills(coins,now=Date.now(),limit=8){
  if(selected.length<limit)selected.push(...[...early.slice(Math.ceil(limit/2)),...later.slice(Math.floor(limit/2))].sort(byVolume).slice(0,limit-selected.length));
  return selected;
 }
-export async function backfillPriceHistory(coins,fetcher=fetch,now=Date.now()){
- const selected=selectPriceBackfills(coins,now),byId=new Map();
+export async function backfillPriceHistory(coins,fetcher=fetch,now=Date.now(),{robinhoodEnabled=true}={}){
+ const selected=selectPriceBackfills(coins.filter(c=>robinhoodEnabled||c.network!=='robinhood'),now),byId=new Map();
  await Promise.allSettled(selected.map(async coin=>{
   try{
    const end=Math.min(now,observationStart(coin)+LATE_RECOVERY_WINDOW_MS);
@@ -285,8 +285,8 @@ export async function collectLaunchpad(coins,fetcher,now,feeds,{launchPools=[],p
  return {tokens:launchTokens,pools:launchResults.flatMap(r=>r.status==='fulfilled'?r.value.pools:[]),checked,attemptedRequests:launchResults.length};
 }
 
-async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],marketOnly=false,skipMarket=false}={}){
- const targets=skipMarket?[]:selectMarketTargets(coins,radarCoins,priorityIds,now);
+async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],marketOnly=false,skipMarket=false,robinhoodEnabled=true}={}){
+ const targets=skipMarket?[]:selectMarketTargets(coins.filter(c=>robinhoodEnabled||c.network!=='robinhood'),radarCoins.filter(c=>robinhoodEnabled||c.network!=='robinhood'),priorityIds,now);
  const marketResults=await Promise.allSettled([...new Set(targets.map(c=>c.network))].flatMap(network=>{
   const addresses=targets.filter(c=>c.network===network).map(c=>c.contract_address);
   return chunks(addresses,30).map(async batch=>{
@@ -305,7 +305,7 @@ async function enrichMarket(coins,radarCoins,fetcher,now,feeds,{priorityIds=[],m
  coins=recordMarketHistory(refreshMarket(coins,pairs,now),now);
  radarCoins=recordMarketHistory(refreshMarket(radarCoins,pairs,now),now);
  if(marketOnly)return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length,selected:targets.length};
- coins=updateMigrationStates(await backfillPriceHistory(coins,fetcher,now),now);
+ coins=updateMigrationStates(await backfillPriceHistory(coins,fetcher,now,{robinhoodEnabled}),now);
  return {coins,radarCoins,refreshedPairs:pairs.length,attemptedRequests:marketResults.length};
 }
 
@@ -398,7 +398,7 @@ async function enrichContext(snapshot,fetcher,now){
  for(const coin of radarCoins){const current=byId.get(coin.id);if(current){coin.savedContext=current.savedContext;coin.contextCheckedAt=current.contextCheckedAt}}
  return {articles:articles.length,profiles:profiles.length,checked:queue.length,failedLookups:queue.filter(coin=>coin.contextError).length};
 }
-export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[],candidateTokens=null}={}){
+export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds=[],candidateTokens=null,robinhoodEnabled=true,contextEnabled=true}={}){
  const previous=await readSnapshot(filename),feeds={...previous.feeds};
  const paced=fetcher===fetch?createProviderFetch(fetch,{initial:previous.providerState}):null;
  if(paced)fetcher=paced;
@@ -430,11 +430,12 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  })();
  // Cover page one for every chain and market view before optional enrichment or deeper pagination.
  let tracked=[],indexedCoins=[],launch,launchPools=[];
- const discovery=discoverPools(fetcher,now,feeds,{betweenPasses:async({incoming,trending})=>{
+ const discovery=discoverPools(fetcher,now,feeds,{robinhoodEnabled,betweenPasses:async({incoming,trending})=>{
  // Graduation checks must precede indexed refresh and deeper discovery, which can exhaust Gecko's budget.
  const retainedLaunchPools=(previous.coins||[]).filter(c=>c.launchpadSource&&c.firstSeen>now-RETENTION_MS);
- launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now),fetcher,now,feeds,{launchPools:retainedLaunchPools,priorityIds});
+ launch=await collectLaunchpad(mergeCoins(previous.coins||[],[...incoming,...trending],now).filter(c=>robinhoodEnabled||c.network!=='robinhood'),fetcher,now,feeds,{launchPools:retainedLaunchPools,priorityIds});
  launchPools=await discoverLaunchpads(fetcher,now,feeds);
+ if(!robinhoodEnabled)return;
  let indexedFeed={pools:[],status:{lastScanAt:null,count:0,backfillComplete:false,errors:{notStarted:'Pool indexer has not run'}}};
  try{indexedFeed=JSON.parse(await readFile(path.join(path.dirname(filename),'robinhood-pool-feed.json'),'utf8'))}catch(error){if(error.code!=='ENOENT')throw error}
  const rpcError=Object.values(indexedFeed.status?.errors||{}).join('; ');
@@ -472,7 +473,7 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  else feeds.robinhood_indexed_pools={...feeds.robinhood_indexed_pools,status:'idle',error:null,returnedRecords:null};
  }});
  // Dexscreener progresses independently while Gecko waits or backs off.
- const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true});
+ const retainedRefresh=enrichMarket((previous.coins||[]).filter(c=>c.firstSeen>now-RETENTION_MS),(previous.radarCoins||[]).filter(c=>c.lastSeenRadarAt>now-RETENTION_MS),fetcher,now,feeds,{priorityIds,marketOnly:true,robinhoodEnabled});
  const [{incoming,trending,topPools},retained,walletCoins]=await Promise.all([discovery,retainedRefresh,nominationWork]);
  previous.coins=retained.coins;previous.radarCoins=retained.radarCoins;
  const coinsFromDiscovery=mergeCoins(previous.coins,incoming,now);
@@ -482,14 +483,20 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  coins=mergeCoins(coins,launch.pools.filter(c=>curveIds.has(c.id)).map(c=>({...c,launchpadSource:'verified-curve'})),now);
  coins=refreshLaunchpad(coins,launch.tokens,now).map(coin=>launch.checked.has(coin.id)?{...coin,launchpadCheckedAt:now}:coin);
  let radarCoins=mergeRadarCoins(previous.radarCoins,[...incoming,...trending,...topPools,...indexedCoins,...tracked,...walletCoins],coins,now);
- const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true});
+ const market=await enrichMarket(coins,radarCoins,fetcher,now,feeds,{skipMarket:true,robinhoodEnabled});
  market.refreshedPairs+=retained.refreshedPairs;market.attemptedRequests+=retained.attemptedRequests+launch.attemptedRequests;
  coins=market.coins;radarCoins=market.radarCoins;
+ if(!robinhoodEnabled){
+  for(const key of new Set(['robinhood','robinhood_trending','robinhood_top_pools','robinhood_tracked','robinhood_rpc','robinhood_indexed_pools',...Object.keys(feeds).filter(k=>k.startsWith('robinhood'))])){
+   feeds[key]={...feeds[key],status:'paused',error:null};
+  }
+ }
  const discoverySources=[...NETWORKS.map(network=>network.id),...RADAR_NETWORKS.map(network=>`${network.id}_trending`),'robinhood_rpc','robinhood_indexed_pools','launchpad_pools'];
  const discoveryStatus=discoverySources.some(key=>feeds[key]?.error)?'degraded':'complete';
  const marketStatus=!market.attemptedRequests?'skipped':feeds.dex_market?.error||feeds.launchpad?.error?'degraded':'complete';
  const {tweetCoins,tweetMarketFeeds}=sharedTweetMarket(coins,radarCoins,previous,now);
- const snapshot={providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,
+ if(!robinhoodEnabled)tweetMarketFeeds.robinhood={...previous.tweetMarketFeeds?.robinhood,status:'paused',error:null};
+ const snapshot={collectionControls:{robinhood:robinhoodEnabled,context:contextEnabled},providerState:paced?.state()||previous.providerState||{},version:2,revision:`${now}:1`,coins,radarCoins,
  tweetCoins,tweetMarketFeeds,articles:previous.articles||[],lastRun:now,feeds,coverage:coverageFor(feeds),pipeline:{
   discovery:{status:discoveryStatus,completedAt:now,coins:coins.length,radarCoins:radarCoins.length},
   market:{status:marketStatus,completedAt:now,refreshedPairs:market.refreshedPairs,selectedContracts:retained.selected,refreshLimit:1800,priorityContracts:priorityIds.length},
@@ -498,18 +505,25 @@ export async function collect(filename,{fetcher=fetch,now=Date.now(),priorityIds
  // Commit discovery and market data before slower context lookups.
  await save(filename,snapshot);
  // Reserve a separate bounded window so discovery cooldowns cannot starve context.
- const contextFetcher=paced?createProviderFetch(fetch,{initial:paced.state(),budgetMs:45000}):fetcher;
- const context=await enrichContext(snapshot,contextFetcher,now);
- const contextSources=[...FEEDS.map(feed=>`news_${feed.id}`),'dex_profiles'];
- const contextStatus=contextSources.some(key=>feeds[key]?.error)||context.failedLookups?'degraded':'complete';
- snapshot.pipeline.context={status:contextStatus,completedAt:now,...context};
+ let contextFetcher=null;
+ if(contextEnabled){
+  contextFetcher=paced?createProviderFetch(fetch,{initial:paced.state(),budgetMs:45000}):fetcher;
+  const context=await enrichContext(snapshot,contextFetcher,now);
+  const contextSources=[...FEEDS.map(feed=>`news_${feed.id}`),'dex_profiles'];
+  const contextStatus=contextSources.some(key=>feeds[key]?.error)||context.failedLookups?'degraded':'complete';
+  snapshot.pipeline.context={status:contextStatus,completedAt:now,...context};
+ }else{
+  snapshot.pipeline.context={status:'paused'};
+  for(const key of [...FEEDS.map(feed=>`news_${feed.id}`),'dex_profiles'])feeds[key]={...feeds[key],status:'paused',error:null};
+ }
  snapshot.revision=`${now}:2`;
  snapshot.coverage=coverageFor(feeds);
- snapshot.providerState=paced?{...paced.state(),...contextFetcher.state()}:snapshot.providerState;
+ snapshot.providerState=paced?{...paced.state(),...contextFetcher?.state()}:snapshot.providerState;
  await save(filename,snapshot);
  return snapshot;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const snapshot=await collect(process.argv[2],{priorityIds:JSON.parse(process.env.MEME_REFRESH_PRIORITY_IDS||'[]')});
+ const snapshot=await collect(process.argv[2],{priorityIds:JSON.parse(process.env.MEME_REFRESH_PRIORITY_IDS||'[]'),
+  robinhoodEnabled:process.env.MEME_ROBINHOOD_ENABLED!=='0',contextEnabled:process.env.MEME_CONTEXT_ENABLED!=='0'});
  console.log(JSON.stringify({coins:snapshot.coins.length,lastRun:snapshot.lastRun,feeds:snapshot.feeds}));
 }

@@ -149,7 +149,8 @@ async def run_coin_job(volume, priorities, root='/history', app='/app', **option
 
 
 async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
-                       budgets=None, commands=None, log=print, candidate_tokens=(), market_url=''):
+                       budgets=None, commands=None, log=print, candidate_tokens=(), market_url='',
+                       robinhood_enabled=True, context_enabled=True):
     limits = dict(DEFAULT_BUDGETS)
     limits.update(budgets or {})
     started, started_at = time.monotonic(), int(time.time()*1000)
@@ -220,7 +221,7 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
             warnings.append(f'Priority service unavailable: {error}')
             ids = []
         try:
-            indexer = await bounded(launch(commands['index']), limits['cleanup'], 'indexer start')
+            indexer = await bounded(launch(commands['index']), limits['cleanup'], 'indexer start') if robinhood_enabled else None
         except Exception as error:
             indexer = None
             warnings.append(f'Optional indexer unavailable: {error}')
@@ -229,7 +230,9 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
             nonlocal collector
             collector = await launch(commands['collect'], {**os.environ, 'MEME_REFRESH_PRIORITY_IDS': json.dumps(ids),
                 'MEME_STREAM_TOKEN_CANDIDATES': json.dumps(list(candidate_tokens)[:30]),
-                'MEME_SHARED_MARKET_URL': market_url})
+                'MEME_SHARED_MARKET_URL': market_url,
+                'MEME_ROBINHOOD_ENABLED': '1' if robinhood_enabled else '0',
+                'MEME_CONTEXT_ENABLED': '1' if context_enabled else '0'})
             return await collector.finish(limits['collect'], 'collect')
         collect_timeout = None
         try:
@@ -307,6 +310,7 @@ async def _run_coin_job(volume, priorities, root='/history', app='/app', *,
               # Controller plus reaped children, before the final Volume commit;
               # remote source owners and Modal reservation billing are separate.
               'processCpuSeconds': round(process_cpu, 3),
+              'collectionControls': dict(robinhood=robinhood_enabled, context=context_enabled),
               'elapsedSeconds': round(time.monotonic()-started, 1)}
     await bounded(asyncio.to_thread(write_report, health_path, report), limits['report'], 'health write')
     await stage('commit', volume.commit.aio(), reserve=False)

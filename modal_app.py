@@ -521,7 +521,9 @@ async def collect_coins():
     async with CollectorSources(read_market_source.remote.aio, read_gecko_source.remote.aio,
                                 read_context_source.remote.aio, read_social_source.remote.aio) as market_url:
         return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
-                                  market_url=market_url)
+                                  market_url=market_url,
+                                  robinhood_enabled=await asyncio.to_thread(collection_enabled, 'robinhood'),
+                                  context_enabled=await asyncio.to_thread(collection_enabled, 'context'))
 
 
 @app.function(timeout=360, max_containers=1, memory=128, scaledown_window=COLLECTOR_IDLE_SECONDS,
@@ -554,6 +556,8 @@ def collect_x_factor(target_limit=3):
         collect_macro_review.spawn()
     except Exception:
         print("Macro review dispatch unavailable; on-visit collection remains available")
+    if not collection_enabled('x_rss'):
+        return collection_paused('x_rss')
     history_volume.reload()
     result = subprocess.run(
         ["python", "/app/worker/x_rss_collector.py", "/history/coins.json",
@@ -798,7 +802,7 @@ def web():
             payload = json.loads(body)
             result = await asyncio.to_thread(update_control, collection_control_store, payload)
         except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail='Choose wallets or mode and an enabled boolean')
+            raise HTTPException(status_code=400, detail='Choose a supported feature and an enabled boolean')
         except Exception:
             raise HTTPException(status_code=503, detail='Could not save collection settings. Reload before retrying.')
         return JSONResponse(result, headers={'cache-control': 'no-store'})
@@ -883,6 +887,7 @@ def web():
                 report = json.loads(Path("/history/x-factor.json").read_text())
             except (FileNotFoundError, ValueError):
                 report = {"version": 1, "status": "disconnected", "coins": {}}
+        report['collectionEnabled'] = await feature_enabled('x_rss')
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     async def universe_registry():

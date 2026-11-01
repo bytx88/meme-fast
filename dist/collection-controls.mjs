@@ -1,16 +1,19 @@
 const features=[
  ['wallets','Wallet analysis','Wallet scans, Smartness, holder rankings and wallet-flow collection.'],
  ['mode','Mode','Background sampling for the Hard–Easy market score. Coverage needs time to rebuild after a pause.'],
+ ['robinhood','Robinhood collection','Pool indexing, discovery and market refresh for Robinhood Chain. Default: on.'],
+ ['context','Automatic narrative enrichment','Background publisher-news and profile matching to tokens. Saved context and manual research remain available. Default: on.'],
+ ['x_rss','X RSS monitoring','Automatic social-badge sampling from indexed X posts. Macro refresh stays available. Default: on.'],
 ];
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function controlMarkup(state,{busy=false,error=''}={}){
- return `<div class="section-heading"><div><h2>Collection controls</h2><p>Both features default to off. Your switches are saved for all browsers.</p></div></div>
+ return `<div class="section-heading"><div><h2>Collection controls</h2><p>Wallet analysis and Mode default to off. The other three default to on. Your switches are saved for all browsers.</p></div></div>
  <div class="collection-switches">${features.map(([key,label,description])=>{
   const enabled=state?.features?.[key]?.enabled===true;
   return `<article><div><h3>${label} <span>${state?(enabled?'On':'Off'):'Loading…'}</span></h3><p>${description}</p></div>
    <button type="button" data-collection="${key}" aria-label="${enabled?'Turn off':'Turn on'} ${label}" aria-pressed="${enabled}" ${!state||busy?'disabled':''}>${enabled?'Turn off':'Turn on'}</button></article>`;
- }).join('')}</div><p class="admin-note">Off blocks scheduled and page-triggered collection. Saved history stays available; jobs already running may finish. Core coin collection stays on.</p>
+ }).join('')}</div><p class="admin-note">Off pauses the selected background collection; Wallet analysis also blocks page-triggered scans. Saved history stays available, and jobs already running may finish. Solana and Base market collection stays on.</p>
  <p class="collection-status" role="status" aria-live="polite">${esc(error||(busy?'Saving…':state?'Settings saved on the server.':'Loading settings…'))}</p>
  <button type="button" data-reload ${busy?'disabled':''}>Refresh settings</button>`;
 }

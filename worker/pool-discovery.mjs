@@ -15,8 +15,8 @@ export function discoveryPlan(){
  return plan;
 }
 
-export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{},initialCount=null}={}){
- const plan=discoveryPlan();
+export async function discoverPools(fetcher,now,feeds,{betweenPasses=async()=>{},initialCount=null,robinhoodEnabled=true}={}){
+ const plan=discoveryPlan().filter(item=>robinhoodEnabled||item.network.id!=='robinhood');
  const request=async({network,kind,page})=>{
   const query=new URLSearchParams({include:'base_token,quote_token',...(kind==='trending_pools'?{duration:'1h'}:{page:String(page)})});
   const response=await fetcher(`https://api.geckoterminal.com/api/v2/networks/${network.id}/${kind}?${query}`,{signal:AbortSignal.timeout(15000)});

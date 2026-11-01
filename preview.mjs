@@ -1,4 +1,4 @@
-import {localCollectionControls} from './worker/collection-controls-local.mjs';
+import {COLLECTION_DEFAULTS,localCollectionControls} from './worker/collection-controls-local.mjs';
 const collectionControls=localCollectionControls();
 import {validPriorityIds,PRIORITY_TTL,tokenKey} from './worker/refresh-priority.mjs';
 import {STORY_SOURCES} from './dist/coin-context.mjs';
@@ -38,7 +38,7 @@ let priorityWrite=Promise.resolve();
 let memePresetWrite=Promise.resolve();
 let requestMemeRefresh=()=>false;
 let collecting=false;
-async function tick(){if(collecting)return;collecting=true;try{await runFile(python,['worker/robinhood_indexer.py','scan',path.resolve('.data/robinhood-pools.sqlite'),path.resolve('.data/robinhood-pool-feed.json')],{timeout:280000})}catch(error){console.error('Robinhood pool indexer:',error.message)}try{const stream=await readLocalStream();await collect(historyFile,{candidateTokens:stream.tokenCandidates||[],priorityIds:[...priorities].filter(([,at])=>Date.now()-at<PRIORITY_TTL).sort((a,b)=>b[1]-a[1]).slice(0,300).map(([id])=>id)});await runFile(python,['worker/coin_projections.py',historyFile],{timeout:60000})}catch(error){console.error('Coin collector:',error.message)}finally{collecting=false}}
+async function tick(){if(collecting)return;collecting=true;try{if(await collectionControls.enabled('robinhood'))await runFile(python,['worker/robinhood_indexer.py','scan',path.resolve('.data/robinhood-pools.sqlite'),path.resolve('.data/robinhood-pool-feed.json')],{timeout:280000})}catch(error){console.error('Robinhood pool indexer:',error.message)}try{const stream=await readLocalStream();await collect(historyFile,{robinhoodEnabled:await collectionControls.enabled('robinhood'),contextEnabled:await collectionControls.enabled('context'),candidateTokens:stream.tokenCandidates||[],priorityIds:[...priorities].filter(([,at])=>Date.now()-at<PRIORITY_TTL).sort((a,b)=>b[1]-a[1]).slice(0,300).map(([id])=>id)});await runFile(python,['worker/coin_projections.py',historyFile],{timeout:60000})}catch(error){console.error('Coin collector:',error.message)}finally{collecting=false}}
 
 import {createMarketProxy} from './worker/market.mjs';
 import {createDexProxy} from './worker/dex-market.mjs';
@@ -53,8 +53,8 @@ http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localho
   let payload;
   if(req.method==='PATCH'){
    let body='';for await(const chunk of req){body+=chunk;if(body.length>300){res.writeHead(400).end();return}}
-   try{payload=JSON.parse(body);if(!payload||Object.keys(payload).sort().join(',')!=='enabled,feature'||!['wallets','mode'].includes(payload.feature)||typeof payload.enabled!=='boolean')throw new Error()}
-   catch{res.writeHead(400,{'content-type':'application/json'}).end(JSON.stringify({detail:'Choose wallets or mode and an enabled boolean'}));return}
+   try{payload=JSON.parse(body);if(!payload||Object.keys(payload).sort().join(',')!=='enabled,feature'||typeof payload.feature!=='string'||!Object.hasOwn(COLLECTION_DEFAULTS,payload.feature)||typeof payload.enabled!=='boolean')throw new Error()}
+   catch{res.writeHead(400,{'content-type':'application/json'}).end(JSON.stringify({detail:'Choose a supported feature and an enabled boolean'}));return}
   }
   try{const value=await(req.method==='PATCH'?collectionControls.update(payload):collectionControls.read());res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify(value))}
   catch{res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify({detail:'Collection settings are unavailable. Reload before retrying.'}))}return
