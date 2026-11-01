@@ -28,7 +28,8 @@ class RunnerDispatchTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(target.hostname, '127.0.0.1')
             self.assertEqual(target.path, '/api/dex')
             return {'status': 'test'}
-        with patch.object(modal_app, 'collect_runner_mode', SimpleNamespace(spawn=SimpleNamespace(aio=dispatch))), \
+        with patch.object(modal_app, 'collection_control_store', {'wallets':{'enabled':True}, 'mode':{'enabled':True}}), \
+             patch.object(modal_app, 'collect_runner_mode', SimpleNamespace(spawn=SimpleNamespace(aio=dispatch))), \
              patch.object(modal_app, 'stream_volume', SimpleNamespace(reload=SimpleNamespace(aio=reload))), \
              patch.object(modal_app, 'web', SimpleNamespace(get_web_url=SimpleNamespace(aio=url))), \
              patch('worker.data_stream.read', return_value={}), patch('worker.coin_job.run_coin_job', main):

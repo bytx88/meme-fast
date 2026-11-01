@@ -122,6 +122,10 @@ The Modal app is named `meme-fast`; its `web` function serves the frontend and t
 
 ### Container costs
 
+Admin (`/admin.html`) has separate **Wallet analysis** and **Mode** Turn on / Turn off buttons. Both default to **off**. Settings live in the server-owned `meme-fast-collection-controls` Dict and survive page reloads and deployments. Local preview uses its own ignored `.data/collection-controls.json` file. Collection fails closed if settings are unavailable; the Admin controls report an error instead of claiming a save succeeded.
+
+Wallet analysis controls holdings sampling, Smartness scans, smart-wallet balances and data-stream collection. Scheduled dispatch, worker entrypoints and page-triggered provider requests honor the switch. Saved reports and registry edits remain available, and daily registry renewal continues through the existing five-minute timer. Mode's switch prevents its background dispatch and sampling; its API withholds the score while off. Jobs already running may finish. Turning a feature back on permits its next scheduled pass; coverage gaps are retained, so Mode may need sufficient new observations before showing a score. These switches do not pause core coin collection, Meme/Alt/BTC readings, X RSS, Macro or heatmaps.
+
 Collectors scale down after two idle seconds once their writes are committed. Shared source owners shut down after 35 idle seconds, retaining the existing 30-second cache checkpoint policy and provider pacing. The web function handles up to 16 concurrent inputs per container, targets eight, scales to at most two containers, and shuts down after ten idle seconds. Collection schedules and single-writer limits are unchanged.
 
 The data-stream collector indexes validated trade events by mint and resolves wallet-history anchors once per time window per run, avoiding repeated full-ledger and history scans for each ranked token. Event order, deduplication, window boundaries, known-zero versus missing balances, and original observation timestamps are preserved. Actual savings depend on workload and must be assessed from subsequent Modal usage.

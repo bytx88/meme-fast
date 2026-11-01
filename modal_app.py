@@ -41,6 +41,7 @@ app = modal.App(APP_NAME, image=image)
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", create_if_missing=True)
+collection_control_store = modal.Dict.from_name("meme-fast-collection-controls", create_if_missing=True)
 meme_preset_registry = modal.Dict.from_name("meme-fast-meme-preset", create_if_missing=True)
 history_volume = modal.Volume.from_name("meme-fast-coin-history", create_if_missing=True)
 macro_volume = modal.Volume.from_name("meme-fast-macro-review", create_if_missing=True)
@@ -56,6 +57,19 @@ stream_volume = modal.Volume.from_name("meme-fast-data-stream", create_if_missin
 # Source owners retain the existing 30-second batched checkpoint policy.
 COLLECTOR_IDLE_SECONDS = 2
 SOURCE_IDLE_SECONDS = 35
+
+
+def collection_enabled(feature):
+    import sys
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
+    from worker.collection_controls import enabled
+    return enabled(collection_control_store, feature)
+
+
+def collection_paused(feature):
+    from worker.collection_controls import paused
+    return paused(feature)
 
 
 @app.function(timeout=90, max_containers=1, scaledown_window=SOURCE_IDLE_SECONDS, volumes={'/sources': source_volume})
@@ -215,6 +229,8 @@ def read_market_source(network, addresses, scope='quotes'):
               volumes={'/stream': stream_volume, '/history': history_volume, '/smartness': smartness_volume})
 @modal.concurrent(max_inputs=1)
 def collect_data_stream():
+    if not collection_enabled('wallets'):
+        return collection_paused('wallets')
     import sys
     import json
     import httpx
@@ -289,6 +305,8 @@ def dispatch_smart_collection():
     """One queued/running balance job for all automatic and Inspect requests."""
     import time
     from worker.smart_seeding import request_collection
+    if not collection_enabled('wallets'):
+        return False
     return request_collection(balance_requests, collect_smart_wallets.spawn, int(time.time() * 1000))
 
 
@@ -297,6 +315,8 @@ def dispatch_smart_collection():
 @modal.concurrent(max_inputs=1)
 def collect_smart_wallets(backfill=None, token=None, cohort_scope="universe", request_key=None, request_at=None):
     try:
+        if not collection_enabled('wallets'):
+            return collection_paused('wallets')
         return _collect_smart_wallets(backfill, token, cohort_scope)
     finally:
         if request_key:
@@ -411,6 +431,8 @@ async def retain_wallet_registry():
 @app.function(timeout=240, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS, volumes={'/smartness': smartness_volume, '/stream': stream_volume})
 @modal.concurrent(max_inputs=1)
 def collect_smartness(evidence=None):
+    if not collection_enabled('wallets'):
+        return collection_paused('wallets')
     import sys
     import time
     if '/app' not in sys.path:
@@ -475,11 +497,14 @@ async def collect_coins():
     try:
         # Reuse the existing schedule slot, while running Mode in a separate
         # single-writer worker before slower discovery or Volume work begins.
-        await asyncio.wait_for(collect_runner_mode.spawn.aio(), 10)
+        if await asyncio.to_thread(collection_enabled, 'mode'):
+            await asyncio.wait_for(collect_runner_mode.spawn.aio(), 10)
     except Exception as exc:
         print('Runner Mode dispatch failed: '+type(exc).__name__, flush=True)
-    await stream_volume.reload.aio()
-    candidates = read_stream('/stream').get('tokenCandidates', [])
+    candidates = []
+    if await asyncio.to_thread(collection_enabled, 'wallets'):
+        await stream_volume.reload.aio()
+        candidates = read_stream('/stream').get('tokenCandidates', [])
     async with CollectorSources(read_market_source.remote.aio, read_gecko_source.remote.aio,
                                 read_context_source.remote.aio, read_social_source.remote.aio) as market_url:
         return await run_coin_job(history_volume, refresh_priorities, candidate_tokens=candidates,
@@ -490,6 +515,9 @@ async def collect_coins():
               volumes={"/history": history_volume})
 @modal.concurrent(max_inputs=1)
 async def collect_runner_mode():
+    import asyncio
+    if not await asyncio.to_thread(collection_enabled, 'mode'):
+        return collection_paused('mode')
     import sys
     if '/app' not in sys.path:
         sys.path.insert(0, '/app')
@@ -624,10 +652,13 @@ def collect_followed_wallets():
         print('Wallet retention dispatch failed: ' + type(exc).__name__, flush=True)
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
+    if not collection_enabled('wallets'):
+        return collection_paused('wallets')
     # Share the existing five-minute dispatch slot; keep balance-history writes
     # in their own single-writer function and Volume.
     try:
-        collect_smartness.spawn()
+        if collection_enabled('wallets'):
+            collect_smartness.spawn()
     except Exception:
         print('Smartness dispatch unavailable; manual trade scan remains available')
     from modal.exception import ResourceExhaustedError
@@ -663,7 +694,8 @@ def collect_followed_wallets():
     except Exception:
         print('Smart wallet dispatch unavailable; on-visit collection remains available')
     try:
-        collect_data_stream.spawn()
+        if collection_enabled('wallets'):
+            collect_data_stream.spawn()
     except Exception:
         print('Shared stream dispatch unavailable; previous observations retained')
     summary = {"wallets": len(report["wallets"]),
@@ -726,6 +758,38 @@ def web():
     from worker.market_proxy import MarketProxy
     from worker.snapshot_view import snapshot_view, snapshot_version
     history_lock = asyncio.Lock()
+    async def feature_enabled(feature):
+        return await asyncio.to_thread(collection_enabled, feature)
+
+    async def require_wallet_collection():
+        if not await feature_enabled('wallets'):
+            from worker.collection_controls import PAUSED
+            raise HTTPException(status_code=409, detail=PAUSED['wallets'])
+
+    @web_app.get('/api/collection-controls')
+    async def get_collection_controls():
+        from worker.collection_controls import read_controls
+        try:
+            result = await asyncio.to_thread(read_controls, collection_control_store)
+        except Exception:
+            raise HTTPException(status_code=503, detail='Collection settings are unavailable. Collection stays off until settings can be read.')
+        return JSONResponse(result, headers={'cache-control': 'no-store'})
+
+    @web_app.patch('/api/collection-controls')
+    async def patch_collection_controls(request: Request):
+        from worker.collection_controls import update_control
+        body = await request.body()
+        if len(body) > 300:
+            raise HTTPException(status_code=400, detail='Collection setting request too large')
+        try:
+            payload = json.loads(body)
+            result = await asyncio.to_thread(update_control, collection_control_store, payload)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail='Choose wallets or mode and an enabled boolean')
+        except Exception:
+            raise HTTPException(status_code=503, detail='Could not save collection settings. Reload before retrying.')
+        return JSONResponse(result, headers={'cache-control': 'no-store'})
+
     async def fetch_market(target):
         reply = await read_gecko_source.remote.aio(target.removeprefix('https://api.geckoterminal.com/api/v2'))
         return httpx.Response(reply['status'], json=reply['body'], headers={'retry-after':str(reply.get('retryAfter', 60))})
@@ -815,7 +879,7 @@ def web():
                 holdings = json.loads(Path('/history/followed-wallets.json').read_text())
             except (OSError, ValueError):
                 holdings = {}
-        return report(registry, holdings)
+        return dict(report(registry, holdings), collectionEnabled=await feature_enabled('wallets'))
 
     smartness_lock = asyncio.Lock()
 
@@ -825,7 +889,7 @@ def web():
         async with smartness_lock:
             await smartness_volume.reload.aio()
             report = read_report('/smartness')
-        return public_report(report, registry)
+        return dict(public_report(report, registry), collectionEnabled=await feature_enabled('wallets'))
 
     @web_app.get('/api/smartness')
     async def get_smartness():
@@ -833,6 +897,7 @@ def web():
 
     @web_app.post('/api/smartness/refresh')
     async def refresh_smartness():
+        await require_wallet_collection()
         import time
         current = await smartness_report()
         if current.get('scanning'):
@@ -851,16 +916,19 @@ def web():
         value = public_report(load('/smart'), int(time.time() * 1000))
         lease = await balance_requests.get.aio('balance-writer', None)
         heartbeat = await balance_requests.get.aio('balance-heartbeat', {})
-        value['queued'] = bool(lease and 0 <= value['now'] - max(lease.get('requestedAt', 0), heartbeat.get('at', 0)) < 1800000)
+        value['collectionEnabled'] = await feature_enabled('wallets')
+        value['queued'] = value['collectionEnabled'] and bool(lease and 0 <= value['now'] - max(lease.get('requestedAt', 0), heartbeat.get('at', 0)) < 1800000)
         return JSONResponse(value, headers={'cache-control':'no-store'})
 
     @web_app.post('/api/smart-seeding/refresh')
     async def refresh_smart_seeding():
+        await require_wallet_collection()
         requested = await asyncio.to_thread(dispatch_smart_collection)
         return JSONResponse(dict(requested=requested), status_code=202, headers={'cache-control':'no-store'})
 
     @web_app.post('/api/smart-seeding/inspect')
     async def inspect_seed(request: Request):
+        await require_wallet_collection()
         import time
         from worker.smart_seeding import valid_token
         body = await request.body()
@@ -941,6 +1009,7 @@ def web():
             cached = candidate_cache.get(token)
             if cached and time.time() * 1000 - cached['checkedAt'] < 300000:
                 return JSONResponse(cached, headers={'cache-control': 'no-store'})
+            await require_wallet_collection()
             try:
                 result = await asyncio.to_thread(discover, token)
             except Exception:
@@ -978,6 +1047,9 @@ def web():
             raise HTTPException(status_code=400, detail='Choose 5m, 1h, 6h or 24h')
         await stream_volume.reload.aio()
         report = public_view(read_stream('/stream'), window)
+        report['collectionEnabled'] = await feature_enabled('wallets')
+        if not report['collectionEnabled']:
+            report.update(status='paused', stale=True)
         return JSONResponse(report, headers={'cache-control': 'no-store'})
 
     @web_app.get('/api/wallet-activity')
@@ -990,6 +1062,7 @@ def web():
             cached = activity_cache.get(address)
             if cached and time.time() * 1000 - cached['checkedAt'] < 300000:
                 return JSONResponse(cached, headers={'cache-control':'no-store'})
+            await require_wallet_collection()
             result = await asyncio.to_thread(analyze, address)
             activity_cache[address] = result
             return JSONResponse(result, headers={'cache-control':'no-store'})
@@ -1013,11 +1086,13 @@ def web():
         report = read_report('/smart', cohort)
         now = int(time.time() * 1000)
         watch_scope = scope if token else 'legacy'
-        await balance_watches.put.aio(cohort['token'] + ':' + watch_scope,
-                                     dict(token=cohort['token'], scope=watch_scope, requestedAt=now))
+        is_enabled = await feature_enabled('wallets')
+        if is_enabled:
+            await balance_watches.put.aio(cohort['token'] + ':' + watch_scope,
+                                         dict(token=cohort['token'], scope=watch_scope, requestedAt=now))
         from worker.smart_seeding import load
         policy = load('/smart')['tokens'].get(cohort['token'], {})
-        pending = needs_refresh(report, now) or policy.get('mode') == 'dormant'
+        pending = is_enabled and (needs_refresh(report, now) or policy.get('mode') == 'dormant')
         if pending:
             try:
                 await asyncio.to_thread(dispatch_smart_collection)
@@ -1025,6 +1100,10 @@ def web():
                 report['error'] = 'Could not request a balance refresh. Saved observations are retained.'
         report['collectionPolicy'] = {k: v for k, v in policy.items() if k != 'zeroDays'}
         report['refreshing'] = pending
+        report['collectionEnabled'] = is_enabled
+        if not is_enabled:
+            from worker.collection_controls import PAUSED
+            report['error'] = PAUSED['wallets']
         return JSONResponse(report, headers={"cache-control": "no-store"})
 
     @web_app.post("/api/followed-wallets")
@@ -1054,7 +1133,8 @@ def web():
                 saved = json.loads(Path('/history/runner-mode.json').read_text())
             except (FileNotFoundError, ValueError):
                 saved = None
-        return JSONResponse(public_report(saved), headers={'cache-control': 'no-store'})
+        from worker.collection_controls import mode_report
+        return JSONResponse(mode_report(public_report(saved), await feature_enabled('mode')), headers={'cache-control': 'no-store'})
 
     async def saved_meme_report():
         async with history_lock:

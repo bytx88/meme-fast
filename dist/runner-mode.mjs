@@ -20,7 +20,7 @@ export function runnerMode(report,now=Date.now()){
  const covered=report?.coverage?.reliable===true&&report?.coverage?.reservedPass===true;
  const age=now-report?.updatedAt;
  const fresh=Number.isFinite(report?.updatedAt)&&age>=0&&age<=QUOTE_MAX_AGE;
- return report?.ready===true&&supported&&covered&&comparableHistory(report.history)&&fresh&&
+ return report?.collectionEnabled!==false&&report?.ready===true&&supported&&covered&&comparableHistory(report.history)&&fresh&&
   Number.isInteger(score)&&Object.values(SCORES).includes(score)?String(score):'—';
 }
 

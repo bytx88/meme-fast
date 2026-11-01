@@ -17,6 +17,10 @@ async def ready(*args, **kwargs):
 class StreamApiTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
+        import modal_app
+        controls = patch.object(modal_app, 'collection_control_store', {})
+        controls.start()
+        self.addCleanup(controls.stop)
 
     async def test_runner_mode_returns_unknown_before_collection_and_when_stale(self):
         import json

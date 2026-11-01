@@ -36,9 +36,9 @@ export function createSmartness({registry=()=>[]}={}){
   const scans=new Map((report?.wallets||[]).map(row=>[row.address,row.scan]));
   const scanned=rows.filter(row=>scans.get(row.address)?.checkedAt).length;
   const pending=report?.scanning||(requested&&(!report?.attemptedAt||report.attemptedAt<requested-5000));
-  $('scan-smartness').disabled=loading||Boolean(pending);
+  $('scan-smartness').disabled=report?.collectionEnabled===false||loading||Boolean(pending);
   $('scan-smartness').textContent=pending?'Scan in progress…':'Refresh trade scans ↻';
-  $('smartness-status').textContent=error||(!report?'Loading trade samples…':`${result.events.length} recorded swap steps in this selection · ${scanned} / ${rows.length} wallets have signature checks · ${report.attemptedAt?'Last scan '+stamp(report.attemptedAt):'Awaiting first scan'}${pending?' · Scanning…':''}`);
+  $('smartness-status').textContent=(report?.collectionEnabled===false?'Wallet analysis is off. Turn it on in Admin. Saved observations: ':'')+(error||(!report?'Loading trade samples…':`${result.events.length} recorded swap steps in this selection · ${scanned} / ${rows.length} wallets have signature checks · ${report.attemptedAt?'Last scan '+stamp(report.attemptedAt):'Awaiting first scan'}${pending?' · Scanning…':''}`));
   for(const key of ['buy','sell','net']){
    $('smartness-'+key+'-label').textContent=(key==='net'?'Net':key==='buy'?'Buy':'Sell')+' flow ('+quote+')';
    $('smartness-'+key).title=result.events.length?String(result.total[key]):'';
