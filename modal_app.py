@@ -485,7 +485,9 @@ def collect_smartness(evidence=None):
 @app.function(timeout=100, max_containers=1, scaledown_window=COLLECTOR_IDLE_SECONDS,
               volumes={"/macro": macro_volume})
 @modal.concurrent(max_inputs=1)
-async def collect_macro_review():
+async def collect_macro_review(background=False):
+    if background and not collection_enabled('macro'):
+        return collection_paused('macro')
     import sys
     import httpx
     if "/app" not in sys.path: sys.path.insert(0, "/app")
@@ -514,6 +516,8 @@ async def collect_coins():
             await asyncio.wait_for(collect_runner_mode.spawn.aio(), 10)
     except Exception as exc:
         print('Runner Mode dispatch failed: '+type(exc).__name__, flush=True)
+    if not await asyncio.to_thread(collection_enabled, 'markets'):
+        return collection_paused('markets')
     candidates = []
     if await asyncio.to_thread(collection_enabled, 'wallets'):
         await stream_volume.reload.aio()
@@ -553,7 +557,8 @@ def collect_x_factor(target_limit=3):
     # Reuse the existing half-hour dispatch slot; the macro worker owns its own
     # Volume and runs independently even when X-source collection later fails.
     try:
-        collect_macro_review.spawn()
+        if collection_enabled('macro'):
+            collect_macro_review.spawn(background=True)
     except Exception:
         print("Macro review dispatch unavailable; on-visit collection remains available")
     if not collection_enabled('x_rss'):

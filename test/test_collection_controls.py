@@ -19,7 +19,7 @@ class CollectionControlsTests(unittest.TestCase):
         self.assertFalse(enabled(store, 'wallets'))
         self.assertFalse(enabled(store, 'mode'))
         self.assertFalse(enabled(store, 'meme'))
-        for feature in ('robinhood','context','x_rss'):
+        for feature in ('robinhood','context','x_rss','markets','macro'):
             self.assertTrue(enabled(store, feature))
             update_control(store, {'feature':feature,'enabled':False})
             self.assertFalse(enabled(store, feature))
@@ -52,6 +52,61 @@ class CollectionControlsTests(unittest.TestCase):
         self.assertEqual(saved['score'], 5)
         self.assertEqual(paused['history'], saved['history'])
         self.assertEqual(mode_report(saved, True)['score'], 5)
+
+
+class CoreEngineTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.addCleanup(asyncio.set_event_loop_policy, asyncio.get_event_loop_policy())
+
+    async def test_market_pause_keeps_mode_dispatch_but_skips_sources_and_volume(self):
+        import modal_app
+        mode = SimpleNamespace(spawn=SimpleNamespace(aio=AsyncMock()))
+        volume = SimpleNamespace(reload=SimpleNamespace(aio=AsyncMock()))
+        with patch.object(modal_app, 'collection_control_store', Store(markets={'enabled':False}, mode={'enabled':True})), \
+             patch.object(modal_app, 'collect_runner_mode', mode), \
+             patch.object(modal_app, 'stream_volume', volume), \
+             patch('worker.coin_job.run_coin_job', new_callable=AsyncMock) as job:
+            result = await modal_app.collect_coins.local()
+        self.assertEqual(result['status'], 'paused')
+        mode.spawn.aio.assert_awaited_once()
+        volume.reload.aio.assert_not_awaited()
+        job.assert_not_awaited()
+
+    async def test_macro_background_pause_skips_sources_and_volume(self):
+        import modal_app
+        volume = SimpleNamespace(reload=SimpleNamespace(aio=AsyncMock()))
+        with patch.object(modal_app, 'collection_control_store', Store(macro={'enabled':False})), \
+             patch.object(modal_app, 'macro_volume', volume):
+            result = await modal_app.collect_macro_review.local(background=True)
+        self.assertEqual(result['status'], 'paused')
+        volume.reload.aio.assert_not_awaited()
+
+    async def test_macro_on_demand_still_refreshes_when_background_is_paused(self):
+        import modal_app
+        volume = SimpleNamespace(reload=SimpleNamespace(aio=AsyncMock()), commit=SimpleNamespace(aio=AsyncMock()))
+        review = SimpleNamespace(get=AsyncMock(return_value={'updatedAt':123}))
+        with patch.object(modal_app, 'collection_control_store', Store(macro={'enabled':False})), \
+             patch.object(modal_app, 'macro_volume', volume), \
+             patch('worker.macro_review.MacroReview', return_value=review), \
+             patch('worker.macro_review.public_report', side_effect=lambda value:value):
+            result = await modal_app.collect_macro_review.local()
+        self.assertEqual(result, {'updatedAt':123})
+        review.get.assert_awaited_once()
+        volume.commit.aio.assert_awaited_once()
+
+    async def test_macro_dispatch_is_independent_of_social_and_honors_its_own_switch(self):
+        import modal_app
+        dispatch = MagicMock()
+        for is_enabled in (False, True):
+            dispatch.reset_mock()
+            with patch.object(modal_app, 'collection_control_store', Store(macro={'enabled':is_enabled}, x_rss={'enabled':False})), \
+                 patch.object(modal_app, 'collect_macro_review', SimpleNamespace(spawn=dispatch)):
+                result = modal_app.collect_x_factor.local()
+            self.assertEqual(result['status'], 'paused')
+            if is_enabled:
+                dispatch.assert_called_once_with(background=True)
+            else:
+                dispatch.assert_not_called()
 
 
 class CollectionControlsApiTests(unittest.IsolatedAsyncioTestCase):

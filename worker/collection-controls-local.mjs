@@ -1,7 +1,7 @@
 import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
 import path from 'node:path';
 
-export const COLLECTION_DEFAULTS={wallets:false,mode:false,meme:false,robinhood:true,context:true,x_rss:true};
+export const COLLECTION_DEFAULTS={wallets:false,mode:false,meme:false,robinhood:true,context:true,x_rss:true,markets:true,macro:true};
 
 export function localCollectionControls(filename=path.resolve('.data/collection-controls.json')){
  let writing=Promise.resolve();

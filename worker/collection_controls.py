@@ -1,9 +1,12 @@
 """Server-owned collection switches. Feature defaults apply to missing keys; unreadable settings fail closed."""
 import time
 
-DEFAULTS = dict(wallets=False, mode=False, meme=False, robinhood=True, context=True, x_rss=True)
+DEFAULTS = dict(wallets=False, mode=False, meme=False, robinhood=True, context=True, x_rss=True,
+                markets=True, macro=True)
 FEATURES = tuple(DEFAULTS)
 PAUSED = {
+    'markets': 'Token market collection is off. Saved snapshots are retained; Mode and wallet sampling run independently.',
+    'macro': 'Macro background review is off. Opening Macro can still refresh its review.',
     'meme': 'Meme index collection is off. BTC/Alt sampling continues independently.',
     'wallets': 'Wallet analysis is off. Turn it on in Admin to collect new observations.',
     'mode': 'Mode collection is off. Turn it on in Admin to resume sampling.',

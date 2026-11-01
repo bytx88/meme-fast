@@ -33,6 +33,17 @@ test('controls show paused/on states and disable unknown or busy settings',()=>{
  assert.match(controlMarkup(state,{error:'<failed>'}),/&lt;failed&gt;/);
 });
 
+test('every supported engine has one knob and paused parent dependencies stay explicit',()=>{
+ const state={features:Object.fromEntries(Object.entries(COLLECTION_DEFAULTS).map(([k,enabled])=>[k,{enabled}]))};
+ state.features.markets.enabled=false;
+ const html=controlMarkup(state);
+ for(const key of Object.keys(COLLECTION_DEFAULTS))assert.equal(html.split(`data-collection="${key}"`).length-1,1);
+ for(const group of ['Market engines','Research signals','Wallet intelligence'])assert(html.includes(group));
+ assert.equal(html.split('Waiting for Token markets to be turned on').length-1,2);
+ assert(html.includes('4 / 8 switched on'));
+ assert.match(controlMarkup({features:{}}),/data-state="unknown"/);
+});
+
 test('failed saves never display an unconfirmed state and require a reload',async()=>{
  let listener,calls=0;
  const root={innerHTML:'',addEventListener(type,fn){listener=fn}};
