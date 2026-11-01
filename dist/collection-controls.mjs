@@ -1,5 +1,6 @@
 const features=[
  ['wallets','Wallet analysis','Wallet scans, Smartness, holder rankings and wallet-flow collection.'],
+ ['meme','Meme index','Basket quote sampling and historical recovery. Hidden when off; BTC and Alt continue sampling. Default: off.'],
  ['mode','Mode','Background sampling for the Hard–Easy market score. Coverage needs time to rebuild after a pause.'],
  ['robinhood','Robinhood collection','Pool indexing, discovery and market refresh for Robinhood Chain. Default: on.'],
  ['context','Automatic narrative enrichment','Background publisher-news and profile matching to tokens. Saved context and manual research remain available. Default: on.'],
@@ -8,7 +9,7 @@ const features=[
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function controlMarkup(state,{busy=false,error=''}={}){
- return `<div class="section-heading"><div><h2>Collection controls</h2><p>Wallet analysis and Mode default to off. The other three default to on. Your switches are saved for all browsers.</p></div></div>
+ return `<div class="section-heading"><div><h2>Collection controls</h2><p>Wallet analysis, Meme index and Mode default to off. The other three default to on. Your switches are saved for all browsers.</p></div></div>
  <div class="collection-switches">${features.map(([key,label,description])=>{
   const enabled=state?.features?.[key]?.enabled===true;
   return `<article><div><h3>${label} <span>${state?(enabled?'On':'Off'):'Loading…'}</span></h3><p>${description}</p></div>

@@ -88,6 +88,39 @@ test('header uses BTC, Alt, Meme order and removes disabled Mode from layout, de
  }finally{Object.assign(globalThis,saved)}
 });
 
+test('Meme off removes its column and details while BTC/Alt continue comparing independent observations',async()=>{
+ const saved={fetch:globalThis.fetch,document:globalThis.document,setInterval:globalThis.setInterval};
+ try{
+  let timer;
+  globalThis.document={hidden:false,addEventListener(){}};
+  globalThis.setInterval=callback=>{timer=callback;return 0};
+  const now=Date.now(),report={collectionEnabled:false,basket:[],readings:[
+   {at:now-24*3600000,meme:null,altDelta:1,btcDelta:2,method:'coinlore-benchmarks-1h-v1'},
+   {at:now,meme:null,altDelta:3,btcDelta:5,method:'coinlore-benchmarks-1h-v1'},
+  ]};
+  const runner={version:1,collectionEnabled:false,counts24h:{}};
+  globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/meme-index'?report:runner});
+  const attrs=new Map(),market={innerHTML:'',setAttribute:(k,v)=>attrs.set(k,v)},body={innerHTML:''};
+  mountMarket(market,{querySelector:()=>body});
+  assert.doesNotMatch(market.innerHTML,/Meme|Mode/,'no disabled-feature flash before settings load');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual([...market.innerHTML.matchAll(/<span>(BTC|Alt|Meme) <b/g)].map(m=>m[1]),['BTC','Alt']);
+  assert.match(market.innerHTML,/\+3\.00 pp/);
+  assert.match(market.innerHTML,/\+2\.00 pp/);
+  assert.doesNotMatch(market.innerHTML,/has-meme|has-mode|Meme/);
+  assert.doesNotMatch(body.innerHTML,/Meme|Basket|preset members/);
+  assert.doesNotMatch(attrs.get('aria-label'),/Meme/);
+  report.collectionEnabled=true;timer();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(market.innerHTML,/has-meme/);
+  assert.match(market.innerHTML,/<span>Meme <b/);
+  report.collectionEnabled=false;
+  report.readings.shift();timer();await new Promise(resolve=>setImmediate(resolve));
+  assert.doesNotMatch(market.innerHTML,/Meme/);
+  assert.match(body.innerHTML,/matching observations from 24 hours ago are missing/);
+  assert.match(body.innerHTML,/Current 1H: BTC \+5\.00% · Alt \+3\.00%/);
+ }finally{Object.assign(globalThis,saved)}
+});
+
 test('provisional Mode accepts two matched hours and rejects missing evidence',()=>{
  const now=Date.now(),report={updatedAt:now,ready:true,score:4,policy:{version:7},
   coverage:{reliable:true,reservedPass:true},history:{usable:true,provisional:true,

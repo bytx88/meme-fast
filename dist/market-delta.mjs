@@ -161,13 +161,14 @@ function marketState(report,failed,now=Date.now()){
   const baseline=comparison?memeHistory.find(row=>row.at===comparison.baselineAt):null;
   // A method migration or coverage repair can leave no reading for the active
   // Meme preset. Independent benchmarks still use fresh, genuinely matched rows.
+  const benchmarkLatest=!failed&&Array.isArray(report?.readings)?[...report.readings].reverse().find(row=>Number.isFinite(row.at)&&0<=now-row.at&&now-row.at<=75*60000&&(Number.isFinite(row.altDelta)||Number.isFinite(row.btcDelta))):null;
   const benchmarkCurrent=!failed&&Array.isArray(report?.readings)?[...report.readings].reverse().find(row=>Number.isFinite(row.at)&&0<=now-row.at&&now-row.at<=75*60000&&(()=>{const pair=compareReading(report.readings,row);return Number.isFinite(pair?.altDelta)||Number.isFinite(pair?.btcDelta)})()):null;
   const benchmarkComparison=benchmarkCurrent?compareReading(report.readings,benchmarkCurrent):null;
   const benchmarkBaseline=benchmarkComparison?report.readings.find(row=>row.at===benchmarkComparison.baselineAt):null;
   const meme=usesComponents?components?.value:memeReady&&validMeme(baseline)?comparison?.meme:null,alt=benchmarkComparison?.altDelta,btc=benchmarkComparison?.btcDelta;
   const pending=components?.components.filter(component=>component.status==='pending').length||0,warming=(components?.warmingMembers||0)-pending;
   const status=failed?'Unavailable':stale?(last?'Stale data':'Awaiting data'):!isFixedMethod(report.method)?'Awaiting fixed preset calculation':usesComponents&&!components?'Component comparison unavailable':!usesComponents&&!memeReady?'Incomplete preset data':components?.awaitingHistoryMembers?'Recovering 24H history':components?.warmingMembers?[warming?`${warming} new member${warming===1?'':'s'} warming`:'',pending?`${pending} new member${pending===1?'':'s'} awaiting initial quote`:''].filter(Boolean).join(' · '):!Number.isFinite(meme)?'Awaiting fixed preset 24H baseline':report.error||!Number.isFinite(btc)?'Partial update':'Live';
-  return {last,ready,memeReady,comparison,baseline,status,meme,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components};
+  return {last,ready,memeReady,comparison,baseline,status,meme,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,benchmarkLatest,usesComponents,components};
 }
 
 function memeDisplay(state){
@@ -183,9 +184,9 @@ function headerPercent(value,unit){
  return `${value>=0?'+':''}${(value/scale).toFixed(2)}${suffix}${unit}`;
 }
 
-function marketOverview(state,mode,showMode){
+function marketOverview(state,mode,showMode,showMeme){
  const {alt,btc}=state,meme=memeDisplay(state);
- return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values${showMode?' has-mode':''}"><span>BTC <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Meme <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span>${showMode?`<span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span>`:''}</span>`;
+ return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values${showMeme?' has-meme':''}${showMode?' has-mode':''}"><span>BTC <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span>${showMeme?`<span>Meme <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span>`:''}${showMode?`<span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span>`:''}</span>`;
 }
 
 function memberComparisonDetails(component,validated){
@@ -198,7 +199,20 @@ function memberComparisonDetails(component,validated){
  return `<small>24H comparison: ${pct(component.delta,' pp')} · baseline ${pct(component.baselineReturn)} observed ${esc(when(component.baselineObservedAt))} · source: ${source}. Historical 1H window ${esc(when(component.baselineWindowStartAt))}–${esc(when(component.baselineWindowEndAt))}.</small>`;
 }
 
+function benchmarkDetails(state,modeDetails){
+ const {btc,alt,benchmarkLatest,benchmarkCurrent,benchmarkComparison,benchmarkBaseline}=state;
+ const missing=!Number.isFinite(btc)||!Number.isFinite(alt);
+ const status=missing?(benchmarkLatest?'Current readings are available, but matching observations from 24 hours ago are missing.':'Current benchmark readings are stale or unavailable.'):'Matched 24H comparison';
+ return `<p class="market-reading">BTC <strong>${pct(btc,' pp')}</strong> · Alt <strong>${pct(alt,' pp')}</strong></p>
+ <p role="status">${status} Missing comparisons stay —; current 1H returns do not replace the 24H comparison.</p>
+ <p>Current 1H: BTC ${pct(benchmarkLatest?.btcDelta)} · Alt ${pct(benchmarkLatest?.altDelta)}</p>
+ <p class="market-timestamp">Latest observation ${esc(when(benchmarkLatest?.at))}</p>
+ ${benchmarkComparison?`<p>Comparison observation ${esc(when(benchmarkCurrent.at))} · baseline ${esc(when(benchmarkComparison.baselineAt))}. Baseline 1H: BTC ${pct(benchmarkBaseline?.btcDelta)} · Alt ${pct(benchmarkBaseline?.altDelta)}.</p>`:''}
+ <p>BTC and broad-alt readings sample hourly from CoinLore and continue in the background. A historical observation within ten minutes of the matching time yesterday is required. The current comparison must be no more than 75 minutes old.</p>${modeDetails}`;
+}
+
 function marketDetails(report,state,modeDetails){
+ if(!report||report.collectionEnabled===false)return benchmarkDetails(state,modeDetails);
  const {last,ready,memeReady,comparison,baseline,status,alt,btc,benchmarkCurrent,benchmarkComparison,benchmarkBaseline,usesComponents,components}=state;
  const display=memeDisplay(state);
  const size=fixedPresetSize(report?.method);
@@ -239,8 +253,9 @@ export function mountMarket(market,dialog){
   const state=marketState(delta.report,delta.failed);
   const mode=runner.failed?'—':runnerMode(runner.report);
   const showMode=runner.report?.collectionEnabled===true;
-  market.innerHTML=marketOverview(state,mode,showMode);
-  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. BTC ${pct(state.btc,' pp')}. Alt ${pct(state.alt,' pp')}. Meme ${pct(state.meme,' pp')}. ${state.status}.${showMode?` Solana Mode ${formatMode(mode)}.`:''} Open details`);
+  const showMeme=delta.report!==null&&delta.report.collectionEnabled!==false;
+  market.innerHTML=marketOverview(state,mode,showMode,showMeme);
+  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. BTC ${pct(state.btc,' pp')}. Alt ${pct(state.alt,' pp')}.${showMeme?` Meme ${pct(state.meme,' pp')}. ${state.status}.`:''}${showMode?` Solana Mode ${formatMode(mode)}.`:''} Open details`);
   body.innerHTML=marketDetails(delta.report,state,showMode?runnerDetails(runner.report,runner.failed):'');
  }
  async function refresh(url,target,valid){

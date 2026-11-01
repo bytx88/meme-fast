@@ -1,9 +1,10 @@
 """Server-owned collection switches. Feature defaults apply to missing keys; unreadable settings fail closed."""
 import time
 
-DEFAULTS = dict(wallets=False, mode=False, robinhood=True, context=True, x_rss=True)
+DEFAULTS = dict(wallets=False, mode=False, meme=False, robinhood=True, context=True, x_rss=True)
 FEATURES = tuple(DEFAULTS)
 PAUSED = {
+    'meme': 'Meme index collection is off. BTC/Alt sampling continues independently.',
     'wallets': 'Wallet analysis is off. Turn it on in Admin to collect new observations.',
     'mode': 'Mode collection is off. Turn it on in Admin to resume sampling.',
     'robinhood': 'Robinhood collection is off. Saved pool records are retained.',

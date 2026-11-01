@@ -24,7 +24,8 @@ def handle(method, payload=None, directory='.data'):
         except FileNotFoundError:
             stored = None
         config = read_config(stored)
-        report = saved_report(directory)
+        from worker.market_benchmarks import read as read_benchmarks, merge as merge_benchmarks
+        report = merge_benchmarks(saved_report(directory), read_benchmarks(directory/'market-benchmarks.json'))
         if method == 'REPORT':
             return {'status': 200, 'body': project_report(report, config)}
         if method == 'GET':

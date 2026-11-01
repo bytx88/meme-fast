@@ -15,9 +15,22 @@ from worker.meme_preset_preview import handle
 
 
 class PresetApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_paused_meme_retains_editing_and_reports_no_collection_dispatch(self):
+        self.controls['meme'] = {'enabled':False}
+        loaded = (await self.client.get('/api/meme-preset')).json()
+        self.assertFalse(loaded['collectionEnabled'])
+        response = await self.client.put('/api/meme-preset',json={'revision':loaded['revision'],'members':loaded['members'][:-1]})
+        self.assertEqual(response.status_code,200)
+        self.assertFalse(response.json()['collectionEnabled'])
+        self.assertFalse(response.json()['refreshRequested'])
+        self.assertEqual(self.refreshes,[])
+        public = (await self.client.get('/api/meme-index')).json()
+        self.assertFalse(public['collectionEnabled'])
+
     async def asyncSetUp(self):
         import modal_app
         self.app_module = modal_app
+        self.controls = {'meme':{'enabled':True}}
         self.stored = None
         self.puts = []
         self.refreshes = []
@@ -58,6 +71,7 @@ class PresetApiTests(unittest.IsolatedAsyncioTestCase):
             return original(path, *args, **kwargs)
 
         for context in (
+            patch.object(modal_app, 'collection_control_store', self.controls),
             patch.object(modal_app, 'meme_preset_registry', SimpleNamespace(
                 get=SimpleNamespace(aio=get), put=SimpleNamespace(aio=put))),
             patch.object(modal_app, 'collect_meme_index', SimpleNamespace(spawn=SimpleNamespace(aio=refresh))),

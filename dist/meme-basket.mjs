@@ -26,6 +26,7 @@ export class BasketDraft{
     if(!config||!Array.isArray(config.members)||!config.revision)throw Error('The saved basket response is incomplete. Reload the page to try again.');
     const members=config.members.map(normalizeMember);
     if(!members.length||members.length>MAX_MEMBERS||new Set(members.map(memberIdentity)).size!==members.length)throw Error('The saved basket is invalid.');
+    this.collectionEnabled=config.collectionEnabled!==false;
     this.saved=members;this.members=members.map(member=>({...member}));this.revision=config.revision;this.updatedAt=config.updatedAt??null;
   }
   get dirty(){return JSON.stringify(this.members)!==JSON.stringify(this.saved)}
@@ -129,7 +130,7 @@ export function mountBasket(document,fetcher=globalThis.fetch.bind(globalThis)){
     get('basket-title').textContent=draft.dirty?'Draft basket':'Saved basket';
     get('basket-draft-state').hidden=!draft.dirty;
     get('basket-version').textContent=`${draft.updatedAt?`Saved ${date(draft.updatedAt)} · `:''}Revision ${String(draft.revision).slice(0,12)}`;
-    get('basket-save-note').textContent=draft.dirty?'Unsaved edits. Existing comparisons continue. Additions without a historical baseline contribute 0 pp for 24 hours, using their first 1H quote as the initial reference.':'The saved basket stays active while you edit.';
+    get('basket-save-note').textContent=!draft.collectionEnabled?'Meme index collection is off. You can save edits; turn it on in Admin to resume sampling.':draft.dirty?'Unsaved edits. Existing comparisons continue. Additions without a historical baseline contribute 0 pp for 24 hours, using their first 1H quote as the initial reference.':'The saved basket stays active while you edit.';
     get('basket-save').disabled=busy||refreshing||!draft.dirty;
     get('basket-reset').disabled=busy||!draft.dirty;
     get('basket-add').disabled=busy;
@@ -159,6 +160,7 @@ export function mountBasket(document,fetcher=globalThis.fetch.bind(globalThis)){
       const config=await request(fetcher,'/api/meme-preset');
       if(config.revision!==draft.revision)throw Error('The saved basket changed in another session. Your draft is preserved. Reload this page to review the latest membership.');
       new BasketDraft(config);
+      draft.collectionEnabled=config.collectionEnabled!==false;
       quotes=new Map(config.members.filter(member=>member.quote).map(member=>[memberIdentity(member),member.quote]));
       comparisons=new Map(config.members.filter(member=>member.comparison).map(member=>[memberIdentity(member),member.comparison]));
       status(draft.dirty?'Latest quote and comparison status loaded. Your unsaved draft is preserved.':'Latest quote and comparison status loaded.');
@@ -170,7 +172,7 @@ export function mountBasket(document,fetcher=globalThis.fetch.bind(globalThis)){
     try{
       const saved=await request(fetcher,'/api/meme-preset',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(draft.payload())});
       draft.load(saved);quotes=new Map(saved.members.filter(member=>member.quote).map(member=>[memberIdentity(member),member.quote]));comparisons=new Map(saved.members.filter(member=>member.comparison).map(member=>[memberIdentity(member),member.comparison]));
-      status(saved.refreshRequested===false?'Basket saved. An immediate refresh could not be requested; the next hourly collection will use this basket.':'Basket saved. A fresh collection has been requested. Existing comparisons continue; additions without a historical baseline stay neutral for 24 hours.');
+      status(saved.collectionEnabled===false?'Basket saved. Meme index collection is off; turn it on in Admin to resume.':saved.refreshRequested===false?'Basket saved. An immediate refresh could not be requested; the next hourly collection will use this basket.':'Basket saved. A fresh collection has been requested. Existing comparisons continue; additions without a historical baseline stay neutral for 24 hours.');
     }catch(error){status(error.message,true)}finally{busy=false;render()}
   });
   get('basket-suggest').addEventListener('click',async()=>{

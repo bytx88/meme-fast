@@ -18,6 +18,7 @@ class CollectionControlsTests(unittest.TestCase):
         store = Store()
         self.assertFalse(enabled(store, 'wallets'))
         self.assertFalse(enabled(store, 'mode'))
+        self.assertFalse(enabled(store, 'meme'))
         for feature in ('robinhood','context','x_rss'):
             self.assertTrue(enabled(store, feature))
             update_control(store, {'feature':feature,'enabled':False})
@@ -182,3 +183,16 @@ class CollectionControlsApiTests(unittest.IsolatedAsyncioTestCase):
             await self.module.collect_coins.local()
             self.assertFalse(run.call_args.kwargs['robinhood_enabled'])
             self.assertFalse(run.call_args.kwargs['context_enabled'])
+
+    async def test_meme_off_skips_basket_and_history_recovery_but_collects_benchmarks(self):
+        with patch.object(self.module,'history_volume') as volume, \
+             patch.object(self.module,'meme_preset_registry') as preset, \
+             patch('worker.meme_index.collect') as basket, \
+             patch('worker.market_benchmarks.collect',return_value={'updatedAt':123}) as benchmarks:
+            result = self.module.collect_meme_index.local()
+            self.assertEqual(result['status'],'paused')
+            self.assertEqual(result['benchmarkUpdatedAt'],123)
+            basket.assert_not_called()
+            preset.get.assert_not_called()
+            benchmarks.assert_called_once_with('/history/market-benchmarks.json')
+            volume.commit.assert_called_once()

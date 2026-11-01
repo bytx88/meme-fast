@@ -615,11 +615,13 @@ async def update_meme_preset(payload):
     except ValueError as error:
         return {'status': 400, 'body': {'detail': str(error)}}
     await meme_preset_registry.put.aio('active', saved)
-    refreshing = True
-    try:
-        await collect_meme_index.spawn.aio()
-    except Exception:
-        refreshing = False
+    import asyncio
+    refreshing = await asyncio.to_thread(collection_enabled, 'meme')
+    if refreshing:
+        try:
+            await collect_meme_index.spawn.aio()
+        except Exception:
+            refreshing = False
     return {'status': 200, 'body': {**saved, 'refreshRequested': refreshing}}
 
 
@@ -633,6 +635,14 @@ def collect_meme_index():
     import time
     if "/app" not in sys.path:
         sys.path.insert(0, "/app")
+    if not collection_enabled('meme'):
+        from worker.market_benchmarks import collect as collect_benchmarks
+        history_volume.reload()
+        try:
+            benchmarks = collect_benchmarks('/history/market-benchmarks.json')
+        finally:
+            history_volume.commit()
+        return dict(collection_paused('meme'), benchmarkUpdatedAt=benchmarks.get('updatedAt'))
     from worker.meme_index import Sources, collect
     from worker.meme_preset import read_config
     from worker.source_stream import background_gecko_history
@@ -1174,6 +1184,8 @@ def web():
                     break
                 except (OSError, ValueError):
                     continue
+            from worker.market_benchmarks import read as read_benchmarks, merge as merge_benchmarks
+            report = merge_benchmarks(report, read_benchmarks('/history/market-benchmarks.json'))
         return report
 
     async def active_meme_preset():
@@ -1187,7 +1199,9 @@ def web():
     async def get_meme_preset():
         from worker.meme_preset import admin_report
         config = await active_meme_preset()
-        return JSONResponse(admin_report(config, await saved_meme_report()), headers={'cache-control': 'no-store'})
+        value = admin_report(config, await saved_meme_report())
+        value['collectionEnabled'] = await feature_enabled('meme')
+        return JSONResponse(value, headers={'cache-control': 'no-store'})
 
     @web_app.put('/api/meme-preset')
     async def put_meme_preset(request: Request):
@@ -1207,6 +1221,7 @@ def web():
             return JSONResponse(result['body'], status_code=result['status'], headers={'cache-control': 'no-store'})
         saved = admin_report(result['body'], await saved_meme_report())
         saved['refreshRequested'] = result['body'].get('refreshRequested', False)
+        saved['collectionEnabled'] = await feature_enabled('meme')
         return JSONResponse(saved, headers={'cache-control': 'no-store'})
 
     @web_app.post('/api/meme-preset/suggest')
@@ -1222,7 +1237,9 @@ def web():
     async def meme_index():
         from worker.meme_preset import project_report
         config = await active_meme_preset()
-        return JSONResponse(project_report(await saved_meme_report(), config), headers={'cache-control': 'no-store'})
+        report = project_report(await saved_meme_report(), config)
+        report['collectionEnabled'] = await feature_enabled('meme')
+        return JSONResponse(report, headers={'cache-control': 'no-store'})
 
     @web_app.get("/api/jeanphil-monitor")
     async def jeanphil_monitor():

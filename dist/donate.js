@@ -36,12 +36,12 @@ if (header) {
   market.className = 'market-overview';
   market.setAttribute('aria-haspopup', 'dialog');
   market.setAttribute('aria-label', 'Market overview. Meme, Alt and BTC data unavailable. Mode unavailable. Open details');
-  if (!market.isConnected) market.innerHTML = '<span class="market-overview-title">MARKET DELTA · 1H <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b>—</b></span><span>Alt <b>—</b></span><span>Btc <b>—</b></span><span class="market-mode-value">Mode <b>—</b></span></span>';
+  if (!market.isConnected) market.innerHTML = '<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>BTC <b>—</b></span><span>Alt <b>—</b></span></span>';
   if (!market.isConnected) header.querySelector('.site-nav')?.before(market);
   const marketDialog = document.createElement('dialog');
   marketDialog.className = 'donate-dialog market-overview-dialog';
   marketDialog.setAttribute('aria-labelledby', 'market-overview-title');
-  marketDialog.innerHTML = `<div class="donate-heading"><h2 id="market-overview-title">Meme Market Delta</h2><button type="button" aria-label="Close market overview">×</button></div><div class="market-content"></div>`;
+  marketDialog.innerHTML = `<div class="donate-heading"><h2 id="market-overview-title">Market Delta</h2><button type="button" aria-label="Close market overview">×</button></div><div class="market-content"></div>`;
   document.body.append(marketDialog);
   mountMarket(market, marketDialog);
   market.addEventListener('click', () => marketDialog.showModal());

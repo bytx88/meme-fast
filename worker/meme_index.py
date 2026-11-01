@@ -383,7 +383,7 @@ def public_report(report):
     return {key:value for key,value in report.items() if key in (
         'version','method','basket','readings','updatedAt','attemptedAt','rebalancedAt',
         'readingAt','poolUpdatedAt','marketObservedAt','altProviderAt','altMethod','inputQuality','coverage','error',
-        'presetRevision','presetUpdatedAt')}
+        'presetRevision','presetUpdatedAt','benchmarkCollection')}
 
 
 if __name__ == '__main__':

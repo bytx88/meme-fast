@@ -118,11 +118,15 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                         'marketObservedAt':1234,'legacyMethods':{'private':'original'},
                         'basketHistory':[{'private':'retained'}]}
                 def public_only(path,**kwargs):
+                    if str(path).replace('\\','/')=='/history/market-benchmarks.json':
+                        return json.dumps({'version':1,'source':'coinlore-benchmarks-1h-v1',
+                            'readings':[{'at':1800000000000,'meme':None,'altDelta':1,'btcDelta':2,'method':'coinlore-benchmarks-1h-v1'}]})
                     self.assertEqual(str(path).replace('\\','/'),'/history/meme-index.public.json')
                     return json.dumps(stored)
                 with patch.object(Path,'read_text',autospec=True,side_effect=public_only) as reader:
                     response=await client.get('/api/meme-index')
-                self.assertEqual(reader.call_count,1)
+                self.assertEqual(reader.call_count,2)
+                self.assertEqual(response.json()['readings'][0]['altDelta'],1)
                 self.assertEqual(response.json()['method'],stored['method'])
                 self.assertEqual(response.json()['marketObservedAt'],1234)
                 self.assertNotIn('legacyMethods',response.json())
@@ -132,6 +136,6 @@ class StreamApiTests(unittest.IsolatedAsyncioTestCase):
                     return json.dumps(stored)
                 with patch.object(Path,'read_text',autospec=True,side_effect=fallback) as reader:
                     response=await client.get('/api/meme-index')
-                self.assertEqual(reader.call_count,2)
+                self.assertEqual(reader.call_count,3)
                 self.assertEqual(response.json()['method'],stored['method'])
                 self.assertNotIn('basketHistory',response.json())

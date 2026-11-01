@@ -390,7 +390,8 @@ class IndexTests(unittest.TestCase):
         source=Mock()
         gecko=Mock()
         expected=dict(updatedAt=NOW,basket=[{}]*11,error=None)
-        with patch.object(modal_app,'history_volume',history), \
+        with patch.object(modal_app,'collection_enabled',return_value=True), \
+             patch.object(modal_app,'history_volume',history), \
              patch.object(modal_app,'stream_volume',Mock()) as ranked, \
              patch.object(modal_app,'meme_preset_registry',Mock(get=Mock(return_value=None))), \
              patch.object(modal_app,'read_market_source',source), \
@@ -473,7 +474,8 @@ class IndexTests(unittest.TestCase):
         import modal_app
         config = dict(default_config(), members=list(PRESET[:2]))
         expected = dict(updatedAt=NOW, basket=[{}]*2, error=None)
-        with patch.object(modal_app,'history_volume',Mock()), \
+        with patch.object(modal_app,'collection_enabled',return_value=True), \
+             patch.object(modal_app,'history_volume',Mock()), \
              patch.object(modal_app,'meme_preset_registry',Mock(get=Mock(return_value=config))), \
              patch.object(modal_app,'read_market_source',Mock()), \
              patch('worker.meme_index.collect',return_value=expected) as collector:
