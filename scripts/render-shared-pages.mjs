@@ -9,8 +9,12 @@ const applied=courses.flatMap(course=>[course.slug,...(course.sections||course.l
 const learning=['learn','meme-101',...lessons,'meme-303',...applied];
 const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','macro','stock','sources','about','model','privacy','terms',...learning];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;
-const canonical=(await readFile('dist/order-flow.html','utf8')).match(pattern)?.[0];
+const canonicalSource=await readFile('dist/order-flow.html','utf8');
+const canonical=canonicalSource.match(pattern)?.[0];
 if(!canonical)throw new Error('Inspect masthead missing');
+const footerPattern=/<nav class="site-info-links"[^>]*>[\s\S]*?<\/nav>/;
+const footerNav=canonicalSource.match(footerPattern)?.[0];
+if(!footerNav)throw new Error('Inspect footer links missing');
 let base=canonical.replace('class="brand" href="./"','class="brand" href="./order-flow.html"');
 base=base.replace(/<a href="\.\/(?:meme-101|learn)\.html"[^>]*>(?:Meme 101|Learn)<\/a>/g,'');
 base=base.replace(/(<a href="\.\/model\.html"[^>]*>Model<\/a>)/,'<a href="./learn.html">Learn</a>$1');
@@ -24,6 +28,10 @@ for(const page of pages){
  if(!pattern.test(source))throw new Error(`${file} masthead missing`);
  const header=base.replace(/ aria-current="page"/g,'').replace(`<a href="./${active[page]}">`,`<a href="./${active[page]}" aria-current="page">`);
  let generated=source.replace(pattern,header);
+ // Share footer navigation as well as the masthead; retain each page's context.
+ if(!/<footer\b/.test(generated))throw new Error(`${file} footer missing`);
+ generated=footerPattern.test(generated)?generated.replace(footerPattern,footerNav):generated.replace('</footer>',footerNav+'</footer>');
+ if(!generated.includes('href="./site-footer.css'))generated=generated.replace('</head>','<link rel="stylesheet" href="./site-footer.css?v=1"></head>');
  if(['new-coins','radar'].includes(page)){
   const course=page==='new-coins'?'meme-202a':'meme-202b',label=page==='new-coins'?'Snipe':'Swing';
   if(!generated.includes(`href="./${course}.html"`))generated=generated.replace(`<h1>${label}</h1>`,`<h1>${label}</h1><a class="course-help" href="./${course}.html">Learn ${label} →</a>`);

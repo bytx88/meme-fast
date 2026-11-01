@@ -3,6 +3,11 @@
 .site-info-links a:hover{text-decoration:underline;color:#e9eff6}
 .site-info-links a:focus-visible{outline:2px solid #d7f778;outline-offset:3px}
 .site-footer{width:min(1080px,calc(100% - 48px));margin:0 auto 24px;padding:24px 0;border-top:1px solid #445061}
+body.macro-shell footer{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-top:24px;padding:24px 0 30px;font-size:12px;color:#aebdcd;border-top:1px solid #445061}
+body.macro-shell footer>span{flex:initial;min-width:0}
+body.macro-shell footer .footer-divider{margin:0 9px;color:#59677b}
+.macro-footer-context{margin-top:24px;font-size:11px;line-height:1.7;color:#8da9ba}
+.macro-footer-context a{display:inline-block;margin-top:6px}
 
 .site-info-links .admin-entry{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;flex:none;cursor:pointer;font-size:10px;background:transparent;border:0;box-shadow:none}
 .site-info-links .admin-entry::before{content:"(r)"}
