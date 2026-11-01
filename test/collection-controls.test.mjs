@@ -28,7 +28,7 @@ test('controls show paused/on states and disable unknown or busy settings',()=>{
  const state={features:{wallets:{enabled:false},mode:{enabled:true}}};
  const html=controlMarkup(state);
  assert.match(html,/aria-label="Turn on Wallet analysis" aria-pressed="false"/);
- assert.match(html,/aria-label="Turn off Mode" aria-pressed="true"/);
+ assert.match(html,/aria-label="Turn off Mode Index" aria-pressed="true"/);
  assert.match(controlMarkup(state,{busy:true}),/disabled/);
  assert.match(controlMarkup(state,{error:'<failed>'}),/&lt;failed&gt;/);
 });
