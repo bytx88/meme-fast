@@ -10,6 +10,6 @@ test('rotation change and rank movement derive from both actual periods',()=>{
  const relative=rankingRows(rows,'relative','change');assert.deepEqual(relative.map(r=>r.change),[14,-15,null]);
 });
 test('side by side shares the same scale and retains signed numbers and sector names',()=>{
- const html=rankingMarkup({rows,windows:{current:{label:'Oct 2026'},previous:{label:'Sep 2026'}}});
+ const html=rankingMarkup({rows,windows:{current:{label:'Oct 2026'},previous:{label:'Sep 2026'}}},{view:'side'});
  assert.match(html,/PREV · Sep/);assert.match(html,/NOW · Oct/);assert.match(html,/Energy/);assert.match(html,/-3.00%/);assert.match(html,/width:25%/);assert.match(html,/width:100%/);
 });

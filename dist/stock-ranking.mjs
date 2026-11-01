@@ -19,13 +19,17 @@ export function rankingRows(rows,measure='ret',sort='current'){
  });
 }
 
-export function rankingMarkup(model,{measure='ret',sort='current',view='side'}={}){
+export function rankingMarkup(model,{measure='ret',sort='current',view='current'}={}){
  const rows=rankingRows(model.rows,measure,sort),unit=measure==='relative'?' pp':'%';
  const previousLabel=model.windows.previous?.label||'Unavailable',currentLabel=model.windows.current.label;
  const heading=label=>label.replace(/\s20\d\d/g,'');
  const sector=r=>`<button class="ranking-sector" data-sector="${r.symbol}" title="Explore ${r.name}"><b>${r.symbol}</b><small>${shortNames[r.symbol]}</small></button>`;
  const sideLimit=Math.max(...rows.flatMap(r=>[Math.abs(r.current),Math.abs(r.previous??0)]),.01);
  const cell=(value,limit)=>`<div class="ranking-cell" aria-label="${format(value,unit)}"><div class="ranking-track"><span style="width:${Number.isFinite(value)?Math.min(100,Math.abs(value)/limit*100):0}%;background:${value>=0?'#15a77c':'#ca4b6e'}"></span></div><span class="ranking-value ${Number.isFinite(value)?color(value):''}">${format(value,unit)}</span></div>`;
+ if(view==='current'||view==='previous'){
+  const previous=view==='previous',label=previous?previousLabel:currentLabel;
+  return `<div class="ranking-single ranking-head"><span>Sector</span><span title="${label}">${previous?'PREV':'NOW'} · ${heading(label)}</span></div>`+rows.map(r=>`<div class="ranking-single ranking-line">${sector(r)}${cell(previous?r.previous:r.current,sideLimit)}</div>`).join('');
+ }
  if(view==='side')return `<div class="ranking-side ranking-head"><span>Sector</span><span title="${previousLabel}">PREV · ${heading(previousLabel)}</span><span title="${currentLabel}">NOW · ${heading(currentLabel)}</span></div>`+rows.map(r=>`<div class="ranking-side ranking-line">${sector(r)}${cell(r.previous,sideLimit)}${cell(r.current,sideLimit)}</div>`).join('');
  const limit=Math.max(...rows.map(r=>Math.abs(r.change??0)),.01);
  return `<div class="ranking-change ranking-head"><span>Sector</span><span>CHANGE · pp</span><span>Rank</span></div>`+rows.map(r=>{

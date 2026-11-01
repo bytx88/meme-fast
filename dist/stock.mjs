@@ -1,7 +1,7 @@
 import {analyze,sectors} from './stock-analysis.mjs';
 import {rankingMarkup} from './stock-ranking.mjs';
 const $=id=>document.getElementById(id),fmt=(n,suffix='%')=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}${suffix}`:'—',tone=n=>n>=0?'positive':'negative';
-let source,model,period='1M',selected='XLK',request=0,rankingView='side';
+let source,model,period='1M',selected='XLK',request=0,rankingView='current';
 const samples=new Map();
 function render(){
  model=analyze(source.series,period);
@@ -25,7 +25,7 @@ function renderRanking(){
  const current=model.windows.current,previous=model.windows.previous;
  $('comparison').textContent=`${current.label} vs ${previous?.label||'previous period unavailable'}`;
  $('comparison-dates').textContent=`Previous closes: ${previous?previous.start+' → '+previous.end:'unavailable'} · Current closes: ${current.start} → ${current.end}.`;
- $('ranking-help').textContent=rankingView==='side'?($('measure').value==='relative'?'Bar length shows relative performance magnitude on the same scale. Green = beats SPY, red = trails SPY.':'Bar length shows return magnitude on the same scale. Green = gain, red = loss.'):'Change = current minus previous in percentage points. Rank arrows show positions gained or lost.';
+ $('ranking-help').textContent=rankingView!=='change'?($('measure').value==='relative'?'Bar length shows relative performance magnitude on the same scale. Green = beats SPY, red = trails SPY.':'Bar length shows return magnitude on the same scale. Green = gain, red = loss.'):'Change = current minus previous in percentage points. Rank arrows show positions gained or lost.';
  $('ranking').innerHTML=rankingMarkup(model,{measure:$('measure').value,sort:$('ranking-sort').value,view:rankingView});
  document.querySelectorAll('[data-ranking-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.rankingView===rankingView));
  $('spy').textContent=`${fmt(model.previousBenchmark)} previous / ${fmt(model.benchmark)} current`;
@@ -65,5 +65,5 @@ document.addEventListener('click',event=>{const b=event.target.closest('[data-se
 $('rotation').addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){const dot=event.target.closest('[data-sector]');if(dot){event.preventDefault();dot.dispatchEvent(new MouseEvent('click',{bubbles:true}))}}});
 $('measure').addEventListener('change',()=>{if(model)renderRanking()});
 $('ranking-sort').addEventListener('change',()=>{if(model)renderRanking()});
-document.querySelectorAll('[data-ranking-view]').forEach(button=>button.addEventListener('click',()=>{rankingView=button.dataset.rankingView;$('ranking-sort').value=rankingView==='change'?'change':'current';if(model)renderRanking()}));$('refresh').addEventListener('click',load);
+document.querySelectorAll('[data-ranking-view]').forEach(button=>button.addEventListener('click',()=>{rankingView=button.dataset.rankingView;$('ranking-sort').value=rankingView==='change'?'change':rankingView==='previous'?'previous':'current';if(model)renderRanking()}));$('refresh').addEventListener('click',load);
 load();
