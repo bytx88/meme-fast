@@ -42,6 +42,9 @@ stock_volume = modal.Volume.from_name("meme-fast-stock-cache", create_if_missing
 
 @app.function(max_containers=1, timeout=100, volumes={"/stock": stock_volume})
 async def read_stock(sector: str = ""):
+    import sys
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
     from worker.stock import report
     await stock_volume.reload.aio()
     result = await report("/stock", sector)
