@@ -1,6 +1,7 @@
 import {analyze,sectors} from './stock-analysis.mjs';
+import {rankingMarkup} from './stock-ranking.mjs';
 const $=id=>document.getElementById(id),fmt=(n,suffix='%')=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}${suffix}`:'—',tone=n=>n>=0?'positive':'negative';
-let source,model,period='1M',selected='XLK',request=0;
+let source,model,period='1M',selected='XLK',request=0,rankingView='side';
 const samples=new Map();
 function render(){
  model=analyze(source.series,period);
@@ -17,19 +18,17 @@ function render(){
  $('read').textContent=`${leader.name} leads SPY by ${fmt(leader.relative,' pp')} in ${model.windows.current.label}. ${model.outperforming} of 11 sectors beat the benchmark, while ${model.advancing} rose in absolute terms.${improving.length?' Relative momentum is improving most in '+improving.map(r=>r.name).join(', ')+'.':' No sector has positive relative momentum in the fixed 21-session rotation lens.'}`;
  const max=Math.max(...model.rows.map(r=>Math.abs(r.ret)),1);
  $('heatmap').innerHTML=model.rows.map(r=>`<button class="heat-tile" data-sector="${r.symbol}" aria-pressed="${selected===r.symbol}" style="background:${r.ret>=0?'rgba(12,151,105,':'rgba(190,56,79,'}${.28+.65*Math.abs(r.ret)/max})"><span>${r.name}</span><small>${r.symbol}</small><b>${fmt(r.ret)}</b></button>`).join('');
- const measure=$('measure').value,priorKey=measure==='ret'?'previousRet':'previousRelative',unit=measure==='relative'?' pp':'%';
- const ranked=[...model.rows].sort((a,b)=>b[measure]-a[measure]),priorRanked=[...model.rows].sort((a,b)=>(b[priorKey]??-Infinity)-(a[priorKey]??-Infinity));
- const limit=Math.max(...ranked.flatMap(r=>[Math.abs(r[measure]),Math.abs(r[priorKey]??0)]),.01);
- const current=model.windows.current,previous=model.windows.previous;
- $('comparison').textContent=`Solid: ${current.label} · Muted: ${previous?.label||'previous period unavailable'}`;
- $('comparison-dates').textContent=`Current closes: ${current.start} → ${current.end}${previous?' · Previous closes: '+previous.start+' → '+previous.end:''}. Change is current minus previous in percentage points. Rank arrows show positions gained or lost.`;
- $('ranking').innerHTML=`<div class="rank-heading"><span>Sector</span><span class="bar-heading">Same scale</span><span>Current</span><span>Previous</span><span>Δ pp</span></div>`+ranked.map((r,i)=>{
-  const v=r[measure],p=r[priorKey],delta=p===null?null:v-p,priorRank=priorRanked.findIndex(x=>x.symbol===r.symbol)+1,movement=priorRank-i-1;
-  const bar=(n,prior)=>n===null?'':`<span class="rank-bar ${prior?'prior-bar':''}" style="top:${prior?17:4}px;left:${n>=0?50:50-Math.abs(n)/limit*50}%;width:${Math.abs(n)/limit*50}%;background:${n>=0?'#31bd8c':'#eb657e'}"></span>`;
-  return `<div class="rank-row"><div><button data-sector="${r.symbol}" title="Explore ${r.name}">${r.symbol}</button><small class="rank-movement" title="${p===null?'Previous rank unavailable':'Previous #'+priorRank+' → current #'+(i+1)}">${p===null?'—':movement>0?'↑'+movement:movement<0?'↓'+Math.abs(movement):'↔'}</small></div><div class="rank-track" role="img" aria-label="${r.symbol}: current ${fmt(v,unit)}, previous ${fmt(p,unit)}">${bar(v,false)}${bar(p,true)}</div><strong class="${tone(v)}">${fmt(v,unit)}</strong><span class="prior-value">${fmt(p,unit)}</span><strong class="${delta===null?'':tone(delta)}">${fmt(delta,'')}</strong></div>`;
- }).join('');
- $('spy').textContent=`${fmt(model.benchmark)} current / ${fmt(model.previousBenchmark)} previous`;$('spy').className='';
+ renderRanking();
  rotation();focus();
+}
+function renderRanking(){
+ const current=model.windows.current,previous=model.windows.previous;
+ $('comparison').textContent=`${current.label} vs ${previous?.label||'previous period unavailable'}`;
+ $('comparison-dates').textContent=`Previous closes: ${previous?previous.start+' → '+previous.end:'unavailable'} · Current closes: ${current.start} → ${current.end}.`;
+ $('ranking-help').textContent=rankingView==='side'?($('measure').value==='relative'?'Bar length shows relative performance magnitude on the same scale. Green = beats SPY, red = trails SPY.':'Bar length shows return magnitude on the same scale. Green = gain, red = loss.'):'Change = current minus previous in percentage points. Rank arrows show positions gained or lost.';
+ $('ranking').innerHTML=rankingMarkup(model,{measure:$('measure').value,sort:$('ranking-sort').value,view:rankingView});
+ document.querySelectorAll('[data-ranking-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.rankingView===rankingView));
+ $('spy').textContent=`${fmt(model.previousBenchmark)} previous / ${fmt(model.benchmark)} current`;
 }
 function rotation(){
  const xMax=Math.max(...model.rows.map(r=>Math.abs(r.rs)),1)*1.2,yMax=Math.max(...model.rows.map(r=>Math.abs(r.momentum)),1)*1.25;
@@ -64,5 +63,7 @@ async function load(){
 }
 document.addEventListener('click',event=>{const b=event.target.closest('[data-sector],[data-period]');if(!b)return;if(b.dataset.period){period=b.dataset.period;if(source)render()}else if(model){selected=b.dataset.sector;render()}});
 $('rotation').addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){const dot=event.target.closest('[data-sector]');if(dot){event.preventDefault();dot.dispatchEvent(new MouseEvent('click',{bubbles:true}))}}});
-$('measure').addEventListener('change',()=>{if(source)render()});$('refresh').addEventListener('click',load);
+$('measure').addEventListener('change',()=>{if(model)renderRanking()});
+$('ranking-sort').addEventListener('change',()=>{if(model)renderRanking()});
+document.querySelectorAll('[data-ranking-view]').forEach(button=>button.addEventListener('click',()=>{rankingView=button.dataset.rankingView;$('ranking-sort').value=rankingView==='change'?'change':'current';if(model)renderRanking()}));$('refresh').addEventListener('click',load);
 load();
