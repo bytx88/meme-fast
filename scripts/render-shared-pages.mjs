@@ -7,14 +7,15 @@ const courseSources=['content/meme-101b/course.json','content/meme-101c/course.j
 const courses=await Promise.all(courseSources.map(async path=>JSON.parse(await readFile(path,'utf8'))));
 const applied=courses.flatMap(course=>[course.slug,...(course.sections||course.lessons).map((_,i)=>`${course.slug}-${course.sections?'section':'lesson'}-${i+1}`)]);
 const learning=['learn','meme-101',...lessons,'meme-303',...applied];
-const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','macro','sources','about','model','privacy','terms',...learning];
+const pages=['order-flow','narratives','narrative','new-coins','radar','watchlist','macro','stock','sources','about','model','privacy','terms',...learning];
 const pattern=/<header class="masthead">[\s\S]*?<\/header>/;
 const canonical=(await readFile('dist/order-flow.html','utf8')).match(pattern)?.[0];
 if(!canonical)throw new Error('Inspect masthead missing');
 let base=canonical.replace('class="brand" href="./"','class="brand" href="./order-flow.html"');
 base=base.replace(/<a href="\.\/(?:meme-101|learn)\.html"[^>]*>(?:Meme 101|Learn)<\/a>/g,'');
 base=base.replace(/(<a href="\.\/model\.html"[^>]*>Model<\/a>)/,'<a href="./learn.html">Learn</a>$1');
-const active={model:'model.html',narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html',macro:'macro.html'};
+base=base.replace(/<a href="\.\/stock\.html"[^>]*>Stock<\/a>/g,'').replace(/(<a href="\.\/macro\.html"[^>]*>Macro<\/a>)/,'$1<a href="./stock.html">Stock</a>');
+const active={model:'model.html',narratives:'narratives.html','new-coins':'new-coins.html',radar:'radar.html','order-flow':'order-flow.html',watchlist:'watchlist.html',macro:'macro.html',stock:'stock.html'};
 for(const page of learning)active[page]='learn.html';
 const check=process.argv.includes('--check');
 let stale=false;

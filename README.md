@@ -1,5 +1,11 @@
 # Meme Fast
 
+## Stock / sector rotation
+
+`/stock.html` follows Macro in shared navigation. It compares the 11 State Street Select Sector SPDR ETFs with SPY using Yahoo Finance daily adjusted closes. 1D / 1W / 1M / 3M use 1 / 5 / 21 / 63 common sessions; YTD starts at the preceding year's last close. Rotation always uses a 21-session return spread versus SPY and its five-session change. These are price-based leadership proxies, not measured net capital flows. Drill-down shows three curated stock examples, not a complete holdings or leaders universe.
+
+`worker/stock.py` excludes unfinished daily candles and a 15-minute close buffer. The single-writer `read_stock` Modal function keeps complete snapshots on the dedicated `meme-fast-stock-cache` Volume. Successful snapshots and failed retries are cached for 30 minutes; labelled last-good data may be shown for up to seven days. No scheduler, paid API, credentials or local cache upload is required. `/api/stock?sector=XLK` accepts only the 11 sector tickers; `/api/stock` returns the ETF universe. Preview uses its own `.data/stock` cache.
+
 Meme Fast connects emerging crypto narratives with observed token activity. Its research flow moves from public-source discovery to narrative evidence, exact contract associations, and recent swap analysis.
 
 ## Run locally

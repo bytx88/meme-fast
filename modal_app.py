@@ -38,6 +38,16 @@ image = (
 )
 
 app = modal.App(APP_NAME, image=image)
+stock_volume = modal.Volume.from_name("meme-fast-stock-cache", create_if_missing=True)
+
+@app.function(max_containers=1, timeout=100, volumes={"/stock": stock_volume})
+async def read_stock(sector: str = ""):
+    from worker.stock import report
+    await stock_volume.reload.aio()
+    result = await report("/stock", sector)
+    await stock_volume.commit.aio()
+    return result
+
 refresh_priorities = modal.Dict.from_name("meme-fast-refresh-priorities", create_if_missing=True)
 tracked_wallet_registry = modal.Dict.from_name("meme-fast-tracked-wallet-registry", create_if_missing=True)
 wallet_universe_registry = modal.Dict.from_name("meme-fast-wallet-universe", create_if_missing=True)
@@ -802,6 +812,14 @@ def web():
         reply = await read_heatmap.remote.aio(days, symbol)
         return JSONResponse(reply['body'], status_code=reply['status'], headers={
             'cache-control': 'no-store', 'Retry-After': str(reply['retryAfter'])})
+
+    @web_app.get("/api/stock")
+    async def stock(sector: str = ""):
+        from worker.stock import SECTORS
+        if sector and sector not in SECTORS:
+            raise HTTPException(status_code=400, detail="Unknown sector")
+        reply = await read_stock.remote.aio(sector)
+        return JSONResponse(reply, status_code=200 if reply.get("series") else 503, headers={"cache-control": "no-store"})
 
     @web_app.get("/api/macro-review")
     async def macro_review():
