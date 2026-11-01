@@ -4,22 +4,31 @@ let source,model,period='1M',selected='XLK',request=0;
 const samples=new Map();
 function render(){
  model=analyze(source.series,period);
- if(!model){$('status').textContent='A complete, aligned sector history is unavailable.';$('dashboard').hidden=true;return}
- $('dashboard').hidden=false;$('asof').textContent=model.date;
- const age=(Date.now()-Date.parse(model.date+'T21:00:00Z'))/86400000;
+ if(!model){$('status').textContent='Complete calendar-period history is unavailable. Check the source date or try another period.';$('dashboard').hidden=true;return}
+ $('dashboard').hidden=false;$('asof').textContent=model.sourceDate;
+ const age=(Date.now()-Date.parse(model.sourceDate+'T21:00:00Z'))/86400000;
  $('freshness').textContent=source.status==='delayed'?'CACHED / PROVIDER DELAY':age>4?'OLD SESSION / CHECK SOURCE':'Daily adjusted closes';
  $('status').textContent=`${source.status==='delayed'?source.message+' ':''}${age>4?'Latest session is over four calendar days old. ':''}Source checked ${new Date(source.fetchedAt).toLocaleString()} · Yahoo Finance · 30-minute cache.`;
- $('range').textContent=`${model.start} → ${model.date} · ${period==='YTD'?'year to date':({'1D':'1','1W':'5','1M':'21','3M':'63'}[period])+' sessions'}`;
+ $('range').textContent=`${model.windows.current.label} · ${model.start} → ${model.date}`;
  document.querySelectorAll('[data-period]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.period===period));
  const best=model.rows[0],worst=model.rows.at(-1),relative=[...model.rows].sort((a,b)=>b.relative-a.relative),leader=relative[0];
  $('stats').innerHTML=`<article class="stat"><small>SECTORS ADVANCING / ${period}</small><strong>${model.advancing} <small style="display:inline">/ 11</small></strong><span>${model.outperforming} of 11 outperform SPY</span></article><article class="stat"><small>STRONGEST SECTOR / ${period}</small><strong>${best.name}</strong><span class="${tone(best.ret)}">${fmt(best.ret)}</span></article><article class="stat"><small>WEAKEST SECTOR / ${period}</small><strong>${worst.name}</strong><span class="${tone(worst.ret)}">${fmt(worst.ret)}</span></article><article class="stat"><small>RELATIVE LEADER / ${period}</small><strong>${leader.symbol}</strong><span class="${tone(leader.relative)}">${fmt(leader.relative,' pp')} vs SPY</span></article>`;
  const improving=model.rows.filter(r=>r.quadrant==='Improving'||r.quadrant==='Leading').sort((a,b)=>b.momentum-a.momentum).slice(0,3);
- $('read').textContent=`${leader.name} leads SPY by ${fmt(leader.relative,' pp')} over ${period}. ${model.outperforming} of 11 sectors beat the benchmark, while ${model.advancing} rose in absolute terms.${improving.length?' Relative momentum is improving most in '+improving.map(r=>r.name).join(', ')+'.':' No sector has positive relative momentum in the fixed 1M rotation lens.'}`;
+ $('read').textContent=`${leader.name} leads SPY by ${fmt(leader.relative,' pp')} in ${model.windows.current.label}. ${model.outperforming} of 11 sectors beat the benchmark, while ${model.advancing} rose in absolute terms.${improving.length?' Relative momentum is improving most in '+improving.map(r=>r.name).join(', ')+'.':' No sector has positive relative momentum in the fixed 21-session rotation lens.'}`;
  const max=Math.max(...model.rows.map(r=>Math.abs(r.ret)),1);
  $('heatmap').innerHTML=model.rows.map(r=>`<button class="heat-tile" data-sector="${r.symbol}" aria-pressed="${selected===r.symbol}" style="background:${r.ret>=0?'rgba(12,151,105,':'rgba(190,56,79,'}${.28+.65*Math.abs(r.ret)/max})"><span>${r.name}</span><small>${r.symbol}</small><b>${fmt(r.ret)}</b></button>`).join('');
- const measure=$('measure').value,ranked=[...model.rows].sort((a,b)=>b[measure]-a[measure]),limit=Math.max(...ranked.map(r=>Math.abs(r[measure])),.01);
- $('ranking').innerHTML=ranked.map(r=>{const v=r[measure],width=Math.abs(v)/limit*50;return `<div class="rank-row"><button data-sector="${r.symbol}" title="Explore ${r.name}">${r.symbol}</button><div class="rank-track"><span class="rank-bar" style="left:${v>=0?50:50-width}%;width:${width}%;background:${v>=0?'#31bd8c':'#eb657e'}"></span></div><strong class="${tone(v)}">${fmt(v,measure==='relative'?' pp':'%')}</strong></div>`}).join('');
- $('spy').textContent=fmt(model.benchmark);$('spy').className=tone(model.benchmark);
+ const measure=$('measure').value,priorKey=measure==='ret'?'previousRet':'previousRelative',unit=measure==='relative'?' pp':'%';
+ const ranked=[...model.rows].sort((a,b)=>b[measure]-a[measure]),priorRanked=[...model.rows].sort((a,b)=>(b[priorKey]??-Infinity)-(a[priorKey]??-Infinity));
+ const limit=Math.max(...ranked.flatMap(r=>[Math.abs(r[measure]),Math.abs(r[priorKey]??0)]),.01);
+ const current=model.windows.current,previous=model.windows.previous;
+ $('comparison').textContent=`Solid: ${current.label} · Muted: ${previous?.label||'previous period unavailable'}`;
+ $('comparison-dates').textContent=`Current closes: ${current.start} → ${current.end}${previous?' · Previous closes: '+previous.start+' → '+previous.end:''}. Change is current minus previous in percentage points. Rank arrows show positions gained or lost.`;
+ $('ranking').innerHTML=`<div class="rank-heading"><span>Sector</span><span class="bar-heading">Same scale</span><span>Current</span><span>Previous</span><span>Δ pp</span></div>`+ranked.map((r,i)=>{
+  const v=r[measure],p=r[priorKey],delta=p===null?null:v-p,priorRank=priorRanked.findIndex(x=>x.symbol===r.symbol)+1,movement=priorRank-i-1;
+  const bar=(n,prior)=>n===null?'':`<span class="rank-bar ${prior?'prior-bar':''}" style="top:${prior?17:4}px;left:${n>=0?50:50-Math.abs(n)/limit*50}%;width:${Math.abs(n)/limit*50}%;background:${n>=0?'#31bd8c':'#eb657e'}"></span>`;
+  return `<div class="rank-row"><div><button data-sector="${r.symbol}" title="Explore ${r.name}">${r.symbol}</button><small class="rank-movement" title="${p===null?'Previous rank unavailable':'Previous #'+priorRank+' → current #'+(i+1)}">${p===null?'—':movement>0?'↑'+movement:movement<0?'↓'+Math.abs(movement):'↔'}</small></div><div class="rank-track" role="img" aria-label="${r.symbol}: current ${fmt(v,unit)}, previous ${fmt(p,unit)}">${bar(v,false)}${bar(p,true)}</div><strong class="${tone(v)}">${fmt(v,unit)}</strong><span class="prior-value">${fmt(p,unit)}</span><strong class="${delta===null?'':tone(delta)}">${fmt(delta,'')}</strong></div>`;
+ }).join('');
+ $('spy').textContent=`${fmt(model.benchmark)} current / ${fmt(model.previousBenchmark)} previous`;$('spy').className='';
  rotation();focus();
 }
 function rotation(){
@@ -37,8 +46,8 @@ function rotation(){
 }
 async function focus(){
  const token=++request,symbol=selected,r=model.rows.find(r=>r.symbol===symbol);
- $('detail-title').textContent=r.name;$('detail-symbol').textContent=symbol+' / '+period;
- $('focus').innerHTML=`<div><small>RETURN</small><strong class="${tone(r.ret)}">${fmt(r.ret)}</strong></div><div><small>VS SPY</small><strong class="${tone(r.relative)}">${fmt(r.relative,' pp')}</strong></div><div><small>1M ROTATION</small><strong>${r.quadrant}</strong></div>`;
+ $('detail-title').textContent=r.name;$('detail-symbol').textContent=symbol+' / '+model.windows.current.label;
+ $('focus').innerHTML=`<div><small>RETURN</small><strong class="${tone(r.ret)}">${fmt(r.ret)}</strong></div><div><small>VS SPY</small><strong class="${tone(r.relative)}">${fmt(r.relative,' pp')}</strong></div><div><small>21-SESSION ROTATION</small><strong>${r.quadrant}</strong></div>`;
  $('stocks').textContent='Loading stock sample…';
  try{
   let data=samples.get(symbol);if(!data||Date.now()>data.retryAt*1000){const response=await fetch('/api/stock?sector='+symbol,{signal:AbortSignal.timeout(95000)});data=await response.json();if(!response.ok||!data.series)throw Error('Stock sample is temporarily unavailable.');samples.set(symbol,data)}
