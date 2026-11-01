@@ -27,6 +27,7 @@ export function runnerMode(report,now=Date.now()){
 export const formatMode=mode=>modeLabels[mode]?`${mode} (${modeLabels[mode]})`:mode;
 
 export function runnerDetails(report,failed=false){
+ if(report?.collectionEnabled===false)return '';
  const mode=failed?'—':runnerMode(report);
  const counts=report?.counts24h;
  const rows=RUNNER_CONFIG.levels.map(level=>[level,level>=1000000?`$${level/1000000}M`:`$${level/1000}K`]);

@@ -34,7 +34,7 @@ test('independent report failures recover on visible refresh and pause while hid
    const now=Date.now(),day=24*3600000;
    const method=METHOD;
    const delta={method,basket:[],readings:[{at:now-day,meme:1,altDelta:2,btcDelta:3,method,coverage:COMPLETE},{at:now,meme:4,altDelta:6,btcDelta:8,method,coverage:COMPLETE}]};
-   const runner={version:1,ready:true,score:1,updatedAt:now,policy:{version:7},counts24h:{},
+   const runner={version:1,collectionEnabled:true,ready:true,score:1,updatedAt:now,policy:{version:7},counts24h:{},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
    globalThis.fetch=async url=>{calls++;if(failing&&url===failedEndpoint)throw Error('test outage');
     return {ok:true,json:async()=>url==='/api/meme-index'?delta:runner}};
@@ -42,7 +42,7 @@ test('independent report failures recover on visible refresh and pause while hid
    mountMarket(market,{querySelector:()=>body});
    await new Promise(resolve=>setImmediate(resolve));
    if(failedEndpoint==='/api/meme-index')assert.match(market.innerHTML,/mode-1">1 \(Hard\)/);
-   else{assert.match(market.innerHTML,/mode-unknown">—/);assert.match(market.innerHTML,/\+3\.00 pp/)}
+   else{assert.doesNotMatch(market.innerHTML,/market-mode-value/);assert.match(market.innerHTML,/\+3\.00 pp/)}
    globalThis.document.hidden=true;
    const previous=calls;timer();assert.equal(calls,previous);
    failing=false;globalThis.document.hidden=false;onVisible();
@@ -58,6 +58,34 @@ test('Mode details distinguish real valuations from no-volume observations',()=>
  assert.match(html,/205\/210 tracked tokens freshly observed/);
  assert.match(html,/143 valued/);
  assert.match(html,/62 independently observed with zero 24H volume/);
+});
+
+test('header uses BTC, Alt, Meme order and removes disabled Mode from layout, details and accessibility',async()=>{
+ const saved={fetch:globalThis.fetch,document:globalThis.document,setInterval:globalThis.setInterval};
+ try{
+  let timer;
+  globalThis.document={hidden:false,addEventListener(){}};
+  globalThis.setInterval=callback=>{timer=callback;return 0};
+  const report={version:1,collectionEnabled:false,ready:true,score:1,updatedAt:Date.now(),policy:{version:7},counts24h:{},
+   history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true}};
+  globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/runner-mode'?report:{basket:[],readings:[]}});
+  const attrs=new Map(),market={innerHTML:'',setAttribute:(key,value)=>attrs.set(key,value)},body={innerHTML:''};
+  mountMarket(market,{querySelector:()=>body});
+  assert.doesNotMatch(market.innerHTML,/market-mode-value/,'no disabled Mode flash before settings load');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual([...market.innerHTML.matchAll(/<span>(BTC|Alt|Meme) <b/g)].map(match=>match[1]),['BTC','Alt','Meme']);
+  assert.doesNotMatch(market.innerHTML,/market-mode-value|has-mode/);
+  assert.doesNotMatch(body.innerHTML,/market-runner-mode|Solana Mode/);
+  assert.doesNotMatch(attrs.get('aria-label'),/Mode/);
+  assert.equal(runnerDetails(report),'');
+  report.collectionEnabled=true;timer();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(market.innerHTML,/has-mode/);
+  assert.match(market.innerHTML,/Meme[\s\S]*Mode <b class="mode-1">1 \(Hard\)/);
+  assert.match(body.innerHTML,/market-runner-mode/);
+  report.collectionEnabled=false;timer();await new Promise(resolve=>setImmediate(resolve));
+  assert.doesNotMatch(market.innerHTML,/market-mode-value|has-mode/);
+  assert.doesNotMatch(body.innerHTML,/market-runner-mode/);
+ }finally{Object.assign(globalThis,saved)}
 });
 
 test('provisional Mode accepts two matched hours and rejects missing evidence',()=>{
@@ -143,12 +171,12 @@ test('the mounted widget renders every supported score independently of missing 
   globalThis.document={hidden:false,addEventListener(){}};
   globalThis.setInterval=()=>0;
   for(const score of [1,2,3,4,5,null]){
-   const report={version:1,updatedAt:Date.now(),ready:score!==null,score,policy:{version:7},
+   const report={version:1,collectionEnabled:true,updatedAt:Date.now(),ready:score!==null,score,policy:{version:7},
     history:{usable:true,comparablePeriods:3,baselinePeriods:2},coverage:{reliable:true,reservedPass:true},counts24h:{}};
    globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/runner-mode'?report:{basket:[],readings:[]}});
    const market={innerHTML:'',setAttribute(){}},body={innerHTML:''};
    mountMarket(market,{querySelector:()=>body});
-   assert.match(market.innerHTML,/Mode <b class="mode-unknown">—/);
+   assert.doesNotMatch(market.innerHTML,/market-mode-value/);
    await new Promise(resolve=>setImmediate(resolve));
    const display=score?`${score} (${['','Hard','Cooling','Balanced','Improving','Easy'][score]})`:'—';
    assert.ok(market.innerHTML.includes(`Mode <b class="mode-${score||'unknown'}">${display}</b>`));
@@ -208,10 +236,10 @@ test('the header stays a 24H comparison when a legacy fixed preset lacks a basel
    assert.doesNotMatch(attributes.get('aria-label'),/current 1H|\+4\.25%/i);
    if(baseline){
     assert.match(header,/Alt\s+-0\.42 pp/);
-    assert.match(header,/Btc\s+-0\.38 pp/i);
+    assert.match(header,/BTC\s+-0\.38 pp/i);
    }else{
     assert.match(header,/Alt\s+—/);
-    assert.match(header,/Btc\s+—/i);
+    assert.match(header,/BTC\s+—/i);
    }
   });
  }
@@ -230,7 +258,7 @@ test('Meme automatically resumes its comparable pp reading and never falls back 
   assert.match(header,/Meme\s+-3\.75 pp/);
   assert.doesNotMatch(header,/current 1H/i);
   assert.match(header,/Alt\s+-0\.42 pp/);
-  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(header,/BTC\s+-0\.38 pp/i);
   assert.match(marketText(body.innerHTML),/Current 1H:.*?Meme\s+\+4\.25%/i);
   await refresh(report);
   assert.match(marketText(market.innerHTML),/Meme\s+—/);
@@ -254,7 +282,7 @@ test('legacy contaminated Meme is withheld while Alt and BTC remain available',a
  await withMountedMarket(report,async({market,body,attributes})=>{
   assert.match(marketText(market.innerHTML),/Meme\s+—/);
   assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
-  assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/i);
+  assert.match(marketText(market.innerHTML),/BTC\s+-0\.38 pp/i);
   assert.doesNotMatch(market.innerHTML,/413\.38B|413378817666/);
   assert.doesNotMatch(attributes.get('aria-label'),/413378817666/);
   assert.match(marketText(body.innerHTML),/legacy Meme calculation is withheld/i);
@@ -343,7 +371,7 @@ test('preset coverage and a valid roster hash are required even when a finite Me
    assert.match(marketText(market.innerHTML),/Meme\s+—/);
    assert.doesNotMatch(marketText(market.innerHTML),/\+4\.25%|\+3\.25 pp/);
    assert.match(marketText(market.innerHTML),/Alt\s+-1\.00 pp/);
-   assert.match(marketText(market.innerHTML),/Btc\s+-1\.00 pp/i);
+   assert.match(marketText(market.innerHTML),/BTC\s+-1\.00 pp/i);
    assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
   });
  }
@@ -408,7 +436,7 @@ test('adding or removing a member starts a new Meme baseline while benchmarks re
    assert.match(marketText(market.innerHTML),/Meme\s+—/);
    assert.match(marketText(body.innerHTML),/Current 1H: Meme \+4\.25%/);
    assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
-   assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/i);
+   assert.match(marketText(market.innerHTML),/BTC\s+-0\.38 pp/i);
    assert.match(marketText(body.innerHTML),/Awaiting fixed preset 24H baseline/);
    assert.match(marketText(body.innerHTML),/Only identical membership can share a 24H baseline/);
   });
@@ -428,7 +456,7 @@ test('a saved preset awaiting its first collection keeps fresh real Alt/BTC comp
   assert.match(header,/Meme\s+—/);
   assert.doesNotMatch(header,/\+4\.25%|-3\.75 pp|current 1H/i);
   assert.match(header,/Alt\s+-0\.42 pp/);
-  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(header,/BTC\s+-0\.38 pp/i);
   assert.match(details,/Fixed 12-coin preset/);
   assert.match(details,/0\/12 fresh qualified; 12 unavailable; complete Meme reading withheld/);
   assert.match(details,/Awaiting collection: 12/);
@@ -438,11 +466,11 @@ test('a saved preset awaiting its first collection keeps fresh real Alt/BTC comp
   assert.doesNotMatch(body.innerHTML,/Meme histogram, Alt and BTC/);
   await refresh(report,true);
   assert.match(marketText(market.innerHTML),/Alt\s+—/);
-  assert.match(marketText(market.innerHTML),/Btc\s+—/i);
+  assert.match(marketText(market.innerHTML),/BTC\s+—/i);
   const stale=readings.map(row=>({...row,at:row.at-76*60000}));
   await refresh({...report,readings:stale});
   assert.match(marketText(market.innerHTML),/Alt\s+—/);
-  assert.match(marketText(market.innerHTML),/Btc\s+—/i);
+  assert.match(marketText(market.innerHTML),/BTC\s+—/i);
  });
 });
 
@@ -457,7 +485,7 @@ test('changing the preset hash withholds Meme comparison and preserves the curre
   assert.match(details,/Current 1H: Meme \+4\.25%/);
   assert.doesNotMatch(header,/-3\.75 pp/);
   assert.match(header,/Alt\s+-0\.42 pp/);
-  assert.match(header,/Btc\s+-0\.38 pp/i);
+  assert.match(header,/BTC\s+-0\.38 pp/i);
   assert.match(details,/Awaiting fixed preset 24H baseline/);
   assert.match(details,/Meme 1H reading 24H ago: Awaiting matching history/);
   assert.match(details,/11\/11 fresh qualified; 0 unavailable/);
@@ -479,7 +507,7 @@ test('Meme selects the nearest complete same-preset baseline while benchmarks ke
    assert.match(header,/Meme\s+\+2\.25 pp/);
    assert.doesNotMatch(header,/current 1H/i);
    assert.match(header,/Alt\s+-0\.42 pp/);
-   assert.match(header,/Btc\s+-0\.38 pp/i);
+   assert.match(header,/BTC\s+-0\.38 pp/i);
    assert.match(details,/Meme 1H reading 24H ago:.*?\+2\.00%/);
    assert.match(body.innerHTML,/Meme \+2\.25 pp/);
   });
@@ -504,11 +532,11 @@ test('off-hour Meme repairs preserve fresh matched benchmarks without extending 
   assert.match(marketText(market.innerHTML),/Meme\s+—/);
   assert.match(marketText(body.innerHTML),/Current 1H: Meme \+91\.02%/);
   assert.match(marketText(market.innerHTML),/Alt\s+-0\.42 pp/);
-  assert.match(marketText(market.innerHTML),/Btc\s+-0\.38 pp/);
+  assert.match(marketText(market.innerHTML),/BTC\s+-0\.38 pp/);
   assert.match(marketText(body.innerHTML),/Alt\/BTC comparison: observed .*?baseline/);
   await refresh({method,basket:[],readings:[{...rows[0],at:at-day-76*60000},{...rows[1],at:at-76*60000},rows[2]]});
   assert.match(marketText(market.innerHTML),/Alt\s+—/);
-  assert.match(marketText(market.innerHTML),/Btc\s+—/);
+  assert.match(marketText(market.innerHTML),/BTC\s+—/);
  });
 });
 
@@ -556,7 +584,7 @@ test('existing members without genuine baselines never turn the header into a cu
   assert.match(header,/1H DELTA · VS 24H AGO/);
   assert.doesNotMatch(header,/current 1H|\+4\.00%|\+0\.00 pp/i);
   assert.match(header,/Alt\s+-1\.00 pp/);
-  assert.match(header,/Btc\s+-1\.00 pp/i);
+  assert.match(header,/BTC\s+-1\.00 pp/i);
   assert.match(details,/0\/11 matched historical baselines · 0 warming · 11 existing awaiting history/);
   assert.match(details,/Recovering 24H history/);
   assert.match(details,/Current 1H: Meme \+4\.00%/);

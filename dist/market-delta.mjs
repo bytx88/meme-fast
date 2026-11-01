@@ -183,9 +183,9 @@ function headerPercent(value,unit){
  return `${value>=0?'+':''}${(value/scale).toFixed(2)}${suffix}${unit}`;
 }
 
-function marketOverview(state,mode){
+function marketOverview(state,mode,showMode){
  const {alt,btc}=state,meme=memeDisplay(state);
- return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values"><span>Meme <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Btc <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span></span>`;
+ return `<span class="market-overview-title">1H DELTA · VS 24H AGO <span aria-hidden="true">↗</span></span><span class="market-overview-values${showMode?' has-mode':''}"><span>BTC <b class="${direction(btc)}">${headerPercent(btc,' pp')}</b></span><span>Alt <b class="${direction(alt)}">${headerPercent(alt,' pp')}</b></span><span>Meme <b class="${direction(meme.value)}" title="${pct(meme.value,meme.unit)}">${headerPercent(meme.value,meme.unit)}</b></span>${showMode?`<span class="market-mode-value">Mode <b class="mode-${Number(mode)||'unknown'}">${formatMode(mode)}</b></span>`:''}</span>`;
 }
 
 function memberComparisonDetails(component,validated){
@@ -212,7 +212,7 @@ function marketDetails(report,state,modeDetails){
  const comparisonMembers=new Map((Array.isArray(componentRows)?componentRows:[]).filter(component=>component&&typeof component.id==='string').map(component=>[component.id,component]));
  const pendingMembers=components?.components.filter(component=>component.status==='pending').length||0;
  const componentSummary=usesComponents?components?`<p class="market-input-quality">Per-member comparison: ${components.matchedMembers}/${size} matched historical baselines · ${components.warmingMembers-pendingMembers} warming${pendingMembers?` · ${pendingMembers} awaiting initial quote`:""}${components.awaitingHistoryMembers?` · ${components.awaitingHistoryMembers} existing awaiting history`:""} · 0 unavailable.</p>${components.warmingMembers?'<p role="status">Warming members: only newly added contracts copy their first observed 1H return and stay neutral until 24H. This reference is not a real historical baseline. A pending addition waits for its first qualified quote before its 24H warmup begins. Missing quotes for an excluded addition do not interrupt existing members’ comparisons.</p>':''}`:'<p role="status">Component comparison evidence is incomplete or unavailable. Meme is withheld; an available raw 1H average does not replace the comparison.</p>':'';
- return `<p>${presetLabel} · equal weight · hourly · ${usesComponents?'Meme averages each active member’s change in its 1H return versus its own 24H baseline. Newly added warming members have no influence until activation. Values are percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">Meme <strong>${pct(display.value,display.unit)}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · BTC <strong>${pct(btc,' pp')}</strong> · ${status}</p>
+ return `<p>${presetLabel} · equal weight · hourly · ${usesComponents?'Meme averages each active member’s change in its 1H return versus its own 24H baseline. Newly added warming members have no influence until activation. Values are percentage points (pp).':'difference between the current 1H reading and the 1H reading 24 hours earlier, in percentage points (pp).'}</p><p class="market-reading">BTC <strong>${pct(btc,' pp')}</strong> · Alt <strong>${pct(alt,' pp')}</strong> · Meme <strong>${pct(display.value,display.unit)}</strong> · ${status}</p>
  ${componentSummary}
  ${covered?`<p class="market-input-quality">${esc(coverageText)} ${Object.entries(coverage.exclusions||{}).map(([reason,count])=>`${esc(exclusionLabel(reason))}: ${esc(count)}`).join(' · ')}</p>`:''}
  ${memeReady&&!Number.isFinite(display.value)?'<p role="status">24H comparison · Meme —. Recovering matching historical observations. The current 1H average remains separate from the 24H comparison.</p>':''}
@@ -238,9 +238,10 @@ export function mountMarket(market,dialog){
  function render(){
   const state=marketState(delta.report,delta.failed);
   const mode=runner.failed?'—':runnerMode(runner.report);
-  market.innerHTML=marketOverview(state,mode);
-  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. Meme ${pct(state.meme,' pp')}. Alt ${pct(state.alt,' pp')}, BTC ${pct(state.btc,' pp')}. ${state.status}. Solana Mode ${formatMode(mode)}. Open details`);
-  body.innerHTML=marketDetails(delta.report,state,runnerDetails(runner.report,runner.failed));
+  const showMode=runner.report?.collectionEnabled===true;
+  market.innerHTML=marketOverview(state,mode,showMode);
+  market.setAttribute('aria-label',`Change in 1 hour readings versus 24 hours ago. BTC ${pct(state.btc,' pp')}. Alt ${pct(state.alt,' pp')}. Meme ${pct(state.meme,' pp')}. ${state.status}.${showMode?` Solana Mode ${formatMode(mode)}.`:''} Open details`);
+  body.innerHTML=marketDetails(delta.report,state,showMode?runnerDetails(runner.report,runner.failed):'');
  }
  async function refresh(url,target,valid){
   try{target.report=await fetchReport(url,valid);target.failed=false}
