@@ -1,3 +1,4 @@
+import {observedRun,previousObservation} from './observation-time.mjs';
 const clamp=value=>Math.max(0,Math.min(1,value));
 const number=value=>value===null||value===undefined||value===''||!Number.isFinite(Number(value))?null:Number(value);
 const scale=(value,start,end)=>value===null?null:clamp((value-start)/(end-start));
@@ -21,8 +22,8 @@ function persistence(rows,minimum){
  if(valid.length<minimum)return null;
  return valid.filter(sampleActive).length/valid.length;
 }
-function previousVolume(rows,now){
- return [...rows].reverse().find(row=>row.at<=now-4*60000&&row.at>=now-20*60000&&number(row.volume5m)!==null);
+function previousVolume(rows,at){
+ return previousObservation(rows.filter(row=>number(row.volume5m)!==null),at,4*60000,10*60000);
 }
 
 export const RADAR_MODES={
@@ -36,27 +37,28 @@ export function radarReading(coin,mode='scalp',now=Date.now()){
  const buys=number(coin.buys5m),sells=number(coin.sells5m),trades=buys===null||sells===null?null:buys+sells;
  const recent=samples(coin,'marketHistory',now-4*3600000,now);
  const hourly=samples(coin,'marketHistoryHourly',now-5*86400000,now);
- const latest=freshAt(coin),stale=latest===null||now-latest>15*60000;
- const previous=previousVolume(recent,now);
+ const latest=freshAt(coin),stale=latest===null||latest<=0||latest>now||now-latest>15*60000;
+ const previous=stale?null:previousVolume(recent,latest);
  const acceleration=volume5m===null||!previous?null:previous.volume5m>0?scale(volume5m/previous.volume5m,0.8,2.5):volume5m>0?1:0;
  const turnover5m=liquidity>0&&volume5m!==null?volume5m/liquidity:null;
  const turnover24h=liquidity>0&&volume24h!==null?volume24h/liquidity:null;
- const oneHour=recent.filter(row=>row.at>=now-3600000);
- const lastDay=hourly.filter(row=>row.at>=now-86400000);
- const span=hourly.length>1?(hourly.at(-1).at-hourly[0].at)/3600000:null;
+ const oneHour=observedRun(recent.filter(row=>row.at>=now-3600000&&completeSample(row)),now,10*60000,4*60000);
+ const hourlyRun=observedRun(hourly.filter(completeSample),now,90*60000,45*60000);
+ const lastDay=hourlyRun.filter(row=>row.at>=now-86400000);
+ const span=hourlyRun.length>1?(hourlyRun.at(-1).at-hourlyRun[0].at)/3600000:null;
  const poolAge=number(coin.poolCreated);
  const context=coin.savedContext?.kind==='verified'||coin.savedContext?.kind==='web'&&coin.savedContext.web?.exact?'Exact contract evidence':coin.savedContext?'Related context only':'Context pending';
  let parts;
  if(mode==='swing')parts=[
   component('Liquidity',20,scale(liquidity,10000,100000),liquidity===null?'Unavailable':'Current pool liquidity'),
   component('24h turnover',20,scale(turnover24h,0.3,3),turnover24h===null?'Unavailable':'24h volume ÷ liquidity'),
-  component('Repeated activity',25,persistence(oneHour,6),oneHour.length<6?`${oneHour.length}/6 recent samples; collecting history`:'Share of active samples in the last hour'),
-  component('Buy pressure',20,recentDirection(oneHour),oneHour.length<6?'Collecting one-hour history':'Buy share across sampled 5m windows'),
+  component('Repeated activity',25,persistence(oneHour,6),oneHour.length<6?`${oneHour.length}/6 consecutive recent samples; collecting history after any gap`:'Share of active samples in the last hour'),
+  component('Buy pressure',20,recentDirection(oneHour),oneHour.length<6?'Collecting consecutive one-hour history; gaps remain unknown':'Buy share across sampled 5m windows'),
   component('Context',15,contextValue(coin),context),
  ];
  else if(mode==='research')parts=[
   component('Liquidity',25,scale(liquidity,20000,250000),liquidity===null?'Unavailable':'Current pool liquidity'),
-  component('Day persistence',25,persistence(lastDay,8),lastDay.length<8?`${lastDay.length}/8 hourly samples; collecting history`:'Share of active hourly samples in the last day'),
+  component('Day persistence',25,persistence(lastDay,8),lastDay.length<8?`${lastDay.length}/8 consecutive hourly samples; collecting history after any gap`:'Share of active hourly samples in the last day'),
   component('Observed history',20,scale(span,6,48),span===null?'Collecting history':`${Math.round(span)}h of sampled history`),
   component('24h turnover',15,scale(turnover24h,0.2,2),turnover24h===null?'Unavailable':'24h volume ÷ liquidity'),
   component('Context',15,contextValue(coin),context),

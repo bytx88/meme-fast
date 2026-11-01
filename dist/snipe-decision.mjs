@@ -1,3 +1,4 @@
+import {previousObservation} from './observation-time.mjs';
 export const DEFAULT_ENTRY = Object.freeze({sizeUsd:250,maxPoolAgeMinutes:30,maxMarketAgeMinutes:6,minLiquidityUsd:10000,minBuys5m:5,maxSellBuyRatio:1,maxSizeLiquidityPercent:2});
 
 const number=value=>value==null||value===''||!Number.isFinite(Number(value))?null:Number(value);
@@ -33,11 +34,13 @@ export function assessEntry(coin,settings=DEFAULT_ENTRY,now=Date.now()){
  if(sellBuyRatio===null||sellBuyRatio>settings.maxSellBuyRatio)reasons.push('Sell pressure');
  if(sizeLiquidityPercent===null||sizeLiquidityPercent>settings.maxSizeLiquidityPercent)reasons.push('Size / liquidity');
  const flow=Array.isArray(coin.flowSamples)?coin.flowSamples:[];
- const previous=flow.length>=2?flow.at(-2):null;
+ const comparisonReady=marketAgeMinutes!==null&&marketAgeMinutes<=settings.maxMarketAgeMinutes;
+ const previous=comparisonReady?previousObservation(flow,marketUpdatedAt,4*60000,10*60000):null;
  const volumeChange=previous&&number(previous.volume5m)!==null&&number(coin.volume5m)!==null?number(coin.volume5m)-number(previous.volume5m):null;
  const buysChange=previous&&number(previous.buys5m)!==null&&buys!==null?buys-number(previous.buys5m):null;
  const sellsChange=previous&&number(previous.sells5m)!==null&&sells!==null?sells-number(previous.sells5m):null;
  const liquidityChange=previous&&number(previous.liquidity)!==null&&liquidity!==null?liquidity-number(previous.liquidity):null;
  return {passesScreen:reasons.length===0,reasons,poolAgeMinutes,marketAgeMinutes,detectionLagMinutes,sizeLiquidityPercent,sellBuyRatio,volumeChange,buysChange,sellsChange,liquidityChange,
+  comparisonStatus:previous?'Matched prior observation':'Awaiting a matching prior observation; collection gaps are not compared',comparisonAt:previous?.at??null,
   executionVerified:false,contractRiskVerified:false};
 }

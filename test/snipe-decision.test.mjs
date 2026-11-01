@@ -31,3 +31,17 @@ test('missing or stale data cannot pass the entry screen',()=>{
 test('flow projection retains only two newest finite samples',()=>{
  assert.deepEqual(compactFlow([{at:10,volume5m:1},{at:30,volume5m:3},{at:20,volume5m:2},{at:'bad'}]).map(row=>row.at),[20,30]);
 });
+
+test('a restart cannot compare Snipe flow across a collection gap or stale current quote',()=>{
+ const old={...coin.flowSamples[0],at:now-60*60000};
+ for(const changed of [
+  {...coin,flowSamples:[old,coin.flowSamples[1]]},
+  {...coin,marketUpdatedAt:now-7*60000},
+  {...coin,flowSamples:[{...old,at:now+60000},coin.flowSamples[1]]},
+ ]){
+  const result=assessEntry(changed,DEFAULT_ENTRY,now);
+  for(const key of ['volumeChange','buysChange','sellsChange','liquidityChange'])assert.equal(result[key],null);
+  assert.match(result.comparisonStatus,/gaps are not compared/);
+ }
+ assert.equal(assessEntry({...coin,flowSamples:[...coin.flowSamples].reverse()},DEFAULT_ENTRY,now).volumeChange,1500);
+});

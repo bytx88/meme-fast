@@ -5,6 +5,18 @@ import {readFile} from 'node:fs/promises';
 import {RUNNER_CONFIG} from '../dist/runner-policy.mjs';
 
 const METHOD='fixed-preset-11-1h-v1-0123456789ab';
+
+test('comparison chart leaves a visible break across collection downtime',()=>{
+ const at=1800000000000;
+ const html=chart([0,1,5,6].map(hour=>({at:at+hour*3600000,meme:1,altDelta:2,btcDelta:3})),' pp');
+ const lines=[...html.matchAll(/<path d="([^"]*)"/g)].map(match=>match[1]);
+ assert.equal(lines.length,2);
+ for(const path of lines){
+  assert.equal((path.match(/M/g)||[]).length,2);
+  assert.equal((path.match(/L/g)||[]).length,2);
+ }
+ assert.equal(compareReading([{at,meme:2,altDelta:1,btcDelta:1},{at:at+27*3600000,meme:3,altDelta:2,btcDelta:2}]),null);
+});
 const COMPLETE={totalTokens:11,includedTokens:11,excludedTokens:0,exclusions:{}};
 const SYMBOLS=['BP','STONK','PONS','CATE','SI','ANSEM','ZCAT','PURR','CASHCAT','NEARKAT','RAYCAT'];
 const presetBasket=at=>SYMBOLS.map((symbol,index)=>({symbol,chain:'solana',address:'contract-'+symbol,pool:'pool-'+symbol,poolCreatedAt:at-7200000,priceChange1h:2,eligible:true,weight:1/11,rank:index+1,priceSource:'DexScreener'}));

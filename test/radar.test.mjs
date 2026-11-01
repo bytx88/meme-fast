@@ -43,3 +43,25 @@ test('repeated market samples and exact contract context contribute to horizon-s
  assert.equal(radarReading(observed,'research',now).parts.find(part=>part.label==='Day persistence').value,1);
  assert.equal(radarReading(observed,'research',now).parts.find(part=>part.label==='Context').value,1);
 });
+
+test('Swing rebuilds observed continuity after downtime instead of counting both sides of a gap',()=>{
+ const row=at=>({at,volume5m:1500,buys5m:12,sells5m:4});
+ const before=Array.from({length:8},(_,i)=>row(now-(12-i)*5*60000));
+ const resumed=[...before,row(now)];
+ const swing=radarReading(coin({marketHistory:resumed}),'swing',now);
+ assert.equal(swing.score,null);
+ assert.equal(swing.historySamples,1);
+ const hourly=[...Array.from({length:10},(_,i)=>row(now-(15-i)*3600000)),row(now)];
+ const research=radarReading(coin({marketHistoryHourly:hourly}),'research',now);
+ assert.equal(research.score,null);
+ assert.equal(research.parts.find(p=>p.label==='Observed history').value,null);
+ const scalp=radarReading(coin({marketHistory:before}),'scalp',now);
+ assert.equal(scalp.parts.find(p=>p.label==='Acceleration').value,null);
+});
+
+test('duplicate or burst samples do not manufacture Swing horizon coverage',()=>{
+ const row={at:now,volume5m:1500,buys5m:12,sells5m:4};
+ for(const rows of [Array(12).fill(row),Array.from({length:12},(_,i)=>({...row,at:now-i*1000}))])
+  assert.equal(radarReading(coin({marketHistory:rows}),'swing',now).score,null);
+ assert.equal(radarReading(coin({marketUpdatedAt:now+60000}),'scalp',now).stale,true);
+});
