@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {analyze,change,sectors} from '../dist/stock-analysis.mjs';
+import {rankingRows,rankingMarkup} from '../dist/stock-ranking.mjs';
 const dates=Array.from({length:900},(_,i)=>new Date(Date.UTC(2024,6,1+i))).filter(d=>![0,6].includes(d.getUTCDay())).map(d=>d.toISOString().slice(0,10)).filter(d=>d<='2026-11-13');
 const series=Object.fromEntries(['SPY',...Object.keys(sectors)].map((s,j)=>[s,dates.map((date,i)=>({date,close:100*(1+(j+1)*.0001)**i}))]));
 const assess=(period,asOf='2026-11-01',input=series)=>analyze(input,period,asOf);
@@ -40,3 +41,21 @@ test('rotation remains a rolling 21-session lens independent of calendar selecti
  const a=assess('1D'),b=assess('1M');for(const r of a.rows){const other=b.rows.find(x=>x.symbol===r.symbol);assert.equal(r.rs,other.rs);assert.equal(r.momentum,other.momentum)}
 });
 test('incomplete history cannot produce a market assessment',()=>assert.equal(assess('1M','2026-11-01',{...series,XLK:[]}),null));
+
+test('new ETFs use sector dates and show missing comparisons without changing sector counts',()=>{
+ const input={...series,GLD:series.XLK.filter(r=>r.date>='2026-06-30'),COPX:series.XLB};
+ const quarter=assess('3M','2026-11-01',input),original=assess('3M');
+ const gld=quarter.rows.find(r=>r.symbol==='GLD'),copx=quarter.rows.find(r=>r.symbol==='COPX');
+ assert.deepEqual(quarter.windows,original.windows);
+ assert.equal(quarter.advancing,original.advancing);
+ assert.equal(quarter.outperforming,original.outperforming);
+ assert.ok(Number.isFinite(gld.ret));
+ assert.equal(gld.previousRet,null);
+ assert.ok(Number.isFinite(copx.previousRet));
+ const ytd=assess('YTD','2026-11-01',input);
+ const ranked=rankingRows(ytd.rows).find(r=>r.symbol==='GLD');
+ assert.equal(ranked.currentRank,null);
+ assert.equal(ranked.change,null);
+ assert.match(rankingMarkup(ytd,{view:'side'}),/data-sector="GLD"/);
+ assert.doesNotMatch(rankingMarkup(ytd,{view:'side'}),/NaN|undefined/);
+});

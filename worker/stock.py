@@ -20,9 +20,10 @@ SECTORS = {
     'XLK': ('Technology', ['NVDA', 'MSFT', 'AAPL']),
     'XLU': ('Utilities', ['NEE', 'SO', 'DUK']),
 }
+EXTRA_ETFS = ('GLD', 'COPX')
 
 
-def parse_chart(payload, now):
+def parse_chart(payload, now, minimum=80):
     chart = payload['chart']['result'][0]
     timestamps = chart['timestamp']
     prices = chart['indicators']['adjclose'][0]['adjclose']
@@ -38,7 +39,7 @@ def parse_chart(payload, now):
         if isinstance(price, (int, float)) and math.isfinite(price) and price > 0:
             rows.append({'date': day.isoformat(), 'close': price})
     rows = sorted({r['date']: r for r in rows}.values(), key=lambda r: r['date'])
-    if len(rows) < 80:
+    if len(rows) < minimum:
         raise ValueError('Insufficient adjusted history')
     return rows
 
@@ -55,19 +56,21 @@ async def report(directory, sector='', now=None):
         cached = json.loads(file.read_text())
     except (OSError, ValueError):
         cached = {}
-    if now < cached.get('retryAt', 0):
+    if now < cached.get('retryAt', 0) and (sector or cached.get('extraEtfsChecked')):
         return cached
-    symbols = SECTORS[sector][1] if sector else ['SPY', *SECTORS]
+    required = SECTORS[sector][1] if sector else ['SPY', *SECTORS]
+    symbols = required if sector else [*required, *EXTRA_ETFS]
     semaphore = asyncio.Semaphore(3)
     async with httpx.AsyncClient(timeout=18, headers={'User-Agent': 'Mozilla/5.0'}) as client:
         async def fetch(symbol):
             async with semaphore:
                 reply = await client.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}', params={'range': '2y', 'interval': '1d'})
                 reply.raise_for_status()
-                return symbol, parse_chart(reply.json(), now)
+                return symbol, parse_chart(reply.json(), now, minimum=1 if symbol in EXTRA_ETFS else 80)
         results = await asyncio.gather(*(fetch(symbol) for symbol in symbols), return_exceptions=True)
     good = {r[0]: r[1] for r in results if not isinstance(r, Exception)}
-    if len(good) == len(symbols):
+    complete = all(symbol in good for symbol in required)
+    if complete:
         result = {'series': good, 'fetchedAt': datetime.fromtimestamp(now, timezone.utc).isoformat(),
                   'status': 'daily', 'retryAt': now + 1800}
     else:
@@ -76,7 +79,9 @@ async def report(directory, sector='', now=None):
                   'message': 'Provider unavailable. Retry in 30 minutes; any displayed data is the last complete snapshot.'}
         if now - (cached.get('savedAt') or 0) > 7 * 86400:
             result.pop('series', None)
-    result['savedAt'] = now if len(good) == len(symbols) else cached.get('savedAt', 0)
+    result['savedAt'] = now if complete else cached.get('savedAt', 0)
+    if not sector:
+        result['extraEtfsChecked'] = True
     temp = file.with_suffix('.tmp')
     temp.write_text(json.dumps(result), encoding='utf-8')
     temp.replace(file)

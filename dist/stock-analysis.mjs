@@ -1,4 +1,5 @@
 export const sectors={XLE:'Energy',XLP:'Consumer staples',XLV:'Health care',XLU:'Utilities',XLB:'Materials',XLRE:'Real estate',XLY:'Consumer discretionary',XLF:'Financials',XLI:'Industrials',XLC:'Communication services',XLK:'Technology'};
+export const extraEtfs={GLD:'SPDR Gold Shares',COPX:'Global X Copper Miners ETF'};
 export const periods={'1D':1,'1W':5,'1M':21,'3M':63,YTD:0};
 export function change(rows,period,end=rows.length-1){
  const last=rows[end];if(!last)return null;
@@ -31,21 +32,29 @@ export function periodWindows(dates,period,asOf,benchmarkDates=dates){
 }
 export function analyze(series,period='1M',asOf=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'})){
  if(!series.SPY?.length)return null;
- const names=Object.keys(sectors), maps=Object.fromEntries(['SPY',...names].map(s=>[s,new Map((series[s]||[]).map(r=>[r.date,r.close]))]));
- const dates=series.SPY.map(r=>r.date).filter(d=>names.every(s=>maps[s].has(d)));
+ const funds={...sectors,...extraEtfs},names=Object.keys(funds),sectorSymbols=Object.keys(sectors);
+ const maps=Object.fromEntries(['SPY',...names].map(s=>[s,new Map((series[s]||[]).map(r=>[r.date,r.close]))]));
+ const dates=series.SPY.map(r=>r.date).filter(d=>sectorSymbols.every(s=>maps[s].has(d)));
  if(dates.length<80)return null;
- const aligned=Object.fromEntries(['SPY',...names].map(s=>[s,dates.map(date=>({date,close:maps[s].get(date)}))]));
  const windows=periodWindows(dates,period,asOf,series.SPY.map(r=>r.date));
  if(!windows.current)return null;
- const value=(symbol,window)=>window?(maps[symbol].get(window.end)/maps[symbol].get(window.start)-1)*100:null;
+ const value=(symbol,window)=>{
+  const map=maps[symbol];
+  return window&&map.has(window.start)&&map.has(window.end)?(map.get(window.end)/map.get(window.start)-1)*100:null;
+ };
  const benchmark=value('SPY',windows.current),previousBenchmark=value('SPY',windows.previous),end=dates.length-1;
+ const rotationSpread=(symbol,i)=>{
+  const window={start:dates[i-21],end:dates[i]},ret=value(symbol,window);
+  return ret===null?null:ret-value('SPY',window);
+ };
  const rows=names.map(symbol=>{
-  const data=aligned[symbol],ret=value(symbol,windows.current),relative=ret-benchmark;
+  const ret=value(symbol,windows.current),relative=ret===null?null:ret-benchmark;
   const previousRet=value(symbol,windows.previous),previousRelative=previousRet===null?null:previousRet-previousBenchmark;
-  const rs=change(data,'1M')-change(aligned.SPY,'1M');
-  const previous=change(data,'1M',end-5)-change(aligned.SPY,'1M',end-5);
-  const momentum=rs-previous;
-  return {symbol,name:sectors[symbol],ret,relative,previousRet,previousRelative,rs,momentum,quadrant:rs>=0?(momentum>=0?'Leading':'Weakening'):(momentum>=0?'Improving':'Lagging')};
- }).sort((a,b)=>b.ret-a.ret);
- return {rows,benchmark,previousBenchmark,windows,sourceDate:dates.at(-1),date:windows.current.end,start:windows.current.start,advancing:rows.filter(r=>r.ret>0).length,outperforming:rows.filter(r=>r.relative>0).length};
+  const rs=rotationSpread(symbol,end),previous=rotationSpread(symbol,end-5);
+  const momentum=rs===null||previous===null?null:rs-previous;
+  const quadrant=momentum===null?null:rs>=0?(momentum>=0?'Leading':'Weakening'):(momentum>=0?'Improving':'Lagging');
+  return {symbol,name:funds[symbol],ret,relative,previousRet,previousRelative,rs,momentum,quadrant};
+ }).sort((a,b)=>(b.ret??-Infinity)-(a.ret??-Infinity));
+ const sectorRows=rows.filter(r=>Object.hasOwn(sectors,r.symbol));
+ return {rows,benchmark,previousBenchmark,windows,sourceDate:dates.at(-1),date:windows.current.end,start:windows.current.start,advancing:sectorRows.filter(r=>r.ret>0).length,outperforming:sectorRows.filter(r=>r.relative>0).length};
 }

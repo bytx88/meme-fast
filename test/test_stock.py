@@ -3,7 +3,7 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 from datetime import datetime, timezone
 from worker.stock import parse_chart, report
 
@@ -20,11 +20,33 @@ class StockTest(unittest.TestCase):
 
     def test_fresh_cache_avoids_source_requests(self):
         with tempfile.TemporaryDirectory() as directory:
-            cached = {'series': {'SPY': []}, 'retryAt': 2000, 'savedAt': 1000, 'status': 'daily'}
+            cached = {'series': {'SPY': []}, 'retryAt': 2000, 'savedAt': 1000, 'status': 'daily', 'extraEtfsChecked': True}
             Path(directory, 'sectors.json').write_text(json.dumps(cached))
             with patch('httpx.AsyncClient') as client:
                 self.assertEqual(asyncio.run(report(directory, now=1100)), cached)
                 client.assert_not_called()
+
+    def test_legacy_cache_refresh_accepts_short_etf_history_and_tolerates_missing_etf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory, 'sectors.json')
+            file.write_text(json.dumps({'series': {'SPY': []}, 'retryAt': 2000}))
+            with patch('httpx.AsyncClient') as client, patch('worker.stock.parse_chart') as parse:
+                get = client.return_value.__aenter__.return_value.get
+                response = Mock()
+
+                async def fetch(url, **_):
+                    if url.endswith('/COPX'):
+                        raise RuntimeError('offline')
+                    return response
+
+                get.side_effect = fetch
+                parse.side_effect = lambda payload, now, minimum: [{'date': '2026-11-09', 'close': minimum}]
+                result = asyncio.run(report(directory, now=1100))
+                self.assertEqual(result['status'], 'daily')
+                self.assertEqual(result['series']['GLD'][0]['close'], 1)
+                self.assertEqual(result['series']['SPY'][0]['close'], 80)
+                self.assertNotIn('COPX', result['series'])
+                self.assertTrue(result['extraEtfsChecked'])
 
     def test_provider_failure_retains_dated_snapshot_then_expires_it(self):
         with tempfile.TemporaryDirectory() as directory:
