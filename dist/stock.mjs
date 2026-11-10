@@ -1,4 +1,4 @@
-import {analyze,sectors,extraEtfs} from './stock-analysis.mjs';
+import {analyze,sectors,extraAssets} from './stock-analysis.mjs';
 import {rankingMarkup} from './stock-ranking.mjs';
 const $=id=>document.getElementById(id),fmt=(n,suffix='%')=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}${suffix}`:'—',tone=n=>n>=0?'positive':'negative';
 let source,model,period='1M',selected='XLK',request=0,rankingView='current';
@@ -8,8 +8,8 @@ function render(){
  if(!model){$('status').textContent='Complete calendar-period history is unavailable. Check the source date or try another period.';$('dashboard').hidden=true;return}
  $('dashboard').hidden=false;$('asof').textContent=model.sourceDate;
  const age=(Date.now()-Date.parse(model.sourceDate+'T21:00:00Z'))/86400000;
- $('freshness').textContent=source.status==='delayed'?'CACHED / PROVIDER DELAY':age>4?'OLD SESSION / CHECK SOURCE':'Daily adjusted closes';
- $('status').textContent=`${source.status==='delayed'?source.message+' ':''}${age>4?'Latest session is over four calendar days old. ':''}Source checked ${new Date(source.fetchedAt).toLocaleString()} · Yahoo Finance · 30-minute cache.`;
+ $('freshness').textContent=source.status==='delayed'?'CACHED / PROVIDER DELAY':age>4?'OLD SESSION / CHECK SOURCE':'Daily comparison closes';
+ $('status').textContent=`${source.status==='delayed'?source.message+' ':''}${age>4?'Latest session is over four calendar days old. ':''}Source checked ${new Date(source.fetchedAt).toLocaleString()} · Yahoo Finance / Binance spot · 30-minute cache.`;
  $('range').textContent=`${model.windows.current.label} · ${model.start} → ${model.date}`;
  document.querySelectorAll('[data-period]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.period===period));
  const sectorRows=model.rows.filter(r=>Object.hasOwn(sectors,r.symbol));
@@ -39,24 +39,26 @@ function rotation(){
  const xMax=Math.max(...rows.map(r=>Math.abs(r.rs)),1)*1.2,yMax=Math.max(...rows.map(r=>Math.abs(r.momentum)),1)*1.25;
  const used=[];
  const points=rows.map(r=>{
-  const x=270+r.rs/xMax*210,y=155-r.momentum/yMax*112;
+  const x=270+r.rs/xMax*210,y=155-r.momentum/yMax*112,width=Math.max(32,r.symbol.length*7);
   const offsets=[[0,-17],[0,20],[28,0],[-28,0],[28,-20],[-28,-20],[28,20],[-28,20],[0,-36],[0,38],[48,0],[-48,0]];
   let label;
-  for(const [dx,dy] of offsets){const lx=Math.max(58,Math.min(482,x+dx)),ly=Math.max(55,Math.min(260,y+dy));if(!used.some(p=>Math.abs(p.x-lx)<35&&Math.abs(p.y-ly)<17)){label={x:lx,y:ly};break}}
-  label||={x:x,y:y-17};used.push(label);return {...r,x,y,label};
+  for(const [dx,dy] of offsets){const lx=Math.max(58,Math.min(482,x+dx)),ly=Math.max(55,Math.min(260,y+dy));if(!used.some(p=>Math.abs(p.x-lx)<(p.width+width)/2+3&&Math.abs(p.y-ly)<17)){label={x:lx,y:ly};break}}
+  label||={x:x,y:y-17};used.push({...label,width});return {...r,x,y,label,width};
  });
  const colors={Leading:'#28ba91',Improving:'#35a6ca',Weakening:'#c69849',Lagging:'#d95b78'};
- $('rotation').innerHTML=`<svg viewBox="0 0 540 320" role="group" aria-labelledby="rotation-title"><title id="rotation-title">ETF relative strength versus SPY and its five-session change</title><path d="M40 25H500V285H40Z" fill="#0c1822"/><path d="M270 25V285M40 155H500" stroke="#9ab3c0" stroke-dasharray="3 4" opacity=".6"/><g fill="#7f9eaf" font-size="11"><text x="50" y="43">Improving</text><text x="445" y="43">Leading</text><text x="50" y="275">Lagging</text><text x="435" y="275">Weakening</text><text x="42" y="307">−${xMax.toFixed(1)} pp</text><text x="255" y="307">0</text><text x="452" y="307">+${xMax.toFixed(1)} pp</text><text x="4" y="28">+${yMax.toFixed(1)}</text><text x="4" y="286">−${yMax.toFixed(1)}</text></g>${points.map(r=>`<g class="dot" data-sector="${r.symbol}" tabindex="0" role="button" aria-label="Explore ${r.name}, ${r.quadrant}, relative strength ${fmt(r.rs,' pp')}, momentum ${fmt(r.momentum,' pp')}"><title>${r.name}: ${r.quadrant}; strength ${fmt(r.rs,' pp')}; momentum ${fmt(r.momentum,' pp')}</title><path d="M${r.x} ${r.y}L${r.label.x} ${r.label.y}" stroke="${colors[r.quadrant]}" opacity=".6"/><circle cx="${r.x}" cy="${r.y}" r="${selected===r.symbol?8:6}" fill="${colors[r.quadrant]}" stroke="${selected===r.symbol?'#fff':'#0d1922'}" stroke-width="2"/><rect x="${r.label.x-16}" y="${r.label.y-8}" width="32" height="16" rx="3" fill="#13232d"/><text x="${r.label.x}" y="${r.label.y+3}" text-anchor="middle" fill="${colors[r.quadrant]}" font-size="10" font-weight="bold">${r.symbol}</text></g>`).join('')}</svg>`;
+ $('rotation').innerHTML=`<svg viewBox="0 0 540 320" role="group" aria-labelledby="rotation-title"><title id="rotation-title">Asset relative strength versus SPY and its five-session change</title><path d="M40 25H500V285H40Z" fill="#0c1822"/><path d="M270 25V285M40 155H500" stroke="#9ab3c0" stroke-dasharray="3 4" opacity=".6"/><g fill="#7f9eaf" font-size="11"><text x="50" y="43">Improving</text><text x="445" y="43">Leading</text><text x="50" y="275">Lagging</text><text x="435" y="275">Weakening</text><text x="42" y="307">−${xMax.toFixed(1)} pp</text><text x="255" y="307">0</text><text x="452" y="307">+${xMax.toFixed(1)} pp</text><text x="4" y="28">+${yMax.toFixed(1)}</text><text x="4" y="286">−${yMax.toFixed(1)}</text></g>${points.map(r=>`<g class="dot" data-sector="${r.symbol}" tabindex="0" role="button" aria-label="Explore ${r.name}, ${r.quadrant}, relative strength ${fmt(r.rs,' pp')}, momentum ${fmt(r.momentum,' pp')}"><title>${r.name}: ${r.quadrant}; strength ${fmt(r.rs,' pp')}; momentum ${fmt(r.momentum,' pp')}</title><path d="M${r.x} ${r.y}L${r.label.x} ${r.label.y}" stroke="${colors[r.quadrant]}" opacity=".6"/><circle cx="${r.x}" cy="${r.y}" r="${selected===r.symbol?8:6}" fill="${colors[r.quadrant]}" stroke="${selected===r.symbol?'#fff':'#0d1922'}" stroke-width="2"/><rect x="${r.label.x-r.width/2}" y="${r.label.y-8}" width="${r.width}" height="16" rx="3" fill="#13232d"/><text x="${r.label.x}" y="${r.label.y+3}" text-anchor="middle" fill="${colors[r.quadrant]}" font-size="10" font-weight="bold">${r.symbol}</text></g>`).join('')}</svg>`;
 }
 async function focus(){
  const token=++request,symbol=selected,r=model.rows.find(r=>r.symbol===symbol);
  $('detail-title').textContent=r.name;$('detail-symbol').textContent=symbol+' / '+model.windows.current.label;
  $('focus').innerHTML=`<div><small>RETURN</small><strong class="${r.ret===null?'':tone(r.ret)}">${fmt(r.ret)}</strong></div><div><small>VS SPY</small><strong class="${r.relative===null?'':tone(r.relative)}">${fmt(r.relative,' pp')}</strong></div><div><small>21-SESSION ROTATION</small><strong>${r.quadrant??'—'}</strong></div>`;
- const extra=Object.hasOwn(extraEtfs,symbol);
+ const extra=Object.hasOwn(extraAssets,symbol);
  $('sample-heading').hidden=extra;
  $('sample-note').hidden=extra;
  if(extra){
-  $('stocks').innerHTML=`<p class="panel-note"><a href="https://finance.yahoo.com/quote/${symbol}/" target="_blank" rel="noopener">${symbol} on Yahoo Finance ↗</a></p>`;
+  const bitcoin=symbol==='BTCUSDT',provider=bitcoin?'Binance':'Yahoo Finance';
+  const url=bitcoin?'https://www.binance.com/en/trade/BTC_USDT':'https://finance.yahoo.com/quote/'+symbol+'/';
+  $('stocks').innerHTML=`<p class="panel-note"><a href="${url}" target="_blank" rel="noopener">${symbol} on ${provider} ↗</a></p>`;
   return;
  }
  $('stocks').textContent='Loading stock sample…';

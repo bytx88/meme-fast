@@ -1,5 +1,8 @@
 export const sectors={XLE:'Energy',XLP:'Consumer staples',XLV:'Health care',XLU:'Utilities',XLB:'Materials',XLRE:'Real estate',XLY:'Consumer discretionary',XLF:'Financials',XLI:'Industrials',XLC:'Communication services',XLK:'Technology'};
-export const extraEtfs={GLD:'SPDR Gold Shares',COPX:'Global X Copper Miners ETF'};
+export const extraAssets={
+ GLD:'SPDR Gold Shares',COPX:'Global X Copper Miners ETF',SOXX:'iShares Semiconductor ETF',
+ IWM:'iShares Russell 2000 ETF',SPCX:'SpaceX',BTCUSDT:'Bitcoin / Tether'
+};
 export const periods={'1D':1,'1W':5,'1M':21,'3M':63,YTD:0};
 export function change(rows,period,end=rows.length-1){
  const last=rows[end];if(!last)return null;
@@ -32,7 +35,7 @@ export function periodWindows(dates,period,asOf,benchmarkDates=dates){
 }
 export function analyze(series,period='1M',asOf=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'})){
  if(!series.SPY?.length)return null;
- const funds={...sectors,...extraEtfs},names=Object.keys(funds),sectorSymbols=Object.keys(sectors);
+ const assets={...sectors,...extraAssets},names=Object.keys(assets),sectorSymbols=Object.keys(sectors);
  const maps=Object.fromEntries(['SPY',...names].map(s=>[s,new Map((series[s]||[]).map(r=>[r.date,r.close]))]));
  const dates=series.SPY.map(r=>r.date).filter(d=>sectorSymbols.every(s=>maps[s].has(d)));
  if(dates.length<80)return null;
@@ -53,7 +56,7 @@ export function analyze(series,period='1M',asOf=new Date().toLocaleDateString('e
   const rs=rotationSpread(symbol,end),previous=rotationSpread(symbol,end-5);
   const momentum=rs===null||previous===null?null:rs-previous;
   const quadrant=momentum===null?null:rs>=0?(momentum>=0?'Leading':'Weakening'):(momentum>=0?'Improving':'Lagging');
-  return {symbol,name:funds[symbol],ret,relative,previousRet,previousRelative,rs,momentum,quadrant};
+  return {symbol,name:assets[symbol],ret,relative,previousRet,previousRelative,rs,momentum,quadrant};
  }).sort((a,b)=>(b.ret??-Infinity)-(a.ret??-Infinity));
  const sectorRows=rows.filter(r=>Object.hasOwn(sectors,r.symbol));
  return {rows,benchmark,previousBenchmark,windows,sourceDate:dates.at(-1),date:windows.current.end,start:windows.current.start,advancing:sectorRows.filter(r=>r.ret>0).length,outperforming:sectorRows.filter(r=>r.relative>0).length};

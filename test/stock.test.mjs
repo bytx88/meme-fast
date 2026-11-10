@@ -42,20 +42,26 @@ test('rotation remains a rolling 21-session lens independent of calendar selecti
 });
 test('incomplete history cannot produce a market assessment',()=>assert.equal(assess('1M','2026-11-01',{...series,XLK:[]}),null));
 
-test('new ETFs use sector dates and show missing comparisons without changing sector counts',()=>{
- const input={...series,GLD:series.XLK.filter(r=>r.date>='2026-06-30'),COPX:series.XLB};
+test('additional assets use sector dates and show missing comparisons without changing sector counts',()=>{
+ const input={...series,GLD:series.XLV,COPX:series.XLB,SOXX:series.XLK,IWM:series.XLF,
+  SPCX:series.XLI.filter(r=>r.date>='2026-06-12'),BTCUSDT:[...series.SPY,{date:'2026-11-14',close:999}]};
  const quarter=assess('3M','2026-11-01',input),original=assess('3M');
- const gld=quarter.rows.find(r=>r.symbol==='GLD'),copx=quarter.rows.find(r=>r.symbol==='COPX');
+ const spacex=quarter.rows.find(r=>r.symbol==='SPCX');
  assert.deepEqual(quarter.windows,original.windows);
  assert.equal(quarter.advancing,original.advancing);
  assert.equal(quarter.outperforming,original.outperforming);
- assert.ok(Number.isFinite(gld.ret));
- assert.equal(gld.previousRet,null);
- assert.ok(Number.isFinite(copx.previousRet));
+ assert.ok(Number.isFinite(spacex.ret));
+ assert.equal(spacex.previousRet,null);
+ for(const symbol of ['GLD','COPX','SOXX','IWM','BTCUSDT']){
+  assert.ok(Number.isFinite(quarter.rows.find(r=>r.symbol===symbol).previousRet));
+ }
+ const daily=assess('1D','2026-11-14',input);
+ assert.equal(daily.date,'2026-11-13');
+ assert.equal(daily.rows.find(r=>r.symbol==='BTCUSDT').relative,0);
  const ytd=assess('YTD','2026-11-01',input);
- const ranked=rankingRows(ytd.rows).find(r=>r.symbol==='GLD');
+ const ranked=rankingRows(ytd.rows).find(r=>r.symbol==='SPCX');
  assert.equal(ranked.currentRank,null);
  assert.equal(ranked.change,null);
- assert.match(rankingMarkup(ytd,{view:'side'}),/data-sector="GLD"/);
+ assert.match(rankingMarkup(ytd,{view:'side'}),/data-sector="SPCX"/);
  assert.doesNotMatch(rankingMarkup(ytd,{view:'side'}),/NaN|undefined/);
 });
